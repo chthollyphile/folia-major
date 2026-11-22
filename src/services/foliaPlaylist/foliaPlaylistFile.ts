@@ -14,7 +14,8 @@ import { normalizeM3uPath } from './foliaPlaylistM3u';
 //
 // 文件是不可信的数据。读的时候：
 // - 先看大小、条目数的上限，再逐字段校验；歌的快照是照白名单重新拼出来的，文件里多出来的字段一律不要；
-// - 条目的 key 不信文件写的，从拼出来的歌重新算；
+// - 条目的 key 不信文件写的，从拼出来的歌重新算；在线歌的 id 和它的来源说的不是同一首的，这一条不收；
+// - 出处（原来是哪家的哪张歌单）是文件说的：读进来的出处带着 fromFile 记号，第一次「从原歌单更新」前要用户确认；
 // - 地址只认公开的 http / https 封面（查询串里像凭据的、指向本机或内网的不要）；别的地址、带凭据的东西既不写出去也不读进来；
 // - 本地歌只凭路径、文件名、大小、时长去曲库里找同一个文件，找不到就不导入（不按歌名歌手猜）。
 
@@ -45,8 +46,33 @@ const mediaIdOf = (value: unknown): string | number | undefined => {
     if (typeof value === 'string') return value.length > 0 && value.length <= 256 && !HAS_UNPRINTABLE.test(value) ? value : undefined;
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 };
-// 键名像凭据的：音源自己的数据里整项不要，封面地址的查询串里有它就不要这个地址。
-const CREDENTIAL_KEY = /token|cookie|secret|passw|credential|session|api[-_]?key|authori[sz]ation|^auth$|^sig(n|nature)?$/i;
+// 键名是凭据的：音源自己的数据里整项不要，封面地址的查询串里有它就不要这个地址。
+// 不按「键名里含某几个字母」猜（那样 bypassWindow、designId 这类也会中）：键名先按写法拆成词
+// （驼峰、下划线、连字符、点），拆出来的词在下面这张明确的表里才算；整个键是一个不分词的小写串时
+// （sessionid、accesstoken），只看它是不是以表里的长词开头或结尾。
+// 十家内置音源的歌 / 歌单附带数据里实际用到的键逐个对过（test/unit/services/foliaPlaylist/foliaPlaylistFile.test.ts
+// 里有清单）：除了一家的 freeSign（上游发的签名，是不是跟账号绑定不清楚，按签名处理、不带），没有一个会被删。
+const CREDENTIAL_WORDS = new Set([
+    'token', 'tokens', 'cookie', 'cookies', 'secret', 'secrets', 'password', 'passwd', 'pwd', 'passphrase',
+    'credential', 'credentials', 'session', 'auth', 'authorization', 'authorisation', 'bearer', 'jwt',
+    'apikey', 'sign', 'sig', 'fsig', 'signature',
+]);
+// 不分词的键只认这些（短词像 sign、auth、sig 夹在别的词里太常见，不拿来比开头结尾）。
+const CREDENTIAL_AFFIXES = ['token', 'cookie', 'secret', 'password', 'passwd', 'credential', 'apikey', 'authorization', 'authorisation', 'signature'];
+const keyWords = (key: string): string[] => key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map(word => word.toLowerCase());
+/** 这个键名（或查询串里的参数名）是不是凭据。 */
+export const isCredentialKeyName = (key: string): boolean => {
+    const words = keyWords(key);
+    if (words.some(word => CREDENTIAL_WORDS.has(word))) return true;
+    // api_key、api-key、apiKey。
+    if (words.some((word, index) => word === 'api' && words[index + 1] === 'key')) return true;
+    return words.some(word => word.startsWith('session') || CREDENTIAL_AFFIXES.some(affix => word.startsWith(affix) || word.endsWith(affix)));
+};
 const PRIVATE_HOST = /^(localhost|.*\.(local|lan|internal|home\.arpa)|127\..*|10\..*|192\.168\..*|172\.(1[6-9]|2\d|3[01])\..*|169\.254\..*|0\.0\.0\.0|\[.*\])$/i;
 /**
  * 能进文件、也能从文件里读进来的封面地址：http / https，主机不是本机或内网（读进来的地址界面会自动去取图），
@@ -59,7 +85,7 @@ const coverUrlOf = (value: unknown): string | undefined => {
         const url = new URL(text);
         if (url.username || url.password || PRIVATE_HOST.test(url.hostname)) return undefined;
         const keys = [...url.searchParams.keys()];
-        if (keys.some(key => CREDENTIAL_KEY.test(key))) return undefined;
+        if (keys.some(isCredentialKeyName)) return undefined;
         if (keys.includes('u') && (keys.includes('t') || keys.includes('p'))) return undefined;
         return text;
     } catch {
@@ -102,7 +128,7 @@ const cleanSourceData = (value: unknown, depth = 0): JsonValue | undefined => {
     if (!isRecord(value)) return undefined;
     const out: Record<string, JsonValue> = {};
     for (const [key, item] of Object.entries(value)) {
-        if (UNSAFE_KEYS.has(key) || key.length > 128 || CREDENTIAL_KEY.test(key)) continue;
+        if (UNSAFE_KEYS.has(key) || key.length > 128 || isCredentialKeyName(key)) continue;
         const cleaned = cleanSourceData(item, depth + 1);
         if (cleaned !== undefined) out[key] = cleaned;
     }
@@ -184,6 +210,22 @@ const onlineSongOf = (song: Json): UnifiedSong | null => {
             ...(providerData ? { providerData } : {}),
         },
     };
+};
+
+/**
+ * 读进来的在线歌，它的 id 和来源（sourceRef.mediaId）说的是不是同一首。歌单按 mediaId 认歌、去重、播放，宿主里别的
+ * 地方（给别的模组看的 id 等）用的是歌的 id：两样对不上的条目，界面上显示的和实际拿去用的可以是两首歌。
+ * 对得上的只有两种：id 就是 mediaId；或者 id 是音源自己的数据（providerData 最外层）里写着的另一个 id——
+ * 有的音源给歌两个 id（公开契约的 publicId：播放用的那个作 mediaId，另一个留作歌的 id，并且也放在它自己的数据里）。
+ * 文件里没写 id、或 id 不成样子的，用 mediaId 当 id，不算对不上。
+ */
+const onlineIdAgrees = (rawId: unknown, song: UnifiedSong): boolean => {
+    const id = mediaIdOf(rawId);
+    const ref = song.sourceRef;
+    if (id === undefined || ref?.kind !== 'online' || String(id) === ref.mediaId) return true;
+    return Object.values(ref.providerData ?? {}).some(value => (
+        (typeof value === 'string' || typeof value === 'number') && String(value) === String(id)
+    ));
 };
 
 /** Navidrome 的歌在文件里的样子：没有任何地址（它们带着账号的令牌），封面只留图的 id。 */
@@ -340,8 +382,10 @@ export interface ParsedFoliaPlaylistFile {
     favorite: boolean;
     origin?: FoliaPlaylistOrigin;
     entries: FoliaPlaylistFileEntry[];
-    /** 文件里不成样子、被丢掉的条目数。 */
+    /** 文件里不成样子、被丢掉的条目数（不含下面那种）。 */
     invalidCount: number;
+    /** 在线歌的 id 和它的来源说的不是同一首、因此没收的条目数。 */
+    mismatchedIdCount: number;
 }
 
 export type FoliaPlaylistFileError =
@@ -378,6 +422,9 @@ const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
         ...(refreshedAt ? { refreshedAt } : {}),
         ...(value.collectionType === 'album' ? { collectionType: 'album' as const } : {}),
         ...(collectionData ? { collectionData } : {}),
+        // 这个出处是文件说的。记号在这里加、不从文件里读（文件里写了 fromFile、confirmedAt 也不认），
+        // 所以文件没法把自己说成「已经确认过」。
+        fromFile: true,
     };
 };
 
@@ -396,7 +443,7 @@ const localHintFrom = (value: unknown): FoliaFileLocalHint | null => {
     };
 };
 
-const entryOf = (value: unknown): FoliaPlaylistFileEntry | null => {
+const entryOf = (value: unknown): FoliaPlaylistFileEntry | 'mismatched-id' | null => {
     if (!isRecord(value) || !isRecord(value.song)) return null;
     const common = {
         addedAt: timestamp(value.addedAt),
@@ -405,7 +452,9 @@ const entryOf = (value: unknown): FoliaPlaylistFileEntry | null => {
     const originalKey = typeof value.originalKey === 'string' && ENTRY_KEY.test(value.originalKey) ? value.originalKey : undefined;
     if (value.source === 'online') {
         const song = onlineSongOf(value.song);
-        return song ? { source: 'online', song, ...common, ...(originalKey ? { originalKey } : {}) } : null;
+        if (!song) return null;
+        if (!onlineIdAgrees(value.song.id, song)) return 'mismatched-id';
+        return { source: 'online', song, ...common, ...(originalKey ? { originalKey } : {}) };
     }
     if (value.source === 'navidrome') {
         const data = isRecord(value.navidrome) ? value.navidrome : null;
@@ -448,9 +497,11 @@ export const parseFoliaPlaylistFile = (text: string): FoliaPlaylistFileParse => 
 
     const entries: FoliaPlaylistFileEntry[] = [];
     let invalidCount = 0;
+    let mismatchedIdCount = 0;
     for (const raw of playlist.entries as unknown[]) {
         const entry = entryOf(raw);
-        if (entry) entries.push(entry);
+        if (entry === 'mismatched-id') mismatchedIdCount += 1;
+        else if (entry) entries.push(entry);
         else invalidCount += 1;
     }
     const origin = originOf(playlist.origin);
@@ -462,6 +513,7 @@ export const parseFoliaPlaylistFile = (text: string): FoliaPlaylistFileParse => 
             ...(origin ? { origin } : {}),
             entries,
             invalidCount,
+            mismatchedIdCount,
         },
     };
 };
@@ -575,6 +627,8 @@ export interface FoliaPlaylistFilePreview {
     local: { matched: number; unmatched: number; /** 认不回来的那些，给界面列几个名字。 */ unmatchedTitles: string[] };
     /** 文件里不成样子、被丢掉的条目数。 */
     invalidCount: number;
+    /** 在线歌的 id 和它的来源说的不是同一首、因此没收的条目数（预览里要写明原因）。 */
+    mismatchedIdCount: number;
     /** 文件里重复的（同一首只留第一条）。 */
     duplicateCount: number;
     /** 会写进歌单的条目，文件里的顺序。 */
@@ -680,6 +734,7 @@ export const previewFoliaPlaylistFile = (
         unavailableCount,
         local,
         invalidCount: file.invalidCount,
+        mismatchedIdCount: file.mismatchedIdCount,
         duplicateCount,
         entries,
     };

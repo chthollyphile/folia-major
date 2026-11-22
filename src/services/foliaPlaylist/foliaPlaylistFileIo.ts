@@ -1,5 +1,5 @@
 import type { LocalSong } from '../../types';
-import type { FoliaPlaylist, FoliaPlaylistAddResult, FoliaPlaylistSummary } from '../../types/foliaPlaylist';
+import type { FoliaPlaylist, FoliaPlaylistAddResult, FoliaPlaylistOrigin, FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import type { FoliaEntryAvailabilityDeps } from '../../library/core/foliaPlaylist/foliaPlaylist.contract';
 import { createSafeObjectUrl } from '../../utils/blobGuards';
 import { sanitizeDownloadFileName } from '../../utils/downloadFileName';
@@ -136,6 +136,13 @@ export const readPlaylistFile = async (file: File, localSongs: readonly LocalSon
     }
 };
 
+// 文件说的出处：不管预览里带着什么，写进歌单时一定标成「文件来的、还没确认」。
+const unconfirmedFileOrigin = (origin: FoliaPlaylistOrigin | undefined): FoliaPlaylistOrigin | undefined => {
+    if (!origin) return undefined;
+    const { confirmedAt: _confirmedAt, ...rest } = origin;
+    return { ...rest, fromFile: true };
+};
+
 /** 一次读入里能写进歌单的歌数。 */
 export const countImportableSongs = (reading: PlaylistFileReading): number => (
     reading.format === 'json' ? reading.preview.entries.length : reading.format === 'm3u' ? reading.matchedSongs.length : 0
@@ -155,7 +162,7 @@ export const importPlaylistFileReading = async (
             : addLocalSongsToFoliaPlaylist(options.mergeInto, reading.matchedSongs);
     }
     const playlist = reading.format === 'json'
-        ? await createFoliaPlaylistFromEntries(options.name, reading.preview.entries, { origin: reading.preview.origin })
+        ? await createFoliaPlaylistFromEntries(options.name, reading.preview.entries, { origin: unconfirmedFileOrigin(reading.preview.origin) })
         : await createFoliaPlaylistFromLocalSongs(options.name, reading.matchedSongs);
     return { playlist, result: { added: playlist.entryCount, duplicates: 0, rejected: 0 } };
 };

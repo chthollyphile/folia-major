@@ -1,5 +1,5 @@
 import type { SongResult } from '../types';
-import type { FoliaPlaylistEntry } from '../types/foliaPlaylist';
+import type { FoliaPlaylistEntry, FoliaPlaylistOrigin } from '../types/foliaPlaylist';
 import { getPlaybackSongKey, isStagePlaybackSong } from './appPlaybackGuards';
 import { toStoredSongSnapshot } from './songSnapshot';
 
@@ -213,3 +213,11 @@ export const refreshFoliaPlaylistEntries = (
     const changed = next.length !== entries.length || next.some((entry, index) => entry !== entries[index]);
     return changed ? { entries: next, counts, changed } : { entries: entries as FoliaPlaylistEntry[], counts, changed };
 };
+
+/**
+ * 这张歌单的出处是不是还要用户确认一次才能拿去「从原歌单更新」：出处是读入的文件说的（fromFile），而且还没确认过。
+ * 自己转存来的歌单没有 fromFile，不用问。
+ */
+export const foliaOriginNeedsConfirmation = (origin: Pick<FoliaPlaylistOrigin, 'fromFile' | 'confirmedAt'> | null | undefined): boolean => (
+    Boolean(origin?.fromFile) && !(typeof origin?.confirmedAt === 'number' && origin.confirmedAt > 0)
+);

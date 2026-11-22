@@ -74,6 +74,11 @@ export interface FoliaPlaylistPort {
         fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
         options?: { playVia?: string | null; signal?: AbortSignal },
     ): Promise<{ playlist: FoliaPlaylistSummary; result: FoliaRefreshFromOriginResult } | null>;
+    /**
+     * 出处是读入的文件说的歌单（origin.fromFile、还没有 confirmedAt）：用户确认了可以向那个音源读那张歌单，记在歌单上。
+     * 没确认之前 refreshFromOrigin 会 reject。shown 是给用户看的那个出处；歌单上的已经不是它了就不记，返回 false。
+     */
+    confirmOrigin(playlistId: string, shown: Pick<FoliaPlaylistOrigin, 'sourceId' | 'collectionId'>): Promise<boolean>;
 }
 
 /**

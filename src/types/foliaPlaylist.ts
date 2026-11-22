@@ -20,6 +20,16 @@ export type FoliaPlaylistOrigin = {
      * 刷新时原样交回给那个音源。只是那张歌单公开的标识，没有账号与凭据；没有就不写。
      */
     collectionData?: unknown;
+    /**
+     * 这个出处是从读入的歌单文件来的：是哪家的哪张歌单只是文件说的，没人核对过。自己转存来的没有这个记号。
+     * 记号由读文件的代码加（foliaPlaylistFile.ts），不从文件里读。
+     */
+    fromFile?: true;
+    /**
+     * 出处来自文件（fromFile）时：用户确认「可以向这个音源读这张歌单」的时刻。没确认之前「从原歌单更新」不去读
+     *（foliaPlaylistService 的 refreshFoliaPlaylistFromOrigin 会拒绝），确认过就不再问。
+     */
+    confirmedAt?: number;
 };
 
 export type FoliaPlaylistEntry = {

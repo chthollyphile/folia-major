@@ -14,6 +14,7 @@ import {
 } from '../../library/app/foliaOriginSongs';
 import { readTrackSourcesVersion, subscribeTrackSources } from '../../services/foliaPlaylist/trackSourceState';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
+import { foliaOriginNeedsConfirmation } from '../../utils/foliaPlaylistTransfer';
 import { SheetButton } from '../shared/Sheet';
 import ThemedDialog from '../shared/ThemedDialog';
 import type { FoliaTransferRequest } from './foliaPlaylistDialogStore';
@@ -71,6 +72,8 @@ const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, 
     const targets = usePlayViaTargets(originSourceId);
     const rememberedPlayVia = playlist?.origin?.playVia ?? KEEP_ORIGIN;
     const [name, setName] = useState(() => (request.mode === 'save' ? request.collection.name : playlist?.name ?? ''));
+    // 出处是读入的文件说的、还没确认过：对话框里写明会向哪个音源读哪张歌单，点「确认并更新」才记下确认并去读。
+    const needsOriginConfirmation = request.mode === 'refresh' && foliaOriginNeedsConfirmation(playlist?.origin);
     const [playVia, setPlayVia] = useState(rememberedPlayVia);
     const [phase, setPhase] = useState<Phase>({ step: 'choose' });
     const abortRef = useRef<AbortController | null>(null);
@@ -118,6 +121,11 @@ const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, 
                 // 写成了就照实说，哪怕取消踩在动笔之后（那时已经拦不住了）。
                 setStatusMessage(describeFoliaSaveResult(result, saved.name, chosenPlayVia, t));
             } else if (playlist) {
+                if (needsOriginConfirmation && !(await port.confirmOrigin(playlist.id, origin))) {
+                    setStatusMessage({ type: 'error', text: t('foliaTransfer.failed'), note: t('foliaTransfer.nothingWritten') });
+                    onClose();
+                    return;
+                }
                 const answer = await port.refreshFromOrigin(
                     playlist.id,
                     async stored => {
@@ -242,7 +250,7 @@ const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, 
                         disabled={isBusy || (request.mode === 'save' && !trimmedName)}
                         data-folia-transfer-action="confirm"
                     >
-                        {request.mode === 'save' ? t('foliaTransfer.saveConfirm') : t('foliaTransfer.refreshConfirm')}
+                        {request.mode === 'save' ? t('foliaTransfer.saveConfirm') : needsOriginConfirmation ? t('foliaTransfer.fileOriginConfirm') : t('foliaTransfer.refreshConfirm')}
                     </SheetButton>
                 </>
             )}
@@ -283,6 +291,11 @@ const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, 
                         </div>
                         <p className="text-xs leading-[18px] text-[color:var(--st-t3)]">{t('foliaTransfer.playViaHint')}</p>
                     </div>
+                )}
+                {needsOriginConfirmation && (
+                    <p className="rounded-lg bg-[var(--st-fill)] px-3 py-2 text-xs leading-[18px] text-[color:var(--st-t1)]" role="note" data-folia-transfer-file-origin>
+                        {t('foliaTransfer.fileOriginNotice', { source: sourceLabel, name: origin.name || origin.collectionId, id: origin.collectionId })}
+                    </p>
                 )}
                 {request.mode === 'refresh' && (
                     <p className="text-xs leading-[18px] text-[color:var(--st-t2)]">{t('foliaTransfer.refreshHint')}</p>

@@ -11,7 +11,13 @@ import type {
     FoliaSaveCollectionResult,
 } from '../../types/foliaPlaylist';
 import { appendFoliaPlaylistEntries, foliaLocalSongKey } from '../../utils/foliaPlaylistEntries';
-import { buildFoliaTransferEntries, refreshFoliaPlaylistEntries, toFoliaCounterparts, type FoliaCounterparts } from '../../utils/foliaPlaylistTransfer';
+import {
+    buildFoliaTransferEntries,
+    foliaOriginNeedsConfirmation,
+    refreshFoliaPlaylistEntries,
+    toFoliaCounterparts,
+    type FoliaCounterparts,
+} from '../../utils/foliaPlaylistTransfer';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { appDatabase } from '../appDatabase';
 import type { FoliaPlaylistRow } from './foliaPlaylistDatabase';
@@ -316,6 +322,7 @@ export const saveCollectionAsFoliaPlaylist = async (
     return writeFoliaPlaylists(async write => {
         const now = Date.now();
         const { entries, counts } = buildFoliaTransferEntries(input.songs, counterparts, now);
+        // 出处照字段重新拼：自己转存来的歌单不带 fromFile / confirmedAt，「从原歌单更新」不用问。
         const origin: FoliaPlaylistOrigin = {
             sourceId: input.origin.sourceId,
             collectionId: input.origin.collectionId,
@@ -330,10 +337,36 @@ export const saveCollectionAsFoliaPlaylist = async (
     });
 };
 
+/** 歌单的出处是读入的文件说的，用户还没确认过：不去读那张歌单。 */
+export class FoliaOriginUnconfirmedError extends Error {
+    constructor() {
+        super('The origin of this playlist came from a file and has not been confirmed');
+        this.name = 'FoliaOriginUnconfirmedError';
+    }
+}
+
+/**
+ * 用户确认了「可以向这个音源读这张歌单」：记在歌单的出处上（confirmedAt），以后「从原歌单更新」不再问。
+ * shown 是确认时界面上写给用户看的那个出处：歌单上的出处已经不是它了（歌单被换了、删了）就不记，返回 false。
+ * 本来就不用确认的（自己转存来的、确认过的）什么都不写，返回 true。
+ */
+export const confirmFoliaPlaylistOrigin = (
+    playlistId: string,
+    shown: Pick<FoliaPlaylistOrigin, 'sourceId' | 'collectionId'>,
+): Promise<boolean> => writeFoliaPlaylists(async write => {
+    const row = await readPlaylistRow(playlistId);
+    if (!row?.origin || row.origin.sourceId !== shown.sourceId || row.origin.collectionId !== shown.collectionId) return false;
+    if (!foliaOriginNeedsConfirmation(row.origin)) return true;
+    const now = Date.now();
+    await putPlaylistRow(write, { ...row, origin: { ...row.origin, confirmedAt: now }, updatedAt: now });
+    return true;
+});
+
 /**
  * 从原歌单刷新一张转存来的歌单。原歌单现在的歌由 fetchOriginSongs 去读（调用方给，读不到就抛错，什么都不写）。
  * 新来的歌按上次选的目标音源（origin.playVia）换；options.playVia 给了就改用它并记下来（null：从此不换）。
- * 歌单不存在、不是转存来的：null。用户自己加的条目和原歌单里已经没有的歌都留着（规则见 utils/foliaPlaylistTransfer.ts）。
+ * 歌单不存在、不是转存来的：null。出处是读入的文件说的而用户还没确认过（confirmFoliaPlaylistOrigin）：
+ * 抛 FoliaOriginUnconfirmedError，不去读、不写。用户自己加的条目和原歌单里已经没有的歌都留着（规则见 utils/foliaPlaylistTransfer.ts）。
  * 规则是对着全部条目算的，所以这一步在事务里把这张歌单的条目读全；写回去的只是变了的行。
  */
 export const refreshFoliaPlaylistFromOrigin = async (
@@ -345,6 +378,8 @@ export const refreshFoliaPlaylistFromOrigin = async (
     const before = await getFoliaPlaylistSummary(playlistId);
     const origin = before?.origin;
     if (!before || !origin) return null;
+    // 文件说的出处：没确认之前不向那个音源发任何请求。
+    if (foliaOriginNeedsConfirmation(origin)) throw new FoliaOriginUnconfirmedError();
     const originSongs = await fetchOriginSongs(origin);
     const chosen = options.playVia === undefined ? origin.playVia : options.playVia ?? undefined;
     const playVia = chosen && chosen !== origin.sourceId ? chosen : undefined;
@@ -358,6 +393,8 @@ export const refreshFoliaPlaylistFromOrigin = async (
         const row = await readPlaylistRow(playlistId);
         // 等的时候歌单被删了，或被换成了别的来源（不该发生）：不动它。
         if (!row?.origin || row.origin.sourceId !== origin.sourceId || row.origin.collectionId !== origin.collectionId) return null;
+        // 出处在这期间变回了没确认的样子（不该发生）：不写。
+        if (foliaOriginNeedsConfirmation(row.origin)) return null;
         const now = Date.now();
         const rows = await readEntryRows(playlistId);
         const entries = rows.map(fromEntryRow);

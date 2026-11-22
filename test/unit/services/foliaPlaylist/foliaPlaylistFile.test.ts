@@ -7,6 +7,7 @@ import {
     FOLIA_PLAYLIST_FILE_VERSION,
     buildFoliaLocalMatchIndex,
     detectPlaylistFileFormat,
+    isCredentialKeyName,
     matchFoliaLocalSong,
     parseFoliaPlaylistFile,
     previewFoliaPlaylistFile,
@@ -14,7 +15,19 @@ import {
     type FoliaFileNavidromeUrls,
 } from '@/services/foliaPlaylist/foliaPlaylistFile';
 import { importPlaylistFileReading, readPlaylistFileText } from '@/services/foliaPlaylist/foliaPlaylistFileIo';
-import { addSongsToFoliaPlaylist, createFoliaPlaylist, getFoliaPlaylist, getFoliaPlaylists, resetFoliaPlaylistStorage } from '@/services/foliaPlaylist/foliaPlaylistService';
+import {
+    FoliaOriginUnconfirmedError,
+    addSongsToFoliaPlaylist,
+    confirmFoliaPlaylistOrigin,
+    createFoliaPlaylist,
+    getFoliaPlaylist,
+    getFoliaPlaylistSummary,
+    getFoliaPlaylists,
+    refreshFoliaPlaylistFromOrigin,
+    resetFoliaPlaylistStorage,
+    saveCollectionAsFoliaPlaylist,
+} from '@/services/foliaPlaylist/foliaPlaylistService';
+import { foliaOriginNeedsConfirmation } from '@/utils/foliaPlaylistTransfer';
 import { buildLocalEntry } from '@/services/foliaPlaylist/foliaPlaylistRows';
 import { serializeFoliaPlaylistToM3u8 } from '@/services/foliaPlaylist/foliaPlaylistM3u';
 import { appDatabase } from '@/services/appDatabase';
@@ -144,7 +157,8 @@ describe('a file written here reads back the same', () => {
         const preview = previewFoliaPlaylistFile(parsed(exported.content), LIBRARY, allOn, urls, 50);
         expect(preview.entries.map(entry => entry.key)).toEqual(['online:netease:1', 'online:lxmusic:wy:2', 'navidrome:n1', 'local:l1']);
         expect(preview.entries[1]).toMatchObject({ originalKey: 'online:netease:2', fromOrigin: true, addedAt: 10 });
-        expect(preview.origin).toEqual(MIXED.origin);
+        // 出处读回来带着「文件说的」记号。
+        expect(preview.origin).toEqual({ ...MIXED.origin, fromFile: true });
         expect(preview).toMatchObject({ name: 'Mixed', favorite: false, total: 4, unavailableCount: 0, invalidCount: 0, duplicateCount: 0 });
         expect(preview.local).toMatchObject({ matched: 1, unmatched: 0 });
         expect(preview.sources).toEqual([
@@ -272,7 +286,7 @@ describe('parseFoliaPlaylistFile', () => {
 
     it('reads the origin strictly', () => {
         expect(parsed(fileOf([], { origin: { sourceId: 'netease', collectionId: 'c', name: 5, savedAt: 'x', playVia: 'bad id', extra: 1 } })).origin)
-            .toEqual({ sourceId: 'netease', collectionId: 'c', name: '', savedAt: 0 });
+            .toEqual({ sourceId: 'netease', collectionId: 'c', name: '', savedAt: 0, fromFile: true });
         expect(parsed(fileOf([], { origin: { sourceId: 'netease' } })).origin).toBeUndefined();
         expect(parsed(fileOf([], { origin: { sourceId: 'a b', collectionId: 'c' } })).origin).toBeUndefined();
         expect(parsed(fileOf([], { name: `  ${'长'.repeat(300)}  ` })).name).toHaveLength(200);
@@ -339,8 +353,8 @@ describe('what the review of untrusted files asked for', () => {
         const origin = { sourceId: 'netease', collectionId: 'al9', name: 'Album', savedAt: 3, collectionType: 'album' as const, collectionData: { mid: 'x9', page: `https://x.example/?t=${SECRET}`, token: SECRET } };
         const exported = serializeFoliaPlaylistFile(playlistOf([], { origin }), []);
         expect(exported.content).not.toContain(SECRET);
-        expect(parsed(exported.content).origin).toEqual({ ...origin, collectionData: { mid: 'x9' } });
-        expect(parsed(fileOf([], { origin: { sourceId: 'x', collectionId: 'c', collectionType: 'radio' } })).origin).toEqual({ sourceId: 'x', collectionId: 'c', name: '', savedAt: 0 });
+        expect(parsed(exported.content).origin).toEqual({ ...origin, collectionData: { mid: 'x9' }, fromFile: true });
+        expect(parsed(fileOf([], { origin: { sourceId: 'x', collectionId: 'c', collectionType: 'radio' } })).origin).toEqual({ sourceId: 'x', collectionId: 'c', name: '', savedAt: 0, fromFile: true });
     });
 
     it('leaves the marks of a transfer out when the file names no origin', () => {
@@ -487,7 +501,7 @@ describe('reading and importing a file', () => {
         expect((await getFoliaPlaylists()).filter(playlist => !playlist.isFavorite)).toEqual([]);
         const { playlist, result } = await importPlaylistFileReading(reading, { name: ' Back ' });
         expect(result).toEqual({ added: 4, duplicates: 0, rejected: 0 });
-        expect(playlist).toMatchObject({ name: 'Back', origin: MIXED.origin });
+        expect(playlist).toMatchObject({ name: 'Back', origin: { ...MIXED.origin, fromFile: true } });
         const stored = await getFoliaPlaylist(playlist!.id);
         expect(stored?.entries.map(entry => entry.key)).toEqual(['online:netease:1', 'online:lxmusic:wy:2', 'navidrome:n1', 'local:l1']);
         expect(stored?.entries[1]).toMatchObject({ originalKey: 'online:netease:2', fromOrigin: true, addedAt: 10 });
@@ -516,5 +530,196 @@ describe('reading and importing a file', () => {
         const merged = await importPlaylistFileReading(reading, { name: 'x', mergeInto: playlist!.id });
         expect(merged.result).toMatchObject({ added: 0, duplicates: 2 });
         await addSongsToFoliaPlaylist(playlist!.id, []);
+    });
+});
+
+describe('an online song whose id and source disagree', () => {
+    const entry = (id: unknown, mediaId: string, providerData?: Record<string, unknown>) => ({
+        source: 'online',
+        song: { ...(id === undefined ? {} : { id }), name: `n ${mediaId}`, album: { name: 'a' }, sourceRef: { kind: 'online', providerId: 'x', mediaId, ...(providerData ? { providerData } : {}) } },
+    });
+
+    it('is not taken, and is counted apart from entries that cannot be read', () => {
+        const file = parsed(fileOf([
+            entry('1', '1'),
+            entry(2, '2'),
+            // 显示的是 3，实际按 mediaId 9 去播。
+            entry('3', '9'),
+            entry(4, '004abc', { songId: 5 }),
+            { source: 'online', song: { name: 'no ref' } },
+            entry('6', '6'),
+        ]));
+        expect(file.entries.map(item => (item.source === 'online' ? item.song.sourceRef?.mediaId : null))).toEqual(['1', '2', '6']);
+        expect(file).toMatchObject({ mismatchedIdCount: 2, invalidCount: 1 });
+        const preview = previewFoliaPlaylistFile(file, [], allOn, null, 1);
+        expect(preview).toMatchObject({ mismatchedIdCount: 2, invalidCount: 1, total: 3 });
+        expect(preview.entries.map(item => item.key)).toEqual(['online:x:1', 'online:x:2', 'online:x:6']);
+    });
+
+    it('takes the second id a source keeps in its own data, and an id the file left out or mangled', () => {
+        const file = parsed(fileOf([
+            // 两个 id 的音源：播放用的作 mediaId，另一个是歌的 id，并且也在它自己的数据里。
+            entry(1234, '004abc', { songId: 1234, songMid: '004abc' }),
+            entry('1234', '004abd', { songId: 1234 }),
+            entry(undefined, 'm1'),
+            entry({ nested: true }, 'm2'),
+            entry(-5, 'm3'),
+            // 数据里的别的东西（嵌在里面的、不是 id 的）不算。
+            entry(77, 'm4', { nested: { songId: 77 }, flag: true }),
+        ]));
+        expect(file.entries.map(item => (item.source === 'online' ? [item.song.id, item.song.sourceRef?.mediaId] : null))).toEqual([
+            [1234, '004abc'], ['1234', '004abd'], ['m1', 'm1'], ['m2', 'm2'], ['m3', 'm3'],
+        ]);
+        expect(file.mismatchedIdCount).toBe(1);
+    });
+
+    it('reads back what it wrote for a source with two ids', () => {
+        const song = online('x', '004abc', { id: 1234, sourceRef: { kind: 'online', providerId: 'x', mediaId: '004abc', providerData: { songId: 1234, songMid: '004abc' } } });
+        const file = parsed(serializeFoliaPlaylistFile(playlistOf([entryOf(song, 'online:x:004abc')]), []).content);
+        expect(file).toMatchObject({ mismatchedIdCount: 0, invalidCount: 0 });
+        expect(file.entries).toHaveLength(1);
+    });
+});
+
+describe('which key names count as credentials', () => {
+    it('drops the names that are credentials, however they are written', () => {
+        for (const name of [
+            'token', 'accessToken', 'access_token', 'refresh-token', 'musicUserToken', 'X-Auth-Token', 'accesstoken',
+            'cookie', 'sessionCookies', 'secret', 'clientSecret', 'password', 'passwd', 'pwd',
+            'credential', 'credentials', 'session', 'sessionId', 'sessionid', 'SESSION_KEY',
+            'auth', 'Authorization', 'authorisation', 'apiKey', 'api_key', 'api-key', 'apikey', 'X-Api-Key',
+            'sign', 'sig', 'fsig', 'signature', 'X-Amz-Signature', 'freeSign', 'jwt', 'bearer',
+        ]) {
+            expect(isCredentialKeyName(name), name).toBe(true);
+        }
+    });
+
+    it('keeps names that only look like one', () => {
+        for (const name of [
+            'author', 'authorName', 'designId', 'assignee', 'signal', 'obsession', 'bypassWindow', 'passage', 'key', 'apiVersion',
+            'keyword', 'hash', 'id', 'mid', 'kind', 'platform', 'authority',
+        ]) {
+            expect(isCredentialKeyName(name), name).toBe(false);
+        }
+    });
+
+    // 十家内置音源的歌 / 歌单附带数据里实际写的键（2026-11-22 对着各家的代码逐个核对；清单在交接说明里按家列着），
+    // 加上宿主自己放的那一个。有一个键被删就说明筛的规则动到了播放或读歌单要用的数据。
+    const SONG_DATA_KEYS = [
+        '@lyricIds', 'qq', 'kugou',
+        'resourceType', 'catalogArtistIds', 'playbackAvailable', 'playbackId', 'playbackKind', 'catalogId', 'isLibrary', 'isrc', 'isLive',
+        'availability', 'chorusStartMs', 'chorusEndMs', 'originalName',
+        'coverId', 'createdAt', 'updatedAt', 'isFavorite', 'isCue', 'trackNo', 'discNo',
+        'hash', 'mixSongId', 'albumAudioId', 'catalogLookupId', 'albumId', 'fileId',
+        'platform', 'audioId', 'albumMid', 'mediaMid', 'songId',
+        'fee', 'privilege', 'payed', 'st', 'pl', 'dl', 'flag', 'cs', 'noCopyrightRcmd', 'type', 'typeDesc', 'thirdPartySong', 'expInfo',
+        'resourceState', 't', 'otherArtistNames',
+        'songMid',
+    ];
+    const COLLECTION_DATA_KEYS = [
+        'resourceType', 'canEdit', 'catalogArtistIds', 'isLive',
+        'source', 'isPrivate', 'discoverIndex',
+        'listId', 'globalCollectionId', 'specialId', 'owned', 'creatorUserId', 'creatorListId', 'creatorGid', 'musicSize', 'albumSize',
+        'virtualRecommendation', 'cardId',
+        'platform', 'kind',
+        'transNames',
+        'ownerId',
+        'tid', 'dirId', 'dirType', 'dissid', 'dirShow', 'list', 'period', 'albumMid', 'singerMid',
+        'playlistId', 'mix', 'videoId',
+    ];
+
+    it('keeps every key the built-in sources put in a song or a collection', () => {
+        for (const name of [...SONG_DATA_KEYS, ...COLLECTION_DATA_KEYS]) expect(isCredentialKeyName(name), name).toBe(false);
+        const data = Object.fromEntries([...new Set([...SONG_DATA_KEYS, ...COLLECTION_DATA_KEYS])].map((name, index) => [name, index]));
+        const exported = serializeFoliaPlaylistFile(playlistOf([entryOf(online('x', '1', {
+            sourceRef: { kind: 'online', providerId: 'x', mediaId: '1', providerData: data },
+        }), 'online:x:1')], { origin: { sourceId: 'x', collectionId: 'c', name: 'o', savedAt: 1, collectionData: data } }), []);
+        const file = parsed(exported.content);
+        const ref = file.entries[0].source === 'online' ? file.entries[0].song.sourceRef : undefined;
+        expect(ref?.kind === 'online' && ref.providerData).toEqual(data);
+        expect(file.origin?.collectionData).toEqual(data);
+    });
+
+    it('leaves the one signature a source keeps with its songs out of the file', () => {
+        const exported = serializeFoliaPlaylistFile(playlistOf([entryOf(online('x', '1', {
+            sourceRef: { kind: 'online', providerId: 'x', mediaId: '1', providerData: { freeSign: SECRET, availability: 1 } },
+        }), 'online:x:1')]), []);
+        expect(exported.content).not.toContain(SECRET);
+        expect(exported.content).toContain('availability');
+    });
+});
+
+describe('an origin that came from a file', () => {
+    const noTarget = { resolveCounterparts: async () => ({ songs: [] }) };
+    const fileWithOrigin = (origin: Record<string, unknown>) => fileOf([{
+        source: 'online', fromOrigin: true,
+        song: { id: '1', name: 'one', album: { name: 'a' }, sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } },
+    }], { origin });
+
+    beforeEach(async () => {
+        await appDatabase.delete();
+        await appDatabase.open();
+        await resetFoliaPlaylistStorage();
+    });
+
+    it('cannot be written as already confirmed by the file', () => {
+        const origin = parsed(fileWithOrigin({ sourceId: 'netease', collectionId: 'c1', name: 'O', fromFile: false, confirmedAt: 123 })).origin;
+        expect(origin).toEqual({ sourceId: 'netease', collectionId: 'c1', name: 'O', savedAt: 0, fromFile: true });
+        expect(foliaOriginNeedsConfirmation(origin)).toBe(true);
+    });
+
+    it('is not read from until the user confirms it, once', async () => {
+        const text = fileWithOrigin({ sourceId: 'netease', collectionId: 'c1', name: 'O', confirmedAt: 123 });
+        const reading = readPlaylistFileText(text, []);
+        if (reading.format !== 'json') throw new Error('expected json');
+        // 就算预览里的出处被塞了「确认过」，写进歌单的也是没确认的。
+        if (reading.preview.origin) reading.preview.origin = { ...reading.preview.origin, confirmedAt: 5 };
+        const { playlist } = await importPlaylistFileReading(reading, { name: 'From a file' });
+        if (!playlist) throw new Error('no playlist');
+        expect(playlist.origin).toMatchObject({ fromFile: true });
+        expect(playlist.origin?.confirmedAt).toBeUndefined();
+        expect(foliaOriginNeedsConfirmation(playlist.origin)).toBe(true);
+
+        let asked = 0;
+        const fetch = async () => {
+            asked += 1;
+            return [online('netease', '1'), online('netease', '2')];
+        };
+        await expect(refreshFoliaPlaylistFromOrigin(playlist.id, fetch, noTarget)).rejects.toBeInstanceOf(FoliaOriginUnconfirmedError);
+        expect(asked).toBe(0);
+        expect((await getFoliaPlaylist(playlist.id))?.entries.map(item => item.key)).toEqual(['online:netease:1']);
+
+        // 给用户看的不是歌单上的那个出处：不记。
+        expect(await confirmFoliaPlaylistOrigin(playlist.id, { sourceId: 'netease', collectionId: 'other' })).toBe(false);
+        expect(await confirmFoliaPlaylistOrigin('missing', { sourceId: 'netease', collectionId: 'c1' })).toBe(false);
+        await expect(refreshFoliaPlaylistFromOrigin(playlist.id, fetch, noTarget)).rejects.toBeInstanceOf(FoliaOriginUnconfirmedError);
+
+        expect(await confirmFoliaPlaylistOrigin(playlist.id, { sourceId: 'netease', collectionId: 'c1' })).toBe(true);
+        const confirmed = await getFoliaPlaylistSummary(playlist.id);
+        expect(confirmed?.origin?.confirmedAt).toBeGreaterThan(0);
+        expect(foliaOriginNeedsConfirmation(confirmed?.origin)).toBe(false);
+        const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, fetch, noTarget);
+        expect(refreshed?.result).toMatchObject({ added: 1 });
+        expect(asked).toBe(1);
+        // 更新之后确认还记着，不再问。
+        expect(foliaOriginNeedsConfirmation(refreshed?.playlist.origin)).toBe(false);
+        expect(refreshed?.playlist.origin).toMatchObject({ fromFile: true, sourceId: 'netease', collectionId: 'c1' });
+        await refreshFoliaPlaylistFromOrigin(playlist.id, fetch, noTarget);
+        expect(asked).toBe(2);
+    });
+
+    it('is not asked about for a playlist saved here', async () => {
+        const { playlist } = await saveCollectionAsFoliaPlaylist({
+            name: 'Saved',
+            songs: [online('netease', '1')],
+            // 调用方多塞的记号不进歌单。
+            origin: { sourceId: 'netease', collectionId: 'c1', name: 'O', fromFile: true, confirmedAt: 1 } as never,
+        }, noTarget);
+        expect(playlist.origin?.fromFile).toBeUndefined();
+        expect(foliaOriginNeedsConfirmation(playlist.origin)).toBe(false);
+        expect(await confirmFoliaPlaylistOrigin(playlist.id, { sourceId: 'netease', collectionId: 'c1' })).toBe(true);
+        expect((await getFoliaPlaylistSummary(playlist.id))?.origin?.confirmedAt).toBeUndefined();
+        const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [online('netease', '1'), online('netease', '3')], noTarget);
+        expect(refreshed?.result).toMatchObject({ added: 1 });
     });
 });
