@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
     getActiveGridViewCollection,
     subscribeCollectionPop,
@@ -36,6 +37,7 @@ import { useScratchpadStore } from '../../stores/useScratchpadStore';
 import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
 import FoliaPlaylistOrderEditor from '../../components/folia-playlist-order/FoliaPlaylistOrderEditor';
 import FoliaPlaylistDialogsHost from '../../components/folia-playlists/FoliaPlaylistDialogsHost';
+import { describeFoliaProvenance } from '../../components/folia-playlists/foliaTransferText';
 import { resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
 import { useLocalCollectionCoverUrls } from '../core/collection/cover/useLocalCollectionCoverUrls';
 import { followEntityRedirect } from '../../utils/localLibraryIndex';
@@ -160,6 +162,8 @@ const resolveLiveLocalCollection = (
     collection: LocalGridViewCollectionDescriptor,
     surfaceProps: HomeSurfaceProps,
     catalog: LibraryLocalCatalogSnapshot,
+    t: TFunction,
+    language: string,
 ): LocalGridViewCollectionDescriptor | null => {
     if (!collection.playlistId) {
         return refreshLocalGridViewCollection(
@@ -185,6 +189,8 @@ const resolveLiveLocalCollection = (
         songIds,
         trackCount: playlist.entries.length - (localSongIds.length - songIds.length),
         isVirtual: playlist.isFavorite,
+        // 转存来的歌单在详情里写明出处（来自哪张、上次更新时间、现在改由谁播放）。
+        ...(playlist.origin ? { description: describeFoliaProvenance(playlist.origin, t, language) } : {}),
     };
 };
 
@@ -198,7 +204,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     children,
 }) => {
     countRender('GridViewOverlayHost');
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const collectionSnapshot = useCollectionNavigationStore(state => state.snapshot);
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
     const localLibraryCatalog = surfaceProps.localLibraryCatalog;
@@ -267,8 +273,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 : selectedCollection;
         }
 
-        return resolveLiveLocalCollection(selectedCollection, surfaceProps, localLibraryCatalog);
-    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, surfaceProps.playlists, localLibraryCatalog, selectedCollection]);
+        return resolveLiveLocalCollection(selectedCollection, surfaceProps, localLibraryCatalog, t, i18n.language);
+    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, surfaceProps.playlists, localLibraryCatalog, selectedCollection, t, i18n.language]);
     // Navidrome 歌单的名字以刷新过的歌单列表为准：改名之后 refreshNavidromePlaylists 带回新名字，
     // 不必就地改写导航栈里的描述（嵌套返回再进来也还是新名字）。单独一层 memo：别的来源不随歌单列表换新对象
     // （本地集合的 effect 会清空这个列表，放进同一个 memo 会互相触发）。

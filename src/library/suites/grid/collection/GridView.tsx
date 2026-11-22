@@ -2081,6 +2081,26 @@ export const GridView: React.FC<GridViewProps> = ({
                                             : t('scratchpad.collectScope')}
                                     </button>
                                 )}
+                                {mutationCapabilities.saveToFolia.supported && (
+                                    <button
+                                        onClick={() => void mutations?.saveToFolia()}
+                                        data-grid-action="save-to-folia"
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <ListPlus size={14} />
+                                        {t('foliaTransfer.saveAction')}
+                                    </button>
+                                )}
+                                {mutationCapabilities.refreshFromOrigin.supported && (
+                                    <button
+                                        onClick={() => void mutations?.refreshFromOrigin()}
+                                        data-grid-action="refresh-from-origin"
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <RefreshCw size={14} />
+                                        {t('foliaTransfer.refreshAction')}
+                                    </button>
+                                )}
                                 {canAddNavidromeToPlaylist && (
                                     <button
                                         onClick={() => setIsPlaylistPickerOpen(true)}
