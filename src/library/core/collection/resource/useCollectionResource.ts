@@ -16,12 +16,15 @@ type UseCollectionResourceParams = {
     currentUserId?: MediaId | null;
     /** 本地集合的曲目由宿主在渲染期算好，直接包成静态资源。 */
     localTracks?: SongResult[];
+    /** 本地集合的曲目还在读（Folia 歌单的条目）：资源先是加载中，不是「就绪的空集合」。 */
+    localTracksLoading?: boolean;
 };
 
 export const useCollectionResource = ({
     descriptor,
     currentUserId,
     localTracks,
+    localTracksLoading = false,
 }: UseCollectionResourceParams): CollectionResource | null => {
     const key = descriptor ? resolveCollectionResourceKey(descriptor, currentUserId) : null;
     const isLocal = descriptor?.source === 'local';
@@ -30,11 +33,11 @@ export const useCollectionResource = ({
 
     const resource = useMemo(() => {
         if (!descriptor || !key) return null;
-        if (isLocal) return createStaticCollectionResource(key, localTracks ?? []);
+        if (isLocal) return createStaticCollectionResource(key, localTracks ?? [], localTracksLoading ? 'loading' : 'ready');
         return collectionResourceRegistry.peekOrCreate(key, descriptor, () => createCollectionResource(key, descriptor));
         // descriptor 本身不进依赖：同一个 key 下的描述变化由 ensure 处理（按版本决定是否重新加载）。
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [key, isLocal, localTracks, peekEpoch]);
+    }, [key, isLocal, localTracks, localTracksLoading, peekEpoch]);
 
     useEffect(() => {
         if (!resource || resource.kind === 'static') return;

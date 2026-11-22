@@ -5,251 +5,136 @@ import type {
     FoliaPlaylistAddResult,
     FoliaPlaylistEntry,
     FoliaPlaylistOrigin,
+    FoliaPlaylistSummary,
     FoliaRefreshFromOriginResult,
     FoliaSaveCollectionInput,
     FoliaSaveCollectionResult,
 } from '../../types/foliaPlaylist';
-import {
-    appendFoliaPlaylistEntries,
-    foliaLocalSongKey,
-    removeFoliaPlaylistEntries as removeEntriesByKey,
-    reorderFoliaPlaylistEntries as reorderEntriesByKey,
-} from '../../utils/foliaPlaylistEntries';
+import { appendFoliaPlaylistEntries, foliaLocalSongKey } from '../../utils/foliaPlaylistEntries';
 import { buildFoliaTransferEntries, refreshFoliaPlaylistEntries, toFoliaCounterparts, type FoliaCounterparts } from '../../utils/foliaPlaylistTransfer';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { appDatabase } from '../appDatabase';
+import type { FoliaPlaylistRow } from './foliaPlaylistDatabase';
+import { buildLocalEntrySong, createFoliaPlaylistId } from './foliaPlaylistRows';
 import {
-    FAVORITE_PLAYLIST_NAME,
-    FOLIA_PLAYLISTS_META_KEY,
-    FOLIA_PLAYLISTS_VERSION,
-    FOLIA_PLAYLIST_ROW_PREFIX,
-    buildLocalEntrySong,
-    buildLocalRepairIndex,
-    createFoliaPlaylistId,
-    foliaPlaylistRowKey,
-    orderFoliaPlaylists,
-    parseFoliaPlaylistRow,
-    parseFoliaPlaylistsMeta,
-    repairLocalEntries,
-    type FoliaPlaylistsMeta,
-} from './foliaPlaylistRows';
-import { LEGACY_LOCAL_PLAYLISTS_CACHE_KEY, convertLegacyLocalPlaylists } from './localPlaylistMigration';
+    appendEntryRows,
+    createPlaylistRows,
+    deletePlaylistRows,
+    ensureFoliaPlaylistStorage,
+    fromEntryRow,
+    putPlaylistRow,
+    readEntryKeys,
+    readEntryRow,
+    readEntryRows,
+    readExistingKeys,
+    readPlaylistRow,
+    readPlaylistRows,
+    removeEntryRows,
+    reorderEntryRows,
+    reorderPlaylistRows,
+    repairLocalEntryRows,
+    replaceEntryRows,
+    toSummary,
+    writeFoliaPlaylists,
+    type FoliaWrite,
+} from './foliaPlaylistStorage';
 import { resolveCanonicalLocalSongId } from './localSongDuplicates';
 
 // src/services/foliaPlaylist/foliaPlaylistService.ts
-// Folia 聚合歌单的读写。存的形状见 foliaPlaylistRows.ts。
-// 每个操作都在一个 api_cache + local_music 的读写事务里做完（读、修补、改、写），IndexedDB 让同一张表上的读写事务
-// 一个接一个跑，所以并发的写（连点红心、两个窗口）不会互相盖掉。事务里只等数据库的操作，不等别的。
-// 第一次读的时候把旧的本地歌单并进来（localPlaylistMigration.ts），并保证有一张「我喜欢的音乐」。
+// Folia 聚合歌单的读写。存在 FoliaPlaylistsDB 里，按条目存（foliaPlaylistDatabase.ts、foliaPlaylistStorage.ts）：
+// 歌单一行摘要，条目一条一行。所以加一首歌、点一次红心写的是一行条目加一行摘要，和歌单多大无关；
+// 界面常驻的是摘要（getFoliaPlaylistSummaries），条目在打开歌单、整张播放、排序、导出时才读（getFoliaPlaylist）。
+// 每个写操作是一个读写事务，现状在事务里读，所以并发的写（连点红心、两个窗口）不会互相盖掉。
+// 第一次读写之前把旧结构搬过来，并保证有一张「我喜欢的音乐」（foliaPlaylistStorage.ts）。
 
-type PlaylistState = {
-    meta: FoliaPlaylistsMeta;
-    /** meta 那一行里这个版本不认识的字段：写回去时原样带上。 */
-    metaExtras: Record<string, unknown>;
-    playlists: FoliaPlaylist[];
-    /** 这次事务里写过东西。 */
-    dirty: boolean;
-    /** 存的是更新的版本写的（meta.version 比这一版认识的大）：只读，不迁移、不修补、不写。 */
-    readOnly: boolean;
+export { FoliaPlaylistsNewerVersionError, resetFoliaPlaylistStorage, subscribeFoliaPlaylists, type FoliaPlaylistsChange } from './foliaPlaylistStorage';
+
+// ---- 读 ----
+
+/**
+ * 全部歌单的摘要，按显示的先后（「我喜欢的音乐」一定有）。读的时候顺手把本地歌的条目对着曲库修一遍
+ * （要读整张曲库表）；repair: false 不修——歌单自己的写引起的重读用它，曲库没变就没有要修的。
+ */
+export const getFoliaPlaylistSummaries = async (options: { repair?: boolean } = {}): Promise<FoliaPlaylistSummary[]> => {
+    if (options.repair === false) await ensureFoliaPlaylistStorage();
+    else await repairLocalEntryRows();
+    return (await readPlaylistRows()).map(toSummary);
 };
 
-/** 歌单是更新版本的 Folia 写的，这一版不敢改它。 */
-export class FoliaPlaylistsNewerVersionError extends Error {
-    constructor() {
-        super('Folia playlists were written by a newer version; this version only reads them');
-        this.name = 'FoliaPlaylistsNewerVersionError';
-    }
-}
-
-const assertWritable = (state: PlaylistState): void => {
-    if (state.readOnly) throw new FoliaPlaylistsNewerVersionError();
+export const getFoliaPlaylistSummary = async (playlistId: string): Promise<FoliaPlaylistSummary | null> => {
+    await ensureFoliaPlaylistStorage();
+    const row = await readPlaylistRow(playlistId);
+    return row ? toSummary(row) : null;
 };
 
-const table = () => appDatabase.api_cache;
-
-const listeners = new Set<() => void>();
-
-/** 歌单被改了（本窗口里的写操作提交之后）就叫一声；返回取消订阅的函数。 */
-export const subscribeFoliaPlaylists = (listener: () => void): (() => void) => {
-    listeners.add(listener);
-    return () => {
-        listeners.delete(listener);
-    };
+const withEntries = async (row: FoliaPlaylistRow): Promise<FoliaPlaylist> => {
+    const { entryCount: _entryCount, coverUrl: _coverUrl, coverLocalSongIds: _coverLocalSongIds, ...info } = toSummary(row);
+    return { ...info, entries: (await readEntryRows(row.id)).map(fromEntryRow) };
 };
 
-const notifyChanged = () => {
-    listeners.forEach(listener => {
-        try {
-            listener();
-        } catch (error) {
-            console.warn('[FoliaPlaylist] A change listener threw', error);
-        }
-    });
+/** 一张歌单连同全部条目（打开歌单、整张播放、排序、导出时用；读出来的不常驻）。 */
+export const getFoliaPlaylist = async (playlistId: string): Promise<FoliaPlaylist | null> => {
+    await ensureFoliaPlaylistStorage();
+    const row = await readPlaylistRow(playlistId);
+    return row ? withEntries(row) : null;
 };
 
-const writePlaylist = async (state: PlaylistState, playlist: FoliaPlaylist): Promise<void> => {
-    assertWritable(state);
-    await table().put({ key: foliaPlaylistRowKey(playlist.id), data: playlist, timestamp: Date.now() });
-    state.dirty = true;
+/**
+ * 全部歌单连同全部条目。只给单测和排查用：界面不要叫它（它把所有条目一次读进内存）——
+ * 列表用 getFoliaPlaylistSummaries，一张歌单的内容用 getFoliaPlaylist。
+ */
+export const getFoliaPlaylists = async (): Promise<FoliaPlaylist[]> => {
+    await repairLocalEntryRows();
+    return Promise.all((await readPlaylistRows()).map(withEntries));
 };
 
-const writeMeta = async (state: PlaylistState): Promise<void> => {
-    assertWritable(state);
-    state.meta = { ...state.meta, order: state.playlists.map(playlist => playlist.id) };
-    await table().put({ key: FOLIA_PLAYLISTS_META_KEY, data: { ...state.metaExtras, ...state.meta }, timestamp: Date.now() });
-    state.dirty = true;
+/** 一张歌单里全部条目的 key（不读条目本身）：红心的点亮状态、「已在歌单里」要的只是它。 */
+export const getFoliaPlaylistEntryKeys = async (playlistId: string): Promise<string[]> => {
+    await ensureFoliaPlaylistStorage();
+    return readEntryKeys(playlistId);
 };
 
-// 旧的本地歌单并进来：只在还没有任何歌单行、meta 里也没有迁移标记时做一次（见 readState）。
-// 整个在调用方的事务里：中途出错事务回滚，什么都没写，下次再试；旧的那一行只读。
-const migrateLocalPlaylists = async (state: PlaylistState): Promise<void> => {
-    const legacyRow = await table().get(LEGACY_LOCAL_PLAYLISTS_CACHE_KEY);
-    const localSongs = legacyRow ? await appDatabase.local_music.toArray() : [];
-    const converted = convertLegacyLocalPlaylists(legacyRow?.data, localSongs);
-    let migrated = 0;
-    for (const playlist of converted.playlists) {
-        state.playlists.push(playlist);
-        await writePlaylist(state, playlist);
-        migrated += 1;
-    }
-    state.meta = { ...state.meta, localPlaylistsMigratedAt: Date.now(), localPlaylistsMigratedCount: migrated };
-    await writeMeta(state);
-    console.info('[FoliaPlaylist] Local playlists migrated', {
-        found: Array.isArray(legacyRow?.data) ? legacyRow.data.length : 0,
-        migrated,
-        droppedSongs: converted.droppedSongCount,
-        skipped: converted.skippedPlaylistCount,
-    });
+/** keys 里哪些已经在这张歌单里（走主键，不用读整张）。 */
+export const findFoliaPlaylistEntryKeys = async (playlistId: string, keys: readonly string[]): Promise<Set<string>> => {
+    await ensureFoliaPlaylistStorage();
+    return readExistingKeys(playlistId, keys);
 };
 
-const readState = async (): Promise<PlaylistState> => {
-    const metaRow = await table().get(FOLIA_PLAYLISTS_META_KEY);
-    const meta = parseFoliaPlaylistsMeta(metaRow?.data);
-    const metaExtras = metaRow?.data && typeof metaRow.data === 'object' ? { ...(metaRow.data as Record<string, unknown>) } : {};
-    const rows = await table().where(':id').startsWith(FOLIA_PLAYLIST_ROW_PREFIX).toArray();
-    const playlists = orderFoliaPlaylists(
-        rows.flatMap(row => {
-            const playlist = parseFoliaPlaylistRow(row.data);
-            // 读不出来的行不动它（不删、不改），只说一声，方便排查。
-            if (!playlist) console.warn('[FoliaPlaylist] Skipped an unreadable playlist row', row.key);
-            return playlist ?? [];
-        }),
-        meta.order,
-    );
-    const readOnly = meta.version > FOLIA_PLAYLISTS_VERSION;
-    const state: PlaylistState = { meta, metaExtras, playlists, dirty: false, readOnly };
-    if (readOnly) return state;
+// ---- 写 ----
 
-    if (typeof meta.localPlaylistsMigratedAt !== 'number') {
-        if (rows.length > 0) {
-            // 迁移、建「我喜欢的音乐」和写标记是同一个事务：已经有歌单行却没有标记，只能是 meta 那一行坏了或丢了。
-            // 这时不再迁（再迁会把迁移之后用户删掉的旧歌单又带回来），只把标记补上；顺序按建的时间。
-            console.warn('[FoliaPlaylist] The meta row was lost or damaged; restored it without migrating again');
-            state.meta = { ...state.meta, localPlaylistsMigratedAt: Date.now() };
-            await writeMeta(state);
-        } else {
-            await migrateLocalPlaylists(state);
-        }
-    }
+const favoriteRow = async (): Promise<FoliaPlaylistRow | undefined> => (await readPlaylistRows()).find(row => row.isFavorite);
 
-    if (!state.playlists.some(playlist => playlist.isFavorite)) {
-        const now = Date.now();
-        const favorite: FoliaPlaylist = {
-            id: createFoliaPlaylistId(),
-            name: FAVORITE_PLAYLIST_NAME,
-            createdAt: now,
-            updatedAt: now,
-            isFavorite: true,
-            entries: [],
-        };
-        state.playlists.unshift(favorite);
-        await writePlaylist(state, favorite);
-        await writeMeta(state);
-    }
-
-    return state;
+const dedupeByKey = (entries: readonly FoliaPlaylistEntry[]): FoliaPlaylistEntry[] => {
+    const seen = new Set<string>();
+    return entries.filter(entry => (seen.has(entry.key) ? false : Boolean(seen.add(entry.key))));
 };
 
-// 本地歌的条目对着曲库修一遍（删掉曲库里没有的、重复导入的副本换成 canonical），改了的歌单写回去。
-const repairAgainstLocalLibrary = async (state: PlaylistState, removedSongIds: readonly string[] = []): Promise<void> => {
-    if (state.readOnly) return;
-    const hasLocalEntries = state.playlists.some(playlist => playlist.entries.some(entry => entry.key.startsWith('local:')));
-    if (!hasLocalEntries) return;
-    const { validSongById, canonicalByDuplicateKey } = buildLocalRepairIndex(await appDatabase.local_music.toArray(), removedSongIds);
-    for (let index = 0; index < state.playlists.length; index += 1) {
-        const playlist = state.playlists[index];
-        const repaired = repairLocalEntries(playlist.entries, validSongById, canonicalByDuplicateKey);
-        if (!repaired.changed) continue;
-        const next = { ...playlist, entries: repaired.entries };
-        state.playlists[index] = next;
-        await writePlaylist(state, next);
-    }
-};
-
-const withPlaylistTransaction = async <T>(operation: (state: PlaylistState) => Promise<T> | T): Promise<T> => {
-    const { value, dirty } = await appDatabase.transaction('rw', appDatabase.api_cache, appDatabase.local_music, async () => {
-        const state = await readState();
-        const result = await operation(state);
-        return { value: result, dirty: state.dirty };
-    });
-    // 事务提交之后才叫：听的人马上去读，读到的就是写完的样子。
-    if (dirty) notifyChanged();
-    return value;
-};
-
-// 改一张歌单：updater 返回 null 表示不改。
-const updatePlaylist = (
-    playlistId: string,
-    updater: (playlist: FoliaPlaylist) => FoliaPlaylist | null,
-): Promise<FoliaPlaylist | null> => withPlaylistTransaction(async state => {
-    const index = state.playlists.findIndex(playlist => playlist.id === playlistId);
-    if (index === -1) return null;
-    const update = updater(state.playlists[index]);
-    if (!update) return null;
-    const next = { ...update, updatedAt: Date.now() };
-    state.playlists[index] = next;
-    await writePlaylist(state, next);
-    return next;
+const createWithEntries = (
+    write: FoliaWrite,
+    name: string,
+    entries: readonly FoliaPlaylistEntry[],
+    origin: FoliaPlaylistOrigin | undefined,
+    now: number,
+): Promise<FoliaPlaylistRow> => createPlaylistRows(write, {
+    id: createFoliaPlaylistId(),
+    name,
+    createdAt: now,
+    updatedAt: now,
+    ...(origin ? { origin } : {}),
+    entries: dedupeByKey(entries),
 });
-
-/** 全部歌单，按显示的先后（「我喜欢的音乐」一定有）。读的时候顺手把本地歌的条目对着曲库修一遍。 */
-export const getFoliaPlaylists = (): Promise<FoliaPlaylist[]> => withPlaylistTransaction(async state => {
-    await repairAgainstLocalLibrary(state);
-    return state.playlists;
-});
-
-export const getFoliaPlaylist = (playlistId: string): Promise<FoliaPlaylist | null> => withPlaylistTransaction(state => (
-    state.playlists.find(playlist => playlist.id === playlistId) ?? null
-));
-
-export const getFavoriteFoliaPlaylist = (): Promise<FoliaPlaylist> => withPlaylistTransaction(state => (
-    // readState 保证了有。
-    state.playlists.find(playlist => playlist.isFavorite) as FoliaPlaylist
-));
 
 /** 建一张歌单，可以带上第一批歌（任何来源，一批里可以有多个来源）。名字是空的会抛错。 */
 export const createFoliaPlaylist = (
     name: string,
     songs: readonly SongResult[] = [],
     options: { origin?: FoliaPlaylistOrigin } = {},
-): Promise<FoliaPlaylist> => {
+): Promise<FoliaPlaylistSummary> => {
     const trimmedName = name.trim();
-    // 在事务外面就拒绝：事务里抛错会连同这次读到的迁移一起回滚。
     if (!trimmedName) return Promise.reject(new Error('Playlist name is empty'));
-    return withPlaylistTransaction(async state => {
+    return writeFoliaPlaylists(async write => {
         const now = Date.now();
-        const playlist: FoliaPlaylist = {
-            id: createFoliaPlaylistId(),
-            name: trimmedName,
-            createdAt: now,
-            updatedAt: now,
-            ...(options.origin ? { origin: options.origin } : {}),
-            entries: appendFoliaPlaylistEntries([], songs, now).entries,
-        };
-        state.playlists.push(playlist);
-        await writePlaylist(state, playlist);
-        await writeMeta(state);
-        return playlist;
+        return toSummary(await createWithEntries(write, trimmedName, appendFoliaPlaylistEntries([], songs, now).entries, options.origin, now));
     });
 };
 
@@ -261,70 +146,59 @@ export const createFoliaPlaylistFromEntries = (
     name: string,
     entries: readonly FoliaPlaylistEntry[],
     options: { origin?: FoliaPlaylistOrigin } = {},
-): Promise<FoliaPlaylist> => {
+): Promise<FoliaPlaylistSummary> => {
     const trimmedName = name.trim();
     if (!trimmedName) return Promise.reject(new Error('Playlist name is empty'));
-    return withPlaylistTransaction(async state => {
-        const now = Date.now();
-        const seen = new Set<string>();
-        const playlist: FoliaPlaylist = {
-            id: createFoliaPlaylistId(),
-            name: trimmedName,
-            createdAt: now,
-            updatedAt: now,
-            ...(options.origin ? { origin: options.origin } : {}),
-            entries: entries.filter(entry => (seen.has(entry.key) ? false : Boolean(seen.add(entry.key)))),
-        };
-        state.playlists.push(playlist);
-        await writePlaylist(state, playlist);
-        await writeMeta(state);
-        return playlist;
-    });
+    return writeFoliaPlaylists(async write => toSummary(await createWithEntries(write, trimmedName, entries, options.origin, Date.now())));
 };
 
 /** 改名。「我喜欢的音乐」不能改、名字是空的不改、歌单不存在：都返回 null。 */
-export const renameFoliaPlaylist = (playlistId: string, name: string): Promise<FoliaPlaylist | null> => {
+export const renameFoliaPlaylist = (playlistId: string, name: string): Promise<FoliaPlaylistSummary | null> => {
     const trimmedName = name.trim();
-    return updatePlaylist(playlistId, playlist => (
-        playlist.isFavorite || !trimmedName ? null : { ...playlist, name: trimmedName }
-    ));
+    return writeFoliaPlaylists(async write => {
+        const row = await readPlaylistRow(playlistId);
+        if (!row || row.isFavorite || !trimmedName) return null;
+        const next = { ...row, name: trimmedName, updatedAt: Date.now() };
+        await putPlaylistRow(write, next);
+        return toSummary(next);
+    });
 };
 
-export const canDeleteFoliaPlaylist = (playlist: Pick<FoliaPlaylist, 'isFavorite'> | null | undefined): boolean => (
+export const canDeleteFoliaPlaylist = (playlist: Pick<FoliaPlaylistSummary, 'isFavorite'> | null | undefined): boolean => (
     Boolean(playlist && !playlist.isFavorite)
 );
 
 /** 删一张歌单。「我喜欢的音乐」不能删、歌单不存在：返回 false。 */
-export const deleteFoliaPlaylist = (playlistId: string): Promise<boolean> => withPlaylistTransaction(async state => {
-    const target = state.playlists.find(playlist => playlist.id === playlistId);
-    if (!target || !canDeleteFoliaPlaylist(target)) return false;
-    state.playlists = state.playlists.filter(playlist => playlist.id !== playlistId);
-    await table().delete(foliaPlaylistRowKey(playlistId));
-    await writeMeta(state);
+export const deleteFoliaPlaylist = (playlistId: string): Promise<boolean> => writeFoliaPlaylists(async write => {
+    const row = await readPlaylistRow(playlistId);
+    if (!row || !canDeleteFoliaPlaylist(row)) return false;
+    await deletePlaylistRows(write, playlistId);
     return true;
 });
 
 /** 往歌单里加歌（任何来源，一批里可以有多个来源）；同一个 key 已经在里面的不重复加。歌单不存在时 playlist 是 null。 */
-export const addSongsToFoliaPlaylist = async (
+export const addSongsToFoliaPlaylist = (
     playlistId: string,
     songs: readonly SongResult[],
-): Promise<{ playlist: FoliaPlaylist | null; result: FoliaPlaylistAddResult }> => {
-    let result: FoliaPlaylistAddResult = { added: 0, duplicates: 0, rejected: 0 };
-    let current: FoliaPlaylist | null = null;
-    const updated = await updatePlaylist(playlistId, playlist => {
-        current = playlist;
-        const appended = appendFoliaPlaylistEntries(playlist.entries, songs);
-        result = appended.result;
-        return appended.result.added > 0 ? { ...playlist, entries: appended.entries } : null;
-    });
-    return { playlist: updated ?? current, result };
-};
+): Promise<{ playlist: FoliaPlaylistSummary | null; result: FoliaPlaylistAddResult }> => writeFoliaPlaylists(async write => {
+    const row = await readPlaylistRow(playlistId);
+    if (!row) return { playlist: null, result: { added: 0, duplicates: 0, rejected: 0 } };
+    const now = Date.now();
+    // 一批里重复的、舞台歌先在这里筛掉；已经在歌单里的由追加那一步对着库筛。
+    const batch = appendFoliaPlaylistEntries([], songs, now);
+    const appended = await appendEntryRows(write, row, batch.entries, { now });
+    return {
+        playlist: toSummary(appended.row),
+        result: { added: appended.added, duplicates: batch.result.duplicates + appended.duplicates, rejected: batch.result.rejected },
+    };
+});
 
-/** 按 key 移除条目。 */
-export const removeFoliaPlaylistEntries = (playlistId: string, keys: readonly string[]): Promise<FoliaPlaylist | null> => (
-    updatePlaylist(playlistId, playlist => {
-        const entries = removeEntriesByKey(playlist.entries, keys);
-        return entries.length === playlist.entries.length ? null : { ...playlist, entries };
+/** 按 key 移除条目。歌单不存在、一条都不在里面：null。 */
+export const removeFoliaPlaylistEntries = (playlistId: string, keys: readonly string[]): Promise<FoliaPlaylistSummary | null> => (
+    writeFoliaPlaylists(async write => {
+        const row = await readPlaylistRow(playlistId);
+        const next = row ? await removeEntryRows(write, row, keys) : null;
+        return next ? toSummary(next) : null;
     })
 );
 
@@ -336,55 +210,48 @@ export const reorderFoliaPlaylistEntries = (
     playlistId: string,
     orderedKeys: readonly string[],
     expectedKeys: readonly string[],
-): Promise<FoliaPlaylist | null> => updatePlaylist(playlistId, playlist => {
-    const entries = reorderEntriesByKey(playlist.entries, orderedKeys, expectedKeys);
-    return entries ? { ...playlist, entries } : null;
+): Promise<FoliaPlaylistSummary | null> => writeFoliaPlaylists(async write => {
+    const row = await readPlaylistRow(playlistId);
+    const next = row ? await reorderEntryRows(write, row, orderedKeys, expectedKeys) : null;
+    return next ? toSummary(next) : null;
 });
 
 /** 重排歌单本身的先后：orderedIds 必须是现有歌单 id 的一个排列，否则不写，返回 false。 */
-export const reorderFoliaPlaylists = (orderedIds: readonly string[]): Promise<boolean> => withPlaylistTransaction(async state => {
-    const byId = new Map(state.playlists.map(playlist => [playlist.id, playlist]));
-    if (orderedIds.length !== byId.size || new Set(orderedIds).size !== orderedIds.length || orderedIds.some(id => !byId.has(id))) {
-        return false;
-    }
-    state.playlists = orderedIds.map(id => byId.get(id) as FoliaPlaylist);
-    await writeMeta(state);
-    return true;
-});
+export const reorderFoliaPlaylists = (orderedIds: readonly string[]): Promise<boolean> => (
+    writeFoliaPlaylists(write => reorderPlaylistRows(write, orderedIds))
+);
 
-// 「我喜欢的音乐」里加一首或去掉一个 key，在调用方的事务里。没有变化时不写。
-const writeFavorite = async (state: PlaylistState, song: SongResult | null, removeKey: string | null): Promise<FoliaPlaylist | null> => {
-    const index = state.playlists.findIndex(playlist => playlist.isFavorite);
-    if (index === -1) return null;
-    const favorite = state.playlists[index];
-    const entries = song
-        ? appendFoliaPlaylistEntries(favorite.entries, [song]).entries
-        : removeEntriesByKey(favorite.entries, removeKey ? [removeKey] : []);
-    if (entries.length === favorite.entries.length) return favorite;
-    const next = { ...favorite, entries, updatedAt: Date.now() };
-    state.playlists[index] = next;
-    await writePlaylist(state, next);
-    return next;
+// 「我喜欢的音乐」里放进一首（song）或去掉一个 key，在调用方的事务里。没有变化时不写。
+const writeFavorite = async (write: FoliaWrite, song: SongResult | null, removeKey: string | null): Promise<FoliaPlaylistSummary | null> => {
+    const favorite = await favoriteRow();
+    if (!favorite) return null;
+    if (song) {
+        const now = Date.now();
+        return toSummary((await appendEntryRows(write, favorite, appendFoliaPlaylistEntries([], [song], now).entries, { now })).row);
+    }
+    return toSummary((removeKey ? await removeEntryRows(write, favorite, [removeKey]) : null) ?? favorite);
+};
+
+// 红心按一下：在不在是在事务里按主键读那一行，所以连按两下一定是一进一出。
+const toggleFavorite = async (write: FoliaWrite, key: string, song: SongResult): Promise<boolean> => {
+    const favorite = await favoriteRow();
+    if (!favorite) return false;
+    const liked = Boolean(await readEntryRow(favorite.id, key));
+    await (liked ? writeFavorite(write, null, key) : writeFavorite(write, song, null));
+    return !liked;
 };
 
 /** 把一首歌（任何来源）放进或移出「我喜欢的音乐」。本地歌用下面的 setLocalSongFavorite。 */
-export const setFoliaSongFavorite = (song: SongResult, shouldFavorite: boolean): Promise<FoliaPlaylist | null> => (
-    withPlaylistTransaction(state => (
-        shouldFavorite ? writeFavorite(state, song, null) : writeFavorite(state, null, getPlaybackSongKey(song))
-    ))
+export const setFoliaSongFavorite = (song: SongResult, shouldFavorite: boolean): Promise<FoliaPlaylistSummary | null> => (
+    writeFoliaPlaylists(write => (shouldFavorite ? writeFavorite(write, song, null) : writeFavorite(write, null, getPlaybackSongKey(song))))
 );
 
 /**
  * 红心按一下：在「我喜欢的音乐」里就移出，不在就放进，返回按完之后在不在。在不在是在事务里读的，
- * 所以连按两下一定是一进一出（界面上那份歌单要等重读，按它算会两下都算成「放进」）。
+ * 所以连按两下一定是一进一出（界面上那份要等重读，按它算会两下都算成「放进」）。
  */
 export const toggleFoliaSongFavorite = (song: SongResult): Promise<boolean> => (
-    withPlaylistTransaction(async state => {
-        const key = getPlaybackSongKey(song);
-        const liked = Boolean(state.playlists.find(playlist => playlist.isFavorite)?.entries.some(entry => entry.key === key));
-        await (liked ? writeFavorite(state, null, key) : writeFavorite(state, song, null));
-        return !liked;
-    })
+    writeFoliaPlaylists(write => toggleFavorite(write, getPlaybackSongKey(song), song))
 );
 
 // ---- 转存平台歌单、从原歌单刷新 ----
@@ -439,36 +306,27 @@ const askCounterparts = async (
 export const saveCollectionAsFoliaPlaylist = async (
     input: FoliaSaveCollectionInput,
     deps: FoliaTransferDeps,
-): Promise<{ playlist: FoliaPlaylist; result: FoliaSaveCollectionResult }> => {
+): Promise<{ playlist: FoliaPlaylistSummary; result: FoliaSaveCollectionResult }> => {
     const trimmedName = input.name.trim();
     if (!trimmedName) throw new Error('Playlist name is empty');
     if (!input.origin.sourceId || !input.origin.collectionId) throw new Error('Playlist origin is incomplete');
     const playVia = input.playVia && input.playVia !== input.origin.sourceId ? input.playVia : undefined;
     const { counterparts, unavailable } = await askCounterparts(playVia, input.songs, deps);
     throwIfTransferAborted(input.signal);
-    return withPlaylistTransaction(async state => {
+    return writeFoliaPlaylists(async write => {
         const now = Date.now();
         const { entries, counts } = buildFoliaTransferEntries(input.songs, counterparts, now);
-        const playlist: FoliaPlaylist = {
-            id: createFoliaPlaylistId(),
-            name: trimmedName,
-            createdAt: now,
-            updatedAt: now,
-            origin: {
-                sourceId: input.origin.sourceId,
-                collectionId: input.origin.collectionId,
-                name: input.origin.name,
-                savedAt: now,
-                ...(playVia ? { playVia } : {}),
-                ...(input.origin.collectionType ? { collectionType: input.origin.collectionType } : {}),
-                ...(input.origin.collectionData !== undefined ? { collectionData: input.origin.collectionData } : {}),
-            },
-            entries,
+        const origin: FoliaPlaylistOrigin = {
+            sourceId: input.origin.sourceId,
+            collectionId: input.origin.collectionId,
+            name: input.origin.name,
+            savedAt: now,
+            ...(playVia ? { playVia } : {}),
+            ...(input.origin.collectionType ? { collectionType: input.origin.collectionType } : {}),
+            ...(input.origin.collectionData !== undefined ? { collectionData: input.origin.collectionData } : {}),
         };
-        state.playlists.push(playlist);
-        await writePlaylist(state, playlist);
-        await writeMeta(state);
-        return { playlist, result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) } };
+        const row = await createWithEntries(write, trimmedName, entries, origin, now);
+        return { playlist: toSummary(row), result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) } };
     });
 };
 
@@ -476,14 +334,15 @@ export const saveCollectionAsFoliaPlaylist = async (
  * 从原歌单刷新一张转存来的歌单。原歌单现在的歌由 fetchOriginSongs 去读（调用方给，读不到就抛错，什么都不写）。
  * 新来的歌按上次选的目标音源（origin.playVia）换；options.playVia 给了就改用它并记下来（null：从此不换）。
  * 歌单不存在、不是转存来的：null。用户自己加的条目和原歌单里已经没有的歌都留着（规则见 utils/foliaPlaylistTransfer.ts）。
+ * 规则是对着全部条目算的，所以这一步在事务里把这张歌单的条目读全；写回去的只是变了的行。
  */
 export const refreshFoliaPlaylistFromOrigin = async (
     playlistId: string,
     fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
     deps: FoliaTransferDeps,
     options: { playVia?: string | null; signal?: AbortSignal } = {},
-): Promise<{ playlist: FoliaPlaylist; result: FoliaRefreshFromOriginResult } | null> => {
-    const before = await getFoliaPlaylist(playlistId);
+): Promise<{ playlist: FoliaPlaylistSummary; result: FoliaRefreshFromOriginResult } | null> => {
+    const before = await getFoliaPlaylistSummary(playlistId);
     const origin = before?.origin;
     if (!before || !origin) return null;
     const originSongs = await fetchOriginSongs(origin);
@@ -495,27 +354,29 @@ export const refreshFoliaPlaylistFromOrigin = async (
     const { counterparts, unavailable } = await askCounterparts(playVia, originSongs, deps);
     throwIfTransferAborted(options.signal);
 
-    let result: FoliaRefreshFromOriginResult | null = null;
-    const updated = await updatePlaylist(playlistId, playlist => {
-        // 等的时候歌单被换成了别的来源（不该发生）：不动它。
-        if (!playlist.origin || playlist.origin.sourceId !== origin.sourceId || playlist.origin.collectionId !== origin.collectionId) return null;
+    return writeFoliaPlaylists(async write => {
+        const row = await readPlaylistRow(playlistId);
+        // 等的时候歌单被删了，或被换成了别的来源（不该发生）：不动它。
+        if (!row?.origin || row.origin.sourceId !== origin.sourceId || row.origin.collectionId !== origin.collectionId) return null;
         const now = Date.now();
-        const refreshed = refreshFoliaPlaylistEntries(playlist.entries, originSongs, counterparts, now);
-        result = { ...refreshed.counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) };
-        const { playVia: _playVia, ...originRest } = playlist.origin;
-        return {
-            ...playlist,
+        const rows = await readEntryRows(playlistId);
+        const entries = rows.map(fromEntryRow);
+        const refreshed = refreshFoliaPlaylistEntries(entries, originSongs, counterparts, now);
+        const { playVia: _playVia, ...originRest } = row.origin;
+        const next = await replaceEntryRows(write, row, rows, entries, refreshed.entries, {
             origin: { ...originRest, refreshedAt: now, ...(playVia ? { playVia } : {}) },
-            entries: refreshed.entries,
-        };
+            updatedAt: now,
+        });
+        return { playlist: toSummary(next), result: { ...refreshed.counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) } };
     });
-    return updated && result ? { playlist: updated, result } : null;
 };
 
 // ---- 本地曲库这一侧 ----
+// 曲库在另一个库里（KineticPlayerDB），和歌单不在一个事务里：先读曲库，再开歌单的事务。两步之间曲库要是删了
+// 这首歌，写进去的那一条会在下一次读歌单列表时被修掉（repairLocalEntryRows）。
 
 /** 用曲库里的记录建一张歌单（M3U 导入、从曲库页批量建、把全是本地歌的队列存成歌单）。 */
-export const createFoliaPlaylistFromLocalSongs = (name: string, songs: readonly LocalSong[] = []): Promise<FoliaPlaylist> => (
+export const createFoliaPlaylistFromLocalSongs = (name: string, songs: readonly LocalSong[] = []): Promise<FoliaPlaylistSummary> => (
     createFoliaPlaylist(name, songs.map(buildLocalEntrySong))
 );
 
@@ -523,20 +384,22 @@ export const addLocalSongsToFoliaPlaylist = (playlistId: string, songs: readonly
     addSongsToFoliaPlaylist(playlistId, songs.map(buildLocalEntrySong))
 );
 
-/**
- * 本地歌的红心：进或出「我喜欢的音乐」。先换算成重复导入组里 canonical 的那条（歌单里留的是它）。
- * 读曲库、找歌单、写在同一个事务里。
- */
-export const setLocalSongFavorite = (song: LocalSong, shouldFavorite: boolean): Promise<FoliaPlaylist | null> => (
-    withPlaylistTransaction(async state => {
-        const localSongs = await appDatabase.local_music.toArray();
-        const canonicalSongId = resolveCanonicalLocalSongId(song.id, localSongs);
-        const canonicalSong = localSongs.find(candidate => candidate.id === canonicalSongId) ?? song;
-        return shouldFavorite
-            ? writeFavorite(state, buildLocalEntrySong(canonicalSong), null)
-            : writeFavorite(state, null, foliaLocalSongKey(canonicalSongId));
-    })
-);
+// 重复导入组里 canonical 的那条（歌单里留的是它）。
+const canonicalLocalSongOf = async (song: LocalSong): Promise<LocalSong> => {
+    const localSongs = await appDatabase.local_music.toArray();
+    const canonicalSongId = resolveCanonicalLocalSongId(song.id, localSongs);
+    return localSongs.find(candidate => candidate.id === canonicalSongId) ?? song;
+};
+
+/** 本地歌的红心：进或出「我喜欢的音乐」。先换算成重复导入组里 canonical 的那条。 */
+export const setLocalSongFavorite = async (song: LocalSong, shouldFavorite: boolean): Promise<FoliaPlaylistSummary | null> => {
+    const canonicalSong = await canonicalLocalSongOf(song);
+    return writeFoliaPlaylists(write => (
+        shouldFavorite
+            ? writeFavorite(write, buildLocalEntrySong(canonicalSong), null)
+            : writeFavorite(write, null, foliaLocalSongKey(canonicalSong.id))
+    ));
+};
 
 // ---- 界面这一侧：歌是界面上拿到的（播放用的形状），一批里可以混着各个来源 ----
 
@@ -568,7 +431,7 @@ const prepareSongsForFoliaPlaylist = async (songs: readonly SongResult[]): Promi
 export const addPickedSongsToFoliaPlaylist = async (
     playlistId: string,
     songs: readonly SongResult[],
-): Promise<{ playlist: FoliaPlaylist | null; result: FoliaPlaylistAddResult }> => {
+): Promise<{ playlist: FoliaPlaylistSummary | null; result: FoliaPlaylistAddResult }> => {
     const { prepared, missing } = await prepareSongsForFoliaPlaylist(songs);
     const { playlist, result } = await addSongsToFoliaPlaylist(playlistId, prepared);
     return { playlist, result: { ...result, rejected: result.rejected + missing } };
@@ -578,29 +441,22 @@ export const addPickedSongsToFoliaPlaylist = async (
 export const createFoliaPlaylistFromPickedSongs = async (
     name: string,
     songs: readonly SongResult[],
-): Promise<{ playlist: FoliaPlaylist; result: FoliaPlaylistAddResult }> => {
+): Promise<{ playlist: FoliaPlaylistSummary; result: FoliaPlaylistAddResult }> => {
     const { prepared, missing } = await prepareSongsForFoliaPlaylist(songs);
     const counted = appendFoliaPlaylistEntries([], prepared).result;
     if (songs.length > 0 && counted.added === 0) throw new Error('None of the songs can go into a playlist');
     const playlist = await createFoliaPlaylist(name, prepared);
-    return { playlist, result: { ...counted, added: playlist.entries.length, rejected: counted.rejected + missing } };
+    return { playlist, result: { ...counted, added: playlist.entryCount, rejected: counted.rejected + missing } };
 };
 
 /** 本地歌的红心按一下（见 toggleFoliaSongFavorite）：按 canonical 的那条算在不在，返回按完之后在不在。 */
-export const toggleLocalSongFavorite = (song: LocalSong): Promise<boolean> => (
-    withPlaylistTransaction(async state => {
-        const localSongs = await appDatabase.local_music.toArray();
-        const canonicalSongId = resolveCanonicalLocalSongId(song.id, localSongs);
-        const canonicalSong = localSongs.find(candidate => candidate.id === canonicalSongId) ?? song;
-        const key = foliaLocalSongKey(canonicalSongId);
-        const liked = Boolean(state.playlists.find(playlist => playlist.isFavorite)?.entries.some(entry => entry.key === key));
-        await (liked ? writeFavorite(state, null, key) : writeFavorite(state, buildLocalEntrySong(canonicalSong), null));
-        return !liked;
-    })
-);
+export const toggleLocalSongFavorite = async (song: LocalSong): Promise<boolean> => {
+    const canonicalSong = await canonicalLocalSongOf(song);
+    return writeFoliaPlaylists(write => toggleFavorite(write, foliaLocalSongKey(canonicalSong.id), buildLocalEntrySong(canonicalSong)));
+};
 
 /** 本地曲库删了歌：每张歌单里那一行直接删掉。 */
 export const removeDeletedLocalSongsFromFoliaPlaylists = async (songIds: readonly string[]): Promise<void> => {
     if (songIds.length === 0) return;
-    await withPlaylistTransaction(state => repairAgainstLocalLibrary(state, songIds));
+    await repairLocalEntryRows(songIds);
 };

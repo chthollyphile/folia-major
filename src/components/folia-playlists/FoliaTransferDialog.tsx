@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
-import type { FoliaPlaylist, FoliaPlaylistOrigin } from '../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary, FoliaPlaylistOrigin } from '../../types/foliaPlaylist';
 import type { FoliaPlayViaTarget } from '../../library/core/foliaPlaylist/foliaPlaylist.contract';
 import { createFoliaPlaylistPort } from '../../library/app/createFoliaPlaylistPort';
 import {
@@ -39,7 +39,7 @@ const port = createFoliaPlaylistPort();
 type Props = {
     request: FoliaTransferRequest;
     /** 更新时用：这张歌单此刻的样子（打开对话框那一刻就不在了的话，对话框不画）。 */
-    playlists: readonly FoliaPlaylist[];
+    playlists: readonly FoliaPlaylistSummary[];
     isDaylight: boolean;
     onClose: () => void;
 };
@@ -61,7 +61,7 @@ const usePlayViaTargets = (originSourceId: string): FoliaPlayViaTarget[] => {
 const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, onClose }) => {
     const { t, i18n } = useTranslation();
     // 打开那一刻的歌单与出处：对话框开着的时候歌单被别处改了也不换（写的时候服务层按歌单此刻的条目算）。
-    const [playlist] = useState<FoliaPlaylist | null>(() => (
+    const [playlist] = useState<FoliaPlaylistSummary | null>(() => (
         request.mode === 'refresh' ? playlists.find(item => item.id === request.playlistId) ?? null : null
     ));
     const [origin] = useState<Pick<FoliaPlaylistOrigin, 'sourceId' | 'collectionId' | 'name' | 'collectionType' | 'collectionData'> | null>(() => (

@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowUpDown, FileMusic, ListPlus, NotebookPen, type LucideIcon } from 'lucide-react';
 import type { LocalLibraryGroup, LocalSong } from '../../../types';
-import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../../types/foliaPlaylist';
 import { openFoliaPlaylistDialog } from '../../../components/folia-playlists/foliaPlaylistDialogStore';
 import { useScratchpadStore } from '../../../stores/useScratchpadStore';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
@@ -39,7 +39,7 @@ export const BravaisHomeFolia: React.FC<{
     homeActions: LibraryHomeActionsController;
     onOpenGridView: (collection: LibraryCollectionDescriptor) => void;
     meta: string;
-    playlists: FoliaPlaylist[];
+    playlists: FoliaPlaylistSummary[];
     localSongs: LocalSong[];
 }> = ({ meta, playlists, localSongs, homeActions, onOpenGridView, ...common }) => {
     const { t } = useTranslation();

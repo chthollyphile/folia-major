@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LocalLibraryGroup, LocalSong } from '../../../types';
-import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../../types/foliaPlaylist';
 import type { LibraryHomeCard } from './homeModel.contract';
 import { buildFoliaHomeGroups } from './foliaHomeModel';
 import { buildLocalHomeCards } from './localHomeModel';
@@ -25,7 +25,7 @@ export const useLibraryHomeFolia = ({
     playlists,
     localSongs,
 }: {
-    playlists: readonly FoliaPlaylist[];
+    playlists: readonly FoliaPlaylistSummary[];
     localSongs: readonly LocalSong[];
 }): LibraryHomeFolia => {
     const { t } = useTranslation();

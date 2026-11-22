@@ -34,7 +34,8 @@ export type FoliaPlaylistEntry = {
     fromOrigin?: boolean;
 };
 
-export type FoliaPlaylist = {
+/** 一张歌单自己的东西（不含条目）。 */
+export type FoliaPlaylistInfo = {
     /** 新建的是 `folia_playlist_<时间>_<随机>`；从本地歌单迁来的沿用原来的 `local_playlist_…`。 */
     id: string;
     name: string;
@@ -43,6 +44,23 @@ export type FoliaPlaylist = {
     /** 固定的那张「我喜欢的音乐」：不能删、不能改名。 */
     isFavorite?: boolean;
     origin?: FoliaPlaylistOrigin;
+};
+
+/**
+ * 歌单的摘要：界面常驻内存的只有它（歌单列表、首页的卡片、收藏框）。条目不在这里——打开歌单、整张播放、
+ * 排序、导出时才去读（foliaPlaylistService 的 getFoliaPlaylist / getFoliaPlaylistEntries）。
+ */
+export type FoliaPlaylistSummary = FoliaPlaylistInfo & {
+    /** 条目数。 */
+    entryCount: number;
+    /** 自动封面用：歌单最前面一段里第一首带封面的非本地歌的封面地址。 */
+    coverUrl?: string;
+    /** 自动封面用：歌单最前面一段里的本地歌的 id（按歌单里的顺序，有上限）；封面由曲库里的记录给。 */
+    coverLocalSongIds?: string[];
+};
+
+/** 一张歌单连同它的全部条目（按需读出来的，不常驻）。 */
+export type FoliaPlaylist = FoliaPlaylistInfo & {
     entries: FoliaPlaylistEntry[];
 };
 

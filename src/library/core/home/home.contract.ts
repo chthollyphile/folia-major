@@ -8,7 +8,7 @@ import type {
     StatusMessage,
     Theme,
 } from '../../../types';
-import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../../types/foliaPlaylist';
 import type { OnlineProviderId, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
 import type { NavidromeSong } from '../../../types/navidrome';
 import type { GridViewCollectionDescriptor } from '../collection/collection.contract';
@@ -67,7 +67,7 @@ export interface LibraryHomeData {
     localSongs: LocalSong[];
     localLibraryCatalog: LibraryLocalCatalogSnapshot;
     /** Folia 聚合歌单（旧的本地歌单已并进去）；本地页签只显示其中的本地歌。 */
-    localPlaylists: FoliaPlaylist[];
+    localPlaylists: FoliaPlaylistSummary[];
     onRefreshLocalPlaylists: () => Promise<void> | void;
     onRefreshLocalSongs: () => Promise<void> | void;
     onAddLocalSongToQueue?: (song: LocalSong) => void;

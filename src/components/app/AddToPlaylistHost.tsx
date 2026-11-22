@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { SongResult, UnifiedSong } from '../../types';
-import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import type { ProviderCollection } from '../../types/onlineMusic';
 import PlaylistSelectionDialog, { type PlaylistSelectionDialogItem, type PlaylistSelectionSubject } from '../shared/PlaylistSelectionDialog';
 import { getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
@@ -199,12 +199,12 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
             const allInFavorites = targetSongs.length > 0 && targetSongs.every(isFoliaSongLiked);
             const favorites = foliaPlaylists.filter(playlist => playlist.isFavorite);
             const others = foliaPlaylists.filter(playlist => !playlist.isFavorite);
-            return [...favorites, ...others].map((playlist: FoliaPlaylist): PlaylistEntry => {
+            return [...favorites, ...others].map((playlist: FoliaPlaylistSummary): PlaylistEntry => {
                 return {
                     id: playlist.id,
                     name: playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name,
-                    description: trackCount(playlist.entries.length),
-                    coverUrl: playlist.entries.find(entry => entry.song.album.coverUrl)?.song.album.coverUrl,
+                    description: trackCount(playlist.entryCount),
+                    coverUrl: playlist.coverUrl,
                     kind: playlist.isFavorite ? 'liked' : undefined,
                     note: playlist.isFavorite && allInFavorites ? t('playlist.alreadyLiked') : undefined,
                     recent: !playlist.isFavorite && playlist.id === lastFoliaPlaylistId,
@@ -274,7 +274,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
 
     // 放进 Folia 歌单之后的提示：加了几首、几首已在里面；速记簿交来的那一批带一个「清空速记簿」按钮
     // （保存是复制，速记簿不动；规格 §10）。
-    const reportFoliaResult = (playlist: FoliaPlaylist, result: Parameters<typeof describeFoliaAddResult>[0]) => {
+    const reportFoliaResult = (playlist: FoliaPlaylistSummary, result: Parameters<typeof describeFoliaAddResult>[0]) => {
         rememberLastFoliaPlaylistId(playlist.id);
         const message = describeFoliaAddResult(result, playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name, t);
         // 按下去清的是整本：只在交来的这一批就是整本、而且没有一首没收进去时才给（存一行、一组、选中的几首不给）。
