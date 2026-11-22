@@ -8215,14 +8215,6 @@
       "count": 1
     }
   },
-  "src/library/suites/bravais/bravaisSeamTabLabels.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    }
-  },
   "src/library/suites/bravais/bravaisTileForm.ts": {
     "@typescript-eslint/switch-exhaustiveness-check": {
       "count": 1

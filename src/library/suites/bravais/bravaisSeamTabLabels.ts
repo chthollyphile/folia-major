@@ -47,8 +47,8 @@ export const abbreviateSeamTabLabels = (labels: readonly string[]): string[] => 
     shorts.forEach((short, index) => groups.set(short, [...(groups.get(short) ?? []), index]));
     for (const indexes of groups.values()) {
         if (indexes.length < 2) continue;
-        const resolved = disambiguate(indexes.map(index => labels[index]!));
-        indexes.forEach((index, order) => { shorts[index] = resolved[order]!; });
+        const resolved = disambiguate(indexes.map(index => labels[index]));
+        indexes.forEach((index, order) => { shorts[index] = resolved[order]; });
     }
     return shorts;
 };
