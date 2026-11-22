@@ -11452,7 +11452,7 @@
   },
   "test/component/accountBehavior.spec.ts": {
     "@stylistic/indent": {
-      "count": 405
+      "count": 144
     }
   },
   "test/component/artistBehavior.spec.ts": {

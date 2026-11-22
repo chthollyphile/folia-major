@@ -8,9 +8,26 @@ import { probeCentredCard } from '../../src/library/suites/grid/transitions/morp
 import { picturesLookAlike } from '../../src/library/suites/grid/transitions/samePicture';
 import { handOverStandIn } from '../../src/library/suites/grid/transitions/standInHandover';
 import { registerOnlineMusicProvider } from '../../src/services/onlineMusic/providerRegistry';
+import { registerCoverUrlRule } from '../../src/utils/coverUrl';
 import type { UnifiedSong } from '../../src/types';
 import type { OnlineMusicProvider } from '../../src/types/onlineMusic';
 import type { ProbeDefinition } from './definition';
+
+// 封面地址怎么按尺寸要，现在由各音源模组登记（covers@1）；探针页里没有音源，网易的图就没有规则，同一张图的两个
+// 尺寸认不成一张（standInHandover 的「two addresses of one artwork」）。这里照网易云模组那一条登记一份
+// （sources/netease/core/neteaseCovers.ts）：126.net 下的图在 `param=<宽>y<高>` 里要尺寸。
+const isProbeNeteasePicture = (url: URL): boolean => url.hostname.endsWith('.126.net');
+registerCoverUrlRule({
+    provider: 'netease',
+    sized: (url, size) => (isProbeNeteasePicture(url) ? `${url.origin}${url.pathname}?param=${size}y${size}` : null),
+    identity: url => (/^p\d+\.music\.126\.net$/i.test(url.hostname) ? `netease:${url.pathname}` : null),
+    original: (url) => {
+        if (!isProbeNeteasePicture(url) || !url.searchParams.has('param')) return null;
+        url.searchParams.delete('param');
+        return url.toString();
+    },
+    requestedSize: url => (isProbeNeteasePicture(url) ? Number((url.searchParams.get('param') ?? '').split(/[xy]/i)[0]) || null : undefined),
+});
 // dev/probes/gridEntrancePerf.probe.tsx
 
 /**

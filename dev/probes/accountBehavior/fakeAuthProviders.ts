@@ -7,7 +7,7 @@ import type { AccountCall, AccountQrState, AccountSelfCheckScript } from './prob
 // dev/probes/accountBehavior/fakeAuthProviders.ts
 // 账户探针的假 provider：走真实的 provider registry 和 omni（createQrLogin / checkQrLogin / cancelQrLogin /
 // getQrTtlMs / resolveQrLoginMethods / logout），只把扫码后端换成可编排的状态队列，并把每一次调用记进账。
-// 宿主侧的刷新与登出（App 注入给平台的那两张表）也在这里记账，用例读同一本账。
+// 读账号（getLoginStatus）与宿主侧的登出（App 注入给平台的那张表）也在这里记账，用例读同一本账。
 
 const qrQueues = new Map<string, AccountQrState[]>();
 const qrTtls = new Map<string, number | null>();
@@ -78,7 +78,7 @@ const takeFailure = (table: Map<string, number>, providerId: string): boolean =>
     return true;
 };
 
-export const shouldFailRefresh = (providerId: string): boolean => takeFailure(refreshFailures, providerId);
+const shouldFailRefresh = (providerId: string): boolean => takeFailure(refreshFailures, providerId);
 
 // ---- 网易本地后端（假的）：真实的是网易云模组的 auth@1.localService（sources/netease/core/neteaseLocalService.ts），
 // 登录窗口经 provider.auth.localService 看它的状态、按重启。探针按 setNeteaseBackend / setBackendRestart 编排。----
@@ -185,7 +185,22 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
             get localService(): LoginLocalService | undefined {
                 return providerId === ACCOUNT_NETEASE && fakeBackend.supported ? fakeNeteaseLocalService : undefined;
             },
-            getLoginStatus: async () => accountUser(providerId),
+            // 读账号（omni.readAccount：登录确认之后、切到这个平台之后、同步数据时）先问平台谁登录着：每问一次记一笔
+            // refresh。编排了失败（failRefresh）就抛一个普通的错：平台没问到，账号没读到。
+            getLoginStatus: async () => {
+                if (shouldFailRefresh(providerId)) {
+                    recordAccountCall({ op: 'refresh', providerId, ok: false });
+                    throw new Error(`probe: cannot read the account of ${providerId}`);
+                }
+                recordAccountCall({ op: 'refresh', providerId, ok: true });
+                return accountUser(providerId);
+            },
+            // 假网易的本地后端没起来时要码抛的错：照真实的网易云模组点名「本地服务没有在跑」，登录窗口才给「重启后端」。
+            describeLoginFailure: () => (
+                providerId === ACCOUNT_NETEASE && fakeBackend.supported && fakeBackend.status === 'error'
+                    ? { case: 'local-service-stopped' as const }
+                    : null
+            ),
             logout: async () => {
                 recordAccountCall({ op: 'auth-logout', providerId });
             },
@@ -214,11 +229,11 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
                 const state = queue.shift() ?? 'waiting';
                 qrQueues.set(providerId, queue);
                 if (state === 'canceled') {
+                    // 平台的原话和它要求等多久，按 LoginFailureDetail 交出来：登录窗口据此先倒数、再给重试。
                     return {
                         state: 'error' as const,
                         message: 'probe: canceled on device',
-                        reason: 'canceled-on-device' as const,
-                        retryAfterMs: ACCOUNT_CANCEL_COOLDOWN_MS,
+                        failure: { message: 'probe: canceled on device', retryAfterMs: ACCOUNT_CANCEL_COOLDOWN_MS },
                     };
                 }
                 return state === 'error' ? { state, message: 'probe: check error' } : { state };

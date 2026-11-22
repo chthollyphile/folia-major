@@ -11,16 +11,18 @@ import { ACCOUNT_NETEASE } from './accountBehavior/accountFixtureRules';
 // dev/probes/accountBehavior.probe.tsx
 
 /**
- * 在线账户（扫码登录、选平台、切换确认、登出）的行为回归探针：挂真实的 `Home`（registry 解析出的首页 surface，
- * 网格 suite 下就是 Grid3D，切换器、连接面板都在里面；登录弹窗与切换确认框由 Home 里的账户宿主渲染），
- * 账户状态来自真实的账户 controller（useLibraryAccountController），刷新器 / 登出表与 App 同形，切换清理是应用的
- * 端口外包一层记账（accountBehavior/probeSwitchCleanup.ts）。账户面板（AccountTab）按 UnifiedPanel 的方式可选挂上。
+ * 在线账户（扫码登录、选平台、切换、登出）的行为回归探针：挂真实的 `Home`（registry 解析出的首页 surface，
+ * 网格 suite 下就是 Grid3D，右下角的切换器与未登录时的「登录」按钮都在里面），和 App 一样在旁边挂一个共用的
+ * 登录窗口（LoginHost：选平台、登录、切换、退出登录都在那个窗口里）。账户状态来自真实的账户 controller
+ * （useLibraryAccountController），登出表与 App 同形，读账号走默认装配（omni.readAccount → 假 provider），
+ * 切换清理是应用的端口外包一层记账（accountBehavior/probeSwitchCleanup.ts）。账户面板（AccountTab）按
+ * UnifiedPanel 的方式可选挂上。
  *
- * A6 起选中 TUI 时首页是 TUI 首页（在线页签的平台列表），登录框与切换确认由 TUI 的 account surface 渲染。
+ * 选中 TUI 时首页是 TUI 首页（在线页签的平台列表）：选已登录的平台直接切，选未登录的平台打开同一个登录窗口。
  *
  * 它是 Library v2 账户重构（A0 起）的回归闸门：test/component/accountBehavior.spec.ts 通过 window.__accountProbe
- * 编排假 auth provider、网易本地后端与账户种子，读调用账（要码 / 轮询 / 取消 / 刷新 / 登出 / 切换清理）。
- * 不写 IndexedDB，不需要沙盒模式。
+ * 编排假 auth provider、网易本地后端与账户种子，读调用账（要码 / 轮询 / 取消 / 读账号 / 登出 / 切换清理）。
+ * 读到的账号会照应用的做法存一份快照（IndexedDB），每条用例是新的浏览器上下文，互不影响。
  *
  * 宿主区域套了一层 transform：首页里的 fixed 层（确认框、弹窗）以这块区域为包含块。
  */
@@ -66,7 +68,7 @@ const AccountBehaviorProbe: React.FC = () => {
 
 export default {
     id: 'accountBehavior',
-    title: '在线账户行为回归（真实 Home / Grid3D 登录弹窗 / 切换器）',
+    title: '在线账户行为回归（真实 Home / 共用登录窗口 / 切换器）',
     description: '假扫码 provider（可编排状态、TTL、多登录方式、刷新失败）+ 网易后端故障 + 真实的账户 controller 与宿主；Library v2 账户重构的回归闸门。',
     Component: AccountBehaviorProbe,
 } satisfies ProbeDefinition;
