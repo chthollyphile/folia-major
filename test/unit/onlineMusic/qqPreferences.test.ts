@@ -35,7 +35,9 @@ const PROFILES = [
 ];
 
 describe('QQ recommendation preferences', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        // The fallback words below are the zh-CN ones; the app language otherwise follows the machine's.
+        await i18n.changeLanguage('zh-CN');
         requestMock.mockReset();
         vi.spyOn(console, 'info').mockImplementation(() => { });
         vi.spyOn(console, 'warn').mockImplementation(() => { });
