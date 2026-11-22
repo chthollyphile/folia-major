@@ -16,12 +16,12 @@
 | components | 1024+ |
 | test/dev | 1024+ |
 | library | 256+ |
-| services | 256+ |
+| 其他 | 256+ |
 | backend/electron | 128+ |
+| services | 128+ |
+| src (其他) | 128+ |
 | utils | 128+ |
 | hooks | 64+ |
-| src (其他) | 64+ |
-| 其他 | 64+ |
 | stores | 32+ |
 | types | 16+ |
 | i18n | 8+ |
@@ -36,6 +36,7 @@
 | 1024+ | `src/types.ts` |
 | 256+ | `src/types/onlineMusic.ts` |
 | 128+ | `src/components/modal/settings/kit/index.ts` |
+| 128+ | `src/services/onlineMusic/omni.ts` |
 | 128+ | `src/stores/usePlaybackStore.ts` |
 | 128+ | `src/types/ponder.ts` |
 | 128+ | `src/utils/appPlaybackGuards.ts` |
@@ -45,8 +46,9 @@
 | 64+ | `src/library/core/collection/collection.contract.ts` |
 | 64+ | `src/library/core/suite/suite.contract.ts` |
 | 64+ | `src/mods/folium/contract.ts` |
+| 64+ | `src/mods/types.ts` |
 | 64+ | `src/services/db.ts` |
-| 64+ | `src/services/onlineMusic/omni.ts` |
+| 64+ | `src/services/onlineMusic/providerRegistry.ts` |
 | 64+ | `src/stores/useAppViewStore.ts` |
 | 64+ | `src/stores/useAudioSettingsStore.ts` |
 | 64+ | `src/stores/useOnlineProviderAccountStore.ts` |
@@ -74,10 +76,13 @@
 | 32+ | `src/library/core/home/homeModel.contract.ts` |
 | 32+ | `src/library/suites/bravais/bravaisConstants.ts` |
 | 32+ | `src/library/suites/bravais/bravaisLayer.ts` |
-| 32+ | `src/mods/types.ts` |
+| 32+ | `src/mods/folium/api.ts` |
+| 32+ | `src/mods/folium/sources/contract.ts` |
+| 32+ | `src/mods/runtime/status.ts` |
+| 32+ | `src/services/appDatabase.ts` |
 | 32+ | `src/services/baseThemes.ts` |
+| 32+ | `src/services/navidromeService.ts` |
 | 32+ | `src/services/onlineMusic/failure/onlineFailureCase.ts` |
-| 32+ | `src/services/onlineMusic/providerRegistry.ts` |
 | 32+ | `src/services/onlineMusic/songMetadata.ts` |
 | 32+ | `src/stores/motionSignals.ts` |
 | 32+ | `src/stores/storagePrimitives.ts` |
@@ -86,11 +91,11 @@
 | 32+ | `src/stores/useSettingsModalStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/stores/useVisualizerSettingsStore.ts` |
+| 32+ | `src/types/foliaPlaylist.ts` |
 | 32+ | `src/types/localLibrary.ts` |
 | 32+ | `src/types/navidrome.ts` |
 | 32+ | `src/utils/colorMix.ts` |
 | 32+ | `src/utils/coverUrl.ts` |
-| 32+ | `src/utils/errorText.ts` |
 | 32+ | `src/utils/fontStacks.ts` |
 | 32+ | `src/utils/lyricRenderQuality.ts` |
 | 32+ | `src/utils/lyrics/graphemeTiming.ts` |
@@ -349,7 +354,6 @@
 下面这些边的依赖方向本身就是错的：
 
 - D101 `src/stores/useVisualizerSettingsStore.ts` → `src/components/visualizer/registry.tsx`  —— store 不应依赖组件
-- D102 `src/utils/lyrics/lyricMatchSources.ts` → `src/stores/useOnlineProviderAccountStore.ts`  —— 纯变换不应依赖 UI 或状态
 
 ### 目录归属存疑
 
