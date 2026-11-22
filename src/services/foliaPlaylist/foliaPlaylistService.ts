@@ -335,6 +335,19 @@ export const setFoliaSongFavorite = (song: SongResult, shouldFavorite: boolean):
     ))
 );
 
+/**
+ * 红心按一下：在「我喜欢的音乐」里就移出，不在就放进，返回按完之后在不在。在不在是在事务里读的，
+ * 所以连按两下一定是一进一出（界面上那份歌单要等重读，按它算会两下都算成「放进」）。
+ */
+export const toggleFoliaSongFavorite = (song: SongResult): Promise<boolean> => (
+    withPlaylistTransaction(async state => {
+        const key = getPlaybackSongKey(song);
+        const liked = Boolean(state.playlists.find(playlist => playlist.isFavorite)?.entries.some(entry => entry.key === key));
+        await (liked ? writeFavorite(state, null, key) : writeFavorite(state, song, null));
+        return !liked;
+    })
+);
+
 // ---- 本地曲库这一侧 ----
 
 /** 用曲库里的记录建一张歌单（M3U 导入、从曲库页批量建、把全是本地歌的队列存成歌单）。 */
@@ -408,6 +421,19 @@ export const createFoliaPlaylistFromPickedSongs = async (
     const playlist = await createFoliaPlaylist(name, prepared);
     return { playlist, result: { ...counted, added: playlist.entries.length, rejected: counted.rejected + missing } };
 };
+
+/** 本地歌的红心按一下（见 toggleFoliaSongFavorite）：按 canonical 的那条算在不在，返回按完之后在不在。 */
+export const toggleLocalSongFavorite = (song: LocalSong): Promise<boolean> => (
+    withPlaylistTransaction(async state => {
+        const localSongs = await appDatabase.local_music.toArray();
+        const canonicalSongId = resolveCanonicalLocalSongId(song.id, localSongs);
+        const canonicalSong = localSongs.find(candidate => candidate.id === canonicalSongId) ?? song;
+        const key = foliaLocalSongKey(canonicalSongId);
+        const liked = Boolean(state.playlists.find(playlist => playlist.isFavorite)?.entries.some(entry => entry.key === key));
+        await (liked ? writeFavorite(state, null, key) : writeFavorite(state, buildLocalEntrySong(canonicalSong), null));
+        return !liked;
+    })
+);
 
 /** 本地曲库删了歌：每张歌单里那一行直接删掉。 */
 export const removeDeletedLocalSongsFromFoliaPlaylists = async (songIds: readonly string[]): Promise<void> => {

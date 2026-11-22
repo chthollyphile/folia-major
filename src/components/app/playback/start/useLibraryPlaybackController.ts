@@ -5,7 +5,7 @@ import { LyricParserFactory } from '../../../../utils/lyrics/LyricParserFactory'
 import { getFromCacheWithMigration, getLocalSong, getLocalSongs, removeFromCache, saveLocalSong, saveToCache } from '../../../../services/db';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../../../../services/coverCache';
 import { ensureLocalSongCoverAsset } from '../../../../services/localMusicService';
-import { createFoliaPlaylistFromPickedSongs, setFoliaSongFavorite, setLocalSongFavorite } from '../../../../services/foliaPlaylist/foliaPlaylistService';
+import { createFoliaPlaylistFromPickedSongs, toggleFoliaSongFavorite, toggleLocalSongFavorite } from '../../../../services/foliaPlaylist/foliaPlaylistService';
 import { likesGoToFolia } from '../../../../utils/foliaHeart';
 import { buildCanonicalLocalSongIdIndex } from '../../../../services/foliaPlaylist/localSongDuplicates';
 import { applyLocalLibraryEntityDisplay, buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong, resolveLocalSongMetadata } from '../../../../services/playbackAdapters';
@@ -1660,9 +1660,9 @@ export function useLibraryPlaybackController({
 
         const localSong = resolveLocalSongRecord(currentSong);
         if (isLocalPlaybackSong(currentSong) && localSong) {
-            const nextLiked = !isFoliaSongLiked(currentSong);
+            // 进还是出由服务在事务里定：这里的那份歌单要等重读，连按两下时按它算会两下都算成「放进」。
             try {
-                await setLocalSongFavorite(localSong, nextLiked);
+                const nextLiked = await toggleLocalSongFavorite(localSong);
                 setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '') });
             } catch (error) {
                 console.error('Failed to update local favorite playlist', error);
@@ -1728,9 +1728,8 @@ export function useLibraryPlaybackController({
         }
         // 这个音源没有账号收藏能力：红心记在 Folia 的「我喜欢的音乐」里（规格 §7）。
         if (likesGoToFolia(currentSong)) {
-            const nextLiked = !isFoliaSongLiked(currentSong);
             try {
-                await setFoliaSongFavorite(currentSong, nextLiked);
+                const nextLiked = await toggleFoliaSongFavorite(currentSong);
                 setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '') });
             } catch (error) {
                 console.error('[Like] Failed to update the Folia favorite playlist', error);

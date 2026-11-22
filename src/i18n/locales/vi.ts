@@ -5059,6 +5059,7 @@ export default {
     "lyricsNotAppliedOtherSaved": "Chưa áp dụng lời bài hát; các lựa chọn khác đã được lưu.",
   },
   "foliaPlaylist": {
+    "rejectedNote": "{{count}} bài không thêm được",
     "clearScratchpad": "Xóa sổ ghi nhanh",
     "noneAdded": "Không bài nào có thể đưa vào danh sách phát",
     "allDuplicates": "Đã có trong “{{name}}” ({{duplicates}})",

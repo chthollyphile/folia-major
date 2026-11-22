@@ -18,6 +18,8 @@ import {
     setFoliaSongFavorite,
     setLocalSongFavorite,
     subscribeFoliaPlaylists,
+    toggleFoliaSongFavorite,
+    toggleLocalSongFavorite,
 } from '@/services/foliaPlaylist/foliaPlaylistService';
 import { FOLIA_PLAYLISTS_META_KEY, foliaPlaylistRowKey } from '@/services/foliaPlaylist/foliaPlaylistRows';
 import { buildCanonicalLocalSongIdIndex } from '@/services/foliaPlaylist/localSongDuplicates';
@@ -212,6 +214,18 @@ describe('foliaPlaylistService', () => {
 
         await expect(createFoliaPlaylistFromPickedSongs('Empty', [localPlaybackSong('gone')])).rejects.toThrow();
         expect((await getFoliaPlaylists()).map(item => item.name)).not.toContain('Empty');
+    });
+
+    it('toggles a heart inside the transaction: two presses in a row are one in and one out', async () => {
+        const song = onlineSong('lxmusic', 7);
+        const [first, second] = await Promise.all([toggleFoliaSongFavorite(song), toggleFoliaSongFavorite(song)]);
+        expect([first, second]).toEqual([true, false]);
+        expect(keysOf((await getFoliaPlaylists()).find(playlist => playlist.isFavorite))).toEqual([]);
+
+        await appDatabase.local_music.bulkPut([track('a')]);
+        expect(await toggleLocalSongFavorite(track('a'))).toBe(true);
+        expect(keysOf((await getFoliaPlaylists()).find(playlist => playlist.isFavorite))).toEqual(['local:a']);
+        expect(await toggleLocalSongFavorite(track('a'))).toBe(false);
     });
 
     it('tells subscribers after a write, not after a read that changed nothing', async () => {

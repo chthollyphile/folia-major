@@ -276,7 +276,11 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     const reportFoliaResult = (playlist: FoliaPlaylist, result: Parameters<typeof describeFoliaAddResult>[0]) => {
         rememberLastFoliaPlaylistId(playlist.id);
         const message = describeFoliaAddResult(result, playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name, t);
-        const offerClear = origin === 'scratchpad' && message.type !== 'error';
+        // 按下去清的是整本：只在交来的这一批就是整本、而且没有一首没收进去时才给（存一行、一组、选中的几首不给）。
+        const batchKeys = new Set(targetSongs.map(foliaPlaylistEntryKeyOf));
+        const notebook = useScratchpadStore.getState().entries;
+        const offerClear = origin === 'scratchpad' && message.type !== 'error' && result.rejected === 0
+            && notebook.length > 0 && notebook.every(entry => batchKeys.has(foliaPlaylistEntryKeyOf(entry.song)));
         setStatusMessage({
             ...message,
             ...(offerClear ? {

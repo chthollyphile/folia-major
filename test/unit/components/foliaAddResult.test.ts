@@ -12,11 +12,14 @@ describe('describeFoliaAddResult', () => {
         expect(describeFoliaAddResult({ added: 3, duplicates: 2, rejected: 0 }, 'Mix', t)).toEqual({
             type: 'success',
             text: 'foliaPlaylist.addedSome:{"name":"Mix","added":3,"duplicates":2}',
+            note: undefined,
         });
         expect(describeFoliaAddResult({ added: 3, duplicates: 0, rejected: 1 }, 'Mix', t)).toEqual({
             type: 'success',
             text: 'foliaPlaylist.added:{"name":"Mix","added":3}',
+            note: 'foliaPlaylist.rejectedNote:{"count":1}',
         });
+        expect(describeFoliaAddResult({ added: 3, duplicates: 0, rejected: 0 }, 'Mix', t).note).toBeUndefined();
     });
 
     it('is a plain note when every song was already there, and a failure when none could go in', () => {

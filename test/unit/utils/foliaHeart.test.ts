@@ -9,6 +9,9 @@ const omniMock = vi.hoisted(() => ({
     sourceHasLikes: vi.fn<(providerId: string) => boolean>(() => false),
     canLikeSong: vi.fn(() => false),
     getProviderLabel: vi.fn((providerId: string) => providerId),
+    getProviderNaming: vi.fn<(providerId: string) => { displayName: string; shortName: string } | null>(providerId => (
+        providerId === 'not-registered' ? null : { displayName: providerId, shortName: providerId }
+    )),
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
@@ -40,6 +43,11 @@ describe('likesGoToFolia', () => {
         expect(likesGoToFolia(online('with-likes'))).toBe(false);
         expect(likesGoToFolia(navidrome)).toBe(false);
         expect(likesGoToFolia(null)).toBe(false);
+    });
+
+    it('leaves a source that is not registered alone: there is no declaration to read', () => {
+        expect(likesGoToFolia(online('not-registered'))).toBe(false);
+        expect(resolveLikeAvailability(online('not-registered'), false, false).disabled).toBe(true);
     });
 
     it('makes the heart available for a song of a source without likes', () => {

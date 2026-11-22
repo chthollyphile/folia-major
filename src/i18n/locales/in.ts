@@ -5058,6 +5058,7 @@ export default {
     "lyricsNotAppliedOtherSaved": "Lirik tidak diterapkan; pilihan lain disimpan."
   },
   "foliaPlaylist": {
+    "rejectedNote": "{{count}} tidak dapat ditambahkan",
     "clearScratchpad": "Kosongkan buku catatan",
     "noneAdded": "Tidak ada lagu yang bisa dimasukkan ke playlist",
     "allDuplicates": "Sudah ada di “{{name}}” ({{duplicates}})",

@@ -5059,6 +5059,7 @@ export default {
     "lyricsNotAppliedOtherSaved": "Lyrics were not applied; the other selections were saved.",
   },
   "foliaPlaylist": {
+    "rejectedNote": "{{count}} could not be added",
     "clearScratchpad": "Clear scratchpad",
     "noneAdded": "None of these songs can go into a playlist",
     "allDuplicates": "Already in “{{name}}” ({{duplicates}})",

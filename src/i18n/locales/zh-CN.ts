@@ -5058,6 +5058,7 @@ export default {
     "lyricsNotAppliedOtherSaved": "歌词未应用，其他选择已保存。"
   },
   "foliaPlaylist": {
+    "rejectedNote": "有 {{count}} 首没能放进去",
     "clearScratchpad": "清空速记簿",
     "noneAdded": "这些歌都放不进歌单",
     "allDuplicates": "这 {{duplicates}} 首都已在「{{name}}」里",
