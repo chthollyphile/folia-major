@@ -10,7 +10,7 @@ import {
 } from '../../stores/useCollectionNavigationStore';
 import { LocalSong, SongResult, UnifiedSong } from '../../types';
 import type { FoliaPlaylist } from '../../types/foliaPlaylist';
-import { getFoliaPlaylistLocalSongIds } from '../../utils/foliaPlaylistEntries';
+import { getFoliaEntryLocalSongId, getFoliaPlaylistLocalSongIds } from '../../utils/foliaPlaylistEntries';
 import { getNavidromeConfig, navidromeApi } from '../../services/navidromeService';
 import { getLocalCoverAssetUrl } from '../../services/localCoverAssetUrl';
 import {
@@ -35,10 +35,11 @@ import { LocalFolderSongInfoPanel } from '../../components/modal/LocalFolderSong
 import { LocalSongMetadataMatchDialog } from '../../components/modal/LocalSongMetadataMatchDialog';
 import { useScratchpadStore } from '../../stores/useScratchpadStore';
 import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
+import { COVER_PICK_THUMBNAIL_SIZE } from '../../components/local-collection-cover/LocalCollectionCoverSongPicks';
 import FoliaPlaylistOrderEditor from '../../components/folia-playlist-order/FoliaPlaylistOrderEditor';
 import FoliaPlaylistDialogsHost from '../../components/folia-playlists/FoliaPlaylistDialogsHost';
 import { describeFoliaProvenance } from '../../components/folia-playlists/foliaTransferText';
-import { resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
+import { buildFoliaPlaylistCoverSongs, resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
 import { useLocalCollectionCoverUrls } from '../core/collection/cover/useLocalCollectionCoverUrls';
 import { followEntityRedirect } from '../../utils/localLibraryIndex';
 import { buildLocalCatalogIndex, resolveLocalCatalogLink } from '../core/shared/localCatalogLinks';
@@ -703,6 +704,22 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             .map(songId => songsById.get(songId))
             .filter((song): song is LocalSong => Boolean(song));
     }, [coverEditingTarget, surfaceProps.localSongs]);
+    // Folia 聚合歌单的「用一首歌的封面」列全部条目（别的来源的歌用存着的快照里的封面），不只是其中的本地歌。
+    const coverEditingCoverSongs = useMemo(() => {
+        const playlist = coverEditingTarget?.playlistId
+            ? surfaceProps.localPlaylists.find(item => item.id === coverEditingTarget.playlistId)
+            : undefined;
+        if (!playlist) return undefined;
+        const songsById = new Map(surfaceProps.localSongs.map(song => [song.id, song]));
+        return buildFoliaPlaylistCoverSongs(
+            playlist.entries,
+            entry => songsById.get(getFoliaEntryLocalSongId(entry) ?? ''),
+            entry => getFoliaEntryLocalSongId(entry) !== null,
+            song => getSongCoverUrl(song),
+            getLocalCoverAssetUrl,
+            COVER_PICK_THUMBNAIL_SIZE,
+        );
+    }, [coverEditingTarget, surfaceProps.localPlaylists, surfaceProps.localSongs]);
     const matchingSongAssignment = matchingSongId
         ? localLibraryCatalog.assignments.find(assignment => assignment.songId === matchingSongId)
         : undefined;
@@ -845,6 +862,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 <LocalCollectionCoverDialog
                     collection={coverEditingTarget}
                     songs={coverEditingSongs}
+                    coverSongs={coverEditingCoverSongs}
                     isDaylight={isDaylight}
                     onClose={() => setCoverEditingCollection(null)}
                 />

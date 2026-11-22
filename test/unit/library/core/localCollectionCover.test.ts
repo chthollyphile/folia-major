@@ -12,6 +12,8 @@ import { deriveLocalArtist, UNKNOWN_LOCAL_ALBUM_KEY } from '@/library/core/artis
 import {
     applyLocalArtistAlbumCoverOverrides,
     applyLocalCollectionCoverOverrides,
+    buildCoverPicks,
+    buildFoliaPlaylistCoverSongs,
     buildLocalSongCoverPicks,
     localCollectionCoverKey,
     resolveLocalCollectionCover,
@@ -210,6 +212,30 @@ describe('poster.png folder and song cover picks', () => {
         expect(picks).toEqual([
             { songId: 's1', title: 'Title s1', coverUrl: 'asset://c1?size=256', songCount: 2 },
             { songId: 's4', title: 'Title s4', coverUrl: 'https://img/o.jpg', songCount: 1 },
+        ]);
+    });
+
+    it('lists the covers of a Folia playlist across sources: local songs from the library, the rest from their snapshot', () => {
+        const local = new Map([['s1', song('s1', 'A', { localCoverAssetId: 'c1' })]]);
+        const localId = (entry: { key: string }) => (entry.key.startsWith('local:') ? entry.key.slice(6) : null);
+        const coverSongs = buildFoliaPlaylistCoverSongs(
+            [
+                { key: 'online:netease:1', song: { name: 'Online one', cover: 'https://img/a.jpg' } },
+                { key: 'local:s1', song: { name: 'ignored' } },
+                { key: 'local:gone', song: { name: 'removed from the library' } },
+                { key: 'online:netease:2', song: { name: 'Online two', cover: 'https://img/a.jpg' } },
+                { key: 'online:qq:3', song: { name: 'No cover' } },
+            ],
+            entry => local.get(localId(entry) ?? ''),
+            entry => localId(entry) !== null,
+            (entrySong: { name?: string; cover?: string }) => entrySong.cover,
+            assetUrl,
+            256,
+        );
+        expect(coverSongs.map(item => item.id)).toEqual(['online:netease:1', 'local:s1', 'online:netease:2', 'online:qq:3']);
+        expect(buildCoverPicks(coverSongs)).toEqual([
+            { songId: 'online:netease:1', title: 'Online one', coverUrl: 'https://img/a.jpg', songCount: 2 },
+            { songId: 'local:s1', title: 'Title s1', coverUrl: 'asset://c1?size=256', songCount: 1 },
         ]);
     });
 });
