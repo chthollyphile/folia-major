@@ -5133,7 +5133,7 @@ export default {
     "edit": "调整歌单顺序",
   },
   "foliaTransfer": {
-    "playViaPartlyFailedNote": "有 {{count}} 首没能向 {{source}} 问成（超时或出错），这次没换。",
+    "playViaPartlyFailedNote": "有 {{count}} 首没能向 {{source}} 问成（超时或出错），这些保持原样。",
     "savedViaPartly": "已存成 Folia 歌单「{{name}}」：共 {{count}} 首，{{swapped}} 首改由 {{source}} 播放，{{kept}} 首保持原来的来源（其中 {{failed}} 首没问成）",
     "noPlaylistCreated": "没有新建歌单。",
     "nothingSavable": "这里的 {{count}} 首都不能放进歌单",

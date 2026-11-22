@@ -338,7 +338,9 @@ export const saveCollectionAsFoliaPlaylist = async (
             ...(input.origin.collectionData !== undefined ? { collectionData: input.origin.collectionData } : {}),
         };
         const row = await createWithEntries(write, trimmedName, entries, origin, now);
-        return { playlist: toSummary(row), result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}), ...(failed ? { playViaFailed: failed } : {}) } };
+        // 没问成的首数按传进来的条数算，同一首歌出现几次就算几次；落成的条目是去重后的，不让它比「没换的」还多。
+        const playViaFailed = Math.min(failed ?? 0, counts.notSwapped);
+        return { playlist: toSummary(row), result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}), ...(playViaFailed > 0 ? { playViaFailed } : {}) } };
     });
 };
 

@@ -257,7 +257,13 @@ export const FoliaPlaylistImportDialog: React.FC<{
         const input = nameInput.current;
         if (!input || !readFormat || readFormat === 'error') return;
         const active = document.activeElement;
-        if (!active || active === document.body || active === input.closest('[role="dialog"]')) input.focus({ preventScroll: true });
+        const dialog = input.closest<HTMLElement>('[role="dialog"]');
+        if (active && active !== document.body && active !== dialog) return;
+        // 名字框禁用着（并回「我喜欢的音乐」那一张，名字不能改）：焦点给「导入」，回车照样能走。
+        const target = input.disabled
+            ? dialog?.querySelector<HTMLElement>('[data-folia-file-action="confirm"]:not(:disabled)') ?? null
+            : input;
+        target?.focus({ preventScroll: true });
     }, [readFormat]);
     const importable = reading ? countImportableSongs(reading) : 0;
     const failed = reading?.format === 'error';
@@ -358,7 +364,8 @@ export const FoliaPlaylistImportDialog: React.FC<{
                                 onChange={event => setName(event.target.value)}
                                 // 名字框里按回车就是「导入」（和转存对话框一样）；还不能导入时不动。
                                 onKeyDown={(event) => {
-                                    if (event.key !== 'Enter') return;
+                                    // 输入法里确认候选词的那一下回车不算。
+                                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
                                     event.preventDefault();
                                     void run();
                                 }}

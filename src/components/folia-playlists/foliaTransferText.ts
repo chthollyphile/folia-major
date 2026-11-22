@@ -8,7 +8,7 @@ import type {
 import { FOLIA_ORIGIN_NAVIDROME, FoliaOriginUnreadableError } from '../../library/app/foliaOriginSongs';
 import { omni } from '../../services/onlineMusic/omni';
 import { onlineMutationFailureText } from '../../services/onlineMusic/failure/onlineMutationFailure';
-import { FoliaNothingToSaveError } from '../../utils/foliaPlaylistTransfer';
+import type { FoliaNothingToSaveError } from '../../utils/foliaPlaylistTransfer';
 
 // src/components/folia-playlists/foliaTransferText.ts
 // 转存与「从原歌单更新」要说的话：来源的称呼、歌单详情里的出处、做完之后的提示。只有字，不用任何平台的商标。
