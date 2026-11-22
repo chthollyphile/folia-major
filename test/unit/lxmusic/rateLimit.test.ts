@@ -353,6 +353,9 @@ describe('the limits the main entry uses', () => {
         expect(LIMITS.rate.perHost.burst).toBeGreaterThanOrEqual(20);
         expect(LIMITS.rate.total.burst).toBeGreaterThanOrEqual(LIMITS.rate.perHost.burst);
         expect(LIMITS.concurrency.total).toBeGreaterThanOrEqual(LIMITS.concurrency.perHost);
+        // Scrubbing: twenty ranged reads in a row, each through a CDN redirect or two, must not wait.
+        expect(LIMITS.audioRate.perHost.burst).toBeGreaterThanOrEqual(20 * 3);
+        expect(LIMITS.audioRate.total.burst).toBeGreaterThanOrEqual(LIMITS.audioRate.perHost.burst);
         // An hour of 24 bit / 192 kHz FLAC is about 2.5 GiB.
         expect(LIMITS.maxStreamBytes).toBeGreaterThan(2.5 * 1024 ** 3);
         expect(LIMITS.maxStreams).toBeGreaterThanOrEqual(4);

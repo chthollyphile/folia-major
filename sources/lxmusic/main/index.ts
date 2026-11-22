@@ -62,8 +62,9 @@ export default function activate(api: FoliumSourceMainApi): void {
     const allow = devAllowance();
     const rate = createRateGate(LIMITS.rate);
     const egress = createEgress({ allow, gate: (hostname, signal) => rate.take(hostname, signal) });
-    // 音频转发另用一套桶（数值相同）：那是播放器发起的请求，脚本把自己的额度用光了也不该让歌放不出来。
-    const audioRate = createRateGate(LIMITS.rate);
+    // 音频转发另用一套桶，也宽得多：那是播放器发起的请求（拖动时一连串带 Range 的），脚本催不动它；脚本把自己的额度
+    // 用光了也不该让歌放不出来。
+    const audioRate = createRateGate(LIMITS.audioRate);
     const audioEgress = createEgress({ allow, gate: (hostname, signal) => audioRate.take(hostname, signal) });
     const library = createScriptLibrary(api.storage);
 

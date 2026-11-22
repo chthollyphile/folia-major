@@ -16,12 +16,15 @@ import { Readable } from 'node:stream';
  *     「之后」那一档；一直按上限发，一小时也就一万四千个，当不了像样的刷量工具。要等超过 10 秒的直接拒绝。
  *   - 同时在途的 lx.request：一个主机 4 个，整个模组 8 个，再多的排队，队里最多 16 个。
  *   - 同时转发的音频流：8 条（当前这首和预取的下一首各两条，再留一倍的余量）；满了关掉最久没人读的那条。
- *     音频转发有自己的一套每秒请求数的桶（数值相同）：那是播放器发起的，不和脚本的 lx.request 抢额度。
+ *     音频转发有自己的一套每秒请求数的桶（audioRate）：那是播放器发起的，不和脚本的 lx.request 抢额度，也宽得多
+ *     （一个主机一口气 60 个、之后每秒 10 个；整个模组一口气 120 个、之后每秒 20 个）。拖动进度条时播放器会连着发
+ *     带 Range 的请求，每个请求经 CDN 的跳转是两三跳；脚本催不动播放器，它能左右的只有每个请求跳几次（最多 8 跳）。
  *   - 一条音频流最多 4 GiB：一小时的 24 bit / 192 kHz FLAC 大约 2.5 GiB。
  *   - 我们在等、上游 30 秒不来数据就断：播放器缓冲着十几秒以上的声音，30 秒足够它察觉并重新取。
  */
 export const LIMITS = {
     rate: { perHost: { perSecond: 2, burst: 20 }, total: { perSecond: 4, burst: 40 }, maxWaitMs: 10_000 },
+    audioRate: { perHost: { perSecond: 10, burst: 60 }, total: { perSecond: 20, burst: 120 }, maxWaitMs: 10_000 },
     concurrency: { perHost: 4, total: 8, maxQueue: 16 },
     maxStreams: 8,
     maxStreamBytes: 4 * 1024 * 1024 * 1024,
