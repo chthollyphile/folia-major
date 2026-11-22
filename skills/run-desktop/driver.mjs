@@ -18,8 +18,11 @@ const PORT = Number(process.env.FOLIA_DRIVER_PORT || 9230);
 const WORK_DIR = path.join(REPO, 'test-results', 'run-desktop');
 const USER_DATA = path.join(WORK_DIR, 'userdata');
 const SHOT_DIR = process.env.SCREENSHOT_DIR || path.join(WORK_DIR, 'shots');
-// electron/main.cjs loadAppEntry() hardcodes this origin when ELECTRON_DEV=true.
-const DEV_ORIGIN = 'http://localhost:3000';
+// Where electron/main.cjs loadAppEntry() loads the page from when ELECTRON_DEV=true: Vite on :3000, or on
+// FOLIA_DEV_SERVER_PORT when a second dev build (another worktree) runs beside one that already holds :3000.
+const envDevPort = Number(process.env.FOLIA_DEV_SERVER_PORT);
+const DEV_PORT = Number.isInteger(envDevPort) && envDevPort > 0 && envDevPort < 65536 ? envDevPort : 3000;
+const DEV_ORIGIN = `http://localhost:${DEV_PORT}`;
 const LOG_LIMIT = 2000;
 
 const USAGE = `usage:
@@ -34,6 +37,9 @@ commands:
   click <selector>            Playwright click on the first match
   click-text <text>           click a button by accessible name, else the first element with that text
   fill <selector> <value>     fill an input
+  hover <selector>            move the pointer onto the first match (controls that only show on hover)
+  upload <selector> <file>    choose a file on an <input type=file> (hidden ones too); the page reads the real file
+  drag <from> <to>            press on the first selector's centre, move to the second's in steps, release
   type <text> | press <key>   keyboard input (press takes Playwright names: ControlOrMeta+k = Cmd on macOS, Escape, Enter)
   text [selector]             innerText of the selector (default: body)
   wait <selector> [ms]        wait until the selector is visible (default 10000 ms)
@@ -105,20 +111,20 @@ async function runClient(cmd, args) {
 // ---------------------------------------------------------------------------------------------
 
 async function startVite() {
-  if (await isPortOpen(3000)) {
-    console.log('vite: reusing the server already on :3000');
+  if (await isPortOpen(DEV_PORT)) {
+    console.log(`vite: reusing the server already on :${DEV_PORT}`);
     return null;
   }
   const logFile = path.join(WORK_DIR, 'vite.log');
   fs.writeFileSync(logFile, '');
-  const vite = spawn(process.execPath, [path.join(REPO, 'node_modules/vite/bin/vite.js'), '--port', '3000', '--strictPort'], {
+  const vite = spawn(process.execPath, [path.join(REPO, 'node_modules/vite/bin/vite.js'), '--port', String(DEV_PORT), '--strictPort'], {
     cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   const sink = (chunk) => fs.appendFileSync(logFile, chunk);
   vite.stdout.on('data', sink);
   vite.stderr.on('data', sink);
   for (let i = 0; i < 120; i += 1) {
-    if (await isPortOpen(3000)) {
+    if (await isPortOpen(DEV_PORT)) {
       console.log(`vite: started (pid ${vite.pid}), log ${path.relative(REPO, logFile)}`);
       return vite;
     }
@@ -126,7 +132,7 @@ async function startVite() {
     await sleep(500);
   }
   vite.kill();
-  throw new Error(`vite did not come up on :3000; see ${logFile}`);
+  throw new Error(`vite did not come up on :${DEV_PORT}; see ${logFile}`);
 }
 
 async function runServer(flags) {
@@ -158,7 +164,7 @@ async function runServer(flags) {
     executablePath: electronPath,
     args: [`--user-data-dir=${USER_DATA}`, REPO],
     cwd: REPO,
-    env: { ...process.env, ELECTRON_DEV: 'true' },
+    env: { ...process.env, ELECTRON_DEV: 'true', FOLIA_DEV_SERVER_PORT: String(DEV_PORT) },
     timeout: 90_000,
   });
   app.process().stdout.on('data', lineCollector(mainLines, mainLog));
@@ -244,6 +250,33 @@ async function runServer(flags) {
     async fill(args) {
       await page.locator(args[0]).first().fill(args.slice(1).join(' '), { timeout: 10_000 });
       return 'filled';
+    },
+    async hover(args) {
+      await page.locator(args.join(' ')).first().hover({ timeout: 10_000 });
+      return 'hovering';
+    },
+    async upload(args) {
+      await page.locator(args[0]).first().setInputFiles(path.resolve(args.slice(1).join(' ')), { timeout: 10_000 });
+      return 'chosen';
+    },
+    async drag(args) {
+      const centre = async (selector) => {
+        const box = await page.locator(selector).first().boundingBox({ timeout: 10_000 });
+        if (!box) throw new Error('not visible: ' + selector);
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      };
+      const from = await centre(args[0]);
+      const to = await centre(args[1]);
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      // Pointer-driven sorters only start a drag after the pointer has travelled, and read the position on move.
+      for (let i = 1; i <= 12; i += 1) {
+        await page.mouse.move(from.x + ((to.x - from.x) * i) / 12, from.y + ((to.y - from.y) * i) / 12);
+        await sleep(40);
+      }
+      await sleep(150);
+      await page.mouse.up();
+      return 'dragged';
     },
     async type(args) {
       await page.keyboard.type(args.join(' '), { delay: 30 });
