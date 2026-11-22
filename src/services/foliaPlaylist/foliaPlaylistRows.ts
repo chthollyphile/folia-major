@@ -5,11 +5,11 @@ import { toStoredSongSnapshot } from '../../utils/songSnapshot';
 import { buildDuplicateImportCanonicalSongIds, getDuplicateImportSongKey } from './localSongDuplicates';
 
 // src/services/foliaPlaylist/foliaPlaylistRows.ts
-// Folia 聚合歌单存下来的形状，以及读回来时的检查与修补（纯函数，不碰数据库）。
-// 存在 KineticPlayerDB 的 api_cache 表里（和旧的本地歌单同一张表，不改库的版本，旧版本照样打得开）：
+// Folia 聚合歌单的形状规则（纯函数，不碰数据库）：建 id、本地歌的条目、对着曲库修条目要的索引，
+// 以及旧结构（按条目存之前）读回来时的检查。现在的存储在 FoliaPlaylistsDB（foliaPlaylistDatabase.ts）。
+// 旧结构在 KineticPlayerDB 的 api_cache 表里，只在把它搬进新库时读（foliaPlaylistStorage.ts），这一版不再写：
 // - `folia_playlists_meta`：{ version, order, localPlaylistsMigratedAt? }，歌单的先后与迁移标记；
-// - `folia_playlist:<歌单 id>`：一张歌单一行（FoliaPlaylist），改一张歌单只重写它自己那一行。
-// 这两种键不以 `playlist_`、`lyric_`、`cover_`、`audio_` 开头，按类别清缓存不会碰到它们。
+// - `folia_playlist:<歌单 id>`：一张歌单一行（FoliaPlaylist，条目都在这一行里）。
 
 export const FOLIA_PLAYLISTS_META_KEY = 'folia_playlists_meta';
 export const FOLIA_PLAYLIST_ROW_PREFIX = 'folia_playlist:';

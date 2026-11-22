@@ -1,5 +1,5 @@
 import type { LocalSong } from '../../types';
-import type { FoliaPlaylist, FoliaPlaylistAddResult } from '../../types/foliaPlaylist';
+import type { FoliaPlaylist, FoliaPlaylistAddResult, FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import type { FoliaEntryAvailabilityDeps } from '../../library/core/foliaPlaylist/foliaPlaylist.contract';
 import { createSafeObjectUrl } from '../../utils/blobGuards';
 import { sanitizeDownloadFileName } from '../../utils/downloadFileName';
@@ -148,7 +148,7 @@ export const countImportableSongs = (reading: PlaylistFileReading): number => (
 export const importPlaylistFileReading = async (
     reading: Exclude<PlaylistFileReading, { format: 'error' }>,
     options: { name: string; mergeInto?: string },
-): Promise<{ playlist: FoliaPlaylist | null; result: FoliaPlaylistAddResult }> => {
+): Promise<{ playlist: FoliaPlaylistSummary | null; result: FoliaPlaylistAddResult }> => {
     if (options.mergeInto) {
         return reading.format === 'json'
             ? addSongsToFoliaPlaylist(options.mergeInto, reading.preview.entries.map(entry => entry.song))
@@ -157,5 +157,5 @@ export const importPlaylistFileReading = async (
     const playlist = reading.format === 'json'
         ? await createFoliaPlaylistFromEntries(options.name, reading.preview.entries, { origin: reading.preview.origin })
         : await createFoliaPlaylistFromLocalSongs(options.name, reading.matchedSongs);
-    return { playlist, result: { added: playlist.entries.length, duplicates: 0, rejected: 0 } };
+    return { playlist, result: { added: playlist.entryCount, duplicates: 0, rejected: 0 } };
 };

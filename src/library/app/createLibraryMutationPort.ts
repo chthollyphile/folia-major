@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { UnifiedSong } from '../../types';
-import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import type { LocalGridViewCollectionDescriptor } from '../core/collection/collection.contract';
 import type { LibraryMutationPort, LibraryPlaylistOption } from '../core/shared/ports.contract';
 import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../services/localMusicService';
@@ -29,7 +29,7 @@ type MutationSurface = Pick<
 >;
 
 export type LibraryMutationPortDialogs = {
-    reorderPlaylist: (playlist: FoliaPlaylist) => void;
+    reorderPlaylist: (playlist: FoliaPlaylistSummary) => void;
     editEntity: (entityId: string) => void;
     editCover: (collection: LocalGridViewCollectionDescriptor) => void;
     organizeFolder: (collection: LocalGridViewCollectionDescriptor) => void;

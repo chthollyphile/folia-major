@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { LocalSong } from '@/types';
 import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+import { summaryOfFoliaPlaylist } from '../../helpers/foliaPlaylistSummary';
 import type { ProviderCollection } from '@/types/onlineMusic';
 import { buildOnlinePlaylistCards, buildOnlineRadioCards } from '@/library/core/home/homeCards';
 import { buildLocalHomeCards, buildLocalHomeGroups } from '@/library/core/home/localHomeModel';
@@ -67,7 +68,7 @@ describe('home special cards', () => {
             { id: 'mix', name: 'Mix', entries: localEntries(['s2']), createdAt: 1, updatedAt: 1 } as FoliaPlaylist,
         ];
         const groups = buildLocalHomeGroups(songs, t, { entities: [], assignments: [] }, () => null);
-        const foliaGroups = buildFoliaHomeGroups(playlists, songs, t, () => null);
+        const foliaGroups = buildFoliaHomeGroups(playlists.map(summaryOfFoliaPlaylist), songs, t, () => null);
         const special = (list: typeof groups.folders) => buildLocalHomeCards(list).map(card => resolveLibraryHomeSpecial(card, 'local'));
         expect(special(groups.folders)).toEqual(['all-songs', null, null]);
         // 歌单在 Folia 组：卡片的形状没变，「我喜欢的音乐」仍按 isVirtual 认。

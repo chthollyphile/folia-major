@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../types';
-import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import { createFoliaPlaylist, reorderFoliaPlaylists } from '../../services/foliaPlaylist/foliaPlaylistService';
-import { useFoliaPlaylistsStore } from '../../stores/useFoliaPlaylistsStore';
+import { useFoliaPlaylistContent, useFoliaPlaylistsStore } from '../../stores/useFoliaPlaylistsStore';
 import { useScratchpadStore } from '../../stores/useScratchpadStore';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
 import { useLibraryHomeFolia } from '../../library/core/home/useLibraryHomeFolia';
@@ -21,7 +21,7 @@ import FoliaTransferDialog from './FoliaTransferDialog';
 // 歌单文件的导出（选 JSON 或 M3U8）与导入（两种都认，先预览）：FoliaPlaylistFileDialogs。
 
 type Props = {
-    playlists: readonly FoliaPlaylist[];
+    playlists: readonly FoliaPlaylistSummary[];
     localSongs: readonly LocalSong[];
     isDaylight: boolean;
 };
@@ -63,7 +63,8 @@ const FoliaPlaylistDialogsHost: React.FC<Props> = (props) => {
     const exportPlaylistId = useFoliaPlaylistDialogStore(state => state.exportPlaylistId);
     const closeExport = useFoliaPlaylistDialogStore(state => state.closeExport);
     const importRequest = useFoliaPlaylistDialogStore(state => state.importRequest);
-    const exportPlaylist = exportPlaylistId ? props.playlists.find(playlist => playlist.id === exportPlaylistId) : undefined;
+    // 导出要这张歌单的全部条目：窗口要开的时候才读，读到了再画。
+    const { playlist: exportPlaylist } = useFoliaPlaylistContent(exportPlaylistId);
     // 这两个对话框和首页层在同一个层叠上下文里，盖不过左边的速记簿：开着时让它藏起来。
     useEffect(() => {
         if (dialog !== 'reorder') return;

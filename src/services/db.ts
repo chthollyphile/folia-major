@@ -31,6 +31,7 @@ import { clearSessionValues, putSessionValue, readSession } from './repositories
 import { readThemeRegistryEntries, writeThemeRegistryEntries } from './repositories/themeRegistryRepository';
 import { clearCoverAssets, getCoverAssetUsage } from './binaryAssetStore';
 import { clearLocalCoverBinaries } from './localCoverBinaryStore';
+import { resetFoliaPlaylistStorage } from './foliaPlaylist/foliaPlaylistStorage';
 import {
   cancelLocalCoverAssetMigration,
   resetLocalCoverAssetRuntime,
@@ -247,6 +248,8 @@ export const clearAllData = async (): Promise<void> => {
     resetLocalCoverAssetRuntime();
     await appDatabase.delete();
     await appDatabase.open();
+    // Folia 歌单在它自己的库里（FoliaPlaylistsDB），一起清掉。
+    await resetFoliaPlaylistStorage();
   } catch (error) {
     console.error('Failed to clear all data', error);
   }

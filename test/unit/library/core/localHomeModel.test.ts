@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { LocalLibraryGroup, LocalSong } from '@/types';
 import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+import { summaryOfFoliaPlaylist } from '../../helpers/foliaPlaylistSummary';
 
 const localEntries = (songIds: string[]) => songIds.map(id => ({ key: `local:${id}`, song: { id }, addedAt: 1 }));
 import {
@@ -61,7 +62,7 @@ describe('buildFoliaHomeGroups', () => {
             { id: 'fav', name: 'Liked Songs', entries: localEntries(['s2']), isFavorite: true },
             { id: 'p2', name: 'Online only', entries: [{ key: 'online:netease:9', song: { id: 9, album: { coverUrl: 'https://img/9.jpg' } }, addedAt: 1 }] },
         ] as unknown as FoliaPlaylist[];
-        const groups = buildFoliaHomeGroups(playlists, songs, t, noCover);
+        const groups = buildFoliaHomeGroups(playlists.map(summaryOfFoliaPlaylist), songs, t, noCover);
         expect(groups.map(group => [group.id, group.name, group.isVirtual ?? false, group.songs.map(item => item.id), group.trackCount])).toEqual([
             ['playlist-fav', 'localMusic.favoritePlaylist', true, ['s2'], 1],
             ['playlist-p1', 'Mine', false, ['s1', 's2'], 3],

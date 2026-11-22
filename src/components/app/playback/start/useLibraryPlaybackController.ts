@@ -378,10 +378,8 @@ export function useLibraryPlaybackController({
         () => localPlaylists.find(playlist => playlist.isFavorite) ?? null,
         [localPlaylists],
     );
-    const favoriteSongKeys = useMemo(
-        () => new Set(favoritePlaylist?.entries.map(entry => entry.key)),
-        [favoritePlaylist],
-    );
+    // 红心的点亮状态只要 key：store 里常驻的那一份（只读主键，不读条目）。
+    const favoriteSongKeys = useFoliaPlaylistsStore(state => state.favoriteKeys);
 
     const loadBaseOnlineLyrics = useCallback(async (
         onlineSong: SongResult,

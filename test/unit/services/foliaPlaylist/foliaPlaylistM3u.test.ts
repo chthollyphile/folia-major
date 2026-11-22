@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalSong } from '@/types';
-import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+import type { FoliaPlaylist, FoliaPlaylistSummary } from '@/types/foliaPlaylist';
 import { createFoliaPlaylistFromLocalSongs } from '@/services/foliaPlaylist/foliaPlaylistService';
 import {
     importLocalPlaylistFile,
@@ -97,10 +97,10 @@ describe('foliaPlaylistM3u', () => {
             createSong('one', 'Library/A.mp3'),
             createSong('two', 'Library/B.mp3'),
         ];
-        const created: FoliaPlaylist = {
+        const created: FoliaPlaylistSummary = {
             id: 'playlist',
             name: 'Road Trip',
-            entries: localEntries(['two', 'one']),
+            entryCount: 2,
             createdAt: 1,
             updatedAt: 1,
         };

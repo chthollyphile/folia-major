@@ -14,7 +14,7 @@ import {
     type FoliaFileNavidromeUrls,
 } from '@/services/foliaPlaylist/foliaPlaylistFile';
 import { importPlaylistFileReading, readPlaylistFileText } from '@/services/foliaPlaylist/foliaPlaylistFileIo';
-import { addSongsToFoliaPlaylist, createFoliaPlaylist, getFoliaPlaylist, getFoliaPlaylists } from '@/services/foliaPlaylist/foliaPlaylistService';
+import { addSongsToFoliaPlaylist, createFoliaPlaylist, getFoliaPlaylist, getFoliaPlaylists, resetFoliaPlaylistStorage } from '@/services/foliaPlaylist/foliaPlaylistService';
 import { buildLocalEntry } from '@/services/foliaPlaylist/foliaPlaylistRows';
 import { serializeFoliaPlaylistToM3u8 } from '@/services/foliaPlaylist/foliaPlaylistM3u';
 import { appDatabase } from '@/services/appDatabase';
@@ -467,6 +467,7 @@ describe('reading and importing a file', () => {
     beforeEach(async () => {
         await appDatabase.delete();
         await appDatabase.open();
+        await resetFoliaPlaylistStorage();
         await appDatabase.local_music.bulkPut(LIBRARY);
     });
 
@@ -500,8 +501,10 @@ describe('reading and importing a file', () => {
         expect(result).toEqual({ added: 3, duplicates: 1, rejected: 0 });
         expect(playlist?.id).toBe(target.id);
         expect(playlist?.origin).toBeUndefined();
-        expect(playlist?.entries.map(entry => entry.key)).toEqual(['online:netease:1', 'online:lxmusic:wy:2', 'navidrome:n1', 'local:l1']);
-        expect(playlist?.entries.some(entry => entry.fromOrigin)).toBe(false);
+        expect(playlist?.entryCount).toBe(4);
+        const stored = await getFoliaPlaylist(target.id);
+        expect(stored?.entries.map(entry => entry.key)).toEqual(['online:netease:1', 'online:lxmusic:wy:2', 'navidrome:n1', 'local:l1']);
+        expect(stored?.entries.some(entry => entry.fromOrigin)).toBe(false);
         expect((await getFoliaPlaylists()).filter(item => !item.isFavorite)).toHaveLength(1);
     });
 
@@ -509,7 +512,7 @@ describe('reading and importing a file', () => {
         const reading = readPlaylistFileText('Music/A/one.mp3\nMusic/B/two.flac\n', LIBRARY);
         if (reading.format !== 'm3u') throw new Error('expected m3u');
         const { playlist } = await importPlaylistFileReading(reading, { name: 'Local' });
-        expect(playlist?.entries.map(entry => entry.key)).toEqual(['local:l1', 'local:l2']);
+        expect((await getFoliaPlaylist(playlist!.id))?.entries.map(entry => entry.key)).toEqual(['local:l1', 'local:l2']);
         const merged = await importPlaylistFileReading(reading, { name: 'x', mergeInto: playlist!.id });
         expect(merged.result).toMatchObject({ added: 0, duplicates: 2 });
         await addSongsToFoliaPlaylist(playlist!.id, []);

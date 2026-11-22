@@ -7,14 +7,16 @@ import {
     getFoliaPlaylists,
     refreshFoliaPlaylistFromOrigin,
     removeFoliaPlaylistEntries,
+    resetFoliaPlaylistStorage,
     saveCollectionAsFoliaPlaylist,
     type FoliaCounterpartResolver,
     type FoliaTransferDeps,
 } from '@/services/foliaPlaylist/foliaPlaylistService';
-import { foliaPlaylistRowKey, parseFoliaPlaylistRow } from '@/services/foliaPlaylist/foliaPlaylistRows';
+import { foliaPlaylistsDatabase } from '@/services/foliaPlaylist/foliaPlaylistDatabase';
+import { parseFoliaPlaylistRow } from '@/services/foliaPlaylist/foliaPlaylistRows';
 import { appDatabase } from '@/services/appDatabase';
 import type { SongResult } from '@/types';
-import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+import type { FoliaPlaylistInfo } from '@/types/foliaPlaylist';
 
 // test/unit/services/foliaPlaylist/foliaPlaylistTransfer.test.ts
 // 转存平台歌单与从原歌单刷新（存储这一层）：换音源的记账、目标音源问不成、刷新不丢用户自己加的条目、
@@ -30,7 +32,10 @@ const online = (providerId: string, id: string, name = `song ${id}`): SongResult
 } as SongResult);
 const origin = { sourceId: 'netease', collectionId: 'pl-1', name: 'My List' };
 const songs = ['1', '2', '3'].map(id => online('netease', id));
-const keysOf = (playlist: FoliaPlaylist | null | undefined) => playlist?.entries.map(entry => entry.key);
+/** 这张歌单现在在库里的条目 key，按顺序（写操作返回的是摘要，条目从库里读回来看）。 */
+const keysOf = async (playlist: Pick<FoliaPlaylistInfo, 'id'> | null | undefined) => (
+    playlist ? (await getFoliaPlaylist(playlist.id))?.entries.map(entry => entry.key) : undefined
+);
 
 /** 目标音源 lx：对 ids 里的歌有对应的。 */
 const resolver = (ids: readonly string[]): FoliaCounterpartResolver => vi.fn<FoliaCounterpartResolver>(async (_target, asked) => ({
@@ -43,6 +48,7 @@ describe('saveCollectionAsFoliaPlaylist', () => {
     beforeEach(async () => {
         await appDatabase.delete();
         await appDatabase.open();
+        await resetFoliaPlaylistStorage();
     });
 
     it('saves the collection as it is when no target is chosen', async () => {
@@ -50,11 +56,12 @@ describe('saveCollectionAsFoliaPlaylist', () => {
         expect(playlist.name).toBe('Saved');
         expect(playlist.origin).toMatchObject({ sourceId: 'netease', collectionId: 'pl-1', name: 'My List' });
         expect(playlist.origin).not.toHaveProperty('playVia');
-        expect(keysOf(playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
+        expect(await keysOf(playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
         expect(result).toEqual({ swapped: 0, notSwapped: 3, duplicates: 0, rejected: 0 });
         expect(noTarget.resolveCounterparts).not.toHaveBeenCalled();
+        expect(playlist).toMatchObject({ entryCount: 3 });
         const stored = await getFoliaPlaylist(playlist.id);
-        expect(stored).toEqual(playlist);
+        expect(stored).toMatchObject({ id: playlist.id, name: 'Saved', origin: playlist.origin });
         expect((await getFoliaPlaylists()).map(item => item.id)).toContain(playlist.id);
     });
 
@@ -63,15 +70,15 @@ describe('saveCollectionAsFoliaPlaylist', () => {
         const { playlist, result } = await saveCollectionAsFoliaPlaylist({ name: 'Saved', songs, origin, playVia: 'lx' }, deps);
         expect(deps.resolveCounterparts).toHaveBeenCalledTimes(1);
         expect(deps.resolveCounterparts).toHaveBeenCalledWith('lx', songs);
-        expect(keysOf(playlist)).toEqual(['online:lx:wy:1', 'online:lx:wy:2', 'online:lx:wy:3']);
-        expect(playlist.entries.map(entry => entry.originalKey)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
+        expect(await keysOf(playlist)).toEqual(['online:lx:wy:1', 'online:lx:wy:2', 'online:lx:wy:3']);
+        expect((await getFoliaPlaylist(playlist.id))?.entries.map(entry => entry.originalKey)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
         expect(playlist.origin?.playVia).toBe('lx');
         expect(result).toEqual({ swapped: 3, notSwapped: 0, duplicates: 0, rejected: 0 });
     });
 
     it('swaps only the songs the target has, and says how many of each', async () => {
         const { playlist, result } = await saveCollectionAsFoliaPlaylist({ name: 'Saved', songs, origin, playVia: 'lx' }, depsOf(resolver(['2'])));
-        expect(keysOf(playlist)).toEqual(['online:netease:1', 'online:lx:wy:2', 'online:netease:3']);
+        expect(await keysOf(playlist)).toEqual(['online:netease:1', 'online:lx:wy:2', 'online:netease:3']);
         expect(result).toEqual({ swapped: 1, notSwapped: 2, duplicates: 0, rejected: 0 });
         // 读回来还是一样（标记都留着）。
         const stored = await getFoliaPlaylist(playlist.id);
@@ -83,13 +90,13 @@ describe('saveCollectionAsFoliaPlaylist', () => {
     it('still saves everything when the target cannot be asked, and remembers the target', async () => {
         const unavailable = depsOf(async (_target, asked) => ({ songs: asked.map(() => null), unavailable: 'not-configured' }));
         const first = await saveCollectionAsFoliaPlaylist({ name: 'A', songs, origin, playVia: 'lx' }, unavailable);
-        expect(keysOf(first.playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
+        expect(await keysOf(first.playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
         expect(first.result).toEqual({ swapped: 0, notSwapped: 3, duplicates: 0, rejected: 0, playViaUnavailable: 'not-configured' });
         expect(first.playlist.origin?.playVia).toBe('lx');
 
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         const second = await saveCollectionAsFoliaPlaylist({ name: 'B', songs, origin, playVia: 'lx' }, depsOf(async () => { throw new Error('boom'); }));
-        expect(keysOf(second.playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
+        expect(await keysOf(second.playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
         expect(second.result.playViaUnavailable).toBe('failed');
         vi.restoreAllMocks();
 
@@ -114,6 +121,7 @@ describe('refreshFoliaPlaylistFromOrigin', () => {
     beforeEach(async () => {
         await appDatabase.delete();
         await appDatabase.open();
+        await resetFoliaPlaylistStorage();
     });
 
     const save = async (deps: FoliaTransferDeps = noTarget, playVia?: string) => (
@@ -135,19 +143,19 @@ describe('refreshFoliaPlaylistFromOrigin', () => {
         const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, fetch, noTarget);
         expect(fetch).toHaveBeenCalledWith(expect.objectContaining({ sourceId: 'netease', collectionId: 'pl-1' }));
         // 3、1 填原来 1、2 占的两个位置；原歌单里没有了的 2 留在原地（它排第 2，所以填的是第 1、3 两个位置）。
-        expect(keysOf(refreshed?.playlist)).toEqual(['online:netease:3', 'online:netease:2', 'online:netease:1', 'online:qq:mine', 'online:netease:4']);
+        expect(await keysOf(refreshed?.playlist)).toEqual(['online:netease:3', 'online:netease:2', 'online:netease:1', 'online:qq:mine', 'online:netease:4']);
         expect(refreshed?.result).toEqual({ added: 1, swapped: 0, detached: 1, duplicates: 0, rejected: 0 });
         expect(refreshed?.playlist.origin?.refreshedAt).toEqual(expect.any(Number));
-        expect(keysOf(await getFoliaPlaylist(playlist.id))).toEqual(keysOf(refreshed?.playlist));
+        expect(await keysOf(await getFoliaPlaylist(playlist.id))).toEqual(await keysOf(refreshed?.playlist));
     });
 
     it('swaps new songs through the target chosen when it was saved', async () => {
         const playlist = await save(depsOf(resolver(['1'])), 'lx');
-        expect(keysOf(playlist)).toEqual(['online:lx:wy:1', 'online:netease:2', 'online:netease:3']);
+        expect(await keysOf(playlist)).toEqual(['online:lx:wy:1', 'online:netease:2', 'online:netease:3']);
         const deps = depsOf(resolver(['1', '4']));
         const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [...songs, online('netease', '4'), online('netease', '5')], deps);
         expect(deps.resolveCounterparts).toHaveBeenCalledWith('lx', expect.any(Array));
-        expect(keysOf(refreshed?.playlist)).toEqual([
+        expect(await keysOf(refreshed?.playlist)).toEqual([
             'online:lx:wy:1', 'online:netease:2', 'online:netease:3', 'online:lx:wy:4', 'online:netease:5',
         ]);
         expect(refreshed?.result).toMatchObject({ added: 2, swapped: 1, detached: 0 });
@@ -158,11 +166,11 @@ describe('refreshFoliaPlaylistFromOrigin', () => {
         const playlist = await save(depsOf(resolver(['1', '2', '3'])), 'lx');
         const off = depsOf(async (_target, asked) => ({ songs: asked.map(() => null), unavailable: 'switched-off' }));
         const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [...songs, online('netease', '4')], off);
-        expect(keysOf(refreshed?.playlist)).toEqual(['online:lx:wy:1', 'online:lx:wy:2', 'online:lx:wy:3', 'online:netease:4']);
+        expect(await keysOf(refreshed?.playlist)).toEqual(['online:lx:wy:1', 'online:lx:wy:2', 'online:lx:wy:3', 'online:netease:4']);
         expect(refreshed?.result).toMatchObject({ added: 1, swapped: 0, detached: 0, playViaUnavailable: 'switched-off' });
         // 目标音源还记着：下次能问了，没换的那首也换过去。
         const again = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [...songs, online('netease', '4')], depsOf(resolver(['4'])));
-        expect(keysOf(again?.playlist)).toEqual(['online:lx:wy:1', 'online:lx:wy:2', 'online:lx:wy:3', 'online:lx:wy:4']);
+        expect(await keysOf(again?.playlist)).toEqual(['online:lx:wy:1', 'online:lx:wy:2', 'online:lx:wy:3', 'online:lx:wy:4']);
         expect(again?.result).toMatchObject({ added: 0, swapped: 1 });
     });
 
@@ -170,12 +178,12 @@ describe('refreshFoliaPlaylistFromOrigin', () => {
         const playlist = await save();
         const deps = depsOf(resolver(['2']));
         const withTarget = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => songs, deps, { playVia: 'lx' });
-        expect(keysOf(withTarget?.playlist)).toEqual(['online:netease:1', 'online:lx:wy:2', 'online:netease:3']);
+        expect(await keysOf(withTarget?.playlist)).toEqual(['online:netease:1', 'online:lx:wy:2', 'online:netease:3']);
         expect(withTarget?.playlist.origin?.playVia).toBe('lx');
         const without = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [...songs, online('netease', '4')], noTarget, { playVia: null });
         expect(without?.playlist.origin).not.toHaveProperty('playVia');
         // 已经换过的不换回去。
-        expect(keysOf(without?.playlist)).toEqual(['online:netease:1', 'online:lx:wy:2', 'online:netease:3', 'online:netease:4']);
+        expect(await keysOf(without?.playlist)).toEqual(['online:netease:1', 'online:lx:wy:2', 'online:netease:3', 'online:netease:4']);
     });
 
     it('writes nothing when the origin cannot be read, or reads back empty', async () => {
@@ -201,23 +209,19 @@ describe('refreshFoliaPlaylistFromOrigin', () => {
         release([...songs, online('netease', '4')]);
         const refreshed = await pending;
         // 用户加的还在；用户删的那首原歌单里还有，所以又回来了（跟着原歌单的歌单就是这样）。
-        expect(keysOf(refreshed?.playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:qq:mine', 'online:netease:3', 'online:netease:4']);
-        expect(refreshed?.playlist.entries.find(entry => entry.key === 'online:qq:mine')?.fromOrigin).toBeUndefined();
+        expect(await keysOf(refreshed?.playlist)).toEqual(['online:netease:1', 'online:netease:2', 'online:qq:mine', 'online:netease:3', 'online:netease:4']);
+        expect((await getFoliaPlaylist(playlist.id))?.entries.find(entry => entry.key === 'online:qq:mine')?.fromOrigin).toBeUndefined();
     });
 
     it('keeps fields of a later version on the playlist and its entries', async () => {
         const playlist = await save();
-        const rowKey = foliaPlaylistRowKey(playlist.id);
-        const row = await appDatabase.api_cache.get(rowKey);
-        const data = row?.data as FoliaPlaylist & Record<string, unknown>;
-        await appDatabase.api_cache.put({
-            key: rowKey,
-            timestamp: 1,
-            data: { ...data, later: 'kept', entries: data.entries.map(entry => ({ ...entry, note: 'n' })) },
-        });
+        await foliaPlaylistsDatabase.playlists.update(playlist.id, { later: 'kept' } as never);
+        await foliaPlaylistsDatabase.entries.toCollection().modify({ note: 'n' } as never);
         const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [songs[1], songs[0], songs[2]], noTarget);
         expect(refreshed?.playlist).toMatchObject({ later: 'kept' });
-        expect(refreshed?.playlist.entries.every(entry => (entry as unknown as { note: string }).note === 'n')).toBe(true);
+        const stored = await getFoliaPlaylist(playlist.id);
+        expect(stored?.entries).toHaveLength(3);
+        expect(stored?.entries.every(entry => (entry as unknown as { note: string }).note === 'n')).toBe(true);
     });
 });
 
@@ -247,6 +251,7 @@ describe('what the interface adds: the kind of the original, and cancelling', ()
     beforeEach(async () => {
         await appDatabase.delete();
         await appDatabase.open();
+        await resetFoliaPlaylistStorage();
     });
 
     it('keeps the kind of the original and the data its source reads it with, through a refresh', async () => {
@@ -287,7 +292,7 @@ describe('what the interface adds: the kind of the original, and cancelling', ()
             return [...songs, online('netease', '4')];
         }, noTarget, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
         const stored = await getFoliaPlaylist(playlist.id);
-        expect(keysOf(stored)).toEqual(keysOf(playlist));
+        expect(await keysOf(stored)).toEqual(['online:netease:1', 'online:netease:2', 'online:netease:3']);
         expect(stored?.origin).not.toHaveProperty('refreshedAt');
     });
 });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../../src/types';
-import type { FoliaPlaylist } from '../../../src/types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../../src/types/foliaPlaylist';
 import type { ProviderCollection } from '../../../src/types/onlineMusic';
 import type { HomeSurfaceProps } from '../../../src/components/app/home/homeSurfaceTypes';
 import {
@@ -13,7 +13,7 @@ import {
 import { buildLocalHomeGroups } from '../../../src/library/core/home/localHomeModel';
 import { buildFoliaHomeGroups } from '../../../src/library/core/home/foliaHomeModel';
 import { getLocalCoverAssetUrl } from '../../../src/services/localCoverAssetUrl';
-import { getFoliaPlaylists } from '../../../src/services/foliaPlaylist/foliaPlaylistService';
+import { getFoliaPlaylistSummaries } from '../../../src/services/foliaPlaylist/foliaPlaylistService';
 import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../src/hooks/useLocalLibraryCatalog';
 import {
     notifyCollectionPop,
@@ -146,7 +146,7 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
     const sandbox = useMemo(isProbeSandbox, []);
     const [ready, setReady] = useState(false);
     const [localSongs, setLocalSongs] = useState<LocalSong[]>(sandbox ? [] : LOCAL_FIXTURE_SONGS);
-    const [localPlaylists, setLocalPlaylists] = useState<FoliaPlaylist[]>(sandbox ? [] : [IN_MEMORY_LOCAL_PLAYLIST]);
+    const [localPlaylists, setLocalPlaylists] = useState<FoliaPlaylistSummary[]>(sandbox ? [] : [IN_MEMORY_LOCAL_PLAYLIST]);
     const [playlists, setPlaylists] = useState<ProviderCollection[]>([]);
     const liveCatalog = useLocalLibraryCatalog(sandbox ? localSongs : null);
     const localLibraryCatalog = sandbox ? liveCatalog : STATIC_CATALOG;
@@ -222,7 +222,7 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
         },
         onRefreshLocalSongs: refreshLocal,
         onRefreshLocalPlaylists: async () => {
-            if (sandbox) setLocalPlaylists((await getFoliaPlaylists()).filter(playlist => playlist.name === LOCAL_PLAYLIST_NAME));
+            if (sandbox) setLocalPlaylists((await getFoliaPlaylistSummaries()).filter(playlist => playlist.name === LOCAL_PLAYLIST_NAME));
         },
         user: { id: 'probe-user', nickname: 'Probe User' },
         playlists,

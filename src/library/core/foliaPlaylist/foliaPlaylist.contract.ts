@@ -5,6 +5,7 @@ import type {
     FoliaPlaylistAddResult,
     FoliaPlaylistEntry,
     FoliaPlaylistOrigin,
+    FoliaPlaylistSummary,
     FoliaRefreshFromOriginResult,
     FoliaSaveCollectionInput,
     FoliaSaveCollectionResult,
@@ -12,7 +13,8 @@ import type {
 
 // src/library/core/foliaPlaylist/foliaPlaylist.contract.ts
 // Folia 聚合歌单给界面用的契约：读写的端口，以及一条条目现在能不能播。
-// 歌单的内容界面从 useFoliaPlaylistsStore 读（写完会自己重读）；这里的端口是写操作，由宿主装配
+// 歌单的摘要界面从 useFoliaPlaylistsStore 读（写完会自己重读），一张歌单的条目用 useFoliaPlaylistContent 按需读；
+// 写操作返回的也只是摘要（不为了返回值去读全部条目）。这里的端口是写操作，由宿主装配
 // （src/library/app/createFoliaPlaylistPort.ts），suite 不直接碰 src/services/foliaPlaylist。
 
 export type {
@@ -21,6 +23,7 @@ export type {
     FoliaPlaylistAddResult,
     FoliaPlaylistEntry,
     FoliaPlaylistOrigin,
+    FoliaPlaylistSummary,
     FoliaRefreshFromOriginResult,
     FoliaSaveCollectionInput,
     FoliaSaveCollectionResult,
@@ -35,21 +38,21 @@ export type FoliaPlayViaTarget = {
 
 export interface FoliaPlaylistPort {
     /** 建一张歌单，可以带上第一批歌（任何来源，一批里可以有多个来源）。名字是空的会 reject。 */
-    create(name: string, songs?: readonly SongResult[], options?: { origin?: FoliaPlaylistOrigin }): Promise<FoliaPlaylist>;
+    create(name: string, songs?: readonly SongResult[], options?: { origin?: FoliaPlaylistOrigin }): Promise<FoliaPlaylistSummary>;
     /** 「我喜欢的音乐」不能改名、空名字、歌单不存在：null。 */
-    rename(playlistId: string, name: string): Promise<FoliaPlaylist | null>;
+    rename(playlistId: string, name: string): Promise<FoliaPlaylistSummary | null>;
     /** 「我喜欢的音乐」不能删、歌单不存在：false。 */
     remove(playlistId: string): Promise<boolean>;
     /** 往歌单里加歌：任何来源，一批里可以有多个来源；已经在里面的（同一个 key）不重复加，舞台歌不收。 */
-    addSongs(playlistId: string, songs: readonly SongResult[]): Promise<{ playlist: FoliaPlaylist | null; result: FoliaPlaylistAddResult }>;
+    addSongs(playlistId: string, songs: readonly SongResult[]): Promise<{ playlist: FoliaPlaylistSummary | null; result: FoliaPlaylistAddResult }>;
     /** 按条目的 key 移除。 */
-    removeEntries(playlistId: string, keys: readonly string[]): Promise<FoliaPlaylist | null>;
+    removeEntries(playlistId: string, keys: readonly string[]): Promise<FoliaPlaylistSummary | null>;
     /** 重排歌：orderedKeys 是 expectedKeys（草稿开始时的顺序）的一个排列；歌单期间被改过就不写，返回 null。 */
-    reorderEntries(playlistId: string, orderedKeys: readonly string[], expectedKeys: readonly string[]): Promise<FoliaPlaylist | null>;
+    reorderEntries(playlistId: string, orderedKeys: readonly string[], expectedKeys: readonly string[]): Promise<FoliaPlaylistSummary | null>;
     /** 重排歌单本身：orderedIds 是现有歌单 id 的一个排列，否则不写，返回 false。 */
     reorderPlaylists(orderedIds: readonly string[]): Promise<boolean>;
     /** 把一首歌放进或移出「我喜欢的音乐」（任何来源；本地歌会换算到重复导入组里 canonical 的那条）。 */
-    setFavorite(song: SongResult, shouldFavorite: boolean): Promise<FoliaPlaylist | null>;
+    setFavorite(song: SongResult, shouldFavorite: boolean): Promise<FoliaPlaylistSummary | null>;
     /**
      * 「改由某个音源播放」能选哪些音源：声明了能替 originSourceId 的歌答「对应歌曲」的那些（只凭 id 精确对应，
      * 不按歌名歌手找）。同步读此刻的状态；音源增减、开关、配置变了要重读。
@@ -59,7 +62,7 @@ export interface FoliaPlaylistPort {
      * 把一张平台歌单转存成 Folia 歌单：歌由调用方读好传进来。选了 playVia 的，能精确对应的歌换成那个音源的并记下
      * 原来是哪首，其余照原样存；结果里有换了几首、没换几首。名字是空的会 reject。
      */
-    saveCollection(input: FoliaSaveCollectionInput): Promise<{ playlist: FoliaPlaylist; result: FoliaSaveCollectionResult }>;
+    saveCollection(input: FoliaSaveCollectionInput): Promise<{ playlist: FoliaPlaylistSummary; result: FoliaSaveCollectionResult }>;
     /**
      * 从原歌单刷新一张转存来的歌单：原歌单现在的歌由 fetchOriginSongs 去读（读不到就抛错，什么都不写）。
      * 只加不删：原歌单里新的歌加进来（按上次选的目标音源换），已经没有的歌和用户自己加的条目都留着。
@@ -70,7 +73,7 @@ export interface FoliaPlaylistPort {
         playlistId: string,
         fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
         options?: { playVia?: string | null; signal?: AbortSignal },
-    ): Promise<{ playlist: FoliaPlaylist; result: FoliaRefreshFromOriginResult } | null>;
+    ): Promise<{ playlist: FoliaPlaylistSummary; result: FoliaRefreshFromOriginResult } | null>;
 }
 
 /**

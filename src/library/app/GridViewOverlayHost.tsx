@@ -34,6 +34,8 @@ import { LocalLibraryEntityPanel } from '../../components/modal/LocalLibraryEnti
 import { LocalFolderSongInfoPanel } from '../../components/modal/LocalFolderSongInfoPanel';
 import { LocalSongMetadataMatchDialog } from '../../components/modal/LocalSongMetadataMatchDialog';
 import { useScratchpadStore } from '../../stores/useScratchpadStore';
+import { useFoliaPlaylistContent } from '../../stores/useFoliaPlaylistsStore';
+import { getFoliaPlaylist } from '../../services/foliaPlaylist/foliaPlaylistService';
 import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
 import { COVER_PICK_THUMBNAIL_SIZE } from '../../components/local-collection-cover/LocalCollectionCoverSongPicks';
 import FoliaPlaylistOrderEditor from '../../components/folia-playlist-order/FoliaPlaylistOrderEditor';
@@ -165,6 +167,8 @@ const resolveLiveLocalCollection = (
     catalog: LibraryLocalCatalogSnapshot,
     t: TFunction,
     language: string,
+    /** 这张歌单读出来的全部条目（打开着的那一张）；还没读到是 null，这时先用摘要里有的。 */
+    content: FoliaPlaylist | null,
 ): LocalGridViewCollectionDescriptor | null => {
     if (!collection.playlistId) {
         return refreshLocalGridViewCollection(
@@ -180,15 +184,17 @@ const resolveLiveLocalCollection = (
     }
 
     // songIds 只是歌单里的本地歌（自定义封面对话框、自动封面用）；歌单本身混着各个来源，首数按全部条目算。
+    // 条目读到之前用摘要里记着的那一小段本地歌和条目数。
+    const loaded = content?.id === playlist.id ? content : null;
     const validSongIds = new Set(surfaceProps.localSongs.map(song => song.id));
-    const localSongIds = getFoliaPlaylistLocalSongIds(playlist);
+    const localSongIds = loaded ? getFoliaPlaylistLocalSongIds(loaded) : playlist.coverLocalSongIds ?? [];
     const songIds = localSongIds.filter(songId => validSongIds.has(songId));
 
     return {
         ...collection,
         name: playlist.name,
         songIds,
-        trackCount: playlist.entries.length - (localSongIds.length - songIds.length),
+        trackCount: (loaded ? loaded.entries.length : playlist.entryCount) - (localSongIds.length - songIds.length),
         isVirtual: playlist.isFavorite,
         // 转存来的歌单在详情里写明出处（来自哪张、上次更新时间、现在改由谁播放）。
         ...(playlist.origin ? { description: describeFoliaProvenance(playlist.origin, t, language) } : {}),
@@ -261,6 +267,9 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     // 本地集合的自定义封面（键 → URL）：盖在下面由曲目推出来的自动封面上。
     const localCollectionCoverUrls = useLocalCollectionCoverUrls();
     const selectedCollectionKey = collectionKey(selectedCollection);
+    // 打开着的是一张 Folia 聚合歌单：它的条目这时才读（摘要常驻，条目不常驻），关掉就放掉。
+    const openPlaylistId = selectedCollection && isLocalGridViewCollection(selectedCollection) ? selectedCollection.playlistId ?? null : null;
+    const { playlist: openPlaylist, isLoaded: isOpenPlaylistLoaded, isFailed: isOpenPlaylistFailed } = useFoliaPlaylistContent(openPlaylistId);
     const refreshedSelectedCollection = useMemo(() => {
         if (!selectedCollection || !isLocalGridViewCollection(selectedCollection)) {
             if (selectedCollection?.source !== 'online') return selectedCollection;
@@ -274,8 +283,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 : selectedCollection;
         }
 
-        return resolveLiveLocalCollection(selectedCollection, surfaceProps, localLibraryCatalog, t, i18n.language);
-    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, surfaceProps.playlists, localLibraryCatalog, selectedCollection, t, i18n.language]);
+        return resolveLiveLocalCollection(selectedCollection, surfaceProps, localLibraryCatalog, t, i18n.language, openPlaylist);
+    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, surfaceProps.playlists, localLibraryCatalog, selectedCollection, t, i18n.language, openPlaylist]);
     // Navidrome 歌单的名字以刷新过的歌单列表为准：改名之后 refreshNavidromePlaylists 带回新名字，
     // 不必就地改写导航栈里的描述（嵌套返回再进来也还是新名字）。单独一层 memo：别的来源不随歌单列表换新对象
     // （本地集合的 effect 会清空这个列表，放进同一个 memo 会互相触发）。
@@ -311,19 +320,22 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     // Folia 聚合歌单（描述带 playlistId）的曲目是歌单的全部条目，混着各个来源；别的本地集合按 songIds 从曲库里取。
     const localTracks = useMemo(() => {
         if (!liveSelectedCollection || !isLocalGridViewCollection(liveSelectedCollection)) return undefined;
-        const playlist = liveSelectedCollection.playlistId
-            ? surfaceProps.localPlaylists.find(item => item.id === liveSelectedCollection.playlistId)
-            : undefined;
-        return (playlist
-            ? resolveFoliaPlaylistTracks(playlist, surfaceProps.localSongs, localLibraryCatalog)
-            : resolveLocalGridViewTracks(liveSelectedCollection, surfaceProps.localSongs, localLibraryCatalog)) as UnifiedSong[];
-    }, [liveSelectedCollection, localLibraryCatalog, surfaceProps.localPlaylists, surfaceProps.localSongs]);
+        if (liveSelectedCollection.playlistId) {
+            // 条目还在读（或这一份是上一张歌单的）：先是空的，读到了再换上。
+            const playlist = openPlaylist?.id === liveSelectedCollection.playlistId ? openPlaylist : null;
+            return (playlist ? resolveFoliaPlaylistTracks(playlist, surfaceProps.localSongs, localLibraryCatalog) : []) as UnifiedSong[];
+        }
+        return resolveLocalGridViewTracks(liveSelectedCollection, surfaceProps.localSongs, localLibraryCatalog) as UnifiedSong[];
+    }, [liveSelectedCollection, localLibraryCatalog, openPlaylist, surfaceProps.localSongs]);
     // 宿主持有集合资源，网格（以及别的 renderer）只订阅它：切换 renderer 不会重新请求。
     // 宿主自己不订阅快照，所以分页到达不会让首页这棵大树重渲染。歌手页同理，见下面的 artistResource。
     const collectionResource = useCollectionResource({
         descriptor: liveSelectedCollection && liveSelectedCollection.type !== 'artist' ? liveSelectedCollection : null,
         currentUserId: surfaceProps.user?.id,
         localTracks,
+        // Folia 歌单的条目还没读到：资源是加载中，不是「就绪的空歌单」（读失败了就不再等，按空的显示，错误在日志里）。
+        localTracksLoading: Boolean(liveSelectedCollection && isLocalGridViewCollection(liveSelectedCollection) && liveSelectedCollection.playlistId)
+            && !isOpenPlaylistLoaded && !isOpenPlaylistFailed,
     });
     // 歌手资源：宿主按导航栈里那一层的 collectionKey 持有（本地描述的 id 会在 catalog 就绪后改写，不拿它算 key），
     // 本地歌手由宿主这一份 catalog 派生（歌手页不再自带第二个 catalog 实例）。宿主同样不订阅它的快照。
@@ -586,6 +598,9 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             return;
         }
 
+        // Folia 歌单的条目还没读到：曲目是空的不代表歌没了，等读到再判断。
+        if (liveSelectedCollection.playlistId && !(isOpenPlaylistLoaded && openPlaylist?.id === liveSelectedCollection.playlistId)) return;
+
         const resolvedTracks = localTracks ?? [];
         if (liveSelectedCollection.songIds.length > 0 && resolvedTracks.length === 0) {
             handleBackCollection();
@@ -603,6 +618,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         liveSelectedCollection,
         localTracks,
         selectedCollection,
+        isOpenPlaylistLoaded,
+        openPlaylist,
     ]);
 
     const refreshNavidromePlaylists = useCallback(async () => {
@@ -649,7 +666,12 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         dialogs: {
             editEntity: setEditingEntityId,
             editCover: setCoverEditingCollection,
-            reorderPlaylist: setOrderingPlaylist,
+            // 排序编辑器要这张歌单的全部条目：打开时读一次（编辑器按草稿开始时的顺序核对，不跟着重读）。
+            reorderPlaylist: (playlist) => {
+                void getFoliaPlaylist(playlist.id).then(content => setOrderingPlaylist(content)).catch((error: unknown) => {
+                    console.error('[FoliaPlaylist] Failed to load a playlist for reordering', error);
+                });
+            },
             organizeFolder: setOrganizingFolder,
             matchSong: setMatchingSongId,
         },
@@ -706,9 +728,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     }, [coverEditingTarget, surfaceProps.localSongs]);
     // Folia 聚合歌单的「用一首歌的封面」列全部条目（别的来源的歌用存着的快照里的封面），不只是其中的本地歌。
     const coverEditingCoverSongs = useMemo(() => {
-        const playlist = coverEditingTarget?.playlistId
-            ? surfaceProps.localPlaylists.find(item => item.id === coverEditingTarget.playlistId)
-            : undefined;
+        // 封面对话框是从打开着的歌单里开的：条目用那一份。
+        const playlist = coverEditingTarget?.playlistId && openPlaylist?.id === coverEditingTarget.playlistId ? openPlaylist : undefined;
         if (!playlist) return undefined;
         const songsById = new Map(surfaceProps.localSongs.map(song => [song.id, song]));
         return buildFoliaPlaylistCoverSongs(
@@ -719,7 +740,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             getLocalCoverAssetUrl,
             COVER_PICK_THUMBNAIL_SIZE,
         );
-    }, [coverEditingTarget, surfaceProps.localPlaylists, surfaceProps.localSongs]);
+    }, [coverEditingTarget, openPlaylist, surfaceProps.localSongs]);
     const matchingSongAssignment = matchingSongId
         ? localLibraryCatalog.assignments.find(assignment => assignment.songId === matchingSongId)
         : undefined;

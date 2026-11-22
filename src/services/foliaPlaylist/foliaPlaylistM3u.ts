@@ -1,5 +1,5 @@
 import type { LocalSong } from '../../types';
-import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import type { FoliaPlaylist, FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import { createSafeObjectUrl } from '../../utils/blobGuards';
 import { sanitizeDownloadFileName } from '../../utils/downloadFileName';
 import { getFoliaEntryLocalSongId } from '../../utils/foliaPlaylistEntries';
@@ -15,7 +15,7 @@ export interface ParsedM3uPlaylist {
 }
 
 export interface LocalPlaylistImportResult {
-    playlist: FoliaPlaylist | null;
+    playlist: FoliaPlaylistSummary | null;
     matchedSongIds: string[];
     unmatchedPaths: string[];
     ambiguousPaths: string[];

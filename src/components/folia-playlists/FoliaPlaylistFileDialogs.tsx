@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Loader2 } from 'lucide-react';
 import type { LocalSong } from '../../types';
-import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import type { FoliaPlaylist, FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import { FOLIA_PLAYLIST_FILE_MAX_ENTRIES } from '../../services/foliaPlaylist/foliaPlaylistFile';
 import {
     countImportableSongs,
@@ -205,7 +205,7 @@ type MergeChoice = 'new' | 'merge';
 
 export const FoliaPlaylistImportDialog: React.FC<{
     file: File;
-    playlists: readonly FoliaPlaylist[];
+    playlists: readonly FoliaPlaylistSummary[];
     localSongs: readonly LocalSong[];
     isDaylight: boolean;
     onDone: (outcome: FoliaImportOutcome) => void;

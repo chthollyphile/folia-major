@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowUpDown, FileUp, ListPlus, Loader2, NotebookPen } from 'lucide-react';
 import DesktopGrid3DSurface, { type DesktopGrid3DAction } from './DesktopGrid3DSurface';
 import type { LocalSong, Theme } from '../../../../types';
-import type { FoliaPlaylist } from '../../../../types/foliaPlaylist';
+import type { FoliaPlaylistSummary } from '../../../../types/foliaPlaylist';
 import type { GridViewCollectionDescriptor } from '../../../../components/app/home/gridViewCollectionAdapters';
 import { openFoliaPlaylistDialog } from '../../../../components/folia-playlists/foliaPlaylistDialogStore';
 import { useDebouncedFocusSync } from '../../../../hooks/useDebouncedFocusSync';
@@ -28,7 +28,7 @@ const ACTION_ICONS: Record<FoliaHomeActionId, React.ReactNode> = {
 };
 
 interface FoliaGrid3DViewProps {
-    playlists: FoliaPlaylist[];
+    playlists: FoliaPlaylistSummary[];
     localSongs: LocalSong[];
     focusedIndex: number;
     setFocusedIndex: (index: number) => void;
