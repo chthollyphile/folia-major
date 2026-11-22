@@ -15,23 +15,27 @@ import type { AccountCall, AccountCallOp, AccountQrState, AccountSelfCheckScript
 import '../../dev/probes/accountBehavior/probeApi';
 
 // test/component/accountBehavior.spec.ts
-// 在线账户的行为回归闸门（Library v2 账户重构 A0 起每一步都跑）：扫码登录、选平台、切换确认、登出。
+// 在线账户的行为回归闸门（Library v2 账户重构 A0 起每一步都跑）：扫码登录、选平台、切换、登出。
 //
-// 断言的是语义：调用账（要码 / 轮询 / keyed 取消 / 账户刷新 / 宿主登出 / 切换清理，见 dev/probes/accountBehavior/probeApi.ts）、
-// 账户 store、当前平台、待确认切换，再加上界面上用户能看到的结果（登录界面、状态文案、诊断入口、确认）。
-// 界面操作集中在下面按 suite 分的驱动里（A6 起参数化）：
-// - grid：切换器菜单 / 连接面板、登录弹窗、ConfirmDialog，全部用鼠标点；
-// - tui：首页在线页签的平台列表（未登录时就是页签内容，已登录时 F2 打开）、TUI 的登录框与确认，全部用按键
-//   （↑↓ / Home 移动、Enter 主动作、Esc 关闭 / 取消、Delete 登出）。
-// 两套共用的定位（登录框是 role=dialog 且 accessible name = 标题、二维码图片 alt、状态文案、按钮的 accessible name）
-// 在驱动之外。标题前缀 `[grid]` / `[tui]` 的用例对两个 suite 各跑一遍（`[${suite}]`），网格特有的切换器 / 连接面板细节
-// 只在 grid 那一遍断言；`[grid-only]` 依赖网格的层叠（切换器盖在弹窗之上）；`[switch]` 在两套之间切换。
-// bravais 没有自己的账户界面了：首页窄缝里的账户入口只打开共用的登录窗口（src/components/login，探针照 App 挂了 LoginHost），
-// 所以它不再参数化；最后的 `[bravais]` 用例只看入口在、点了窗口打开、没有替用的人选平台。
+// 断言的是语义：调用账（要码 / 轮询 / keyed 取消 / 读账号 / 宿主登出 / 切换清理，见 dev/probes/accountBehavior/probeApi.ts）、
+// 账户 store、当前平台，再加上界面上用户能看到的结果（登录窗口的标题与那一句话、重试、详情里的诊断入口）。
+//
+// 登录、切换、退出登录都在共用的登录窗口里（src/components/login：App 挂一个 LoginHost，探针照着挂；窗口左边是平台那一列
+// `listbox "Online music provider"`，右边是选中那一行的账号 / 登录）。各 suite 只是进这个窗口的门不同，用例按 suite 参数化的
+// 就是这道门，集中在下面的驱动里：
+// - grid：右下角的切换器（data-testid="online-provider-switcher"）只是一个按钮，点了打开登录窗口、开在正在用的平台上；
+//   当前平台未登录时首页还有一个「Login」按钮，打开窗口但不替用的人选平台。选一行：已登录 / 不用登录的平台给「Switch to …」，
+//   未登录的平台当场开始登录。全部用鼠标点。
+// - tui：首页在线页签的平台列表（未登录时就是页签内容，已登录时 F2 打开），用按键（↑↓ / Home 移动、Enter 选、Delete 登出）。
+//   选已登录的平台直接切；选未登录的平台打开同一个登录窗口。TUI 自己的登录框已经没有了。
+// 标题前缀 `[grid]` / `[tui]` 的用例对两个 suite 各跑一遍（看的是「从这道门进去之后」的切换、登录、关窗、登出）；
+// `[login-window]` 的用例只看窗口里面（二维码寿命、失败的情况与诊断、登录方式、本地后端），两个 suite 是同一个窗口，
+// 只从网格进一遍；`[switch]` 在两套之间切换。
+// bravais 没有自己的账户界面：首页窄缝里的账户入口只打开同一个登录窗口，最后的 `[bravais]` 用例只看入口在、点了窗口打开、
+// 没有替用的人选平台。
 //
 // 时序：二维码每 2 秒轮询一次（core/account/providerLoginSession.service 的 PROVIDER_LOGIN_POLL_INTERVAL_MS），探针用真实时钟，所以
-// 编排的状态要在要码之前排好，每一步最多等一个轮询周期。
-// test.fixme 记录的是现状缺陷，注释里写明由哪一步转正。
+// 编排的状态要在要码之前排好，每一步最多等一个轮询周期。登录确认、账号读到之后窗口放一段登录成功的动画才关。
 
 const SUITES = ['grid', 'tui'] as const;
 type Suite = (typeof SUITES)[number];
@@ -68,59 +72,80 @@ const setAccount = (page: Page, providerId: string, status: 'authenticated' | 'a
     [providerId, status] as const,
 );
 const setActive = (page: Page, providerId: string) => page.evaluate(id => window.__accountProbe!.setActive(id), providerId);
-const startLogin = (page: Page, providerId: string) => page.evaluate(id => window.__accountProbe!.startLogin(id), providerId);
 const requestSwitch = (page: Page, providerId: string) => page.evaluate(id => window.__accountProbe!.requestSwitch(id), providerId);
 const switchResult = (page: Page) => page.evaluate(() => window.__accountProbe!.switchResult());
 
-// ---- 两套共用的定位：登录界面（网格的弹窗与 TUI 的登录框都是 role=dialog，accessible name = 标题） ----
+// ---- 登录窗口（两个 suite 共用）：role=dialog，accessible name = 标题（选中平台后是「Log in to 平台名」） ----
 const loginDialog = (page: Page) => page.getByRole('dialog');
-const qrImage = (page: Page) => loginDialog(page).getByAltText('QR Code');
+/** 平台那一列是 listbox，每个平台一行 option（data-row = 平台 id，选中的那一行 aria-selected）。 */
+const loginWindowPlatforms = (page: Page) => loginDialog(page).getByRole('listbox', { name: 'Online music provider' });
+const platformRow = (page: Page, providerId: string) => loginWindowPlatforms(page).locator(`[role="option"][data-row="${providerId}"]`);
+/** 右边那一句标题：现在怎么了（等着扫、扫过了、哪一种失败）。 */
+const headline = (page: Page) => loginDialog(page).getByRole('heading', { level: 3 });
+/** 二维码图片（探针的假二维码把会话 key 写在图片里）；过期之后它淡淡地留在刷新按钮里。 */
+const qrImage = (page: Page) => loginDialog(page).locator('img[src*="data-qr-key"]');
+/** 等着扫的那一张：不在刷新按钮里。 */
+const liveQrImage = (page: Page) => loginDialog(page).locator(':not(button) > img[src*="data-qr-key"]');
 const expectQrKey = async (page: Page, key: string | undefined) => {
     expect(key).toBeTruthy();
     await expect(qrImage(page)).toHaveAttribute('src', new RegExp(encodeURIComponent(key!).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 };
-const retryButton = (page: Page) => loginDialog(page).getByRole('button', { name: 'Refresh QR code' });
+const HEADLINE = {
+    scanned: 'Scanned! Confirm on your phone.',
+    /** 没扫就过期：不算失败，没有详情。 */
+    expired: 'The QR code has expired',
+    /** 扫过才过期：算失败，第二行才是「The QR code has expired」。 */
+    expiredAfterScan: 'Not confirmed on the phone',
+    /** 平台什么都没说的失败。 */
+    failed: 'Sign-in failed',
+    accountNotRead: 'Failed to read the account',
+    chooseMethod: 'Choose sign-in method',
+} as const;
+/** 等着扫码：二维码在，标题是平台的登录标题（假 provider 没有自己的登录文案，就是「Log in to 平台名」）。 */
+const expectWaitingForScan = async (page: Page, providerId: string) => {
+    await expect(liveQrImage(page)).toBeVisible();
+    await expect(headline(page)).toHaveText(`Log in to ${shortName(providerId)}`);
+};
+/** 重试：消息里的那个按钮。没扫就过期时二维码那一块上还有一个同名的刷新钮（在它前面），所以取最后一个。 */
+const retryButton = (page: Page) => loginDialog(page).getByRole('button', { name: 'Refresh QR code' }).last();
+/** 失败的详情（事实、自检结论、复制诊断与反馈）收在「Details」下面；有它就是「这一次给诊断」。 */
+const detailsToggle = (page: Page) => loginDialog(page).getByRole('button', { name: 'Details' });
 const diagnosticsButton = (page: Page) => loginDialog(page).getByRole('button', { name: 'Copy diagnostics' });
 const methodButton = (page: Page, label: 'QQ scan' | 'WeChat scan') => loginDialog(page).getByRole('button', { name: label });
 const restartButton = (page: Page) => loginDialog(page).getByRole('button', { name: /Restart backend|Restarting…/ });
-const STATUS = {
-    waiting: 'Please scan the QR code',
-    scanned: 'Scanned! Confirm on your phone.',
-    expired: 'QR Code expired. Refresh to try again.',
-    error: 'Login Error',
-} as const;
-const statusText = (page: Page, key: keyof typeof STATUS) => loginDialog(page).getByText(STATUS[key], { exact: true });
+const switchToButton = (page: Page, providerId: string) => (
+    loginDialog(page).getByRole('button', { name: `Switch to ${shortName(providerId)}`, exact: true })
+);
+const windowLogoutButton = (page: Page) => loginDialog(page).getByRole('button', { name: 'Logout' });
+const closeLogin = async (page: Page) => {
+    await loginDialog(page).getByRole('button', { name: 'Close', exact: true }).click();
+};
+/** 换掉剪贴板写入，之后用 copiedText 读回写进去的内容。 */
+const captureClipboard = (page: Page) => page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text: string) => { (window as unknown as { __copied?: string }).__copied = text; } },
+    });
+});
+const copiedText = (page: Page) => page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '');
 
-// ---- grid 驱动的定位：切换器、连接面板、App 同形的确认框（ConfirmDialog，标题是「切换在线音乐平台」） ----
+// ---- grid 的门：右下角的切换器（一个按钮）与未登录首页的「Login」按钮 ----
 const switcher = (page: Page) => page.getByTestId('online-provider-switcher');
 const switcherToggle = (page: Page) => switcher(page).getByRole('button', { name: 'Switch online music provider' });
-const menu = (page: Page) => switcher(page).getByRole('menu');
-const menuItem = (page: Page, providerId: string) => (
-    menu(page).getByRole('menuitemradio').filter({ hasText: shortName(providerId) })
-);
-const openSwitcher = async (page: Page) => {
-    if (await switcherToggle(page).getAttribute('aria-expanded') !== 'true') await switcherToggle(page).click();
-    await expect(menu(page)).toBeVisible();
+/** 切换器上画的平台（正在用的那个）。 */
+const switcherPill = (page: Page) => switcher(page).locator('[data-login-pill]');
+const gridGuestLogin = (page: Page) => page.getByRole('button', { name: 'Login', exact: true });
+/** 打开登录窗口（已经开着就不动）：点切换器，窗口开在正在用的平台上。 */
+const openLoginFromSwitcher = async (page: Page) => {
+    if (await loginDialog(page).count() === 0) await switcherToggle(page).click();
+    await expect(loginWindowPlatforms(page)).toBeVisible();
 };
-const closeSwitcher = async (page: Page) => {
-    if (await switcherToggle(page).getAttribute('aria-expanded') === 'true') await page.keyboard.press('Escape');
-    await expect(menu(page)).toHaveCount(0);
-};
-const gridLogoutButtons = (page: Page) => menu(page).getByRole('button', { name: 'Logout' });
-const gridCloseButton = (page: Page) => loginDialog(page).getByRole('button', { name: 'Close login' });
-// TUI 的账户层也挂 data-folia-keyboard-window、标题也是这句，所以排除掉它（[data-tui-account]）；bravais 的缝同理（[data-bravais-seam]）。
-const gridConfirmDialog = (page: Page): Locator => (
-    page.locator('[data-folia-keyboard-window]:not([data-tui-account]):not([data-bravais-seam])')
-        .filter({ has: page.getByRole('heading', { name: 'Switch online music provider' }) })
-);
-const gridConnectPanel = (page: Page) => page.getByRole('group', { name: 'Connect platform accounts' });
 
-// ---- tui 驱动的定位：平台列表、登录框里的登录方式、确认 ----
+// ---- tui 的门：首页在线页签的平台列表 ----
 const tuiHome = (page: Page) => page.locator('[data-library-home="tui"]');
 const tuiAccounts = (page: Page) => page.locator('[data-tui-accounts]');
 const tuiAccountRow = (page: Page, providerId: string) => tuiAccounts(page).locator(`[data-tui-account-provider="${providerId}"]`);
 const tuiLogoutButtons = (page: Page) => tuiAccounts(page).locator('[data-tui-account-logout]');
-const tuiConfirm = (page: Page) => page.locator('[data-tui-account-confirm]');
 /** 打开平台列表：未登录时它就是在线页签的内容，已登录时按 F2。 */
 const tuiOpenAccounts = async (page: Page) => {
     if (await tuiAccounts(page).count() === 0) await page.keyboard.press('F2');
@@ -138,40 +163,37 @@ const tuiFocusProvider = async (page: Page, providerId: string) => {
     await expect(tuiAccountRow(page, providerId)).toHaveAttribute('data-focused', 'true');
 };
 
+// ---- 切换确认：现在切换不再先问，哪个 suite 都不该出现（网格的 ConfirmDialog 与 TUI 的确认层标题都是这一句） ----
+const switchConfirm = (page: Page) => page.getByRole('heading', { name: 'Switch online music provider' });
+
 // ---- bravais：首页窄缝里的账户入口（未登录时是「连接在线平台」），点了打开共用的登录窗口 ----
 const bravaisStage = (page: Page) => page.locator('[data-library-stage="bravais"]');
 const bravaisSwitcher = (page: Page) => page.locator('[data-bravais-account-slot] [data-bravais-account]');
 const bravaisConnect = (page: Page) => page.locator('[data-bravais-account-toggle="connect"]');
-/** 共用的登录窗口（LoginHost，探针照 App 挂了一个）：平台那一列是 listbox，每个平台一行 option。 */
-const loginWindowPlatforms = (page: Page) => loginDialog(page).getByRole('listbox', { name: 'Online music provider' });
 
 type AccountDriver = {
     suite: Suite;
     /** 首页挂好、账户入口可用。 */
     ready: (page: Page) => Promise<void>;
-    /** 在首页的平台入口里选一个平台（网格：切换器菜单；TUI：平台列表 + Enter），与连接面板同一个 selectProvider。 */
+    /**
+     * 从首页的入口选一个平台，走到头：能直接切的（已登录、不用登录）切过去，要登录的停在登录窗口里那个平台的登录上。
+     * 网格：切换器 → 登录窗口里点那一行，给了「Switch to …」就点它；TUI：平台列表 + Enter。
+     */
     selectProvider: (page: Page, providerId: string) => Promise<void>;
-    /** 当前平台未登录时首页上的平台入口（网格：连接面板；TUI：未登录的平台列表）。 */
-    guestPicker: (page: Page) => Locator;
-    /** 在未登录的平台入口里选一个平台（网格：连接面板第一下展开、第二下选中）。 */
-    selectFromGuestPicker: (page: Page, providerId: string) => Promise<void>;
-    /** 平台入口里标着某个平台为当前平台。 */
+    /** 当前平台未登录时首页上的入口（网格：「Login」按钮；TUI：在线页签就是平台列表）。 */
+    guestEntry: (page: Page) => Locator;
+    /** 从未登录的入口选一个平台（网格的「Login」打开窗口但不替用的人选平台）。 */
+    selectFromGuestEntry: (page: Page, providerId: string) => Promise<void>;
+    /** 入口上标着某个平台为当前平台（网格：切换器上画的；TUI：平台列表里的当前标记）。 */
     expectCurrent: (page: Page, providerId: string) => Promise<void>;
-    /** 平台入口里的登出按钮（打开入口之后）。 */
+    /** 打开入口，回里面的登出按钮（网格：登录窗口里选中那一行的「Logout」；TUI：平台列表里的）。 */
     openLogoutEntries: (page: Page) => Promise<Locator>;
-    /** 登出按钮在哪个平台上。 */
+    /** 登出按钮是哪个平台的。 */
     expectLogoutOn: (page: Page, providerId: string) => Promise<void>;
     /** 登出当前平台。 */
     logoutCurrent: (page: Page, providerId: string) => Promise<void>;
-    /** 收起平台入口（网格的菜单；TUI 的 F2 列表——未登录时它是页签内容，留着）。 */
-    closePicker: (page: Page) => Promise<void>;
-    /** 换一个登录方式（网格：点；TUI：↓ 移到它再 Enter）。 */
-    chooseMethod: (page: Page, label: 'QQ scan' | 'WeChat scan') => Promise<void>;
-    retry: (page: Page) => Promise<void>;
-    restart: (page: Page) => Promise<void>;
-    expectRestartLabel: (page: Page, label: 'Restart backend' | 'Restarting…') => Promise<void>;
-    closeLogin: (page: Page) => Promise<void>;
-    confirmDialog: (page: Page) => Locator;
+    /** 收起入口（网格的登录窗口；TUI 的 F2 列表——未登录时它是页签内容，留着）。 */
+    closeEntry: (page: Page) => Promise<void>;
 };
 
 const GRID_DRIVER: AccountDriver = {
@@ -180,51 +202,46 @@ const GRID_DRIVER: AccountDriver = {
         await expect(switcher(page)).toBeVisible();
     },
     selectProvider: async (page, providerId) => {
-        await openSwitcher(page);
-        await menuItem(page, providerId).click();
+        await openLoginFromSwitcher(page);
+        const row = platformRow(page, providerId);
+        // 已经选中的那一行不再点：窗口开在它上面时登录已经开始了。
+        if (await row.getAttribute('aria-selected') !== 'true') await row.click();
+        await expect(row).toHaveAttribute('aria-selected', 'true');
+        // 选中的行和右边那一幅是同一次渲染：有「Switch to …」就是能直接切的平台，切成了窗口自己关。
+        const switchTo = switchToButton(page, providerId);
+        if (await switchTo.count() > 0) {
+            await switchTo.click();
+            await expect(loginDialog(page)).toHaveCount(0);
+        }
     },
-    guestPicker: page => gridConnectPanel(page),
-    selectFromGuestPicker: async (page, providerId) => {
-        const provider = accountRule(providerId)!;
-        const label = provider.initial === 'authenticated' || !provider.auth
-            ? `Switch to ${provider.shortName}`
-            : `Log in to ${provider.shortName}`;
-        const button = gridConnectPanel(page).getByRole('button', { name: label, exact: true });
-        await button.click();
-        await button.click();
+    guestEntry: gridGuestLogin,
+    selectFromGuestEntry: async (page, providerId) => {
+        await gridGuestLogin(page).click();
+        await expect(loginWindowPlatforms(page)).toBeVisible();
+        // 不替用的人选平台：没有哪一行被选中，也没有开始登录。
+        await expect(loginWindowPlatforms(page).locator('[role="option"][aria-selected="true"]')).toHaveCount(0);
+        expect(await countCalls(page, 'create')).toBe(0);
+        await GRID_DRIVER.selectProvider(page, providerId);
     },
     expectCurrent: async (page, providerId) => {
-        await openSwitcher(page);
-        await expect(menuItem(page, providerId)).toHaveAttribute('aria-checked', 'true');
+        await expect(switcherPill(page)).toHaveAttribute('data-login-pill', providerId);
     },
     openLogoutEntries: async page => {
-        await openSwitcher(page);
-        return gridLogoutButtons(page);
+        await openLoginFromSwitcher(page);
+        return windowLogoutButton(page);
     },
     expectLogoutOn: async (page, providerId) => {
-        await expect(menuItem(page, providerId).locator('xpath=..').getByRole('button', { name: 'Logout' })).toHaveCount(1);
+        await expect(platformRow(page, providerId)).toHaveAttribute('aria-selected', 'true');
     },
     logoutCurrent: async page => {
-        await gridLogoutButtons(page).click();
-        await expect(menu(page)).toHaveCount(0);
+        await windowLogoutButton(page).click();
+        // 真的退出了窗口才关。
+        await expect(loginDialog(page)).toHaveCount(0);
     },
-    closePicker: closeSwitcher,
-    chooseMethod: async (page, label) => {
-        await methodButton(page, label).click();
+    closeEntry: async page => {
+        if (await loginDialog(page).count() > 0) await closeLogin(page);
+        await expect(loginDialog(page)).toHaveCount(0);
     },
-    retry: async page => {
-        await retryButton(page).click();
-    },
-    restart: async page => {
-        await restartButton(page).click();
-    },
-    expectRestartLabel: async (page, label) => {
-        await expect(restartButton(page)).toHaveText(label);
-    },
-    closeLogin: async page => {
-        await gridCloseButton(page).click();
-    },
-    confirmDialog: gridConfirmDialog,
 };
 
 const TUI_DRIVER: AccountDriver = {
@@ -236,8 +253,8 @@ const TUI_DRIVER: AccountDriver = {
         await tuiFocusProvider(page, providerId);
         await page.keyboard.press('Enter');
     },
-    guestPicker: page => page.locator('[data-tui-accounts="guest"]'),
-    selectFromGuestPicker: async (page, providerId) => {
+    guestEntry: page => page.locator('[data-tui-accounts="guest"]'),
+    selectFromGuestEntry: async (page, providerId) => {
         await expect(page.locator('[data-tui-accounts="guest"]')).toBeVisible();
         await tuiFocusProvider(page, providerId);
         await page.keyboard.press('Enter');
@@ -258,35 +275,10 @@ const TUI_DRIVER: AccountDriver = {
         await tuiFocusProvider(page, providerId);
         await page.keyboard.press('Delete');
     },
-    closePicker: async page => {
+    closeEntry: async page => {
         if (await page.locator('[data-tui-accounts="panel"]').count() > 0) await page.keyboard.press('Escape');
         await expect(page.locator('[data-tui-accounts="panel"]')).toHaveCount(0);
     },
-    chooseMethod: async (page, label) => {
-        const options = loginDialog(page).locator('[data-tui-login-method]');
-        const focused = loginDialog(page).locator('[data-tui-login-method][data-focused="true"]');
-        const count = await options.count();
-        for (let step = 0; step < count && !(await focused.textContent())?.includes(label); step += 1) {
-            await page.keyboard.press('ArrowDown');
-        }
-        await expect(focused).toContainText(label);
-        await page.keyboard.press('Enter');
-    },
-    retry: async page => {
-        await expect(retryButton(page)).toBeVisible();
-        await page.keyboard.press('Enter');
-    },
-    restart: async page => {
-        await expect(restartButton(page)).toBeEnabled();
-        await page.keyboard.press('Enter');
-    },
-    expectRestartLabel: async (page, label) => {
-        await expect(restartButton(page)).toHaveAccessibleName(label);
-    },
-    closeLogin: async page => {
-        await page.keyboard.press('Escape');
-    },
-    confirmDialog: tuiConfirm,
 };
 
 const DRIVERS: Record<Suite, AccountDriver> = { grid: GRID_DRIVER, tui: TUI_DRIVER };
@@ -305,29 +297,15 @@ const mountAccount = async (mount: (id: string) => Promise<unknown>, page: Page,
     if (suite !== 'grid') await setSuite(page, suite);
 };
 
-/** 切换不再先问：没有确认框、没有待确认请求，当前平台直接换过去。 */
-const expectSwitchedWithoutAsking = async (page: Page, driver: AccountDriver, providerId: string) => {
+/** 切换不先问：没有确认框、没有待确认请求，当前平台直接换过去。 */
+const expectSwitchedWithoutAsking = async (page: Page, providerId: string) => {
     await expect.poll(() => activeProvider(page)).toBe(providerId);
-    await expect(driver.confirmDialog(page)).toHaveCount(0);
+    await expect(switchConfirm(page)).toHaveCount(0);
     expect(await pendingSwitch(page)).toBeNull();
 };
 
 for (const suite of SUITES) {
 const driver = DRIVERS[suite];
-const isGrid = suite === 'grid';
-// 失败帮助的入口：网格先给简单办法，诊断与反馈收在「还是不行？」下面；TUI 直接给复制按钮（F4）。
-const foldsDiagnostics = suite !== 'tui';
-const failureHelpEntry = (page: Page) => (foldsDiagnostics
-    ? loginDialog(page).getByRole('button', { name: 'Still not working? Send us the diagnostics' })
-    : diagnosticsButton(page));
-// 不管反馈去向、只问「诊断给没给」的入口：否定断言都用它，换了去向也不会空过。探针页没有 Electron 桥，
-// 报告环境按网页版算（useLibraryAccount 的 LOGIN_REPORT_ENVIRONMENT），要码就失败会被当成部署问题，
-// 展开项换成「See diagnostics」；探针用 store 模拟的内嵌后端只在桌面版存在，桌面版走「Send us」
-// 由单测 qrLoginFailureHelpPresentation 覆盖。
-const anyFailureHelpEntry = (page: Page) => (foldsDiagnostics
-    ? loginDialog(page).getByRole('button', { name: /^Still not working\?/ })
-    : diagnosticsButton(page));
-const tipsList = (page: Page) => loginDialog(page).getByText('Restart Folia, then scan again.');
 
 test.describe(`[${suite}] switching`, () => {
     test.beforeEach(async ({ page, mount }) => {
@@ -337,19 +315,18 @@ test.describe(`[${suite}] switching`, () => {
     test(`[${suite}] switching to a signed-in provider switches at once and leaves the old provider once`, async ({ page }) => {
         const generation = await requestGeneration(page);
 
-        // 选当前平台：同一个 provider，直接结束，不问也不清理。
+        // 选当前平台：同一个 provider，不问也不清理（网格：登录窗口开在它的账号那一幅上，没有「Switch to …」）。
         await driver.selectProvider(page, ACCOUNT_ALPHA);
-        if (isGrid) await expect(menu(page)).toHaveCount(0);
-        await expect(driver.confirmDialog(page)).toHaveCount(0);
+        await expect(switchConfirm(page)).toHaveCount(0);
         expect(await pendingSwitch(page)).toBeNull();
         expect(await countCalls(page, 'switch-cleanup')).toBe(0);
 
         await driver.selectProvider(page, ACCOUNT_BETA);
-        // 能直接切的平台：不问（队列留着，切换不拿走什么），登录界面也不出现（网格的菜单随之关掉）。
-        if (isGrid) await expect(menu(page)).toHaveCount(0);
-        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_BETA);
+        // 能直接切的平台：不问（队列留着，切换不拿走什么），不开始登录，登录窗口不留着。
+        await expectSwitchedWithoutAsking(page, ACCOUNT_BETA);
         await expect(loginDialog(page)).toHaveCount(0);
-        // 离开旧平台恰好一次、目标是新平台；提交前作废一次在途请求；提交后刷新新平台的账户（App 的 switchProvider 带 refresh）。
+        expect(await countCalls(page, 'create')).toBe(0);
+        // 离开旧平台恰好一次、目标是新平台；提交前作废一次在途请求；提交后读一次新平台的账号。
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_BETA]);
         expect(await requestGeneration(page)).toBe(generation + 1);
         await expect.poll(() => calls(page, 'refresh')).toEqual([expect.objectContaining({ providerId: ACCOUNT_BETA, ok: true })]);
@@ -358,34 +335,34 @@ test.describe(`[${suite}] switching`, () => {
 
     test(`[${suite}] a provider without accounts switches at once too`, async ({ page }) => {
         await driver.selectProvider(page, ACCOUNT_MODO);
-        if (isGrid) await expect(menu(page)).toHaveCount(0);
-        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_MODO);
+        await expectSwitchedWithoutAsking(page, ACCOUNT_MODO);
         await expect(loginDialog(page)).toHaveCount(0);
         expect(await countCalls(page, 'resolve-methods')).toBe(0);
         expect(await countCalls(page, 'create')).toBe(0);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_MODO]);
-        // mod 源没有宿主刷新器（App 的刷新表只有内置 provider）。
+        // 没有账户的源没有人可问：不读账号。
         expect(await countCalls(page, 'refresh')).toBe(0);
     });
 
-    test(`[${suite}] the signed-out home picker follows the same rules as the switcher`, async ({ page }) => {
-        // 当前平台未登录时首页显示平台入口（网格：连接面板，第一下展开、第二下选中；TUI：在线页签就是平台列表）。
+    test(`[${suite}] the signed-out home entry follows the same rules as the switcher`, async ({ page }) => {
+        // 当前平台未登录时首页上的入口（网格：「Login」按钮，打开登录窗口、不替用的人选平台；TUI：在线页签就是平台列表）。
         await setActive(page, ACCOUNT_GAMMA);
-        await expect(driver.guestPicker(page)).toBeVisible();
+        await expect(driver.guestEntry(page)).toBeVisible();
 
-        await driver.selectFromGuestPicker(page, ACCOUNT_QUILL);
+        await driver.selectFromGuestEntry(page, ACCOUNT_QUILL);
         await expect(loginDialog(page)).toBeVisible();
-        await expect(driver.confirmDialog(page)).toHaveCount(0);
+        await expect(platformRow(page, ACCOUNT_QUILL)).toHaveAttribute('aria-selected', 'true');
+        await expect(switchConfirm(page)).toHaveCount(0);
         await expect.poll(() => countCalls(page, 'resolve-methods', ACCOUNT_QUILL)).toBe(1);
         expect(await activeProvider(page)).toBe(ACCOUNT_GAMMA);
     });
 
     test(`[${suite}] picking a signed-in provider on the signed-out home switches at once`, async ({ page }) => {
         await setActive(page, ACCOUNT_GAMMA);
-        await expect(driver.guestPicker(page)).toBeVisible();
+        await expect(driver.guestEntry(page)).toBeVisible();
 
-        await driver.selectFromGuestPicker(page, ACCOUNT_BETA);
-        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_BETA);
+        await driver.selectFromGuestEntry(page, ACCOUNT_BETA);
+        await expectSwitchedWithoutAsking(page, ACCOUNT_BETA);
         await expect(loginDialog(page)).toHaveCount(0);
     });
 });
@@ -399,30 +376,30 @@ test.describe(`[${suite}] signing in`, () => {
         await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'confirmed']);
         await driver.selectProvider(page, ACCOUNT_GAMMA);
 
-        // 未登录的平台：先登录，不确认。网格现状：要登录时切换器菜单不收起（只有能直接切时才收）。
+        // 未登录的平台：先登录，不确认；登录窗口开在这个平台上（TUI 打开的也是这一个窗口）。
         await expect(loginDialog(page)).toBeVisible();
-        if (isGrid) await expect(switcherToggle(page)).toHaveAttribute('aria-expanded', 'true');
-        await expect(driver.confirmDialog(page)).toHaveCount(0);
+        await expect(platformRow(page, ACCOUNT_GAMMA)).toHaveAttribute('aria-selected', 'true');
+        await expect(switchConfirm(page)).toHaveCount(0);
         expect(await pendingSwitch(page)).toBeNull();
-        // 现状：未知 provider 的登录文案回落到网易的（LOGIN_COPY_BY_PROVIDER 只有 kugou / qq / bodian）。
-        await expect(loginDialog(page)).toHaveAccessibleName('Scan with Netease App');
-        await expect(statusText(page, 'waiting')).toBeVisible();
+        await expect(loginDialog(page)).toHaveAccessibleName(`Log in to ${shortName(ACCOUNT_GAMMA)}`);
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
         await expect.poll(() => calls(page, 'create', ACCOUNT_GAMMA)).toEqual([
             expect.objectContaining({ methodId: null }),
         ]);
         const key = await lastKey(page, ACCOUNT_GAMMA);
         await expectQrKey(page, key);
 
-        await expect(statusText(page, 'scanned')).toBeVisible();
-        // 确认后：登录界面收起 → 刷新账户（账户先写进 store）→ 不是当前平台，直接切过去（不问）。
-        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_GAMMA);
+        await expect(headline(page)).toHaveText(HEADLINE.scanned);
+        // 确认后：读账号（账户先写进 store）→ 不是当前平台，直接切过去（不问）→ 窗口放完登录成功的动画关掉。
+        await expectSwitchedWithoutAsking(page, ACCOUNT_GAMMA);
         await expect(loginDialog(page)).toHaveCount(0);
         expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
-        // 离开旧平台恰好一次；激活这一步不再刷新：登录事务里的那一次刷新就是全部。
+        // 离开旧平台恰好一次；激活这一步不再读账号：登录事务里的那一次就是全部。
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
         expect((await calls(page, 'refresh')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
         // 已确认的会话换成了登录凭据，不再取消。
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
+        await driver.expectCurrent(page, ACCOUNT_GAMMA);
     });
 
     test(`[${suite}] signing in to the current provider needs no confirmation`, async ({ page }) => {
@@ -433,244 +410,11 @@ test.describe(`[${suite}] signing in`, () => {
 
         await expect.poll(() => accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
         await expect(loginDialog(page)).toHaveCount(0);
-        await expect(driver.confirmDialog(page)).toHaveCount(0);
+        await expect(switchConfirm(page)).toHaveCount(0);
         expect(await pendingSwitch(page)).toBeNull();
         expect(await activeProvider(page)).toBe(ACCOUNT_GAMMA);
         expect(await countCalls(page, 'switch-cleanup')).toBe(0);
-    });
-
-    test(`[${suite}] a failed account refresh after confirmation reopens the login with the failure and diagnostics`, async ({ page }) => {
-        await page.evaluate(id => window.__accountProbe!.failRefresh(id, 1), ACCOUNT_GAMMA);
-        await scriptQr(page, ACCOUNT_GAMMA, ['confirmed']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-
-        await expect.poll(() => calls(page, 'refresh')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, ok: false })]);
-        await expect(loginDialog(page)).toBeVisible();
-        await expect(statusText(page, 'error')).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-        await expect(retryButton(page)).toBeVisible();
-        await expect(driver.confirmDialog(page)).toHaveCount(0);
-        expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('anonymous');
-        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
-    });
-
-    test(`[${suite}] several sign-in methods: no QR before a choice, one live session across choices`, async ({ page }) => {
-        await driver.selectProvider(page, ACCOUNT_QUILL);
-        await expect(loginDialog(page)).toBeVisible();
-        // 步骤一：占位框，不要码，没有状态文案和重试。
-        await expect(loginDialog(page).getByText('Pick a sign-in method to generate the QR code')).toBeVisible();
-        await expect.poll(() => countCalls(page, 'resolve-methods', ACCOUNT_QUILL)).toBe(1);
-        await expect(methodButton(page, 'QQ scan')).toHaveAttribute('aria-pressed', 'false');
-        await expect(retryButton(page)).toHaveCount(0);
-        await page.waitForTimeout(500);
-        expect(await countCalls(page, 'create')).toBe(0);
-
-        await driver.chooseMethod(page, 'QQ scan');
-        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toEqual([expect.objectContaining({ methodId: 'qq' })]);
-        const first = await lastKey(page, ACCOUNT_QUILL);
-        await expectQrKey(page, first);
-        await expect(methodButton(page, 'QQ scan')).toHaveAttribute('aria-pressed', 'true');
-        await expect(loginDialog(page).getByText('Current method: QQ scan')).toBeVisible();
-        await expect(statusText(page, 'waiting')).toBeVisible();
-
-        // 换方式：旧会话按自己的 provider 取消，再要新码；任何时候只有一个活跃会话。
-        await driver.chooseMethod(page, 'WeChat scan');
-        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toHaveLength(2);
-        const second = await lastKey(page, ACCOUNT_QUILL);
-        expect((await calls(page, 'create', ACCOUNT_QUILL))[1].methodId).toBe('wechat');
-        await expect.poll(() => calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_QUILL, key: first })]);
-        await expectQrKey(page, second);
-
-        // 后端报过期（没扫过）：不算失败；重试沿用已选的方式，并取消过期的那个会话。
-        await scriptQr(page, ACCOUNT_QUILL, ['expired']);
-        await expect(statusText(page, 'expired')).toBeVisible();
-        await expect(anyFailureHelpEntry(page)).toHaveCount(0);
-        await driver.retry(page);
-        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toHaveLength(3);
-        expect((await calls(page, 'create', ACCOUNT_QUILL))[2].methodId).toBe('wechat');
-        expect((await calls(page, 'cancel')).map(call => call.key)).toEqual([first, second]);
-        const third = await lastKey(page, ACCOUNT_QUILL);
-
-        await driver.closeLogin(page);
-        await expect(loginDialog(page)).toHaveCount(0);
-        await expect.poll(async () => (await calls(page, 'cancel')).map(call => call.key)).toEqual([first, second, third]);
-    });
-});
-
-test.describe(`[${suite}] QR lifetime`, () => {
-    test.beforeEach(async ({ page, mount }) => {
-        await mountAccount(mount, page, suite);
-    });
-
-    test(`[${suite}] the TTL expires and cancels the code; an unscanned expiry is not a failure`, async ({ page }) => {
-        await setQrTtl(page, ACCOUNT_GAMMA, 1200);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'waiting')).toBeVisible();
-        const key = await lastKey(page, ACCOUNT_GAMMA);
-
-        await expect(statusText(page, 'expired')).toBeVisible();
-        await expect.poll(() => calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, key })]);
-        await expect(retryButton(page)).toBeVisible();
-        await expect(anyFailureHelpEntry(page)).toHaveCount(0);
-        // 到点即停：之后不再轮询。
-        const checks = await countCalls(page, 'check');
-        await page.waitForTimeout(2_500);
-        expect(await countCalls(page, 'check')).toBe(checks);
-
-        await setQrTtl(page, ACCOUNT_GAMMA, null);
-        await driver.retry(page);
-        await expect.poll(() => countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(2);
-        await expect(statusText(page, 'waiting')).toBeVisible();
-        await expectQrKey(page, await lastKey(page, ACCOUNT_GAMMA));
-    });
-
-    test(`[${suite}] expiring after a scan counts as a failure and offers diagnostics`, async ({ page }) => {
-        // TTL 计时：第一次轮询（约 2 秒）报已扫码，3.5 秒到点。
-        await setQrTtl(page, ACCOUNT_GAMMA, 3_500);
-        await scriptQr(page, ACCOUNT_GAMMA, ['scanned']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        const key = await lastKey(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'scanned')).toBeVisible();
-        await expect(statusText(page, 'expired')).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-        await expect(tipsList(page)).toBeVisible();
-        // 扫过码才过期的那句提示在诊断与反馈里：网格要先展开「还是不行？」。
-        if (foldsDiagnostics) await failureHelpEntry(page).click();
-        await expect(loginDialog(page).getByText(/If you confirmed on your phone but were still not signed in/)).toBeVisible();
-        expect((await calls(page, 'cancel')).map(call => call.key)).toEqual([key]);
-
-        // 后端报的过期同理：扫过才算失败。
-        await setQrTtl(page, ACCOUNT_GAMMA, null);
-        await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'expired']);
-        await driver.retry(page);
-        await expect(statusText(page, 'scanned')).toBeVisible();
-        await expect(anyFailureHelpEntry(page)).toHaveCount(0);
-        await expect(statusText(page, 'expired')).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-    });
-});
-
-test.describe(`[${suite}] QQ diagnostics`, () => {
-    test.beforeEach(async ({ page, mount }) => {
-        await mountAccount(mount, page, suite);
-    });
-
-    // QQ 的扫码失败和别的平台一样给复制报告 / 反馈入口；grid 的诊断区块与 TUI 的诊断行和 F4 都看
-    // core 的 canShowLoginDiagnostics（对照组 gamma）。失败后由会话自动跑一次自检，结论显示在诊断区块里。
-    test(`[${suite}] a login canceled on the phone says so and holds the retry until the backend cooldown ends`, async ({ page }) => {
-        await scriptQr(page, ACCOUNT_GAMMA, ['canceled']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(loginDialog(page).getByText(/^Login was canceled on your phone\. You can get a new QR code in \d+s\.$/)).toBeVisible();
-        // 用户自己取消的，没有要排查的东西。
-        await expect(anyFailureHelpEntry(page)).toHaveCount(0);
-        // 冷却中：网格的重试按钮在但不能点；TUI 不给重试，Enter 不要码。
-        if (suite !== 'tui') {
-            await expect(retryButton(page)).toBeDisabled();
-        } else {
-            await expect(retryButton(page)).toHaveCount(0);
-            await page.keyboard.press('Enter');
-        }
         expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
-
-        // 冷却结束：状态行换成不带秒数的文案，重试恢复。
-        await expect(loginDialog(page).getByText('Login was canceled on your phone. You can get a new QR code.', { exact: true }))
-            .toBeVisible({ timeout: ACCOUNT_CANCEL_COOLDOWN_MS + 2_000 });
-        await scriptQr(page, ACCOUNT_GAMMA, ['waiting']);
-        await driver.retry(page);
-        await expect.poll(() => countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(2);
-        await expect(statusText(page, 'waiting')).toBeVisible();
-    });
-
-    test(`[${suite}] a failed QQ sign-in offers retry and diagnostics like other providers`, async ({ page }) => {
-        await scriptQr(page, ACCOUNT_GAMMA, ['error']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'error')).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-        await driver.closeLogin(page);
-        await expect(loginDialog(page)).toHaveCount(0);
-
-        await scriptQr(page, ACCOUNT_QQ, ['scanned', 'error']);
-        await driver.selectProvider(page, ACCOUNT_QQ);
-        await expect(statusText(page, 'scanned')).toBeVisible();
-        await expect(statusText(page, 'error')).toBeVisible();
-        await expect(retryButton(page)).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-        if (suite === 'tui') {
-            await expect(loginDialog(page).locator('[data-tui-login-diagnostics]')).toHaveCount(1);
-            // F4 复制 QQ 的诊断报告：换掉剪贴板写入，读回写进去的内容。
-            await page.evaluate(() => {
-                Object.defineProperty(navigator, 'clipboard', {
-                    configurable: true,
-                    value: { writeText: async (text: string) => { (window as unknown as { __copied?: string }).__copied = text; } },
-                });
-            });
-            await page.keyboard.press('F4');
-            await expect(loginDialog(page).locator('[data-tui-login-diagnostics-copy]')).toHaveAttribute('data-tui-login-diagnostics-copy', 'copied');
-            const copied = await page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '');
-            expect(copied).toContain('### Folia QR login diagnostics');
-            expect(copied).toContain(`provider: ${ACCOUNT_QQ}`);
-        }
-
-        // 重试后新会话失败同样给诊断。
-        await scriptQr(page, ACCOUNT_QQ, ['error']);
-        await driver.retry(page);
-        await expect.poll(() => countCalls(page, 'create', ACCOUNT_QQ)).toBe(2);
-        await expect(statusText(page, 'error')).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-    });
-
-    test(`[${suite}] a failed sign-in runs the automatic check once and shows where the connection broke`, async ({ page }) => {
-        await setSelfCheck(page, ACCOUNT_GAMMA, 'tls-reset');
-        await scriptQr(page, ACCOUNT_GAMMA, ['error']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'error')).toBeVisible();
-
-        // 先给简单办法（重启；换网络再重启），自检结论在它后面。
-        await expect(tipsList(page)).toBeVisible();
-        await expect(loginDialog(page).getByText('Switch to another network (for example a phone hotspot), then restart Folia.')).toBeVisible();
-        const verdict = loginDialog(page).getByText(/The connection to the Gamma servers was cut during the encryption handshake \(probe\.example 203\.0\.113\.7 \(IPv4\): ECONNRESET\)/);
-        await expect(verdict).toBeVisible();
-        await expect(loginDialog(page).getByText(/IPv4 connection: probe\.example: ECONNRESET \(tls\)/)).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
-        expect(await countCalls(page, 'self-check', ACCOUNT_GAMMA)).toBe(1);
-
-        // 报告里带着同一个结论与逐层的结果。
-        await page.evaluate(() => {
-            Object.defineProperty(navigator, 'clipboard', {
-                configurable: true,
-                value: { writeText: async (text: string) => { (window as unknown as { __copied?: string }).__copied = text; } },
-            });
-        });
-        if (foldsDiagnostics) {
-            // 诊断一开始收着：展开之后才有复制与反馈。
-            await expect(diagnosticsButton(page)).toHaveCount(0);
-            await failureHelpEntry(page).click();
-            await diagnosticsButton(page).click();
-        } else {
-            await page.keyboard.press('F4');
-        }
-        await expect.poll(() => page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '')).toContain('verdict: tls-reset');
-        const copied = await page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '');
-        expect(copied).toContain('v4 203.0.113.7: tcp 10ms → ECONNRESET at tls: read ECONNRESET');
-        expect(copied).toContain('probe: acct-gamma diagnostics');
-    });
-
-    test(`[${suite}] no automatic check for a login canceled on the phone, and a check that fails says so`, async ({ page }) => {
-        await setSelfCheck(page, ACCOUNT_GAMMA, 'network-ok');
-        await scriptQr(page, ACCOUNT_GAMMA, ['canceled']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(loginDialog(page).getByText(/^Login was canceled on your phone\./)).toBeVisible();
-        await page.waitForTimeout(300);
-        expect(await countCalls(page, 'self-check', ACCOUNT_GAMMA)).toBe(0);
-        await driver.closeLogin(page);
-        await expect(loginDialog(page)).toHaveCount(0);
-
-        await setSelfCheck(page, ACCOUNT_QQ, 'error');
-        await scriptQr(page, ACCOUNT_QQ, ['error']);
-        await driver.selectProvider(page, ACCOUNT_QQ);
-        await expect(statusText(page, 'error')).toBeVisible();
-        await expect(loginDialog(page).getByText('The automatic check could not finish: probe: self-check unavailable')).toBeVisible();
-        await expect(failureHelpEntry(page)).toBeVisible();
     });
 });
 
@@ -681,9 +425,9 @@ test.describe(`[${suite}] closing`, () => {
 
     test(`[${suite}] closing the login cancels the session and stops polling`, async ({ page }) => {
         await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'waiting')).toBeVisible();
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
         const key = await lastKey(page, ACCOUNT_GAMMA);
-        await driver.closeLogin(page);
+        await closeLogin(page);
         await expect(loginDialog(page)).toHaveCount(0);
         await expect.poll(() => calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, key })]);
         const checks = await countCalls(page, 'check');
@@ -693,69 +437,25 @@ test.describe(`[${suite}] closing`, () => {
     });
 });
 
-test.describe(`[${suite}] NetEase backend`, () => {
-    test.beforeEach(async ({ page, mount }) => {
-        await mountAccount(mount, page, suite);
-    });
-
-    test(`[${suite}] a backend failure shows the cause and restart instead of retry; a successful restart asks for a code`, async ({ page }) => {
-        await page.evaluate(() => window.__accountProbe!.setNeteaseBackend({
-            supported: true,
-            status: 'error',
-            error: 'probe: xeapi key missing',
-        }));
-
-        // 只有网易读后端状态：别的平台照常出码。
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'waiting')).toBeVisible();
-        await expect(restartButton(page)).toHaveCount(0);
-        await driver.closeLogin(page);
-        await expect(loginDialog(page)).toHaveCount(0);
-
-        await driver.selectProvider(page, ACCOUNT_NETEASE);
-        await expect(loginDialog(page)).toHaveAccessibleName('Scan with Netease App');
-        await expect(loginDialog(page).getByText('The local NetEase service is not running')).toBeVisible();
-        await expect(loginDialog(page).getByText('probe: xeapi key missing')).toBeVisible();
-        await driver.expectRestartLabel(page, 'Restart backend');
-        // 要码照常发出（后端没起来所以失败）：重试与状态文案被后端故障盖住，诊断照样给——
-        // 报告里有拉起的每一步与错误原文，重启解决不了时用户可以直接反馈。
-        await expect.poll(() => countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(1);
-        await expect(retryButton(page)).toHaveCount(0);
-        await expect(anyFailureHelpEntry(page)).toBeVisible();
-        await expect(statusText(page, 'error')).toHaveCount(0);
-        await expect(qrImage(page)).toHaveCount(0);
-
-        // 重启失败：故障留着，不要码。
-        await page.evaluate(() => window.__accountProbe!.setBackendRestart('error', 300));
-        await driver.restart(page);
-        await expect.poll(() => countCalls(page, 'backend-restart')).toBe(1);
-        await driver.expectRestartLabel(page, 'Restart backend');
-        await expect(loginDialog(page).getByText('The local NetEase service is not running')).toBeVisible();
-        expect(await countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(1);
-
-        // 重启成功：故障消失，自动要码。
-        await page.evaluate(() => window.__accountProbe!.setBackendRestart('running', 600));
-        await driver.restart(page);
-        await driver.expectRestartLabel(page, 'Restarting…');
-        await expect(restartButton(page)).toBeDisabled();
-        await expect(loginDialog(page).getByText('The local NetEase service is not running')).toHaveCount(0);
-        await expect.poll(() => countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(2);
-        await expect(statusText(page, 'waiting')).toBeVisible();
-        await expectQrKey(page, await lastKey(page, ACCOUNT_NETEASE));
-        expect(await countCalls(page, 'backend-restart')).toBe(2);
-    });
-});
-
 test.describe(`[${suite}] logout`, () => {
     test.beforeEach(async ({ page, mount }) => {
         await mountAccount(mount, page, suite);
     });
 
-    test(`[${suite}] only the current signed-in provider offers logout, and it runs that provider's injected logout`, async ({ page }) => {
+    test(`[${suite}] logging out runs that provider's injected logout and leaves the other providers signed in`, async ({ page }) => {
         const logoutEntries = await driver.openLogoutEntries(page);
-        // beta 也已登录，但不是当前平台：没有登出入口。
+        // 入口打开时登出按钮只有一个，是当前平台的（TUI 的平台列表只在当前平台那一行放它；登录窗口开在当前平台上）。
         await expect(logoutEntries).toHaveCount(1);
         await driver.expectLogoutOn(page, ACCOUNT_ALPHA);
+        if (suite === 'grid') {
+            // 登录窗口里选中的任何一个已登录的平台都能退出（不只是当前平台）：选 beta，这一幅也有「Logout」，外加「Switch to」。
+            await platformRow(page, ACCOUNT_BETA).click();
+            await expect(switchToButton(page, ACCOUNT_BETA)).toBeVisible();
+            await expect(logoutEntries).toHaveCount(1);
+            await platformRow(page, ACCOUNT_ALPHA).click();
+            await expect(platformRow(page, ACCOUNT_ALPHA)).toHaveAttribute('aria-selected', 'true');
+            await expect(switchToButton(page, ACCOUNT_BETA)).toHaveCount(0);
+        }
 
         await driver.logoutCurrent(page, ACCOUNT_ALPHA);
         await expect.poll(() => calls(page, 'host-logout')).toEqual([expect.objectContaining({ providerId: ACCOUNT_ALPHA })]);
@@ -765,29 +465,90 @@ test.describe(`[${suite}] logout`, () => {
         await expect.poll(() => accountStatus(page, ACCOUNT_ALPHA)).toBe('anonymous');
         expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
         expect(await accountStatus(page, ACCOUNT_BETA)).toBe('authenticated');
-        await expect(driver.confirmDialog(page)).toHaveCount(0);
+        await expect(switchConfirm(page)).toHaveCount(0);
 
-        // 当前平台登出后（未登录）：没有任何登出入口。
+        // 当前平台登出后（未登录）：入口里没有任何登出按钮（网格的窗口开在它的登录上）。
         await expect(await driver.openLogoutEntries(page)).toHaveCount(0);
-        await driver.closePicker(page);
+        await driver.closeEntry(page);
     });
 });
 }
 
-test.describe('[grid-only] stacking', () => {
+// 登录窗口里面的事：两个 suite 是同一个窗口，只从网格的切换器进一遍。
+test.describe('[login-window] signing in', () => {
     test.beforeEach(async ({ page, mount }) => {
         await mountAccount(mount, page, 'grid');
     });
 
-    // 网格的切换器盖在登录弹窗之上，弹窗开着时还能选别的平台；TUI 的登录框是模态的（按键独占），没有这条路径。
-    test('[grid-only] a new sign-in stops the previous session first, keyed to the provider that started it', async ({ page }) => {
-        // 先给 gamma 要了码，再在菜单里选 quill（多方式，停在选方式、不要码）。
+    test('[login-window] a failed account read after confirmation keeps the window on the failure with retry and diagnostics', async ({ page }) => {
+        await page.evaluate(id => window.__accountProbe!.failRefresh(id, 1), ACCOUNT_GAMMA);
+        await scriptQr(page, ACCOUNT_GAMMA, ['confirmed']);
         await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
-        await expect(statusText(page, 'waiting')).toBeVisible();
+
+        await expect.poll(() => calls(page, 'refresh')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, ok: false })]);
+        await expect(loginDialog(page)).toBeVisible();
+        await expect(headline(page)).toHaveText(HEADLINE.accountNotRead);
+        await expect(detailsToggle(page)).toBeVisible();
+        await expect(retryButton(page)).toBeVisible();
+        await expect(switchConfirm(page)).toHaveCount(0);
+        // 没读到账号：不算登录上（账户 store 记下这一次没读成，平台那一行仍是未登录），也不切过去。
+        expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('error');
+        await expect(platformRow(page, ACCOUNT_GAMMA)).toContainText('Not signed in');
+        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
+        expect(await countCalls(page, 'switch-cleanup')).toBe(0);
+    });
+
+    test('[login-window] several sign-in methods: no QR before a choice, one live session across choices', async ({ page }) => {
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_QUILL);
+        await expect(loginDialog(page)).toBeVisible();
+        // 步骤一：占位框，不要码，没有重试。
+        await expect(headline(page)).toHaveText(HEADLINE.chooseMethod);
+        await expect(loginDialog(page).getByText('Pick a sign-in method to generate the QR code')).toBeVisible();
+        await expect.poll(() => countCalls(page, 'resolve-methods', ACCOUNT_QUILL)).toBe(1);
+        await expect(methodButton(page, 'QQ scan')).toHaveAttribute('aria-pressed', 'false');
+        await expect(retryButton(page)).toHaveCount(0);
+        await page.waitForTimeout(500);
+        expect(await countCalls(page, 'create')).toBe(0);
+
+        await methodButton(page, 'QQ scan').click();
+        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toEqual([expect.objectContaining({ methodId: 'qq' })]);
+        const first = await lastKey(page, ACCOUNT_QUILL);
+        await expectQrKey(page, first);
+        // 选了之后登录方式还留着，可以再换。
+        await expect(methodButton(page, 'QQ scan')).toHaveAttribute('aria-pressed', 'true');
+        await expect(methodButton(page, 'WeChat scan')).toHaveAttribute('aria-pressed', 'false');
+        await expectWaitingForScan(page, ACCOUNT_QUILL);
+
+        // 换方式：旧会话按自己的 provider 取消，再要新码；任何时候只有一个活跃会话。
+        await methodButton(page, 'WeChat scan').click();
+        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toHaveLength(2);
+        const second = await lastKey(page, ACCOUNT_QUILL);
+        expect((await calls(page, 'create', ACCOUNT_QUILL))[1].methodId).toBe('wechat');
+        await expect.poll(() => calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_QUILL, key: first })]);
+        await expectQrKey(page, second);
+
+        // 后端报过期（没扫过）：不算失败，没有详情；重试沿用已选的方式，并取消过期的那个会话。
+        await scriptQr(page, ACCOUNT_QUILL, ['expired']);
+        await expect(headline(page)).toHaveText(HEADLINE.expired);
+        await expect(detailsToggle(page)).toHaveCount(0);
+        await retryButton(page).click();
+        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toHaveLength(3);
+        expect((await calls(page, 'create', ACCOUNT_QUILL))[2].methodId).toBe('wechat');
+        expect((await calls(page, 'cancel')).map(call => call.key)).toEqual([first, second]);
+        const third = await lastKey(page, ACCOUNT_QUILL);
+
+        await closeLogin(page);
+        await expect(loginDialog(page)).toHaveCount(0);
+        await expect.poll(async () => (await calls(page, 'cancel')).map(call => call.key)).toEqual([first, second, third]);
+    });
+
+    test('[login-window] choosing another platform stops the previous session first, keyed to the provider that started it', async ({ page }) => {
+        // 先给 gamma 要了码，再在平台那一列选 quill（多方式，停在选方式、不要码）。
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
         const key = await lastKey(page, ACCOUNT_GAMMA);
         await GRID_DRIVER.selectProvider(page, ACCOUNT_QUILL);
-        // A4 起（A3 的有意变化「单一在途登录」）：开始新的登录时先停掉旧会话——取消的是 gamma 的会话、交给 gamma，
-        // 而不是等到关窗；原先 gamma 的会话会在后台一直轮询，确认后替 gamma 登录。
+        // 单一在途登录：开始新的登录时先停掉旧会话——取消的是 gamma 的会话、交给 gamma，而不是等到关窗。
         await expect.poll(() => calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, key })]);
         await expect(loginDialog(page).getByText('Pick a sign-in method to generate the QR code')).toBeVisible();
         expect(await countCalls(page, 'create', ACCOUNT_QUILL)).toBe(0);
@@ -797,80 +558,271 @@ test.describe('[grid-only] stacking', () => {
         expect(await countCalls(page, 'check', ACCOUNT_GAMMA)).toBe(checks);
 
         // 关窗时没有活着的会话可取消：取消记录仍只有 gamma 那一条。
-        await gridCloseButton(page).click();
+        await closeLogin(page);
         await expect(loginDialog(page)).toHaveCount(0);
         await page.waitForTimeout(300);
         expect(await calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, key })]);
     });
 });
 
-// 登录会话在账户 controller 里（宿主持有，换 suite 不重建）：换 suite 只换 account surface，新 suite 接着显示同一个会话。
-// A6 起 TUI 有自己的 account surface，不再回退网格。切换不再先问，哪个 suite 都不出确认框。
-test.describe('[switch] grid and TUI share the account flows', () => {
+test.describe('[login-window] QR lifetime', () => {
     test.beforeEach(async ({ page, mount }) => {
         await mountAccount(mount, page, 'grid');
     });
 
-    test('[switch] with the TUI selected, its own account surface (not the grid fallback) answers a sign-in, and switches ask nothing', async ({ page }) => {
+    test('[login-window] the TTL expires and cancels the code; an unscanned expiry is not a failure', async ({ page }) => {
+        await setQrTtl(page, ACCOUNT_GAMMA, 1200);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
+        const key = await lastKey(page, ACCOUNT_GAMMA);
+
+        await expect(headline(page)).toHaveText(HEADLINE.expired);
+        await expect.poll(() => calls(page, 'cancel')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, key })]);
+        await expect(retryButton(page)).toBeVisible();
+        await expect(detailsToggle(page)).toHaveCount(0);
+        // 到点即停：之后不再轮询。
+        const checks = await countCalls(page, 'check');
+        await page.waitForTimeout(2_500);
+        expect(await countCalls(page, 'check')).toBe(checks);
+
+        await setQrTtl(page, ACCOUNT_GAMMA, null);
+        await retryButton(page).click();
+        await expect.poll(() => countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(2);
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
+        await expectQrKey(page, await lastKey(page, ACCOUNT_GAMMA));
+    });
+
+    test('[login-window] expiring after a scan counts as a failure and offers diagnostics', async ({ page }) => {
+        // TTL 计时：第一次轮询（约 2 秒）报已扫码，3.5 秒到点。
+        await setQrTtl(page, ACCOUNT_GAMMA, 3_500);
+        await scriptQr(page, ACCOUNT_GAMMA, ['scanned']);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        const key = await lastKey(page, ACCOUNT_GAMMA);
+        await expect(headline(page)).toHaveText(HEADLINE.scanned);
+        await expect(headline(page)).toHaveText(HEADLINE.expiredAfterScan);
+        await expect(loginDialog(page).getByText(HEADLINE.expired, { exact: true })).toBeVisible();
+        // 扫过码才过期算失败：有详情，展开是这一次的事实和复制诊断。
+        await expect(detailsToggle(page)).toBeVisible();
+        await expect(diagnosticsButton(page)).toHaveCount(0);
+        await detailsToggle(page).click();
+        await expect(loginDialog(page).getByText('Not finished · expired-after-scan')).toBeVisible();
+        await expect(diagnosticsButton(page)).toBeVisible();
+        expect((await calls(page, 'cancel')).map(call => call.key)).toEqual([key]);
+
+        // 后端报的过期同理：扫过才算失败。
+        await setQrTtl(page, ACCOUNT_GAMMA, null);
+        await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'expired']);
+        await retryButton(page).click();
+        await expect(headline(page)).toHaveText(HEADLINE.scanned);
+        await expect(detailsToggle(page)).toHaveCount(0);
+        await expect(headline(page)).toHaveText(HEADLINE.expiredAfterScan);
+        await expect(detailsToggle(page)).toBeVisible();
+    });
+});
+
+test.describe('[login-window] failures and diagnostics', () => {
+    test.beforeEach(async ({ page, mount }) => {
+        await mountAccount(mount, page, 'grid');
+    });
+
+    // 各平台的扫码失败走同一套规则（对照组 gamma，QQ 不例外）：标题说是哪一种情况，「Details」下面是事实、自检结论、
+    // 复制诊断与反馈。失败后由会话自动跑一次自检。
+    test('[login-window] a failure the platform asks to wait on holds the retry until the wait ends', async ({ page }) => {
+        // 用户在手机上取消：平台报错并要求等一会儿（探针缩短到 ACCOUNT_CANCEL_COOLDOWN_MS）才能再要码。
+        await scriptQr(page, ACCOUNT_GAMMA, ['canceled']);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expect(headline(page)).toHaveText(`${shortName(ACCOUNT_GAMMA)}: try again later`);
+        // 平台的原话引在标题下面。
+        await expect(loginDialog(page).getByText('probe: canceled on device', { exact: true })).toBeVisible();
+        // 等的时候重试是一个倒数的占位，不是按钮；这期间不要码。
+        const countdown = loginDialog(page).getByText(/^Try again in \d+ s$/);
+        await expect(countdown).toBeVisible();
+        await expect(retryButton(page)).toHaveCount(0);
+        expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
+
+        // 等完：倒数换成重试按钮。
+        await expect(retryButton(page)).toBeVisible({ timeout: ACCOUNT_CANCEL_COOLDOWN_MS + 2_000 });
+        await expect(countdown).toHaveCount(0);
+        expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
+        await scriptQr(page, ACCOUNT_GAMMA, ['waiting']);
+        await retryButton(page).click();
+        await expect.poll(() => countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(2);
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
+    });
+
+    test('[login-window] a failed QQ sign-in offers retry and diagnostics like other providers', async ({ page }) => {
+        await scriptQr(page, ACCOUNT_GAMMA, ['error']);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expect(headline(page)).toHaveText(HEADLINE.failed);
+        await expect(detailsToggle(page)).toBeVisible();
+        await closeLogin(page);
+        await expect(loginDialog(page)).toHaveCount(0);
+
+        await scriptQr(page, ACCOUNT_QQ, ['scanned', 'error']);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_QQ);
+        await expect(headline(page)).toHaveText(HEADLINE.scanned);
+        await expect(headline(page)).toHaveText(HEADLINE.failed);
+        await expect(retryButton(page)).toBeVisible();
+        await expect(detailsToggle(page)).toBeVisible();
+        // 复制 QQ 的诊断报告：换掉剪贴板写入，读回写进去的内容。
+        await captureClipboard(page);
+        await detailsToggle(page).click();
+        await diagnosticsButton(page).click();
+        await expect.poll(() => copiedText(page)).toContain('### Folia QR login diagnostics');
+        expect(await copiedText(page)).toContain(`provider: ${ACCOUNT_QQ}`);
+
+        // 重试后新会话失败同样给诊断。
+        await scriptQr(page, ACCOUNT_QQ, ['error']);
+        await retryButton(page).click();
+        await expect.poll(() => countCalls(page, 'create', ACCOUNT_QQ)).toBe(2);
+        await expect(headline(page)).toHaveText(HEADLINE.failed);
+        await expect(detailsToggle(page)).toBeVisible();
+    });
+
+    test('[login-window] a failed sign-in runs the automatic check once and shows where the connection broke', async ({ page }) => {
+        await setSelfCheck(page, ACCOUNT_GAMMA, 'tls-reset');
+        await scriptQr(page, ACCOUNT_GAMMA, ['error']);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expect(headline(page)).toHaveText(HEADLINE.failed);
+        await expect.poll(() => countCalls(page, 'self-check', ACCOUNT_GAMMA)).toBe(1);
+
+        // 详情一开始收着：展开之后才有自检结论、复制与反馈。
+        const verdict = loginDialog(page).getByText(/The connection to the Gamma servers was cut during the encryption handshake \(probe\.example 203\.0\.113\.7 \(IPv4\): ECONNRESET\)/);
+        await expect(detailsToggle(page)).toHaveAttribute('aria-expanded', 'false');
+        await expect(diagnosticsButton(page)).toHaveCount(0);
+        await detailsToggle(page).click();
+        await expect(loginDialog(page).getByText('Automatic check', { exact: true })).toBeVisible();
+        await expect(verdict).toBeVisible();
+        // 官方构建、不是一开始就失败：照常去 GitHub 反馈。
+        await expect(loginDialog(page).getByRole('button', { name: 'Report on GitHub' })).toBeVisible();
+        expect(await countCalls(page, 'self-check', ACCOUNT_GAMMA)).toBe(1);
+
+        // 报告里带着同一个结论与逐层的结果。
+        await captureClipboard(page);
+        await diagnosticsButton(page).click();
+        await expect.poll(() => copiedText(page)).toContain('verdict: tls-reset');
+        const copied = await copiedText(page);
+        expect(copied).toContain('v4 203.0.113.7: tcp 10ms → ECONNRESET at tls: read ECONNRESET');
+        expect(copied).toContain('probe: acct-gamma diagnostics');
+    });
+
+    test('[login-window] an automatic check that fails says so', async ({ page }) => {
+        await setSelfCheck(page, ACCOUNT_QQ, 'error');
+        await scriptQr(page, ACCOUNT_QQ, ['error']);
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_QQ);
+        await expect(headline(page)).toHaveText(HEADLINE.failed);
+        await detailsToggle(page).click();
+        await expect(loginDialog(page).getByText('The automatic check could not finish: probe: self-check unavailable')).toBeVisible();
+        expect(await countCalls(page, 'self-check', ACCOUNT_QQ)).toBe(1);
+    });
+});
+
+test.describe('[login-window] NetEase backend', () => {
+    test.beforeEach(async ({ page, mount }) => {
+        await mountAccount(mount, page, 'grid');
+    });
+
+    test('[login-window] a backend failure shows the cause and restart instead of retry; a successful restart asks for a code', async ({ page }) => {
+        const serviceDown = `The local ${shortName(ACCOUNT_NETEASE)} service is not running`;
+        await page.evaluate(() => window.__accountProbe!.setNeteaseBackend({
+            supported: true,
+            status: 'error',
+            error: 'probe: xeapi key missing',
+        }));
+
+        // 只有网易带着本地服务：别的平台照常出码。
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expectWaitingForScan(page, ACCOUNT_GAMMA);
+        await expect(restartButton(page)).toHaveCount(0);
+        await closeLogin(page);
+        await expect(loginDialog(page)).toHaveCount(0);
+
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_NETEASE);
+        await expect(loginDialog(page)).toHaveAccessibleName(`Log in to ${shortName(ACCOUNT_NETEASE)}`);
+        await expect(headline(page)).toHaveText(serviceDown);
+        // 平台没说话时引本地服务自己的错误原话。
+        await expect(loginDialog(page).getByText('probe: xeapi key missing')).toBeVisible();
+        await expect(restartButton(page)).toHaveText('Restart backend');
+        // 要码照常发出（后端没起来所以失败）：重试被「重启后端」换掉，诊断照样给——
+        // 报告里有拉起的每一步与错误原文，重启解决不了时用户可以直接反馈。
+        await expect.poll(() => countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(1);
+        await expect(retryButton(page)).toHaveCount(0);
+        await expect(detailsToggle(page)).toBeVisible();
+        await expect(qrImage(page)).toHaveCount(0);
+
+        // 重启失败：故障留着，不要码。
+        await page.evaluate(() => window.__accountProbe!.setBackendRestart('error', 300));
+        await restartButton(page).click();
+        await expect.poll(() => countCalls(page, 'backend-restart')).toBe(1);
+        await expect(restartButton(page)).toHaveText('Restart backend');
+        await expect(restartButton(page)).toBeEnabled();
+        await expect(headline(page)).toHaveText(serviceDown);
+        expect(await countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(1);
+
+        // 重启成功：故障消失，自动要码。
+        await page.evaluate(() => window.__accountProbe!.setBackendRestart('running', 600));
+        await restartButton(page).click();
+        await expect(restartButton(page)).toHaveText('Restarting…');
+        await expect(restartButton(page)).toBeDisabled();
+        await expect.poll(() => countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(2);
+        await expectWaitingForScan(page, ACCOUNT_NETEASE);
+        await expect(restartButton(page)).toHaveCount(0);
+        await expectQrKey(page, await lastKey(page, ACCOUNT_NETEASE));
+        expect(await countCalls(page, 'backend-restart')).toBe(2);
+    });
+});
+
+// 登录窗口挂在首页外面（App 最外层，探针照着挂），登录会话在账户 controller 里（宿主持有，换 suite 不重建）：
+// 换 suite 只换首页，窗口与会话都留着。TUI 没有自己的登录框；切换不先问，哪个 suite 都不出确认框。
+test.describe('[switch] grid and TUI share the login window', () => {
+    test.beforeEach(async ({ page, mount }) => {
+        await mountAccount(mount, page, 'grid');
+    });
+
+    test('[switch] with the TUI selected, the shared login window answers a sign-in, and switches ask nothing', async ({ page }) => {
         await setSuite(page, 'tui');
         await expect(switcher(page)).toHaveCount(0);
 
-        // 登录：TUI 的登录框（不是网格弹窗），扫码确认后直接切到登录的平台。
+        // 登录：TUI 的平台列表打开共用的登录窗口（有平台那一列，不是 TUI 自己的登录框），扫码确认后直接切到登录的平台。
         await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'confirmed']);
-        expect(await startLogin(page, ACCOUNT_GAMMA)).toBe('started');
+        await TUI_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
         await expect(loginDialog(page)).toBeVisible();
-        await expect(loginDialog(page)).toHaveAttribute('data-tui-account-login', ACCOUNT_GAMMA);
-        await expect(loginDialog(page)).toHaveAccessibleName('Scan with Netease App');
+        await expect(platformRow(page, ACCOUNT_GAMMA)).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('[data-tui-account-login]')).toHaveCount(0);
+        await expect(loginDialog(page)).toHaveAccessibleName(`Log in to ${shortName(ACCOUNT_GAMMA)}`);
         await expectQrKey(page, await lastKey(page, ACCOUNT_GAMMA));
-        await expect(statusText(page, 'scanned')).toBeVisible();
-        await expectSwitchedWithoutAsking(page, TUI_DRIVER, ACCOUNT_GAMMA);
-        await expect(gridConfirmDialog(page)).toHaveCount(0);
+        await expect(headline(page)).toHaveText(HEADLINE.scanned);
+        await expectSwitchedWithoutAsking(page, ACCOUNT_GAMMA);
         await expect(loginDialog(page)).toHaveCount(0);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
         expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
 
-        // 切换：不问，直接切过去，离开旧平台一次。
+        // 切换（直接调 controller）：不问，直接切过去，离开旧平台一次。
         await requestSwitch(page, ACCOUNT_ALPHA);
         await expect.poll(() => switchResult(page)).toBe('switched');
-        await expectSwitchedWithoutAsking(page, TUI_DRIVER, ACCOUNT_ALPHA);
+        await expectSwitchedWithoutAsking(page, ACCOUNT_ALPHA);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA, ACCOUNT_ALPHA]);
         await expect(tuiHome(page)).toBeVisible();
     });
 
-    test('[switch] the QQ-style two-step sign-in works in the TUI with keys only', async ({ page }) => {
-        await setSuite(page, 'tui');
-
-        expect(await startLogin(page, ACCOUNT_QUILL)).toBe('started');
-        await expect(loginDialog(page)).toHaveAttribute('data-tui-account-login', ACCOUNT_QUILL);
-        // 第一步：还没选方式，不要码；↓ 移到微信、Enter 选它。
-        expect(await countCalls(page, 'create', ACCOUNT_QUILL)).toBe(0);
-        await TUI_DRIVER.chooseMethod(page, 'WeChat scan');
-        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toEqual([
-            expect.objectContaining({ methodId: 'wechat' }),
-        ]);
-        await expectQrKey(page, await lastKey(page, ACCOUNT_QUILL));
-        await TUI_DRIVER.closeLogin(page);
-        await expect(loginDialog(page)).toHaveCount(0);
-        await expect.poll(() => countCalls(page, 'cancel', ACCOUNT_QUILL)).toBe(1);
-    });
-
-    test('[switch] a sign-in started on the grid keeps its session in the TUI and completes there', async ({ page }) => {
+    test('[switch] a sign-in started on the grid keeps its window and session in the TUI and completes there', async ({ page }) => {
         await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
         await expect(loginDialog(page)).toBeVisible();
         await expect.poll(() => countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
         const key = await lastKey(page, ACCOUNT_GAMMA);
+        await expectQrKey(page, key);
 
-        // 换到 TUI：网格首页卸载，TUI 的登录框接着显示同一个二维码会话，不取消、不重新要码。
+        // 换到 TUI：网格首页卸载，登录窗口留着，还是同一个二维码会话，不取消、不重新要码。
         await setSuite(page, 'tui');
-        await expect(loginDialog(page)).toHaveAttribute('data-tui-account-login', ACCOUNT_GAMMA);
+        await expect(switcher(page)).toHaveCount(0);
+        await expect(platformRow(page, ACCOUNT_GAMMA)).toHaveAttribute('aria-selected', 'true');
         await expectQrKey(page, key);
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
         expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
 
-        // 回到网格：弹窗回到网格首页的账户层里，会话仍是同一个。
+        // 回到网格：会话仍是同一个。
         await setSuite(page, 'grid');
         await expect(loginDialog(page)).toBeVisible();
-        await expect(page.locator('[data-tui-account-login]')).toHaveCount(0);
         await expectQrKey(page, key);
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
 
@@ -878,7 +830,8 @@ test.describe('[switch] grid and TUI share the account flows', () => {
         await setSuite(page, 'tui');
         await expectQrKey(page, key);
         await scriptQr(page, ACCOUNT_GAMMA, ['confirmed']);
-        await expectSwitchedWithoutAsking(page, TUI_DRIVER, ACCOUNT_GAMMA);
+        await expectSwitchedWithoutAsking(page, ACCOUNT_GAMMA);
+        await expect(loginDialog(page)).toHaveCount(0);
         expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);

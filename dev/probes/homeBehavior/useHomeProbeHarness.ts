@@ -13,6 +13,7 @@ import { useLibraryAccountProviders } from '../../../src/library/core/account/us
 import { resolveActiveProviderSummary } from '../../../src/library/core/account/accountRules';
 import { useCollectionNavigationStore } from '../../../src/stores/useCollectionNavigationStore';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
+import { useStatusMessageStore } from '../../../src/stores/useStatusMessageStore';
 import { useLibrarySuiteStore } from '../../../src/library/core/suite/useLibrarySuiteStore';
 import { useLibraryBrowseSessionStore } from '../../../src/library/core/shared/useLibraryBrowseSessionStore';
 import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/suite/librarySuites';
@@ -94,6 +95,12 @@ export const useHomeProbeEnvironment = (sandbox: boolean): HomeProbeLibrary | nu
         localStorage.setItem(NAVIDROME_CONFIG_KEY, JSON.stringify(NAVIDROME_PROBE_CONFIG));
         const uninstallShim = installNavidromeShim();
         const uninstallServiceHook = installHomeServiceHook();
+        // 全局 toast 通道上的每一条都记账：歌单文件的导入对话框自己在这条通道上报结果，不经过 onStatusMessage。
+        useStatusMessageStore.getState().setMessage(null);
+        const unsubscribeToasts = useStatusMessageStore.subscribe((state, previous) => {
+            if (!state.message || state.message === previous.message) return;
+            recordProbeCall({ kind: 'toast', ids: [], text: state.message.text, status: state.message.type });
+        });
 
         let cancelled = false;
         void Promise.all([seedHomeLibrary(), loadProbeAccounts()]).then(([seeded]) => {
@@ -103,6 +110,7 @@ export const useHomeProbeEnvironment = (sandbox: boolean): HomeProbeLibrary | nu
         return () => {
             cancelled = true;
             setLibrary(null);
+            unsubscribeToasts();
             uninstallServiceHook();
             uninstallShim();
             if (previousNavidromeConfig === null) localStorage.removeItem(NAVIDROME_CONFIG_KEY);

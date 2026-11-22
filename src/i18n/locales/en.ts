@@ -4958,6 +4958,7 @@ export default {
     "editPlaylist": "Edit Playlist",
     "finishEditing": "Finish Editing",
     "deletePlaylist": "Delete Playlist",
+    "deletePlaylistMessage": "Only the playlist is deleted; its songs are not affected. This cannot be undone.",
     "exportPlaylist": "Export playlist…",
     "playlistImportSuccess": "Imported “{{name}}” with {{count}} track(s).",
     "playlistImportPartial": "Imported {{count}} track(s) into “{{name}}”; {{skipped}} path(s) were missing or ambiguous.",
@@ -5134,6 +5135,10 @@ export default {
     "edit": "Reorder playlists",
   },
   "foliaTransfer": {
+    "playViaPartlyFailedNote": "{{source}} could not be asked about {{count}} (it timed out or failed); they were left as they are.",
+    "savedViaPartly": "Saved as Folia playlist “{{name}}”: {{count}} songs, {{swapped}} now played by {{source}}, {{kept}} kept on their original source ({{failed}} of them could not be asked about)",
+    "noPlaylistCreated": "No playlist was created.",
+    "nothingSavable": "None of the {{count}} songs here can go into a playlist",
     "saved_one": "Saved as Folia playlist “{{name}}” ({{count}} song)",
     "refreshedNoNewDetached": "“{{name}}” has nothing new; {{detached}} no longer in the original were kept",
     "refreshedAddedDetached": "Updated “{{name}}”: {{count}} added; {{detached}} no longer in the original were kept",

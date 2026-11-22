@@ -3680,7 +3680,7 @@ function isolateFirstPartyWindow(win) {
   });
 }
 
-// 应用自己的页面：开发时同一个源（http://localhost:3000），打包后同一个 index.html（file:，查询参数可以不同）。
+// 应用自己的页面：开发时同一个源（Vite，默认 http://localhost:3000），打包后同一个 index.html（file:，查询参数可以不同）。
 function isSameAppPage(currentUrl, nextUrl) {
   try {
     const current = new URL(currentUrl);
@@ -4979,9 +4979,16 @@ function isElectronDevRuntime() {
   return process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development';
 }
 
+// 开发时页面从哪里来：Vite，默认 3000 端口。同一台机器上并行开第二份 dev 版（另一个工作树）时，
+// 用 FOLIA_DEV_SERVER_PORT 让它连自己的那个 Vite；只换端口，主机始终是 localhost。
+function getDevServerOrigin() {
+  const port = Number(process.env.FOLIA_DEV_SERVER_PORT);
+  return `http://localhost:${Number.isInteger(port) && port > 0 && port < 65536 ? port : 3000}`;
+}
+
 function loadAppEntry(win, query = {}) {
   if (isElectronDevRuntime()) {
-    const url = new URL('http://localhost:3000');
+    const url = new URL(getDevServerOrigin());
     Object.entries(query).forEach(([key, value]) => {
       url.searchParams.set(key, String(value));
     });
@@ -5137,7 +5144,7 @@ async function handleObsBrowserSourceHttpRequest(req, res) {
     }
 
     if (isElectronDevRuntime()) {
-      const devUrl = new URL('http://localhost:3000');
+      const devUrl = new URL(getDevServerOrigin());
       devUrl.searchParams.set('obs', '1');
       devUrl.searchParams.set('token', requestUrl.searchParams.get('token') || '');
       devUrl.searchParams.set('obsPort', String(getConfiguredObsBrowserSourcePort()));

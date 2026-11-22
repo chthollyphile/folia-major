@@ -68,19 +68,17 @@ test.describe('lyric filter modal', () => {
         await expect(save).toBeEnabled();
     });
 
-    test('keeps both custom expressions when their features are disabled', async ({ mount, page }) => {
+    // 「删掉这些行」改成一条条规则以后不再有「启用行过滤」的总开关与单条表达式（规则列表的增删由单测覆盖）；
+    // 还留着的那一半：署名的自定义表达式在署名改成「始终显示」、输入框收起以后仍然存下来。
+    test('keeps the custom staff expression when credits are always shown', async ({ mount, page }) => {
         await mount('lyricFilterModal');
 
-        await page.getByRole('switch', { name: 'Enable line filter' }).click();
-        await page.getByPlaceholder('Enter a regular expression').fill('^广告');
-        await page.getByRole('switch', { name: 'Enable line filter' }).click();
         await page.getByPlaceholder('Leave empty to use the built-in dictionary').fill('^作词');
         await page.getByRole('button', { name: 'Always show' }).click();
         await page.getByRole('button', { name: 'Save' }).click();
 
         const saved = page.locator('[data-probe-saved-draft]');
-        await expect(saved).toHaveAttribute('data-probe-saved-draft', /"pattern":"\^广告"/);
-        await expect(saved).toHaveAttribute('data-probe-saved-draft', /"filterEnabled":false/);
+        await expect(saved).toHaveAttribute('data-probe-saved-draft', /"staffPolicy":"keep"/);
         await expect(saved).toHaveAttribute('data-probe-saved-draft', /"staffPattern":"\^作词"/);
     });
 });

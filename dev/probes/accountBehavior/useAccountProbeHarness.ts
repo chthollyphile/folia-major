@@ -43,7 +43,6 @@ import {
     setFakeNeteaseRestart,
     setQrTtl,
     setSelfCheck,
-    shouldFailRefresh,
 } from './fakeAuthProviders';
 import { probeSwitchCleanup } from './probeSwitchCleanup';
 import type { AccountProbeApi } from './probeApi';
@@ -54,12 +53,11 @@ import type { AccountProbeApi } from './probeApi';
 //   也在 fakeAuthProviders 里），卸载时全部还原；就绪前不渲染首页（平台 hook 第一次跑时 provider 必须已经注册，
 //   否则它会把当前平台回退成 netease 并写进 localStorage）。
 // - useAccountProbeModel：按 App 的方式装出 HomeViewModel——真实的账户 controller（useLibraryAccountController，
-//   刷新器 / 登出表与 App 同形、只记账，切换清理是应用的端口外包一层记账），交给真实的 Home（registry 解析出的
-//   网格首页 Grid3D；登录弹窗与切换确认框由 Home 里的账户宿主渲染）；同时安装 window.__accountProbe。
+//   登出表与 App 同形、只记账，切换清理是应用的端口外包一层记账；读账号走默认装配 omni.readAccount），交给真实的
+//   Home（registry 解析出的网格首页 Grid3D）；登录画在共用的登录窗口里（src/components/login 的 LoginHost，
+//   由 accountBehavior.probe.tsx 照 App 挂一个）；同时安装 window.__accountProbe。
 
 const ACTIVE_PROVIDER_STORAGE_KEY = 'active_online_provider_id';
-
-const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 
 const seedAccount = (providerId: string, status: 'authenticated' | 'anonymous'): void => {
     const store = useOnlineProviderAccountStore.getState();
@@ -115,19 +113,9 @@ export const useAccountProbeEnvironment = (): boolean => {
     return ready;
 };
 
-// ---- 宿主注入给平台的两张表：与 App 的 onlineProviderRefreshers / onlineProviderLogouts 同形，只记账 ----
-
-// 账户刷新：成功时把账户写成已登录（App 的刷新器从 provider 拉登录态再写 store），失败时回 false、不动账户。
-const refreshProbeAccount = async (providerId: OnlineProviderId): Promise<boolean> => {
-    await delay(30);
-    if (shouldFailRefresh(providerId)) {
-        recordAccountCall({ op: 'refresh', providerId, ok: false });
-        return false;
-    }
-    seedAccount(providerId, 'authenticated');
-    recordAccountCall({ op: 'refresh', providerId, ok: true });
-    return true;
-};
+// ---- 宿主注入给账户 controller 的表：与 App 的同形（退出、退出前的那一问、播放器端口），只记账 ----
+// 读账号不由宿主注入：controller 走默认装配（omni.readAccount），落到假 provider 的 getLoginStatus，
+// 那里记 refresh、按 failRefresh 的编排失败（fakeAuthProviders.ts）。
 
 // 宿主登出：先记一笔，再走 omni.logout 和清账户（酷狗等 provider 的登出还会清自己的完整登录态）。
 const logoutProbeAccount = async (providerId: OnlineProviderId): Promise<void> => {

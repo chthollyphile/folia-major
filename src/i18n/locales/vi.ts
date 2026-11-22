@@ -4958,6 +4958,7 @@ export default {
     "editPlaylist": "Sửa danh sách phát",
     "finishEditing": "Hoàn tất chỉnh sửa",
     "deletePlaylist": "Xóa danh sách phát",
+    "deletePlaylistMessage": "Chỉ xóa danh sách phát này; các bài hát không bị ảnh hưởng. Không thể hoàn tác.",
     "exportPlaylist": "Xuất danh sách phát…",
     "playlistImportSuccess": "Đã nhập “{{name}}” với {{count}} bài hát.",
     "playlistImportPartial": "Đã nhập {{count}} bài vào “{{name}}”; bỏ qua {{skipped}} đường dẫn thiếu hoặc không rõ ràng.",
@@ -5134,6 +5135,10 @@ export default {
     "edit": "Sắp xếp danh sách phát",
   },
   "foliaTransfer": {
+    "playViaPartlyFailedNote": "Chưa hỏi được {{source}} về {{count}} bài (hết thời gian hoặc lỗi); các bài này giữ nguyên.",
+    "savedViaPartly": "Đã lưu thành danh sách phát Folia “{{name}}”: {{count}} bài, {{swapped}} bài nay phát qua {{source}}, {{kept}} bài giữ nguồn gốc ({{failed}} bài trong đó chưa hỏi được)",
+    "noPlaylistCreated": "Không có danh sách phát nào được tạo.",
+    "nothingSavable": "Không bài nào trong {{count}} bài ở đây có thể đưa vào danh sách phát",
     "saved_one": "Đã lưu thành playlist Folia “{{name}}” ({{count}} bài)",
     "refreshedNoNewDetached": "“{{name}}” không có bài mới; {{detached}} bài không còn trong bản gốc vẫn được giữ",
     "refreshedAddedDetached": "Đã cập nhật “{{name}}”: thêm {{count}} bài; {{detached}} bài không còn trong bản gốc vẫn được giữ",

@@ -4958,6 +4958,7 @@ export default {
     "editPlaylist": "Edit Playlist",
     "finishEditing": "Selesai Mengedit",
     "deletePlaylist": "Hapus Playlist",
+    "deletePlaylistMessage": "Hanya playlist ini yang dihapus; lagu-lagunya tidak terpengaruh. Tindakan ini tidak dapat dibatalkan.",
     "exportPlaylist": "Ekspor daftar putar…",
     "playlistImportSuccess": "Diimpor “{{name}}” dengan {{count}} trek.",
     "playlistImportPartial": "Diimpor {{count}} trek ke “{{name}}”; {{skipped}} path tidak ditemukan atau ambigu.",
@@ -5133,6 +5134,10 @@ export default {
     "edit": "Urutkan playlist",
   },
   "foliaTransfer": {
+    "playViaPartlyFailedNote": "{{count}} lagu gagal ditanyakan ke {{source}} (waktu habis atau gagal); dibiarkan apa adanya.",
+    "savedViaPartly": "Disimpan sebagai playlist Folia “{{name}}”: {{count}} lagu, {{swapped}} kini diputar lewat {{source}}, {{kept}} tetap di sumber aslinya ({{failed}} di antaranya gagal ditanyakan)",
+    "noPlaylistCreated": "Tidak ada playlist yang dibuat.",
+    "nothingSavable": "Tidak satu pun dari {{count}} lagu di sini bisa dimasukkan ke playlist",
     "saved_one": "Disimpan sebagai playlist Folia “{{name}}” ({{count}} lagu)",
     "refreshedNoNewDetached": "“{{name}}” tidak ada yang baru; {{detached}} yang tidak lagi ada di aslinya tetap disimpan",
     "refreshedAddedDetached": "“{{name}}” diperbarui: {{count}} ditambahkan; {{detached}} yang tidak lagi ada di aslinya tetap disimpan",

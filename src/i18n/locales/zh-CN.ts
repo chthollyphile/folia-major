@@ -4958,6 +4958,7 @@ export default {
     "editPlaylist": "编辑歌单",
     "finishEditing": "完成编辑",
     "deletePlaylist": "删除歌单",
+    "deletePlaylistMessage": "只删这张歌单，里面的歌不受影响。删除后不能恢复。",
     "exportPlaylist": "导出歌单…",
     "playlistImportSuccess": "已导入歌单“{{name}}”，共 {{count}} 首歌曲。",
     "playlistImportPartial": "已导入歌单“{{name}}”中的 {{count}} 首歌曲，另有 {{skipped}} 个路径未匹配或存在歧义。",
@@ -5133,6 +5134,10 @@ export default {
     "edit": "调整歌单顺序",
   },
   "foliaTransfer": {
+    "playViaPartlyFailedNote": "有 {{count}} 首没能向 {{source}} 问成（超时或出错），这些保持原样。",
+    "savedViaPartly": "已存成 Folia 歌单「{{name}}」：共 {{count}} 首，{{swapped}} 首改由 {{source}} 播放，{{kept}} 首保持原来的来源（其中 {{failed}} 首没问成）",
+    "noPlaylistCreated": "没有新建歌单。",
+    "nothingSavable": "这里的 {{count}} 首都不能放进歌单",
     "saved_one": "已存成 Folia 歌单「{{name}}」，共 {{count}} 首",
     "refreshedNoNewDetached": "「{{name}}」没有新歌；{{detached}} 首已不在原歌单里，仍留在这张歌单中",
     "refreshedAddedDetached": "已更新「{{name}}」：加了 {{count}} 首；{{detached}} 首已不在原歌单里，仍留在这张歌单中",

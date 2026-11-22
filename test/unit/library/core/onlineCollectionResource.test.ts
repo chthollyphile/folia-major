@@ -364,6 +364,16 @@ describe('online collection resource: loading', () => {
         await settle();
         expect(resource.getSnapshot()).toMatchObject({ status: 'error', error: { kind: 'generic', message: 'boom' } });
         expect(resource.getSnapshot().tracks).toHaveLength(10);
+        // 手上是整张读完的那份、集合没变：列表仍然是全的；再失败一次也一样。
+        expect(resource.getSnapshot().tracksWhole).toBe(true);
+        resource.reload();
+        await settle();
+        expect(resource.getSnapshot()).toMatchObject({ status: 'error', tracksWhole: true });
+        // 集合版本变了（多了歌）之后的重读失败：手上的那份已知过期，不算全。
+        resource.ensure(playlist({ trackCount: 11 }), {});
+        await settle();
+        expect(resource.getSnapshot()).toMatchObject({ status: 'error', tracksWhole: false });
+        expect(privateList.getSnapshot().tracksWhole).toBe(false);
     });
 });
 

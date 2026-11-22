@@ -145,7 +145,9 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await tools(page).click();
         const menu = panel(page);
         await expect(menu).toBeVisible();
-        await expect(menu.getByRole('menuitem', { name: 'Locate the playing song', exact: true })).toBeVisible();
+        // 定位不在面板里了：它是工具按钮上方单独的一颗（有可定位的页时才出现）。
+        await expect(quick(page, 'queue')).toBeVisible();
+        await expect(menu.getByRole('menuitem', { name: 'Locate the playing song', exact: true })).toHaveCount(0);
         await expect(menu.getByRole('menuitemcheckbox', { name: 'Poster lighting', exact: true })).toBeChecked();
         await expect(menu.getByRole('menuitemcheckbox', { name: 'Poster focus tint', exact: true })).toBeChecked();
 
@@ -309,7 +311,8 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await expect(panel(page)).toHaveCount(0);
     });
 
-    test('in Personal FM, Lattice and the queue cell are disabled with a reason', async ({ mount, page }) => {
+    // 私人 FM 下 Lattice 那一格照常能点（进去是电台墙）；没有可编辑的队列，队列格禁用并写原因。
+    test('in Personal FM the queue cell is disabled with a reason, and Lattice stays open to the radio wall', async ({ mount, page }) => {
         await mountBravais(mount, page);
         await page.evaluate(() => window.__homeProbe!.setLattice(true));
         await page.evaluate(async () => {
@@ -318,8 +321,8 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
             usePlaybackStore.setState({ isFmMode: true });
         });
         await tools(page).click();
-        await expect(quick(page, 'open-lattice')).toBeDisabled();
-        await expect(quick(page, 'open-lattice')).toHaveAttribute('aria-description', 'Lattice does not support Personal FM mode');
+        await expect(quick(page, 'open-lattice')).toBeEnabled();
+        await expect(quick(page, 'open-lattice')).not.toHaveAttribute('aria-description', /.+/);
         await expect(quick(page, 'queue')).toBeDisabled();
         await expect(quick(page, 'queue')).toHaveAttribute('aria-description', 'Personal FM has no queue to edit');
     });

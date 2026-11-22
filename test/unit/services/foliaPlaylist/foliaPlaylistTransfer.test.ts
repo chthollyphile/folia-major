@@ -16,6 +16,7 @@ import { foliaPlaylistsDatabase } from '@/services/foliaPlaylist/foliaPlaylistDa
 import { parseFoliaPlaylistRow } from '@/services/foliaPlaylist/foliaPlaylistRows';
 import { appDatabase } from '@/services/appDatabase';
 import type { SongResult } from '@/types';
+import { FoliaNothingToSaveError } from '@/utils/foliaPlaylistTransfer';
 import type { FoliaPlaylistInfo } from '@/types/foliaPlaylist';
 
 // test/unit/services/foliaPlaylist/foliaPlaylistTransfer.test.ts
@@ -100,11 +101,42 @@ describe('saveCollectionAsFoliaPlaylist', () => {
         expect(second.result.playViaUnavailable).toBe('failed');
         vi.restoreAllMocks();
 
-        // 问了，但全都超时或出错：也说出来；只是一部分没问成、或问了没有对应的，不算。
+        // 问了，但全都超时或出错：也说出来；只是一部分没问成的另外记首数（下一条），问了没有对应的不算。
         const allFailed = depsOf(async (_target, asked) => ({ songs: asked.map(() => null), asked: 3, failed: 3 }));
         expect((await saveCollectionAsFoliaPlaylist({ name: 'C', songs, origin, playVia: 'lx' }, allFailed)).result.playViaUnavailable).toBe('failed');
         const someFailed = depsOf(async (_target, asked) => ({ songs: asked.map(() => null), asked: 3, failed: 1 }));
         expect((await saveCollectionAsFoliaPlaylist({ name: 'D', songs, origin, playVia: 'lx' }, someFailed)).result).not.toHaveProperty('playViaUnavailable');
+    });
+
+    it('counts the songs the target could not be asked about when only some of them failed', async () => {
+        // 第 1 首问成了并换过去，第 2 首问成了但没有对应的，第 3 首没问成。
+        const partly = depsOf(async (_target, asked) => ({ songs: asked.map((song, index) => (index === 0 ? online('lx', `wy:${song.id}`) : null)), asked: 3, failed: 1 }));
+        const { playlist, result } = await saveCollectionAsFoliaPlaylist({ name: 'Partly', songs, origin, playVia: 'lx' }, partly);
+        expect(await keysOf(playlist)).toEqual(['online:lx:wy:1', 'online:netease:2', 'online:netease:3']);
+        expect(result).toEqual({ swapped: 1, notSwapped: 2, duplicates: 0, rejected: 0, playViaFailed: 1 });
+
+        // 都问成了：没有这一项。
+        const all = await saveCollectionAsFoliaPlaylist({ name: 'All asked', songs, origin, playVia: 'lx' }, depsOf(async (_target, asked) => ({ songs: asked.map(() => null), asked: 3, failed: 0 })));
+        expect(all.result).not.toHaveProperty('playViaFailed');
+
+        // 从原歌单更新也一样记。
+        const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, async () => [...songs, online('netease', '4')], depsOf(async (_target, asked) => ({ songs: asked.map(() => null), asked: 3, failed: 2 })));
+        expect(refreshed?.result).toMatchObject({ added: 1, swapped: 0, playViaFailed: 2 });
+        expect(refreshed?.result).not.toHaveProperty('playViaUnavailable');
+    });
+
+    it('creates no playlist when none of the songs can go into one', async () => {
+        const stage = (id: string): SongResult => ({ ...online('netease', id), sourceRef: { kind: 'stage', mediaId: id } } as SongResult);
+        const before = (await getFoliaPlaylists()).map(item => item.id);
+        const attempt = saveCollectionAsFoliaPlaylist({ name: 'Stage only', songs: [stage('a'), stage('b')], origin }, noTarget);
+        await expect(attempt).rejects.toBeInstanceOf(FoliaNothingToSaveError);
+        await expect(attempt).rejects.toMatchObject({ rejected: 2 });
+        expect((await getFoliaPlaylists()).map(item => item.id)).toEqual(before);
+
+        // 有一首能收就照常建，不收的计在结果里。
+        const { playlist, result } = await saveCollectionAsFoliaPlaylist({ name: 'Mixed', songs: [stage('a'), songs[0]], origin }, noTarget);
+        expect(await keysOf(playlist)).toEqual(['online:netease:1']);
+        expect(result).toEqual({ swapped: 0, notSwapped: 1, duplicates: 0, rejected: 1 });
     });
 
     it('does not ask when the target is the origin source, and rejects an empty name before asking', async () => {

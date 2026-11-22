@@ -13,6 +13,7 @@ import type {
 import { appendFoliaPlaylistEntries, foliaLocalSongKey } from '../../utils/foliaPlaylistEntries';
 import {
     buildFoliaTransferEntries,
+    FoliaNothingToSaveError,
     foliaOriginNeedsConfirmation,
     refreshFoliaPlaylistEntries,
     toFoliaCounterparts,
@@ -296,14 +297,16 @@ const askCounterparts = async (
     playVia: string | undefined,
     songs: readonly SongResult[],
     deps: FoliaTransferDeps,
-): Promise<{ counterparts: FoliaCounterparts; unavailable?: FoliaPlayViaUnavailable }> => {
+): Promise<{ counterparts: FoliaCounterparts; unavailable?: FoliaPlayViaUnavailable; failed?: number }> => {
     if (!playVia || songs.length === 0) return { counterparts: new Map() };
     try {
         const answer = await deps.resolveCounterparts(playVia, songs);
         // 拿去问的全都没问成（超时、抛错）：和「问了、没有对应的」不是一回事，说出来。
         const allFailed = (answer.asked ?? 0) > 0 && answer.failed === answer.asked;
         const unavailable: FoliaPlayViaUnavailable | undefined = answer.unavailable ?? (allFailed ? 'failed' : undefined);
-        return { counterparts: toFoliaCounterparts(songs, answer.songs), ...(unavailable ? { unavailable } : {}) };
+        // 只问成一部分：没问成的有几首单独记下（它们照原样留着）。
+        const failed = !unavailable && (answer.failed ?? 0) > 0 ? answer.failed : undefined;
+        return { counterparts: toFoliaCounterparts(songs, answer.songs), ...(unavailable ? { unavailable } : {}), ...(failed ? { failed } : {}) };
     } catch (error) {
         console.warn(`[FoliaPlaylist] Asking "${playVia}" for counterparts failed`, error);
         return { counterparts: new Map(), unavailable: 'failed' };
@@ -314,6 +317,7 @@ const askCounterparts = async (
  * 把一张平台歌单转存成 Folia 歌单。歌由调用方读好传进来，顺序就是歌单里的顺序。
  * 选了「改由某个音源播放」（playVia）：逐首问那个音源有没有对应的，有的换成它的歌并记下原来是哪首（originalKey），
  * 没有的照原样存。目标音源问不成（没装、停用、没配好……）时歌单照样建、全部照原样存，原因在结果里。
+ * 传进来的歌一首都放不进歌单（全是舞台歌）时不建歌单，抛 FoliaNothingToSaveError。
  */
 export const saveCollectionAsFoliaPlaylist = async (
     input: FoliaSaveCollectionInput,
@@ -323,8 +327,11 @@ export const saveCollectionAsFoliaPlaylist = async (
     if (!trimmedName) throw new Error('Playlist name is empty');
     if (!input.origin.sourceId || !input.origin.collectionId) throw new Error('Playlist origin is incomplete');
     const playVia = input.playVia && input.playVia !== input.origin.sourceId ? input.playVia : undefined;
-    const { counterparts, unavailable } = await askCounterparts(playVia, input.songs, deps);
+    const { counterparts, unavailable, failed } = await askCounterparts(playVia, input.songs, deps);
     throwIfTransferAborted(input.signal);
+    // 一首都收不进：不建一张空歌单。
+    const savable = buildFoliaTransferEntries(input.songs, counterparts);
+    if (input.songs.length > 0 && savable.entries.length === 0) throw new FoliaNothingToSaveError(savable.counts.rejected);
     return writeFoliaPlaylists(async write => {
         const now = Date.now();
         const { entries, counts } = buildFoliaTransferEntries(input.songs, counterparts, now);
@@ -339,7 +346,9 @@ export const saveCollectionAsFoliaPlaylist = async (
             ...(input.origin.collectionData !== undefined ? { collectionData: input.origin.collectionData } : {}),
         };
         const row = await createWithEntries(write, trimmedName, entries, origin, now);
-        return { playlist: toSummary(row), result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) } };
+        // 没问成的首数按传进来的条数算，同一首歌出现几次就算几次；落成的条目是去重后的，不让它比「没换的」还多。
+        const playViaFailed = Math.min(failed ?? 0, counts.notSwapped);
+        return { playlist: toSummary(row), result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}), ...(playViaFailed > 0 ? { playViaFailed } : {}) } };
     });
 };
 
@@ -393,7 +402,7 @@ export const refreshFoliaPlaylistFromOrigin = async (
     if (originSongs.length === 0) {
         return { playlist: before, result: { added: 0, swapped: 0, detached: 0, duplicates: 0, rejected: 0, originEmpty: true } };
     }
-    const { counterparts, unavailable } = await askCounterparts(playVia, originSongs, deps);
+    const { counterparts, unavailable, failed } = await askCounterparts(playVia, originSongs, deps);
     throwIfTransferAborted(options.signal);
 
     return writeFoliaPlaylists(async write => {
@@ -411,7 +420,7 @@ export const refreshFoliaPlaylistFromOrigin = async (
             origin: { ...originRest, refreshedAt: now, ...(playVia ? { playVia } : {}) },
             updatedAt: now,
         });
-        return { playlist: toSummary(next), result: { ...refreshed.counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) } };
+        return { playlist: toSummary(next), result: { ...refreshed.counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}), ...(failed ? { playViaFailed: failed } : {}) } };
     });
 };
 

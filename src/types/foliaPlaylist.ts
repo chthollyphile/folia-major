@@ -105,6 +105,8 @@ export type FoliaSaveCollectionResult = {
     rejected: number;
     /** 选了目标音源却一首都没问成的原因；歌单照样建，全部照原样存，目标音源照样记着（刷新时再试）。 */
     playViaUnavailable?: FoliaPlayViaUnavailable;
+    /** 问成了一部分时，没问成（超时、出错、总时限到了没轮到）的首数；它们照原样存，算在 notSwapped 里。 */
+    playViaFailed?: number;
 };
 
 export type FoliaRefreshFromOriginResult = {
@@ -122,6 +124,8 @@ export type FoliaRefreshFromOriginResult = {
     originEmpty?: boolean;
     /** 有目标音源却一首都没问成的原因；这次没换，其余照常刷新。 */
     playViaUnavailable?: FoliaPlayViaUnavailable;
+    /** 问成了一部分时，没问成（超时、出错、总时限到了没轮到）的首数；这些这次没换。 */
+    playViaFailed?: number;
 };
 
 /** 往歌单里加一批歌的结果。 */
