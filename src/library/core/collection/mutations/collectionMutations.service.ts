@@ -757,6 +757,20 @@ export const createCollectionMutationController = (
                     : undefined
             ));
         },
+        saveToFolia: () => {
+            const { descriptor, port } = inputs;
+            return runSourceAction('saveToFolia', () => {
+                if (descriptor.source !== 'local') port.folia?.saveCollection?.(descriptor);
+            }, { exclusive: false });
+        },
+        refreshFromOrigin: () => {
+            const { descriptor, port } = inputs;
+            return runSourceAction('refreshFromOrigin', () => {
+                if (descriptor.source === 'local' && descriptor.playlistId) {
+                    port.folia?.refreshFromOrigin?.(descriptor.playlistId);
+                }
+            }, { exclusive: false });
+        },
         addToPlaylist: (playlistId, tracks) => runSourceAction(
             'addToPlaylist',
             () => inputs.port.navidrome?.addToPlaylist?.(playlistId, tracks),

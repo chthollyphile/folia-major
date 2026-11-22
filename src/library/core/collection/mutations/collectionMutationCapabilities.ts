@@ -209,7 +209,17 @@ export const resolveCollectionMutationCapabilities = ({
     state: CollectionMutationCapabilityState;
 }): CollectionMutationCapabilities => {
     const local = descriptor?.source === 'local' ? descriptor : null;
+    const navidrome = descriptor?.source === 'navidrome' ? descriptor : null;
     const pending = state.sourceActionPending;
+    // 能存成 Folia 歌单的：在线音源的歌单与专辑（云盘、每日推荐、电台、听歌排行这些不是「一张歌单」，不给），
+    // Navidrome 的歌单与专辑。
+    const canSaveToFolia = branches.isOnlinePlaylist
+        || branches.isOnlineAlbum
+        || Boolean(navidrome && (navidrome.type === 'playlist' || navidrome.type === 'album'));
+    // 转存来的 Folia 歌单（「我喜欢的音乐」不会是转存来的）。
+    const canRefreshFromOrigin = Boolean(
+        branches.isLocalPlaylistCollection && local?.playlistId && port.folia?.hasOrigin?.(local.playlistId),
+    );
     return {
         removeEntry: resolveRemoveEntryCapability(resolveEntryRemovalKind(branches, port), state),
         // 收藏一按就变、请求期间也能再按（core/collection/mutations/collectionSaves.service 让请求跟着最后一次按下走），不因进行中禁用。
@@ -228,6 +238,9 @@ export const resolveCollectionMutationCapabilities = ({
             Boolean(local && local.type === 'playlist' && local.playlistId && port.local?.exportPlaylist),
             pending,
         ),
+        // 两个都只是打开对话框，不随来源动作禁用。
+        saveToFolia: gated(canSaveToFolia && Boolean(port.folia?.saveCollection), false),
+        refreshFromOrigin: gated(canRefreshFromOrigin && Boolean(port.folia?.refreshFromOrigin), false),
         addToPlaylist: gated(branches.canAddNavidromeToPlaylist && Boolean(port.navidrome?.addToPlaylist), pending),
         createPlaylist: gated(branches.canAddNavidromeToPlaylist && Boolean(port.navidrome?.createPlaylist), pending),
         editEntity: gated(branches.isLocalEntityCollection && Boolean(port.local?.editEntity), false),

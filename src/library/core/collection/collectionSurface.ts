@@ -28,6 +28,9 @@ export type CoreSurfaceParams = {
     canOrganizeSongInfo: boolean;
     canReorderPlaylist: boolean;
     canExportPlaylist: boolean;
+    /** 平台歌单 / 专辑能存成 Folia 歌单；转存来的 Folia 歌单能从原歌单更新（都只打开对话框）。 */
+    canSaveToFolia: boolean;
+    canRefreshFromOrigin: boolean;
     canEditEntity: boolean;
     /** 本地文件夹 / 专辑 / 歌单能设自定义封面（只打开对话框，不随来源动作禁用）。 */
     canSetCover: boolean;
@@ -64,6 +67,8 @@ export type CoreSurfaceParams = {
     organizeSongInfo: () => void;
     reorderPlaylist: () => void;
     exportPlaylist: () => void;
+    saveToFolia: () => void;
+    refreshFromOrigin: () => void;
     editEntity: () => void;
     setCover: () => void;
     toggleSubscribe: () => void;
@@ -159,6 +164,8 @@ export const buildCoreSurfaceParams = (
         canOrganizeSongInfo: hasController && capabilities.organizeSongInfo.supported,
         canReorderPlaylist: hasController && capabilities.reorderPlaylist.supported,
         canExportPlaylist: hasController && capabilities.exportPlaylist.supported,
+        canSaveToFolia: hasController && capabilities.saveToFolia.supported,
+        canRefreshFromOrigin: hasController && capabilities.refreshFromOrigin.supported,
         canEditEntity: hasController && capabilities.editEntity.supported,
         canSetCover: hasController && capabilities.setCover.supported,
         canToggleSubscribe: hasController && capabilities.subscribe.supported,
@@ -183,6 +190,8 @@ export const buildCoreSurfaceParams = (
         organizeSongInfo: () => void mutations?.organizeSongInfo(),
         reorderPlaylist: () => void mutations?.reorderPlaylist(),
         exportPlaylist: () => void mutations?.exportPlaylist(),
+        saveToFolia: () => void mutations?.saveToFolia(),
+        refreshFromOrigin: () => void mutations?.refreshFromOrigin(),
         editEntity: () => void mutations?.editEntity(),
         setCover: () => void mutations?.setCover(),
         toggleSubscribe: () => void mutations?.toggleSubscribe(),
@@ -209,6 +218,8 @@ export const GRID_SURFACE_ACTION_SOURCES: Readonly<Record<GridSurfaceActionId, {
     'organize-song-info': { action: 'organize-song-info' },
     'reorder-playlist': { action: 'reorder-playlist' },
     'export-playlist': { action: 'export-playlist' },
+    'save-to-folia': { action: 'save-to-folia' },
+    'refresh-from-origin': { action: 'refresh-from-origin' },
     'edit-entity': { action: 'edit-entity' },
     'set-cover': { action: 'set-cover' },
     'toggle-edit-mode': { extra: 'toggle-edit-mode' },
@@ -260,6 +271,8 @@ export const buildGridSurfaceState = (params: GridSurfaceParams): GridSurfaceSta
     if (params.canExportPlaylist && canRunSourceAction) {
         availableActions.push('export-playlist');
     }
+    if (params.canSaveToFolia) availableActions.push('save-to-folia');
+    if (params.canRefreshFromOrigin) availableActions.push('refresh-from-origin');
     if (params.canEditEntity) {
         availableActions.push('edit-entity');
     }
@@ -322,6 +335,8 @@ export const runGridSurfaceAction = (action: GridSurfaceActionId, params: GridSu
         case 'organize-song-info': return params.organizeSongInfo();
         case 'reorder-playlist': return params.reorderPlaylist();
         case 'export-playlist': return params.exportPlaylist();
+        case 'save-to-folia': return params.saveToFolia();
+        case 'refresh-from-origin': return params.refreshFromOrigin();
         case 'edit-entity': return params.editEntity();
         case 'set-cover': return params.setCover();
         case 'toggle-edit-mode': return params.toggleEditMode();
