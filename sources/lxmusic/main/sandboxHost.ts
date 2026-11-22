@@ -74,7 +74,9 @@ const json = (status: number, value: unknown): Response => new Response(JSON.str
 });
 
 /** `lx.request` 交来的一个请求：校验形状后经出口发出去，回答整个读回来。 */
-export const answerLxRequest = async (egress: Egress, raw: unknown, concurrency?: ReturnType<typeof createConcurrencyGate>): Promise<Response> => {
+export const answerLxRequest = async (
+    egress: Egress, raw: unknown, concurrency?: ReturnType<typeof createConcurrencyGate>, signal?: AbortSignal,
+): Promise<Response> => {
     const request = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     if (typeof request.url !== 'string' || request.url.length > 8192) return json(400, { ok: false, error: 'bad request' });
     const headers: Record<string, string> = {};
@@ -94,9 +96,10 @@ export const answerLxRequest = async (egress: Egress, raw: unknown, concurrency?
         headers,
         body,
         timeoutMs: typeof request.timeoutMs === 'number' ? request.timeoutMs : undefined,
+        signal,
     }, MAX_ANSWER_BYTES);
     try {
-        const answer = await (concurrency ? concurrency.run(host, send) : send());
+        const answer = await (concurrency ? concurrency.run(host, send, signal) : send());
         return json(200, {
             ok: true,
             statusCode: answer.statusCode,
@@ -148,6 +151,8 @@ export const createLxSandbox = ({ session, hidden, egress, concurrency, runtimeC
     let current: { scriptId: string; window: Promise<HiddenWindow> } | null = null;
     let inFlight = 0;
     let downloadsRefused = false;
+    // 窗口的一辈子：窗口销毁时中止它还在途、还在排队的请求，免得旧脚本的尾巴占着新脚本的名额，或在窗口没了之后才发出去。
+    let lifetime = new AbortController();
 
     const serve = async (request: Request): Promise<Response> => {
         const url = new URL(request.url);
@@ -161,7 +166,7 @@ export const createLxSandbox = ({ session, hidden, egress, concurrency, runtimeC
             try {
                 const text = await readBounded(request, MAX_ENVELOPE_BYTES);
                 if (text === null) return json(413, { ok: false, error: 'request too large' });
-                return await answerLxRequest(egress, JSON.parse(text), concurrency);
+                return await answerLxRequest(egress, JSON.parse(text), concurrency, lifetime.signal);
             } catch {
                 return json(400, { ok: false, error: 'bad request' });
             } finally {
@@ -226,6 +231,8 @@ export const createLxSandbox = ({ session, hidden, egress, concurrency, runtimeC
     const destroy = () => {
         const closing = current;
         current = null;
+        lifetime.abort(new Error('the script sandbox is closed'));
+        lifetime = new AbortController();
         closing?.window.then((window) => { if (!window.isDestroyed()) window.destroy(); }, () => undefined);
     };
 

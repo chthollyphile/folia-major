@@ -88,6 +88,36 @@ describe('the requests-per-second gate', () => {
         expect(await settled(rate.take('a.example'))).toBe('resolved');
     });
 
+    it('gives the token back when the wait is aborted, so requests that never went out leave no debt', async () => {
+        const rate = gate();
+        for (let i = 0; i < 3; i += 1) await rate.take('a.example');
+        // A script that sends requests with a one-second limit, over and over: each waits, gives up, and is not sent.
+        for (let round = 0; round < 20; round += 1) {
+            const controller = new AbortController();
+            const waiting = rate.take('a.example', controller.signal);
+            controller.abort();
+            await expect(waiting).rejects.toThrow(/aborted/);
+        }
+        const next = rate.take('a.example');
+        await vi.advanceTimersByTimeAsync(500);
+        expect(await settled(next)).toBe('resolved');
+    });
+
+    it('does not run into debt when the clock goes backwards', async () => {
+        let clock = 10_000_000;
+        const rate = createRateGate({ perHost: { perSecond: 2, burst: 3 }, total: { perSecond: 4, burst: 5 }, maxWaitMs: 2_000, now: () => clock });
+        await rate.take('a.example');
+        clock -= 3_600_000;
+        expect(await settled(rate.take('a.example'))).toBe('resolved');
+        expect(await settled(rate.take('a.example'))).toBe('resolved');
+    });
+
+    it('counts a name with a trailing dot as the same host', async () => {
+        const rate = gate();
+        for (const name of ['a.example', 'a.example.', 'A.EXAMPLE.']) expect(await settled(rate.take(name))).toBe('resolved');
+        expect(await settled(rate.take('a.example'))).toBe('pending');
+    });
+
     it('is asked once for every hop of the egress, after the address is judged', async () => {
         const asked: string[] = [];
         const egress = createEgress({ gate: async (hostname) => { asked.push(hostname); } });
@@ -156,6 +186,53 @@ describe('the gate on requests in flight', () => {
         await expect(failing).rejects.toThrow('boom');
         expect(await queued).toBe('after');
         expect(gate.size()).toEqual({ running: 0, queued: 0 });
+    });
+
+    it('does not let two that leave in the same turn hand one place out twice', async () => {
+        const gate = createConcurrencyGate({ perHost: 1, total: 2, maxQueue: 4 });
+        const hold = { a: deferred(), b: deferred(), a2: deferred(), a3: deferred() };
+        let together = 0;
+        let most = 0;
+        const onA = (wait: Promise<void>) => async () => {
+            together += 1;
+            most = Math.max(most, together);
+            await wait;
+            together -= 1;
+        };
+        const first = gate.run('a.example', onA(hold.a.promise));
+        const other = gate.run('b.example', () => hold.b.promise);
+        const second = gate.run('a.example', onA(hold.a2.promise));
+        const third = gate.run('a.example', onA(hold.a3.promise));
+        hold.a.release();
+        hold.b.release();
+        await Promise.all([first, other]);
+        await Promise.resolve();
+        expect(gate.size()).toEqual({ running: 1, queued: 1 });
+        hold.a2.release();
+        hold.a3.release();
+        await Promise.all([second, third]);
+        expect(most).toBe(1);
+        expect(gate.size()).toEqual({ running: 0, queued: 0 });
+    });
+
+    it('drops a queued request whose window is gone, and never starts it', async () => {
+        const gate = createConcurrencyGate({ perHost: 1, total: 1, maxQueue: 4 });
+        const hold = deferred();
+        const busy = gate.run('a.example', () => hold.promise);
+        const window = new AbortController();
+        let started = false;
+        const queued = gate.run('a.example', async () => { started = true; }, window.signal);
+        const later = gate.run('a.example', async () => 'later');
+        expect(gate.size()).toEqual({ running: 1, queued: 2 });
+        window.abort();
+        await expect(queued).rejects.toThrow(/aborted/);
+        expect(gate.size()).toEqual({ running: 1, queued: 1 });
+        hold.release();
+        await busy;
+        expect(await later).toBe('later');
+        expect(started).toBe(false);
+        expect(gate.size()).toEqual({ running: 0, queued: 0 });
+        await expect(gate.run('a.example', async () => 'never', window.signal)).rejects.toThrow(/aborted/);
     });
 
     it('tells the script it was limited, with no more than that', async () => {
