@@ -2209,6 +2209,7 @@ export default function App() {
         navigateToPlayer,
         navigateToLattice,
         togglePlayback: togglePlay,
+        resumePlayback,
         enterPlaybackView: navigateFromPlayerCapsule,
         refreshOnlineProviderPlaylists: refreshActiveProviderPlaylists,
         user,
