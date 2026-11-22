@@ -3,6 +3,12 @@ name: folia
 services:
   gateway:
     image: ${FOLIA_IMAGE_NAMESPACE:?Set FOLIA_IMAGE_NAMESPACE}/folia-web:${FOLIA_STACK_VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/images/gateway.Dockerfile
+      args:
+        VCS_REF: ${FOLIA_BUILD_VCS_REF:-local}
+        STACK_VERSION: ${FOLIA_STACK_VERSION:-local}
     restart: unless-stopped
     read_only: true
     environment:
@@ -28,6 +34,8 @@ services:
       kugou-api:
         condition: service_healthy
       qq-api:
+        condition: service_healthy
+      qishui-api:
         condition: service_healthy
     networks:
       - folia-edge
@@ -144,6 +152,35 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  qishui-api:
+    image: ${FOLIA_IMAGE_NAMESPACE:?Set FOLIA_IMAGE_NAMESPACE}/folia-qishui-api:${FOLIA_STACK_VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/images/qishui-api.Dockerfile
+    restart: unless-stopped
+    read_only: true
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      QISHUI_DATA_DIR: /app/data
+    expose:
+      - "3000"
+    volumes:
+      - qishui-api-state:/app/data
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    networks:
+      - folia-internal
+      - folia-egress
+    security_opt:
+      - no-new-privileges:true
+
   sync-server:
     image: ${FOLIA_IMAGE_NAMESPACE:?Set FOLIA_IMAGE_NAMESPACE}/folia-sync-server:${FOLIA_SYNC_VERSION:-latest}
     restart: unless-stopped
@@ -173,6 +210,8 @@ services:
 volumes:
   # QQ 扫码登录的 Android device context；只存装置识别值，不存用户凭证。
   qq-api-state:
+  # 汽水音乐的设备标识和登录会话；包含账号票据，不对外暴露。
+  qishui-api-state:
 
 networks:
   folia-edge:

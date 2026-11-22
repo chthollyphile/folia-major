@@ -9,12 +9,14 @@ ARG REQUIRE_COMMIT_NAME=false
 # 镜像本身按 APP_RELEASE_CHANNEL=docker 一律算自部署。
 ARG GITHUB_REPOSITORY=
 COPY package.json package-lock.json .npmrc ./
-RUN npm ci
+# 国内服务器使用淘宝 npm 镜像，避免访问 registry.npmjs.org 超时。
+RUN npm config set registry https://registry.npmmirror.com && npm ci
 
 COPY . .
 ENV VITE_NETEASE_API_BASE=/netease
 ENV VITE_KUGOU_API_BASE=/kugou
 ENV VITE_QQ_API_BASE=/qq
+ENV VITE_QISHUI_API_BASE=/qishui
 ENV VITE_AI_PROVIDER=google
 ENV VERCEL_GIT_COMMIT_SHA=${VCS_REF}
 ENV VERCEL_GIT_COMMIT_REF=docker
@@ -27,7 +29,9 @@ RUN npm exec vite build
 
 FROM nginx:1.29-alpine AS runner
 
-RUN apk add --no-cache gettext
+# 国内服务器替换 Alpine 软件源为阿里云镜像，否则 apk add 会 TLS 超时。
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories \
+    && apk add --no-cache gettext
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY deploy/docker/gateway/nginx.conf.template /etc/nginx/nginx.conf.template
