@@ -62,6 +62,8 @@ export interface PolaroidCardProps {
     /** 混合来源的歌单（Folia 聚合歌单）里，这一首来自哪里：只是字，颜色由来源身份算出来（sourceHue）。 */
     sourceLabel?: string;
     sourceHue?: number;
+    /** 音源登记表的版本：卡片自己读「来源在不在」，登记表变了（音源启用、停用、装上、卸下）就要重画，哪怕别的属性都没变。 */
+    sourcesVersion?: number;
 }
 
 /**
@@ -390,6 +392,9 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
             Boolean(prev.onCollect) === Boolean(next.onCollect) &&
             Boolean(prev.onSaveToPlaylist) === Boolean(next.onSaveToPlaylist) &&
             prev.playbackMark === next.playbackMark &&
+            prev.sourceLabel === next.sourceLabel &&
+            prev.sourceHue === next.sourceHue &&
+            prev.sourcesVersion === next.sourcesVersion &&
             prev.isFocused === next.isFocused
         );
     }

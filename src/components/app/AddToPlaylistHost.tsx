@@ -281,7 +281,11 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
             ...message,
             ...(offerClear ? {
                 actionLabel: t('foliaPlaylist.clearScratchpad'),
-                onAction: () => useScratchpadStore.getState().clear(),
+                // 按完提示就收起：留着的话按钮还在，像是没清掉。
+                onAction: () => {
+                    useScratchpadStore.getState().clear();
+                    setStatusMessage(null);
+                },
                 durationMs: 8000,
             } : {}),
         });
