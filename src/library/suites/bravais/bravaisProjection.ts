@@ -66,6 +66,10 @@ export type TrackDescription = {
     durationMs: number;
     playbackKey: string;
     unavailable: boolean;
+    /** 副标题后面接的一句（混合来源的歌单里这首来自哪里、来源不在时的原因）；没有就不接。 */
+    note?: string;
+    /** 副标题的悬停说明（换过来源的行：原来是哪个来源的歌）；没有就不给。 */
+    hint?: string;
 };
 
 export const formatDuration = (durationMs: number) => {
@@ -98,7 +102,8 @@ export const projectCollectionTracks = (
         if (!key) return;
         const description = describeTrack(track);
         const listenCount = (track as UnifiedSong).listenCount;
-        const who = description.artists.join(', ') || description.album || unknownArtist;
+        const named = description.artists.join(', ') || description.album || unknownArtist;
+        const who = description.note ? `${named} · ${description.note}` : named;
         items.push({
             key,
             kind: 'track',
@@ -112,6 +117,7 @@ export const projectCollectionTracks = (
             artists: description.artists,
             durationLabel: formatDuration(description.durationMs),
             unavailable: description.unavailable || undefined,
+            ...(description.hint ? { subtitleHint: description.hint } : {}),
         });
     });
     return items;

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/qqBackend.test.ts
 // QQ 后端：拉起步骤、打包缺包时的 unavailable、以及挂在包内部的诊断钩子（用假的包文件，不加载真包）。
 
-const { createQqBackend, describeFailureError, installQqLoginHooks } = require('../../../electron/qq/qqBackend.cjs') as {
+const { createQqBackend, describeFailureError, installQqLoginHooks } = require('../../../sources/qq/main/qqBackend.cjs') as {
     describeFailureError: (error: unknown) => { stack?: string[] };
     createQqBackend: (options: Record<string, unknown>) => {
         start: () => Promise<void>;
@@ -178,7 +178,7 @@ describe('QQ backend lifecycle', () => {
 
     it('tells the renderer when the encrypted sign-in store could not be read at start', async () => {
         const fake = createFakePackage();
-        const { createQqAuthSessionRepository } = require('../../../electron/qq/qqAuthSessionRepository.cjs');
+        const { createQqAuthSessionRepository } = require('../../../sources/qq/main/qqAuthSessionRepository.cjs');
         const authSessionRepository = createQqAuthSessionRepository({
             store: { get: () => 'ciphertext', set: vi.fn(), delete: vi.fn() },
             safeStorage: { isEncryptionAvailable: () => false },

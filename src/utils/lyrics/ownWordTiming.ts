@@ -9,17 +9,18 @@ import { buildLyricSourceOrder } from './sourcePriority';
 
 /**
  * The source the automatic pick asks first: the preferred one while it is on offer, else the
- * default. The song's own platform always is: its lyrics are in hand, even while its account is
+ * default, else the next one on offer in the order (a source that is missing is passed over, Folium 2.0
+ * plan §7.1). The song's own platform always is on offer: its lyrics are in hand, even while its account is
  * still being read at startup.
  */
 export const firstLyricSourceAsked = (
     preferredSource?: LyricProviderSource,
     ownSource?: LyricProviderSource | null,
-): LyricProviderSource => buildLyricSourceOrder(
-    preferredSource && (preferredSource === ownSource || isLyricMatchSourceOffered(preferredSource))
-        ? preferredSource
-        : undefined,
-)[0];
+): LyricProviderSource => {
+    const offered = (source: LyricProviderSource) => source === ownSource || isLyricMatchSourceOffered(source);
+    const order = buildLyricSourceOrder(preferredSource && offered(preferredSource) ? preferredSource : undefined);
+    return order.find(offered) ?? order[0];
+};
 
 /**
  * Whether the pick asks the source first asked before it settles on the song's own word timing:
@@ -31,7 +32,7 @@ export const asksBeforeOwnWordTiming = (
     preferredSource: LyricProviderSource | undefined,
 ): boolean => {
     const first = firstLyricSourceAsked(preferredSource, ownSource);
-    return first !== ownSource && !getLyricSource(first).linesOnly;
+    return first !== ownSource && !getLyricSource(first)?.linesOnly;
 };
 
 export interface OwnWordTimingCheck {

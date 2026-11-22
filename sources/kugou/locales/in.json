@@ -1,0 +1,18 @@
+{
+    "name": {
+        "short": "Kugou",
+        "lyrics": "Kugou Music"
+    },
+    "login": {
+        "title": "Pindai dengan KuGou Music",
+        "note": "Buka KuGou Music dan pindai kode QR ini"
+    },
+    "cloud": {
+        "name": "Cloud Drive"
+    },
+    "listeningRank": {
+        "week": "Peringkat dengar · Minggu terakhir",
+        "all": "Peringkat dengar · Sepanjang waktu",
+        "description": "Lagu yang diurutkan menurut riwayat dengar akun ini di platform"
+    }
+}

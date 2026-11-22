@@ -41,8 +41,8 @@ Soloist 只是备用方式。标准方式能放的账号不需要它。
 
 ## 实现
 
-- 主进程：`electron/spotify/soloist.cjs`（启动、控制连接、播放、结束判断）、`soloistBuild.cjs`（读构建版本和有效期）、`spotifyApiBridge.cjs`（`playback_mode`、`audio_probe`、`soloist_*` 操作）。
-- 页面：`src/services/onlineMusic/spotify/spotifySoloistPlayback.ts`（外部播放路由的实现）、`spotifySetup.ts`（配置清单）。
-- 登录窗口的"检查"和"配置清单"是通用契约（`OnlineAuthProvider.checkAfterLogin` / `getSetup` / `runSetupAction`），登录窗口里不写平台名。
+- 主进程（音源模组的 main 入口）：`sources/spotify/main/soloist.cjs`（启动、控制连接、播放、结束判断）、`soloistBuild.cjs`（读构建版本和有效期）、`spotifyApiBridge.cjs`（`playback_mode`、`audio_probe`、`soloist_*` 操作）。
+- 页面（音源模组的 client）：`sources/spotify/client/spotifySoloistPlayback.ts`（外部播放路由的实现）、`spotifySetup.ts`（配置清单）。
+- 登录窗口的"检查"和"配置清单"是通用契约（音源 `auth@1` 的 `checkAfterLogin` / `getSetup` / `runSetupAction`），登录窗口里不写平台名。
 
 思路参考了 PR #1078 和 [Duckey86/folia-major-spotify-aeskey-fix](https://github.com/Duckey86/folia-major-spotify-aeskey-fix)，代码重写。

@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Pencil } from 'lucide-react';
+import type { TFunction } from 'i18next';
 import type { SongResult, Theme, UnifiedSong } from '../../../../types';
-import { getSongUnavailableLabel, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
+import { getTrackUnplayableLabel, isTrackShownUnplayable, isTrackSourceUnavailable, TRACK_SWAPPED_MARK } from '../../../../services/foliaPlaylist/trackSourceState';
 import { canResolveSongCatalogRef } from '../../../../services/onlineMusic/catalogRefs';
 import { resolveTrackAlbumTargetId } from '../../../core/shared/trackLinks';
 import { CARD_TITLE_ATTR, MORPH_FRAME_ATTR } from '../transitions/gridMorphContract';
@@ -58,6 +59,13 @@ export interface PolaroidCardProps {
     fullBleedCover?: boolean;
     /** fb3: under "stay here", the playing song's card shows pause / resume instead of play. */
     playbackMark?: GridPlaybackMark | null;
+    /** 混合来源的歌单（Folia 聚合歌单）里，这一首来自哪里：只是字，颜色由来源身份算出来（sourceHue）。 */
+    sourceLabel?: string;
+    sourceHue?: number;
+    /** 这一行换过来源（转存时改由别的音源播放）：来源标签后面多一个小记号，悬停说明原来是哪个来源的歌。没换过不给。 */
+    swappedFromLabel?: string;
+    /** 音源登记表的版本：卡片自己读「来源在不在」，登记表变了（音源启用、停用、装上、卸下）就要重画，哪怕别的属性都没变。 */
+    sourcesVersion?: number;
 }
 
 /**
@@ -90,11 +98,24 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
         isFocused = false,
         fullBleedCover = false,
         playbackMark = null,
+        sourceLabel,
+        sourceHue = 0,
+        swappedFromLabel,
     }) => {
-        const isUnavailable = mode === 'tracks' && item.rawTrack ? isSongUnavailable(item.rawTrack) : false;
+        // 播不了的：平台说下架的，或者来源此刻不在（音源停用、卸载，Navidrome 没配置）。后一种仍能从歌单里移除。
+        const isUnavailable = mode === 'tracks' && item.rawTrack ? isTrackShownUnplayable(item.rawTrack) : false;
+        const isSourceGone = mode === 'tracks' && item.rawTrack ? isTrackSourceUnavailable(item.rawTrack) : false;
         const unavailableTagText = (mode === 'tracks' && item.rawTrack)
-            ? getSongUnavailableLabel(item.rawTrack, t('status.songUnavailableTag'))
+            ? getTrackUnplayableLabel(item.rawTrack, t as TFunction, (t as TFunction)('status.songUnavailableTag'))
             : '';
+        const sourceTag = sourceLabel ? (
+            <span data-track-source="" style={{ color: `hsl(${sourceHue} 60% ${isDaylight ? 38 : 68}%)` }}>
+                {` · ${sourceLabel}`}
+                {swappedFromLabel && (
+                    <span data-track-swapped="" role="img" title={swappedFromLabel} aria-label={swappedFromLabel} className="opacity-70">{` ${TRACK_SWAPPED_MARK}`}</span>
+                )}
+            </span>
+        ) : null;
         const trackAlbum = item.rawTrack?.album;
         // A song of a listening ranking carries the platform's play count: it follows the duration.
         const trackListenCount = (item.rawTrack as UnifiedSong | undefined)?.listenCount;
@@ -209,7 +230,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                     )}
 
                     <PolaroidCardRemoveButton
-                        show={Boolean(isEditMode && onRemoveTrack && !isUnavailable)}
+                        show={Boolean(isEditMode && onRemoveTrack && (!isUnavailable || isSourceGone))}
                         onRemove={onRemoveTrack}
                     />
 
@@ -250,7 +271,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                             {item.rawTrack.album?.name || ''}
                                         </span>
                                         <span className="text-[9px] opacity-55 font-mono">
-                                            {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}{listenCountText}
+                                            {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}{listenCountText}{sourceTag}
                                         </span>
                                     </>
                                 )}
@@ -292,7 +313,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
 
                     {/* Delete button overlay for Edit Mode */}
                     <PolaroidCardRemoveButton
-                        show={Boolean(isEditMode && onRemoveTrack && !isUnavailable)}
+                        show={Boolean(isEditMode && onRemoveTrack && (!isUnavailable || isSourceGone))}
                         onRemove={onRemoveTrack}
                     />
 
@@ -339,7 +360,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                         {item.rawTrack.album?.name || ''}
                                     </span>
                                     <span className="text-[9px] opacity-35 font-mono">
-                                        {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}{listenCountText}
+                                        {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}{listenCountText}{sourceTag}
                                     </span>
                                 </>
                             )}
@@ -379,6 +400,10 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
             Boolean(prev.onCollect) === Boolean(next.onCollect) &&
             Boolean(prev.onSaveToPlaylist) === Boolean(next.onSaveToPlaylist) &&
             prev.playbackMark === next.playbackMark &&
+            prev.sourceLabel === next.sourceLabel &&
+            prev.sourceHue === next.sourceHue &&
+            prev.swappedFromLabel === next.swappedFromLabel &&
+            prev.sourcesVersion === next.sourcesVersion &&
             prev.isFocused === next.isFocused
         );
     }

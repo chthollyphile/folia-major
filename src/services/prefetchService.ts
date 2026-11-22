@@ -16,6 +16,7 @@ import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { getPlaybackSongKey, getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { nextTransitionSong, queueIndexOf } from '../utils/playbackNeighbors';
 import { omni } from './onlineMusic/omni';
+import { itemTraits, soundsInHost } from './onlineMusic/itemTraits';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMusic/resourceCache';
 import { toPlayableAudioUrl, toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
@@ -200,6 +201,10 @@ export const isUrlValid = (fetchedAt: number): boolean => {
  * @param requiredQuality - The audio quality to validate against (optional)
  */
 export const getPrefetchedData = (song: SongResult, requiredQuality?: AudioQualityPreference): PrefetchedSongData | null => {
+    // A song of a source switched to "used only for matching" or off does not play (Folium 2.0 plan §5.3): what
+    // was fetched for it before is not handed out, so no deck warms with it or plays it.
+    const sourceRef = getPlaybackSourceRef(song);
+    if (sourceRef.kind === 'online' && !omni.isSourceSwitchedOn(sourceRef.providerId)) return null;
     const songKey = getPrefetchSongKey(song);
     const songId = song.id;
     const cached = prefetchCache.get(songKey);
@@ -258,7 +263,7 @@ export const resolvePrefetchAudioUrl = async (
     const sourceRef = getPlaybackSourceRef(song);
     const providerId = sourceRef.kind === 'online' ? sourceRef.providerId : undefined;
     // The provider's own player fetches what it plays; there is no URL for this app to prefetch.
-    if (omni.canPlayExternally(song)) return null;
+    if (!soundsInHost(song)) return null;
     try {
         // A copy fetched at another level than the one asked for does not count: playback will
         // pass it over, so the song gets a URL here like one with no copy.
@@ -365,8 +370,8 @@ const prefetchSong = async (
         }
     }
 
-    // Prefetch lyrics (if not cached)
-    if (!data.lyrics) {
+    // Prefetch lyrics (if not cached), for an item that has any (itemTraits, plan §4.4)
+    if (!data.lyrics && itemTraits(song).lyrics !== 'none') {
         try {
             // Check IndexedDB cache first
             const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
@@ -416,7 +421,7 @@ const prefetchSong = async (
                     lyrics: parsedLyrics,
                     keepOwn: settingsLyricSettings.keepProviderWordTiming,
                 }, preferredSource);
-                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride && !keepsOwnWordTiming;
+                const shouldAutoMatch = autoUseBest && itemTraits(song).lyrics === 'match' && !onlineLyricsState?.hasOnlineOverride && !keepsOwnWordTiming;
 
                 if (shouldAutoMatch) {
                     try {

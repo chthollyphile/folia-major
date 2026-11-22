@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import type { LocalLibraryGroup, LocalSong } from '../../../types';
 import type { LibraryAccountController } from '../../core/account/account.contract';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
 import type { LibraryDirectoryBatchController, LibraryHiddenScope } from '../../core/directory/directory.contract';
@@ -158,7 +158,6 @@ export const LibraryTuiOnlineList: React.FC<LibraryTuiListCommonProps & {
 
 export const LibraryTuiLocalList: React.FC<LibraryTuiListCommonProps & {
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
     catalog: LibraryLocalCatalogSnapshot;
     activeRow: number;
     setActiveRow: (row: LocalHomeRow) => void;
@@ -166,7 +165,6 @@ export const LibraryTuiLocalList: React.FC<LibraryTuiListCommonProps & {
     directoryActions?: LibraryDirectoryBatchController;
 }> = ({
     localSongs,
-    localPlaylists,
     catalog,
     activeRow,
     setActiveRow,
@@ -181,7 +179,7 @@ export const LibraryTuiLocalList: React.FC<LibraryTuiListCommonProps & {
     const { t } = useTranslation();
     const playlistFileInputRef = useRef<HTMLInputElement>(null);
     const directoryTrees = useLocalDirectoryTrees(treesResource, localSongs);
-    const local = useLibraryHomeLocal({ localSongs, localPlaylists, catalog, activeRow });
+    const local = useLibraryHomeLocal({ localSongs, catalog, activeRow });
     const { snapshot: actionState, importBusy } = useLibraryHomeActions(homeActions);
     const batchConfig = useLocalHomeBatchConfig({
         controller: directoryActions,

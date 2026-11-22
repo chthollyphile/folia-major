@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

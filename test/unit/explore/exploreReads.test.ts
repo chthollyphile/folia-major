@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_KEPT, createHandedOut, cursorWords, stampCursor } from '@/services/onlineMusic/exploreReads';
+import { MAX_KEPT, createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 
 // test/unit/explore/exploreReads.test.ts
 // What the explore adapters share: the memory of what the reads before used (its order, its

@@ -1,21 +1,34 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// test/unit/spotify/spotifyProvider.test.ts — the Spotify adapter against rows shaped as Spotify's
-// queries gave them on 2026-10-08: what a row becomes, and how lists are paged.
+// test/unit/spotify/spotifyProvider.test.ts — the Spotify source mod (registered through the adapter, as on the
+// desktop) against rows shaped as Spotify's queries gave them on 2026-10-08: what a row becomes, and how lists are
+// paged. The main entry's `request` is answered by the test (helpers/spotifySource.ts).
 
-const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
-    requestSpotify: request,
-    querySpotify: (name: string, variables: Record<string, unknown> = {}) => request('query', { name, variables }),
-    getSpotifyTransportAvailability: () => ({ configured: true }),
-}));
+// The host parses a source's tracks in the lyrics worker; run the same parser inline.
+vi.mock('@/utils/lyrics/workerClient', async () => {
+    const { parseLyricsByFormat } = await import('@/utils/lyrics/parserCore');
+    return {
+        parseLyricsAsync: vi.fn(async (
+            format: Parameters<typeof parseLyricsByFormat>[0],
+            content: string,
+            translation: string,
+            options: Parameters<typeof parseLyricsByFormat>[3],
+            romanization: string,
+        ) => parseLyricsByFormat(format, content, translation, options, romanization)),
+    };
+});
+
 import { omni } from '@/services/onlineMusic/omni';
-import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
-import { clearSpotifyCatalogCache } from '@/services/onlineMusic/spotify/spotifyCatalog';
-import { normalizeSpotifyCollection, normalizeSpotifySong, spotifyPlaylistOf, spotifySongOf } from '@/services/onlineMusic/spotify/spotifyNormalize';
+import { clearSpotifyCatalogCache } from '../../../sources/spotify/client/spotifyCatalog';
+import { spotifyPlaylistOf, spotifySongOf } from '../../../sources/spotify/client/spotifyNormalize';
+import { answerSpotifyRequests, hostSpotifyCollection, hostSpotifySong, lazySpotifyProvider } from '../helpers/spotifySource';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import type { ProviderExploreItem } from '@/types/onlineMusic';
+
+const { request } = answerSpotifyRequests();
+const spotifyProvider = lazySpotifyProvider();
 
 const id = (letter: string) => letter.repeat(22);
 const cover = [{ url: 'https://i.scdn.co/image/small', width: 64 }, { url: 'https://i.scdn.co/image/large', width: 640 }, { url: 'https://i.scdn.co/image/mid', width: 300 }];
@@ -29,7 +42,7 @@ const playlist = (letter: string, extra: Record<string, unknown> = {}) => ({
     images: { items: [{ sources: [{ url: 'https://i.scdn.co/image/list', width: null }] }] }, ownerV2: { data: { name: 'Spotify' } }, ...extra,
 });
 // The query a call sent, by its name.
-const sent = (name: string) => request.mock.calls.filter(call => call[0] === 'query' && call[1].name === name).map(call => call[1].variables);
+const sent = (name: string) => request.mock.calls.filter(call => call[0] === 'query' && call[1].name === name).map(call => call[1].variables as any);
 const answerQueries = (answers: Record<string, (variables: any) => unknown>) => request.mockImplementation(async (operation: string, params: any) => {
     if (operation !== 'query' || !answers[params.name]) throw new Error(`unexpected ${operation} ${params?.name}`);
     return answers[params.name](params.variables);
@@ -42,15 +55,14 @@ beforeEach(() => {
 
 describe('Spotify rows', () => {
     it('gives a song its identity, its largest cover, and links to its artist and album', () => {
-        const song = normalizeSpotifySong(track('a'));
+        const song = hostSpotifySong(track('a'));
         expect(song).toMatchObject({
             id: id('a'), name: 'Song a', durationMs: 201000, sourceRef: { kind: 'online', providerId: 'spotify', mediaId: id('a') },
             artists: [{ id: id('r'), name: 'Artist r', catalogRef: { providerId: 'spotify', kind: 'artist', id: id('r') } }],
             album: { id: id('m'), name: 'Album', coverUrl: 'https://i.scdn.co/image/large', catalogRef: { providerId: 'spotify', kind: 'album', id: id('m') } },
         });
         expect(getPlaybackSongKey(song)).toBe(`online:spotify:${id('a')}`);
-        expect(normalizeSpotifySong(song)).toBe(song);
-        expect(() => normalizeSpotifySong({})).toThrow('no id');
+        expect(() => hostSpotifySong({})).toThrow('not a song');
     });
 
     it('reads a track the way each query leaves parts of it out', () => {
@@ -68,14 +80,13 @@ describe('Spotify rows', () => {
 
     it('turns a playlist row into a card: plain description, the owner, and "own" where the account may edit it', () => {
         expect(spotifyPlaylistOf(playlist('p'))).toEqual({
-            providerId: 'spotify', id: id('p'), type: 'playlist', name: 'List p', coverUrl: 'https://i.scdn.co/image/list',
+            id: id('p'), type: 'playlist', name: 'List p', coverUrl: 'https://i.scdn.co/image/list',
             description: 'By A & B', creator: { id: '', nickname: 'Spotify' },
         });
         expect(spotifyPlaylistOf(playlist('p', { currentUserCapabilities: { canEditItems: true }, content: { totalCount: 7 } }))).toMatchObject({ isOwned: true, trackCount: 7 });
         expect(spotifyPlaylistOf({ __typename: 'NotFound' })).toBeNull();
-        const album = normalizeSpotifyCollection({ __typename: 'Album', uri: `spotify:album:${id('m')}`, name: 'Album', coverArt: { sources: cover }, artists: { items: [artist()] }, date: { isoString: '2020-03-04T00:00:00Z' }, tracks: { totalCount: 12 } }, 'album');
+        const album = hostSpotifyCollection({ __typename: 'Album', uri: `spotify:album:${id('m')}`, name: 'Album', coverArt: { sources: cover }, artists: { items: [artist()] }, date: { isoString: '2020-03-04T00:00:00Z' }, tracks: { totalCount: 12 } }, 'album');
         expect(album).toMatchObject({ type: 'album', trackCount: 12, publishedAt: Date.UTC(2020, 2, 4), artists: [{ id: id('r') }] });
-        expect(normalizeSpotifyCollection(album)).toBe(album);
     });
 });
 
@@ -338,7 +349,7 @@ describe('Spotify explore page', () => {
         return { playlistV2: { __typename: 'Playlist', content: { totalCount: rows.length, items: rows } } };
     });
     const radioPage = async (listened: number[] = []) => {
-        const first = await spotifyProvider.explore!.getFeed(undefined, listened.map(n => normalizeSpotifySong(numbered(n))));
+        const first = await spotifyProvider.explore!.getFeed(undefined, listened.map(n => hostSpotifySong(numbered(n))));
         const made = await spotifyProvider.explore!.getFeed(first.nextCursor);
         request.mockClear();
         return spotifyProvider.explore!.getFeed(made.nextCursor);
@@ -399,7 +410,7 @@ describe('Spotify through the facade', () => {
     });
 
     it('turns timed lines into lyrics, and answers "none" for untimed ones so the other sources are asked', async () => {
-        const song = normalizeSpotifySong(track('a'));
+        const song = hostSpotifySong(track('a'));
         // The last line is past the hundredth minute: its stamp has three digits of minutes.
         request.mockResolvedValueOnce({ timed: true, lines: [{ startMs: 500, words: 'First' }, { startMs: 61230, words: 'Second' }, { startMs: 6005000, words: 'Late' }] });
         const timed = await spotifyProvider.lyrics!.getLyrics(song);
@@ -534,8 +545,8 @@ describe('Spotify likes and saves', () => {
 
     it('likes a song, keeps an album and follows a playlist by their uris, and not a playlist of the account\'s own', async () => {
         request.mockResolvedValue(true);
-        const song = normalizeSpotifySong(track('a'));
-        const other = spotifyPlaylistOf(playlist('p'))!;
+        const song = hostSpotifySong(track('a'));
+        const other = hostSpotifyCollection(playlist('p'), 'playlist');
         await spotifyProvider.mutations!.likeSong!(song, true);
         await spotifyProvider.mutations!.likeSong!(id('b'), false);
         await spotifyProvider.mutations!.subscribeAlbum!(id('m'), true);
@@ -554,8 +565,8 @@ describe('Spotify likes and saves', () => {
 
     it('changes the songs of the account\'s own playlists only, and makes a playlist of its own', async () => {
         request.mockResolvedValue(true);
-        const song = normalizeSpotifySong(track('a'));
-        const own = { ...spotifyPlaylistOf(playlist('p'))!, isOwned: true };
+        const song = hostSpotifySong(track('a'));
+        const own = { ...hostSpotifyCollection(playlist('p'), 'playlist'), isOwned: true };
         const { canAddToPlaylist, updatePlaylistTracks, createPlaylist } = spotifyProvider.mutations!;
         await updatePlaylistTracks!('add', own, [song, id('b')]);
         await updatePlaylistTracks!('del', own, [song]);
@@ -587,7 +598,7 @@ describe('Spotify likes and saves', () => {
         expect(await status('album', id('n'))).toBe(false);
         expect(await status('playlist', id('p'))).toBe(true);
         expect(await status('playlist', id('q'))).toBe(false);
-        expect(await status('playlist', id('p'), { ...spotifyPlaylistOf(playlist('p'))!, isOwned: true })).toBe(false);
+        expect(await status('playlist', id('p'), { ...hostSpotifyCollection(playlist('p'), 'playlist'), isOwned: true })).toBe(false);
         expect(await status('playlist', 'liked')).toBe(false);
         expect(sent('fetchPlaylist')).toHaveLength(2);
     });

@@ -58,6 +58,8 @@ const gridViewReference = ({
     const isLocalAllSongsCollection = isLocalCollection && collection?.type === 'folder' && Boolean(collection?.isVirtual);
     const isLocalPlaylistCollection = isLocalCollection && collection?.type === 'playlist' && Boolean(collection?.playlistId) && !collection?.isVirtual;
     const isLocalEntityCollection = isLocalCollection && Boolean(collection?.entityId);
+    // Folia 的「我喜欢的音乐」（第 3 步新增的分支）：能移除条目、能重排，不能改名、不能删。
+    const isFoliaFavoritesCollection = isLocalCollection && collection?.type === 'playlist' && Boolean(collection?.playlistId) && Boolean(collection?.isVirtual);
     const isNavidromePlaylistCollection = isNavidromeCollection && collection?.type === 'playlist' && Boolean(collection?.editable);
     const canAddNavidromeToPlaylist = isNavidromeCollection
         && collection?.type !== 'playlist'
@@ -84,6 +86,7 @@ const gridViewReference = ({
         || canEditProviderPlaylist
         || (isDailyRecommendationsCollection && !selectedDailyRecommendationDate && canDislikeCollectionSongs(collection))
         || isLocalPlaylistCollection
+        || isFoliaFavoritesCollection
         || isNavidromePlaylistCollection
     );
     const isOnlinePlaylist = collectionSource === 'online' && collection?.type === 'playlist' && !isCloudDrive;
@@ -102,6 +105,7 @@ const gridViewReference = ({
             isLocalFolderCollection,
             isLocalAllSongsCollection,
             isLocalPlaylistCollection,
+            isFoliaFavoritesCollection,
             isLocalEntityCollection,
             isNavidromePlaylistCollection,
             isCloudDrive,

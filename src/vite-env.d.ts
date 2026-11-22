@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModStorageUsageResult } from './mods/types';
+import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModSourceUsageResult, ModStorageUsageResult } from './mods/types';
 import type { PerfCheckProcessMemory, PerfCheckSettings } from './components/perfCheck/perfCheckTypes';
 
 declare global {
@@ -76,8 +76,6 @@ declare global {
     mimeType?: string | null;
   }
 
-  type ElectronKugouOperation = import('./services/onlineMusic/kugou/kugouTransport').KugouOperation;
-
   interface ElectronAudioCacheStats {
     size: number;
     count: number;
@@ -89,15 +87,6 @@ declare global {
     statusText: string;
     headers: Record<string, string>;
     bodyText: string;
-  }
-
-  interface ElectronNeteaseApiStatus {
-    status: 'starting' | 'running' | 'error';
-    port: number | null;
-    error: string | null;
-    // 没起来是因为断网：页面说连不上，下一次要用它时它再启动一次。
-    offline?: boolean;
-    updatedAt: number;
   }
 
   // 内嵌后端的诊断快照（electron/loginBackendIpc.cjs 的 get-login-diagnostics）。报告会原样贴进 issue；
@@ -115,11 +104,11 @@ declare global {
     locale: string | null;
     timeZone: string | null;
     uptimeSec: number;
-    /** safeStorage 的状态；Linux 上 backend 为 basic_text 时 QQ 的凭据仓库会拒绝保存登录态。 */
+    /** safeStorage 的状态；Linux 上 backend 为 basic_text 时要加密保存登录的凭据仓库会拒绝保存登录态。 */
     credentialStore: { encryptionAvailable?: boolean; backend?: string | null; error?: string } | null;
   }
 
-  /** 拉起后端的一步（electron/backendLifecycle.cjs 的 createStartupRecorder）。 */
+  /** 拉起后端的一步（音源模组 main/backendLifecycle.cjs 的 createStartupRecorder）。 */
   interface ElectronBackendStartupStep {
     id: string;
     startedAt: number;
@@ -162,95 +151,16 @@ declare global {
     settled?: string;
   }
 
-  interface ElectronNeteaseLoginRequestRecord {
-    at: number;
-    uri: string;
-    crypto: string;
-    ipHeader: 'none' | 'random-cn' | 'client' | 'real-ip';
-    deviceIdTail: string;
-    hasMusicU: boolean;
-    hasMusicA: boolean;
-    durationMs: number | null;
-    outcome: {
-      settled: 'pending' | 'resolved' | 'rejected';
-      status: number | null;
-      code: number | string | null;
-      message: string;
-    };
-    connections: ElectronNetworkConnection[];
-  }
-
-  interface ElectronNeteaseLoginDiagnostics {
-    providerId: 'netease';
+  /**
+   * get-login-diagnostics 的回答：宿主补的应用环境与连接记录，加上登记的后端自己的 getDiagnostics()。后端都在音源模组里，
+   * 各家快照的其余字段由模组自己解读（例如 sources/netease/core/neteaseLoginDiagnostics.ts）。
+   */
+  interface ElectronLoginDiagnostics {
+    providerId: string;
     capturedAt: number;
     app: ElectronAppEnvironment;
-    backend: ElectronNeteaseApiStatus;
-    startup: ElectronBackendStartupRun[];
-    /** 上游包没加载起来（startup 里 load 步骤失败）时为 null，identity 同理。 */
-    login: {
-      capturedAt: number;
-      startup: { anonymousTokenAtLoad?: 'present' | 'empty' };
-      network: {
-        interfaces: Array<{ name: string; addresses: Array<{ address: string; family: 4 | 6; scopeId?: number }> }>;
-        error?: string;
-      };
-      requests: ElectronNeteaseLoginRequestRecord[];
-    } | null;
-    /**
-     * 扫码身份轮换（electron/netease/neteaseLoginIdentity.cjs）：进程启动时刻、当前 deviceId、扫码请求被重置的次数、
-     * 实际轮换的次数（被重置后到下一次要码才换）、最近一次是否换到了新的匿名 token、是否还有待轮换。
-     */
-    identity: {
-      processStartedAt: number;
-      deviceId: string | null;
-      connectionResets: number;
-      rotations: number;
-      lastRotatedAt: number | null;
-      lastTokenRenewed: boolean | null;
-      pendingRotation: boolean;
-    } | null;
-    /** 最近的上游连接（不属于任何一次登录请求的那些，例如启动时取 xeapi 公钥）。 */
-    connections: ElectronNetworkConnection[];
-  }
-
-  interface ElectronQqLoginDiagnostics {
-    providerId: 'qq';
-    capturedAt: number;
-    app: ElectronAppEnvironment;
-    backend: ElectronQqApiStatus;
-    version: string | null;
-    startup: ElectronBackendStartupRun[];
-    hooks: { installed: string[]; error: string | null };
-    /** 包内扫码服务的失败（electron/qq/qqBackend.cjs 的钩子），带原始错误。 */
-    failures: Array<{
-      at: number;
-      kind: 'session' | 'bootstrap';
-      stage: string | null;
-      channel: string | null;
-      sessionState: string | null;
-      error: Record<string, unknown>;
-    }>;
-    /** 包的 qq-auth.* 日志事件。 */
-    authEvents: Array<{ at: number; level: string; event: string; details: unknown }>;
-    connections: ElectronNetworkConnection[];
-  }
-
-  type ElectronLoginDiagnostics = ElectronNeteaseLoginDiagnostics | ElectronQqLoginDiagnostics;
-
-  // `unavailable` means the packaged build shipped without the bundled qq-music-api.
-  interface ElectronQqApiStatus {
-    status: 'starting' | 'running' | 'error' | 'unavailable';
-    port: number | null;
-    error: string | null;
-    /** 这次启动没能读出加密的登录仓库：后端里没有任何会话，后端不认一个 session 不说明登录没了。 */
-    sessionStoreUnreadable?: boolean;
-    updatedAt: number;
-  }
-
-  interface ElectronKugouApiStatus {
-    available: boolean;
-    authenticated: boolean;
-    error: string | null;
+    connections?: ElectronNetworkConnection[];
+    [field: string]: unknown;
   }
 
   interface ElectronTaskbarControlState {
@@ -968,6 +878,8 @@ declare global {
       hasAudioCache: (cacheKey: string) => Promise<boolean>;
       /** `limitBytes` is the cache ceiling to prune down to afterwards; 0 means no ceiling. */
       saveAudioCache: (cacheKey: string, data: ArrayBuffer, mimeType?: string, limitBytes?: number) => Promise<boolean>;
+      /** The listener's media cache limit (bytes, 0 for none), which a source mod's api.cache.requestPrune() trims to. */
+      setMediaCacheLimit?: (limitBytes: number) => Promise<boolean>;
       /** Deletes the file under `cacheKey` only while it is `size` bytes; resolves to whether it did. */
       removeAudioCache: (cacheKey: string, size: number) => Promise<boolean>;
       getAudioCacheUsage: () => Promise<number>;
@@ -998,47 +910,10 @@ declare global {
           body?: string;
         },
       ) => Promise<ElectronLyricProxyResponse>;
-      getNeteasePort: () => Promise<number>;
-      getNeteaseApiStatus: () => Promise<ElectronNeteaseApiStatus>;
-      /** 内嵌后端（网易、QQ）的诊断快照；没有内嵌后端的 provider 回 null。 */
+      /** 内嵌后端（音源模组 api.diagnostics 登记的）的诊断快照；没有内嵌后端的 provider 回 null。 */
       getLoginDiagnostics?: (providerId: string) => Promise<ElectronLoginDiagnostics | null>;
       /** 扫码登录失败后的主动自检（electron/loginSelfCheck.cjs）。 */
       runLoginSelfCheck?: (providerId: string) => Promise<import('./types/onlineMusic').LoginSelfCheckResult | null>;
-      // 'needed'：一个请求要用它，它却因为断网没起来；主进程只在离上一次断网失败够久时才再启动。
-      restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
-      onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
-      getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
-      fnmusicRequest: (
-        operation: 'login' | 'logout' | 'request' | 'stream' | 'coverUrl' | 'getStatus',
-        params?: import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeParams,
-      ) => Promise<import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeResult>;
-      qishuiRequest: (
-        operation: import('./services/onlineMusic/qishui/qishuiTransport').QishuiOperation,
-        params?: import('./services/onlineMusic/qishui/qishuiTransport').QishuiParams,
-      ) => Promise<import('./services/onlineMusic/qishui/qishuiTransport').QishuiBridgeResult>;
-      bodianRequest: (
-        operation: import('./services/onlineMusic/bodian/bodianTransport').BodianOperation,
-        params?: import('./services/onlineMusic/bodian/bodianTransport').BodianParams,
-      ) => Promise<import('./services/onlineMusic/bodian/bodianTransport').BodianBridgeResult>;
-      ytmRequest: (
-        operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
-        params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,
-      ) => Promise<import('./services/onlineMusic/ytm/ytmTransport').YtmBridgeResult>;
-      appleMusicRequest: (
-        operation: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicOperation,
-        params?: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicParams,
-      ) => Promise<import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicBridgeResult>;
-      spotifyRequest: (
-        operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
-        params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,
-      ) => Promise<import('./services/onlineMusic/spotify/spotifyTransport').SpotifyBridgeResult>;
-      kugouRequest: (
-        operation: ElectronKugouOperation,
-        params?: Record<string, string | number | boolean | undefined>,
-      ) => Promise<unknown>;
-      getQqPort: () => Promise<number | null>;
-      getQqApiStatus: () => Promise<ElectronQqApiStatus>;
-      onQqApiStatusChanged: (callback: (status: ElectronQqApiStatus) => void) => () => void;
       minimizeWindow: () => Promise<boolean>;
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;
@@ -1149,7 +1024,7 @@ declare global {
       onStagePlayerQueueRequest: (callback: (request: StagePlayerQueueRequest) => void) => () => void;
       onStagePlayerSearchRequest: (callback: (request: StagePlayerSearchRequest) => void) => () => void;
       mods?: {
-        listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[]; startSkipped?: boolean }>;
+        listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[]; startSkipped?: boolean; builtinDirectory?: string | null; sourceStates?: Record<string, ModSourceState> }>;
         setModEnabled: (modId: string, enabled: boolean) => Promise<{ ok: boolean; error?: string; mods: ModRuntimeInfo[] }>;
         reloadMods: () => Promise<{ mods: ModRuntimeInfo[] }>;
         cancelExport: () => Promise<{ ok: boolean }>;
@@ -1164,11 +1039,26 @@ declare global {
         getFfmpegStatus: () => Promise<{ ffmpeg: ModFfmpegStatus }>;
         openModsDirectory: () => Promise<{ ok: boolean; directory?: string; error?: string }>;
         installModFromZip: (zipPath: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
+        installModFromPickedZip?: () => Promise<{ ok: boolean; id?: string; error?: string }>;
+        setCommunityMods?: (enabled: boolean) => Promise<{ ok: boolean; error?: string; enabled?: boolean }>;
         getModStorageUsage: (modId: string) => Promise<ModStorageUsageResult>;
         clearModCache: (modId: string) => Promise<ModClearCacheResult>;
         getModCallStats: () => Promise<{ stats: Record<string, ModMainCallStats> }>;
         reportModsStartSettled: () => Promise<{ ok: boolean }>;
         reportModsStartAlive: () => Promise<{ ok: boolean }>;
+        // Folium 2.0: the sources' states, "clear data", the override confirmation, who holds a taken-over id.
+        getSourceStates?: () => Promise<{ ok: boolean; error?: string; hasSourceMods?: boolean; sourcesOnboarding?: boolean } & Partial<ModSourceStatesPayload>>;
+        setSourceState?: (sourceId: string, state: ModSourceState) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
+        answerSourcesOnboarding?: (choices: Record<string, ModSourceState>) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
+        describeSourceData?: (sourceId: string) => Promise<ModSourceDataResult>;
+        getSourceStorageUsage?: (sourceId: string) => Promise<ModSourceUsageResult>;
+        clearSourceData?: (sourceId: string) => Promise<ModClearSourceDataResult>;
+        confirmModOverride?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        assignSourceClaim?: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        reportSourcesRegistered?: (modId: string, registered: string[], clientUrl: string) => Promise<{ ok: boolean; error?: string; revoked?: boolean }>;
+        onSourceStatesChanged?: (callback: (payload: ModSourceStatesPayload) => void) => () => void;
+        onCommunityModsChanged?: (callback: (payload: { enabled: boolean }) => void) => () => void;
+        onSourcesStopping?: (callback: (payload: { sourceIds: string[] }) => void) => () => void;
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { UnifiedSong } from '@/types';
-import type { OmniExploreItem, OmniExploreSection, ProviderCollection } from '@/types/onlineMusic';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FoliumSourceCollection, FoliumSourceSong } from '@/mods/folium/sources/contract';
+import type { OmniExploreItem, OmniExploreSection } from '@/types/onlineMusic';
 
 // test/unit/onlineMusic/neteaseExploreRefresh.test.ts
 // NetEase's explore page behind the explore tab's own store: what ten presses on "refresh" in a
@@ -21,12 +21,16 @@ const api = vi.hoisted(() => ({
     getSimilarSongs: vi.fn(),
     getPlaylistTracks: vi.fn(),
 }));
-vi.mock('@/services/onlineMusic/netease/netease', () => ({ neteaseApi: api }));
+vi.mock('../../../sources/netease/core/netease', async importOriginal => ({
+    ...await importOriginal<object>(),
+    neteaseApi: api,
+}));
 const omni = vi.hoisted(() => ({ getExploreFeed: vi.fn(), getExploreSectionItems: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni }));
-import { createNeteaseExplore } from '@/services/onlineMusic/netease/neteaseExplore';
+import { createNeteaseExplore } from '../../../sources/netease/core/neteaseExplore';
 import { resetExploreMemory } from '@/stores/exploreFeedMemory';
 import { useExploreFeedStore } from '@/stores/useExploreFeedStore';
+import { createNeteaseCore } from '../helpers/neteaseSource';
 
 const LISTS = 'HOMEPAGE_BLOCK_PLAYLIST_RCMD';
 const SONGS = 'HOMEPAGE_BLOCK_STYLE_RCMD';
@@ -52,8 +56,9 @@ const homeOf = (asks: number) => ({
     },
 });
 
-const song = (raw: any): UnifiedSong => ({ id: raw.id, name: raw.name, artists: [], album: { id: 0, name: '', coverUrl: '' } }) as unknown as UnifiedSong;
-const collection = (raw: any, type = 'playlist'): ProviderCollection => ({ providerId: 'netease', type, id: raw.id, name: raw.name }) as unknown as ProviderCollection;
+// The source's own shapes (explore@1 hands DTOs): ids as text.
+const song = (raw: any): FoliumSourceSong => ({ id: String(raw.id), title: raw.name, artists: [] });
+const collection = (raw: any, type = 'playlist'): FoliumSourceCollection => ({ type, id: String(raw.id), name: raw.name });
 
 const store = () => useExploreFeedStore.getState();
 const feed = () => store().feed!;
@@ -63,6 +68,11 @@ const namesOf = (section: OmniExploreSection) => section.items.map(nameOf);
 const linesOf = (prefix: string) => vi.mocked(console.log).mock.calls.map(([line]) => String(line)).filter(line => line.startsWith(prefix));
 
 describe("NetEase explore page behind the explore tab's store", () => {
+    // The source's env: the explore page writes its own headings as the mod's text keys.
+    beforeAll(async () => {
+        await createNeteaseCore();
+    });
+
     beforeEach(() => {
         vi.resetAllMocks();
         vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -80,7 +90,7 @@ describe("NetEase explore page behind the explore tab's store", () => {
         api.getHotPlaylists.mockImplementation(async (limit: number, offset: number) => ({ code: 200, total: 683, more: offset + limit < 683, playlists: rows(40000 + offset, Math.min(limit, 683 - offset)) }));
         api.getPlaylistTracks.mockImplementation(async (id: number, limit: number, offset: number) => ({ code: 200, songs: rows(id * 1000 + offset, Math.min(limit, 100 - offset)) }));
         const explore = createNeteaseExplore({ song, collection });
-        omni.getExploreFeed.mockImplementation((cursor?: string, listened?: UnifiedSong[]) => explore.getFeed(cursor, listened));
+        omni.getExploreFeed.mockImplementation((cursor?: string, listened?: FoliumSourceSong[]) => explore.getFeed(cursor, listened));
         omni.getExploreSectionItems.mockImplementation(async (cursor: string) => (await explore.getSectionItems?.(cursor)) ?? { items: [] });
     });
 
@@ -121,7 +131,7 @@ describe("NetEase explore page behind the explore tab's store", () => {
                 }
             });
             // The block NetEase picks anew, and the shelves of similar songs, stand under other headings.
-            const retitled = now.filter((section, at) => section.title !== before[at].title).map(section => section.id);
+            const retitled = now.filter((section, at) => JSON.stringify(section.title) !== JSON.stringify(before[at].title)).map(section => section.id);
             expect(retitled).toEqual(ids.filter(id => id === `netease-block-${SONGS}` || id.startsWith('netease-similar-')));
             // What the store and the adapter log of it: twenty shelves with other entries, and a line a shelf.
             expect(linesOf('[Explore] Refresh ')).toEqual([expect.stringMatching(/^\[Explore\] Refresh \d+: 22 sections, 20 with other entries$/)]);

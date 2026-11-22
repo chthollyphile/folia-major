@@ -4,14 +4,19 @@ import type { AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// test/unit/electron/fnmusicApiBridge.test.ts — host persistence, parameter validation
-// and protocol URL shaping for the fnOS (飞牛) music bridge.
+// test/unit/electron/fnmusicApiBridge.test.ts — persistence, parameter validation, the media routes and their
+// addresses for the fnOS (飞牛) music bridge, and the source mod's main entry that runs it (sources/fnmusic/main/).
 
 const require = createRequire(import.meta.url);
-const { createFnmusicApiBridge, resolveServerCandidates, normalizeBase, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('../../../electron/fnmusic/fnmusicApiBridge.cjs');
+const { createFnmusicApiBridge: createBridge, resolveServerCandidates, normalizeBase, buildAuthCookie } = require('../../../sources/fnmusic/main/fnmusicApiBridge.cjs');
 const https = require('node:https');
 
 const CONFIG_STORE_KEY = 'fnmusic-config';
+const DEVICE_STORE_KEY = 'fnmusic-device-id';
+
+// The media routes' addresses, as the main entry hands api.media.url in.
+const mediaUrl = (name: string) => `folia-mod://fnmusic/_media/${name}`;
+const createFnmusicApiBridge = (deps: Record<string, unknown>) => createBridge({ mediaUrl, ...deps });
 
 const createStore = () => {
     const values = new Map<string, unknown>();
@@ -37,14 +42,19 @@ const seededStore = () => {
 };
 
 describe('FnMusic desktop bridge', () => {
-    it('exposes the folia-fnmusic protocol scheme', () => {
-        expect(FN_MUSIC_SCHEME).toBe('folia-fnmusic');
-        expect(FN_MUSIC_PRIVILEGED_SCHEME).toBeTypeOf('object');
+    it('exposes the two media route handlers for api.media.serve', () => {
+        const bridge = createFnmusicApiBridge({ store: seededStore(), safeStorage: cipher() });
+        expect(bridge.serveStream).toBeTypeOf('function');
+        expect(bridge.serveCover).toBeTypeOf('function');
     });
 
-    it('exposes handleProtocolRequest for protocol.handle registration', () => {
+    it('answers the media routes 403 before a server is saved, and 400 without the id', async () => {
+        const empty = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
+        expect((await empty.serveStream({ query: { guid: 't1' }, range: null })).status).toBe(403);
+        expect((await empty.serveCover({ query: { coverId: 'c1' } })).status).toBe(403);
         const bridge = createFnmusicApiBridge({ store: seededStore(), safeStorage: cipher() });
-        expect(bridge.handleProtocolRequest).toBeTypeOf('function');
+        expect((await bridge.serveStream({ query: {}, range: null })).status).toBe(400);
+        expect((await bridge.serveCover({ query: {} })).status).toBe(400);
     });
 
     it('reports unconfigured when the store holds no saved config', () => {
@@ -127,24 +137,22 @@ describe('FnMusic desktop bridge', () => {
         expect(await bridge.coverUrl({ coverId: 'abc' })).toMatchObject({ ok: false, error: { code: 'unconfigured' } });
     });
 
-    it('shapes stream URLs with the custom protocol and the track only (the server sends the original file)', async () => {
+    it('shapes stream URLs as the stream route with the track only (the server sends the original file)', async () => {
         const bridge = createFnmusicApiBridge({ store: seededStore(), safeStorage: cipher() });
         const result = await bridge.stream({ trackId: 'track-42', quality: 'lossless' });
         expect(result.ok).toBe(true);
+        expect(result.data.url).toBe('folia-mod://fnmusic/_media/stream?guid=track-42');
         const url = new URL(result.data.url);
-        expect(url.protocol).toBe('folia-fnmusic:');
-        expect(url.hostname).toBe('stream');
         expect(url.searchParams.get('guid')).toBe('track-42');
         expect(url.searchParams.has('quality')).toBe(false);
     });
 
-    it('shapes cover URLs with coverId and size', async () => {
+    it('shapes cover URLs as the cover route with coverId and size', async () => {
         const bridge = createFnmusicApiBridge({ store: seededStore(), safeStorage: cipher() });
         const result = await bridge.coverUrl({ coverId: 'cover-7', size: 'webp' });
         expect(result.ok).toBe(true);
         const url = new URL(result.data.url);
-        expect(url.protocol).toBe('folia-fnmusic:');
-        expect(url.hostname).toBe('cover');
+        expect(`${url.protocol}//${url.host}${url.pathname}`).toBe('folia-mod://fnmusic/_media/cover');
         expect(url.searchParams.get('coverId')).toBe('cover-7');
         expect(url.searchParams.get('size')).toBe('webp');
     });
@@ -277,7 +285,7 @@ describe('FnMusic desktop bridge', () => {
             const calls = captureHttps();
             const bridge = createFnmusicApiBridge({ store: relayStore('https://mynas.5ddd.com'), safeStorage: cipher() });
             await bridge.request({ path: '/music/api/v1/track/list' });
-            await bridge.handleProtocolRequest(new Request('folia-fnmusic://stream?guid=t1'));
+            await bridge.serveStream({ query: { guid: 't1' }, range: null });
             expect(calls.map(call => call.headers.Cookie)).toEqual(['music-token=fixture-token', 'music-token=fixture-token']);
         });
 
@@ -292,7 +300,7 @@ describe('FnMusic desktop bridge', () => {
             const calls = captureHttps();
             const bridge = createFnmusicApiBridge({ store: relayStore('https://mynas.fnos.net'), safeStorage: cipher() });
             await bridge.request({ path: '/music/api/v1/track/list' });
-            await bridge.handleProtocolRequest(new Request('folia-fnmusic://stream?guid=t1'));
+            await bridge.serveStream({ query: { guid: 't1' }, range: null });
             expect(calls.map(call => call.headers.Cookie)).toEqual(['music-token=fixture-token; mode=relay', 'music-token=fixture-token; mode=relay']);
         });
 
@@ -368,5 +376,144 @@ describe('FnMusic desktop bridge', () => {
             expect(logins[0].body.deviceId).toMatch(/^[0-9a-f]{32}$/);
             expect(logins[1].body.deviceId).toBe(logins[0].body.deviceId);
         });
+    });
+});
+
+// Folium 2.0 S5: the bridge runs behind the source mod's main entry (sources/fnmusic/main/index.ts), on the host's api
+// instead of main.cjs's store, safeStorage, folia-fnmusic:// protocol and fnmusic-api-request channel. The entry is
+// driven here with a stand-in api and a stand-in fnOS server.
+describe('FnMusic main entry (source mod)', async () => {
+    const { default: activate } = await import('../../../sources/fnmusic/main/index');
+    const CLAIMED = new Set([CONFIG_STORE_KEY, DEVICE_STORE_KEY]);
+    let server: Server | null = null;
+    const seen: Array<{ url: string; cookie?: string; range?: string }> = [];
+    afterEach(async () => {
+        seen.length = 0;
+        await new Promise<void>(done => (server ? server.close(() => done()) : done()));
+        server = null;
+    });
+    // A stand-in fnOS music server: sign-in, a search, and the stream and cover files (Range answered with 206).
+    const serve = async (): Promise<string> => {
+        server = createServer((request: IncomingMessage, response) => {
+            request.on('data', () => {});
+            request.on('end', () => {
+                seen.push({ url: request.url ?? '', cookie: request.headers.cookie, range: request.headers.range });
+                if (request.url?.startsWith('/music/api/v1/track/stream')) {
+                    response.writeHead(request.headers.range ? 206 : 200, {
+                        'Content-Type': 'audio/flac', 'Accept-Ranges': 'bytes', 'Content-Length': '4',
+                        ...(request.headers.range ? { 'Content-Range': 'bytes 2-5/10' } : {}),
+                    });
+                    response.end('2345');
+                    return;
+                }
+                if (request.url?.startsWith('/music/api/v1/static/cover')) {
+                    response.writeHead(200, { 'Content-Type': 'image/png' });
+                    response.end('png');
+                    return;
+                }
+                response.setHeader('Content-Type', 'application/json');
+                response.end(JSON.stringify(request.url?.endsWith('/password-login')
+                    ? { code: 0, msg: '', data: { userToken: 'fixture-token', user: { guid: 'user-guid-1', name: 'Alice' } } }
+                    : { code: 0, msg: '', data: { total: 0, list: [] } }));
+            });
+        });
+        await new Promise<void>(done => server!.listen(0, '127.0.0.1', () => done()));
+        return `127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    };
+
+    const launch = (values = new Map<string, unknown>()) => {
+        const safeStorage = cipher();
+        const handlers = new Map<string, (...args: unknown[]) => unknown>();
+        const routes = new Map<string, (request: unknown) => unknown>();
+        const claimed = (key: string) => {
+            if (!CLAIMED.has(key)) throw new Error(`legacy-key-not-claimed:${key}`);
+        };
+        const api = {
+            legacy: { store: {
+                get: (key: string) => { claimed(key); return values.get(key); },
+                set: (key: string, value: unknown) => { claimed(key); values.set(key, value); },
+                has: (key: string) => { claimed(key); return values.has(key); },
+                delete: (key: string) => { claimed(key); values.delete(key); },
+            } },
+            // api.seal: base64 of safeStorage's sealed bytes, as sourceApi.cjs makes it.
+            seal: {
+                available: () => true,
+                seal: (text: string) => safeStorage.encryptString(text).toString('base64'),
+                open: (sealed: string) => safeStorage.decryptString(Buffer.from(sealed, 'base64')),
+            },
+            media: {
+                serve: (name: string, handler: (request: unknown) => unknown) => { routes.set(name, handler); return () => routes.delete(name); },
+                url: (name: string, rest = '') => `folia-mod://fnmusic/_media/${name}${rest ? `/${rest}` : ''}`,
+            },
+            rpc: { handle: (name: string, handler: (...args: unknown[]) => unknown) => { handlers.set(name, handler); } },
+        };
+        activate(api as never);
+        type Answer = { ok: boolean; status?: number; data?: unknown; error?: { code?: unknown } };
+        const request = async (operation: string, params: Record<string, unknown> = {}): Promise<Answer> => handlers.get('request')!(operation, params) as Answer;
+        const read = (name: string, query: Record<string, string>, range: string | null = null) => (
+            routes.get(name)!({ url: '', path: '', query, headers: {}, range }) as Promise<Response>
+        );
+        return { handlers, routes, request, read, values };
+    };
+
+    it('registers one rpc handler and the two media routes', () => {
+        const { handlers, routes } = launch();
+        expect([...handlers.keys()]).toEqual(['request']);
+        expect([...routes.keys()]).toEqual(['stream', 'cover']);
+    });
+
+    it('keeps a sign-in and the device id stored before the move under the claimed keys, sealed the same way', async () => {
+        const values = new Map<string, unknown>([
+            [CONFIG_STORE_KEY, cipher().encryptString(JSON.stringify({ base: 'http://192.168.2.57:5666', token: 'fixture-private-token', username: 'fixture-user', userId: 'g1', nickname: 'Fixture' })).toString('base64')],
+            [DEVICE_STORE_KEY, 'a'.repeat(32)],
+        ]);
+        const { request } = launch(values);
+        const status = await request('getStatus');
+        expect(status).toEqual({ ok: true, data: expect.objectContaining({ authenticated: true, base: 'http://192.168.2.57:5666', userId: 'g1', nickname: 'Fixture' }) });
+        expect(JSON.stringify(status)).not.toContain('fixture-private-token');
+    });
+
+    it('signs in through the form values with the stored device id, and hands back the user, not the token', async () => {
+        const host = await serve();
+        const values = new Map<string, unknown>([[DEVICE_STORE_KEY, 'b'.repeat(32)]]);
+        const { request } = launch(values);
+        const result = await request('login', { base: host, username: 'admin', password: 'secret', deviceId: 'ignored' });
+        expect(result).toMatchObject({ ok: true, data: { user: { guid: 'user-guid-1' } } });
+        expect(JSON.stringify(result)).not.toContain('fixture-token');
+        expect(values.get(DEVICE_STORE_KEY)).toBe('b'.repeat(32));
+        expect(typeof values.get(CONFIG_STORE_KEY)).toBe('string');
+        expect(String(values.get(CONFIG_STORE_KEY))).not.toContain('fixture-token');
+    });
+
+    it('sends requests with the saved token, and refuses an operation it does not know', async () => {
+        const host = await serve();
+        const { request } = launch();
+        await request('login', { base: host, username: 'admin', password: 'secret' });
+        await expect(request('request', { path: '/music/api/v1/search/track', params: { q: 'x', page: 1, size: 5 } })).resolves.toMatchObject({ ok: true });
+        expect(seen.at(-1)).toMatchObject({ url: '/music/api/v1/search/track?q=x&page=1&size=5', cookie: 'music-token=fixture-token' });
+        expect(await request('handleProtocolRequest')).toMatchObject({ ok: false, error: { code: 'unsupported' } });
+    });
+
+    it('hands out the stream route address, and the route forwards with the token and Range, open to the audio element', async () => {
+        const host = await serve();
+        const { request, read } = launch();
+        await request('login', { base: host, username: 'admin', password: 'secret' });
+        expect(await request('stream', { trackId: 'track-1' })).toEqual({ ok: true, status: 200, data: { url: 'folia-mod://fnmusic/_media/stream?guid=track-1' } });
+        const response = await read('stream', { guid: 'track-1' }, 'bytes=2-');
+        expect(response.status).toBe(206);
+        expect(response.headers.get('content-range')).toBe('bytes 2-5/10');
+        expect(response.headers.get('access-control-allow-origin')).toBe('*');
+        expect(await response.text()).toBe('2345');
+        expect(seen.at(-1)).toMatchObject({ url: '/music/api/v1/track/stream?guid=track-1', cookie: 'music-token=fixture-token', range: 'bytes=2-' });
+    });
+
+    it('forwards the cover route with its size', async () => {
+        const host = await serve();
+        const { request, read } = launch();
+        await request('login', { base: host, username: 'admin', password: 'secret' });
+        const response = await read('cover', { coverId: 'c1', size: '300' });
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('image/png');
+        expect(seen.at(-1)).toMatchObject({ url: '/music/api/v1/static/cover?coverId=c1&size=300', cookie: 'music-token=fixture-token' });
     });
 });

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 // below are shaped like the raw answer of the web client's /browse; every text is made up.
 
 const require = createRequire(import.meta.url);
-const webPages = require('../../../electron/ytm/webPages.cjs');
+const webPages = require('../../../sources/ytm/main/webPages.cjs');
 
 const runs = (...texts: string[]) => ({ runs: texts.map(text => ({ text })) });
 // A playlist's page with this header beside its shelf of rows.

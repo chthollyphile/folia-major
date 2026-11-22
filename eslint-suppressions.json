@@ -773,38 +773,9 @@
       "count": 1
     }
   },
-  "electron/backendLifecycle.cjs": {
-    "@stylistic/indent": {
-      "count": 104
-    },
-    "@stylistic/quotes": {
-      "count": 1
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    }
-  },
   "electron/backgroundThrottling.cjs": {
     "@stylistic/indent": {
       "count": 43
-    }
-  },
-  "electron/bodian/bodianApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 24
-    }
-  },
-  "electron/bodian/mediaCors.cjs": {
-    "@stylistic/indent": {
-      "count": 40
-    }
-  },
-  "electron/bodian/session.cjs": {
-    "@stylistic/indent": {
-      "count": 80
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
     }
   },
   "electron/debug/redactCredentials.cjs": {
@@ -830,14 +801,6 @@
   "electron/ffmpeg.cjs": {
     "@stylistic/eol-last": {
       "count": 1
-    }
-  },
-  "electron/fnmusic/fnmusicApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 306
-    },
-    "dedicatus/restricted-apis": {
-      "count": 3
     }
   },
   "electron/globalShortcuts.cjs": {
@@ -875,11 +838,6 @@
       "count": 8
     }
   },
-  "electron/kugou/kugouApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 373
-    }
-  },
   "electron/linuxPasswordStore.cjs": {
     "@stylistic/indent": {
       "count": 20
@@ -900,7 +858,7 @@
   },
   "electron/loginBackendIpc.cjs": {
     "@stylistic/indent": {
-      "count": 70
+      "count": 59
     },
     "@stylistic/quotes": {
       "count": 1
@@ -924,7 +882,7 @@
       "count": 5634
     },
     "dedicatus/restricted-apis": {
-      "count": 6
+      "count": 5
     },
     "no-extra-boolean-cast": {
       "count": 3
@@ -933,7 +891,7 @@
       "count": 38
     },
     "no-useless-assignment": {
-      "count": 3
+      "count": 2
     },
     "preserve-caught-error": {
       "count": 2
@@ -977,11 +935,6 @@
       "count": 1
     }
   },
-  "electron/modSystem/modSystem.cjs": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "electron/modSystem/safeStart.cjs": {
     "no-useless-assignment": {
       "count": 1
@@ -990,52 +943,6 @@
   "electron/modSystem/zipInstall.cjs": {
     "no-useless-assignment": {
       "count": 1
-    }
-  },
-  "electron/netease/lazyJsdom.cjs": {
-    "@stylistic/indent": {
-      "count": 51
-    }
-  },
-  "electron/netease/neteaseApiHost.cjs": {
-    "@stylistic/indent": {
-      "count": 69
-    }
-  },
-  "electron/netease/neteaseApiStartup.cjs": {
-    "@stylistic/indent": {
-      "count": 210
-    }
-  },
-  "electron/netease/neteaseApiWorker.cjs": {
-    "@stylistic/indent": {
-      "count": 159
-    }
-  },
-  "electron/netease/neteaseBackend.cjs": {
-    "@stylistic/indent": {
-      "count": 61
-    },
-    "@stylistic/quotes": {
-      "count": 1
-    }
-  },
-  "electron/netease/neteaseLoginDiagnostics.cjs": {
-    "@stylistic/indent": {
-      "count": 144
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "electron/netease/neteaseLoginIdentity.cjs": {
-    "@stylistic/indent": {
-      "count": 72
-    }
-  },
-  "electron/netease/upstreamAddressOrder.cjs": {
-    "@stylistic/indent": {
-      "count": 12
     }
   },
   "electron/networkRecorder.cjs": {
@@ -1056,29 +963,6 @@
       "count": 3
     }
   },
-  "electron/qishui/session.cjs": {
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "electron/qq/qqApiStartup.cjs": {
-    "@stylistic/indent": {
-      "count": 93
-    }
-  },
-  "electron/qq/qqAuthSessionRepository.cjs": {
-    "@stylistic/indent": {
-      "count": 82
-    }
-  },
-  "electron/qq/qqBackend.cjs": {
-    "@stylistic/indent": {
-      "count": 178
-    },
-    "@stylistic/quotes": {
-      "count": 1
-    }
-  },
   "electron/remoteControlWindowGeometry.cjs": {
     "@stylistic/indent": {
       "count": 66
@@ -1089,55 +973,9 @@
       "count": 20
     }
   },
-  "electron/spotify/audio.cjs": {
-    "@stylistic/indent": {
-      "count": 407
-    }
-  },
-  "electron/spotify/audioFiles.cjs": {
-    "@stylistic/indent": {
-      "count": 87
-    }
-  },
-  "electron/spotify/errors.cjs": {
-    "@stylistic/indent": {
-      "count": 26
-    }
-  },
-  "electron/spotify/session.cjs": {
-    "@stylistic/indent": {
-      "count": 82
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "electron/spotify/signIn.cjs": {
-    "@stylistic/indent": {
-      "count": 132
-    }
-  },
-  "electron/spotify/soloist.cjs": {
-    "@stylistic/indent": {
-      "count": 620
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "electron/spotify/soloistBuild.cjs": {
-    "@stylistic/indent": {
-      "count": 53
-    }
-  },
-  "electron/spotify/spotifyApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 498
-    }
-  },
   "electron/stageApi.cjs": {
     "@stylistic/indent": {
-      "count": 2095
+      "count": 2053
     },
     "no-useless-assignment": {
       "count": 1
@@ -1275,85 +1113,20 @@
       "count": 33
     }
   },
-  "electron/ytm/audio.cjs": {
-    "@stylistic/indent": {
-      "count": 238
-    }
-  },
-  "electron/ytm/browserSignIn.cjs": {
-    "@stylistic/indent": {
-      "count": 353
-    }
-  },
-  "electron/ytm/catalog.cjs": {
-    "@stylistic/indent": {
-      "count": 122
-    }
-  },
-  "electron/ytm/errors.cjs": {
-    "@stylistic/indent": {
-      "count": 35
-    }
-  },
-  "electron/ytm/poToken.cjs": {
-    "@stylistic/indent": {
-      "count": 46
-    }
-  },
-  "electron/ytm/sandbox.cjs": {
-    "@stylistic/indent": {
-      "count": 79
-    }
-  },
-  "electron/ytm/session.cjs": {
-    "@stylistic/indent": {
-      "count": 9
-    }
-  },
-  "electron/ytm/songVersion.cjs": {
-    "@stylistic/indent": {
-      "count": 5
-    }
-  },
-  "electron/ytm/tiles.cjs": {
-    "@stylistic/indent": {
-      "count": 15
-    }
-  },
-  "electron/ytm/trackBuffer.cjs": {
-    "@stylistic/indent": {
-      "count": 78
-    }
-  },
-  "electron/ytm/webExplore.cjs": {
-    "@stylistic/indent": {
-      "count": 105
-    }
-  },
-  "electron/ytm/webPages.cjs": {
-    "@stylistic/indent": {
-      "count": 115
+  "packages/folium-source-kit/src/errorText.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
     },
-    "no-irregular-whitespace": {
-      "count": 3
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
     }
   },
-  "electron/ytm/webSaves.cjs": {
+  "packages/folium-source-kit/src/krcDecrypt.ts": {
     "@stylistic/indent": {
-      "count": 15
-    }
-  },
-  "electron/ytm/webSignIn.cjs": {
-    "@stylistic/indent": {
-      "count": 267
+      "count": 43
     },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "electron/ytm/ytmApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 1134
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
     }
   },
   "packaging/ffmpeg/fetch-ffmpeg.mjs": {
@@ -1457,6 +1230,889 @@
     },
     "preserve-caught-error": {
       "count": 1
+    }
+  },
+  "sources/appleMusic/client/appleMusicData.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 3
+    }
+  },
+  "sources/appleMusic/client/appleMusicRadio.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    }
+  },
+  "sources/bodian/client/bodianCatalog.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 14
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianLibrary.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 16
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianProvider.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    }
+  },
+  "sources/bodian/main/bodianApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 24
+    }
+  },
+  "sources/bodian/main/mediaCors.cjs": {
+    "@stylistic/indent": {
+      "count": 40
+    }
+  },
+  "sources/bodian/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 80
+    }
+  },
+  "sources/fnmusic/main/fnmusicApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 306
+    }
+  },
+  "sources/kugou/core/kugouProvider.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 26
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 49
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 38
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 4
+    }
+  },
+  "sources/kugou/core/kugouTransport.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 20
+    }
+  },
+  "sources/kugou/main/kugouApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 373
+    }
+  },
+  "sources/netease/core/netease.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 22
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 12
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 24
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 132
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 6
+    },
+    "@typescript-eslint/only-throw-error": {
+      "count": 3
+    },
+    "dedicatus/log-module-prefix": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "sources/netease/core/neteaseExplore.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 16
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 38
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/unbound-method": {
+      "count": 1
+    }
+  },
+  "sources/netease/core/neteaseFailure.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    }
+  },
+  "sources/netease/core/neteaseLoginFailure.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    }
+  },
+  "sources/netease/core/neteaseProvider.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 27
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 15
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 54
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/netease/core/neteaseRaw.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    }
+  },
+  "sources/netease/main/neteaseLoginDiagnostics.cjs": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiCatalog.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiPlayback.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiProvider.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiRecommendations.ts": {
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiSceneCover.ts": {
+    "@typescript-eslint/no-misused-spread": {
+      "count": 1
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qqAccount.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 6
+    }
+  },
+  "sources/qq/core/qqCovers.ts": {
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qqExplore.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 16
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 14
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 43
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/prefer-promise-reject-errors": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 3
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qqGuessYouLike.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 18
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 2
+    }
+  },
+  "sources/qq/core/qqListeningRank.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 3
+    }
+  },
+  "sources/qq/core/qqLists.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 19
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 34
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/restrict-plus-operands": {
+      "count": 2
+    }
+  },
+  "sources/qq/core/qqLoginFailure.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 13
+    }
+  },
+  "sources/qq/core/qqMutations.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 12
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 17
+    }
+  },
+  "sources/qq/core/qqNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 24
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 14
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qqPreferences.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    }
+  },
+  "sources/qq/core/qqPreview.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    }
+  },
+  "sources/qq/core/qqProvider.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 21
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 6
+    },
+    "@typescript-eslint/no-unnecessary-template-expression": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 62
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 86
+    },
+    "@typescript-eslint/only-throw-error": {
+      "count": 2
+    },
+    "@typescript-eslint/restrict-plus-operands": {
+      "count": 3
+    },
+    "@typescript-eslint/return-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 2
+    }
+  },
+  "sources/qq/core/qqRecommendations.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 16
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qqSearch.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 12
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 13
+    }
+  },
+  "sources/qq/core/qqSessionRefresh.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 4
+    }
+  },
+  "sources/qq/core/qqSongDetail.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qqTransport.ts": {
+    "@typescript-eslint/no-dynamic-delete": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-template-expression": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 21
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/qq/core/qrcDecrypt.ts": {
+    "@stylistic/indent": {
+      "count": 210
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "dedicatus/log-module-prefix": {
+      "count": 1
+    }
+  },
+  "sources/qq/main/qqApiStartup.cjs": {
+    "@stylistic/indent": {
+      "count": 93
+    }
+  },
+  "sources/qq/main/qqAuthSessionRepository.cjs": {
+    "@stylistic/indent": {
+      "count": 82
+    }
+  },
+  "sources/qq/main/qqBackend.cjs": {
+    "@stylistic/indent": {
+      "count": 178
+    },
+    "@stylistic/quotes": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifyExplore.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 3
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 2
+    }
+  },
+  "sources/spotify/client/spotifyMutations.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifyNormalize.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 2
+    }
+  },
+  "sources/spotify/client/spotifyRecommendations.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifySoloistPlayback.ts": {
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifyTransport.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    }
+  },
+  "sources/spotify/main/audio.cjs": {
+    "@stylistic/indent": {
+      "count": 407
+    }
+  },
+  "sources/spotify/main/audioFiles.cjs": {
+    "@stylistic/indent": {
+      "count": 87
+    }
+  },
+  "sources/spotify/main/errors.cjs": {
+    "@stylistic/indent": {
+      "count": 26
+    }
+  },
+  "sources/spotify/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 82
+    }
+  },
+  "sources/spotify/main/signIn.cjs": {
+    "@stylistic/indent": {
+      "count": 132
+    }
+  },
+  "sources/spotify/main/soloist.cjs": {
+    "@stylistic/indent": {
+      "count": 620
+    }
+  },
+  "sources/spotify/main/soloistBuild.cjs": {
+    "@stylistic/indent": {
+      "count": 53
+    }
+  },
+  "sources/spotify/main/spotifyApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 498
+    }
+  },
+  "sources/ytm/client/ytmCatalog.ts": {
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/ytm/client/ytmExplore.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/ytm/client/ytmNormalize.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 2
+    }
+  },
+  "sources/ytm/client/ytmRecommendations.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/ytm/main/audio.cjs": {
+    "@stylistic/indent": {
+      "count": 238
+    }
+  },
+  "sources/ytm/main/browserSignIn.cjs": {
+    "@stylistic/indent": {
+      "count": 353
+    }
+  },
+  "sources/ytm/main/catalog.cjs": {
+    "@stylistic/indent": {
+      "count": 122
+    }
+  },
+  "sources/ytm/main/errors.cjs": {
+    "@stylistic/indent": {
+      "count": 35
+    }
+  },
+  "sources/ytm/main/poToken.cjs": {
+    "@stylistic/indent": {
+      "count": 46
+    }
+  },
+  "sources/ytm/main/sandbox.cjs": {
+    "@stylistic/indent": {
+      "count": 73
+    }
+  },
+  "sources/ytm/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 9
+    }
+  },
+  "sources/ytm/main/songVersion.cjs": {
+    "@stylistic/indent": {
+      "count": 5
+    }
+  },
+  "sources/ytm/main/tiles.cjs": {
+    "@stylistic/indent": {
+      "count": 15
+    }
+  },
+  "sources/ytm/main/trackBuffer.cjs": {
+    "@stylistic/indent": {
+      "count": 78
+    }
+  },
+  "sources/ytm/main/webExplore.cjs": {
+    "@stylistic/indent": {
+      "count": 105
+    }
+  },
+  "sources/ytm/main/webPages.cjs": {
+    "@stylistic/indent": {
+      "count": 115
+    },
+    "no-irregular-whitespace": {
+      "count": 3
+    }
+  },
+  "sources/ytm/main/webSaves.cjs": {
+    "@stylistic/indent": {
+      "count": 15
+    }
+  },
+  "sources/ytm/main/webSignIn.cjs": {
+    "@stylistic/indent": {
+      "count": 267
+    }
+  },
+  "sources/ytm/main/ytmApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 1134
     }
   },
   "src/App.tsx": {
@@ -2096,11 +2752,6 @@
       "count": 1
     }
   },
-  "src/components/app/playback/externalPlaybackGate.ts": {
-    "@typescript-eslint/unbound-method": {
-      "count": 1
-    }
-  },
   "src/components/app/playback/restore/createOnlineRecoveryController.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 6
@@ -2168,7 +2819,7 @@
   },
   "src/components/app/playback/start/useLibraryPlaybackController.ts": {
     "@stylistic/indent": {
-      "count": 7
+      "count": 2
     },
     "@typescript-eslint/no-deprecated": {
       "count": 6
@@ -2177,7 +2828,7 @@
       "count": 2
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 14
+      "count": 8
     },
     "@typescript-eslint/no-unnecessary-type-arguments": {
       "count": 1
@@ -2195,13 +2846,13 @@
       "count": 3
     },
     "dedicatus/log-module-prefix": {
-      "count": 18
+      "count": 17
     },
     "prefer-const": {
       "count": 1
     },
     "react-hooks/exhaustive-deps": {
-      "count": 26
+      "count": 25
     }
   },
   "src/components/app/playback/start/usePlaybackQueueController.ts": {
@@ -6690,11 +7341,6 @@
       "count": 1
     }
   },
-  "src/hooks/useLyricMatchSources.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
   "src/hooks/useLyricWordSegmentation.ts": {
     "@eslint-community/eslint-comments/require-description": {
       "count": 1
@@ -6719,11 +7365,6 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
-    }
-  },
-  "src/hooks/useNeteaseLibrary.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
     }
   },
   "src/hooks/useNowPlayingSource.ts": {
@@ -6985,7 +7626,7 @@
       "count": 2
     },
     "@typescript-eslint/require-await": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
@@ -7082,7 +7723,7 @@
   },
   "src/library/core/collection/cover/localCollectionCover.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
+      "count": 1
     }
   },
   "src/library/core/collection/cover/localCollectionCovers.service.ts": {
@@ -7574,14 +8215,6 @@
       "count": 1
     }
   },
-  "src/library/suites/bravais/bravaisSeamTabLabels.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    }
-  },
   "src/library/suites/bravais/bravaisTileForm.ts": {
     "@typescript-eslint/switch-exhaustiveness-check": {
       "count": 1
@@ -7964,14 +8597,11 @@
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 3
     },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 7
     },
     "@typescript-eslint/no-unsafe-call": {
-      "count": 10
+      "count": 9
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
@@ -9168,7 +9798,7 @@
       "count": 6
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 10
+      "count": 9
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
@@ -9187,14 +9817,6 @@
     },
     "prefer-const": {
       "count": 2
-    }
-  },
-  "src/services/localPlaylistService.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
     }
   },
   "src/services/localSongMatchSelectionService.ts": {
@@ -9345,138 +9967,6 @@
       "count": 3
     }
   },
-  "src/services/onlineMusic/appleMusic/appleMusicData.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    }
-  },
-  "src/services/onlineMusic/appleMusic/appleMusicProvider.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/appleMusic/appleMusicRadio.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianCatalog.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 14
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianLibrary.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 16
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 2
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianMutations.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 17
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 7
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/catalogRefs.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
@@ -9509,197 +9999,9 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/fnmusic/fnmusicProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-arguments": {
-      "count": 13
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-parameters": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/fnmusic/fnmusicTransport.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-empty-object-type": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 6
-    },
-    "dedicatus/restricted-apis": {
-      "count": 6
-    }
-  },
-  "src/services/onlineMusic/kugou/krcDecrypt.ts": {
-    "@stylistic/indent": {
-      "count": 43
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/kugou/kugouLyricProvider.ts": {
-    "@stylistic/indent": {
-      "count": 277
-    },
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 28
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 39
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/kugou/kugouProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 24
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 45
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 105
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 72
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 3
-    },
-    "@typescript-eslint/only-throw-error": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 2
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 2
-    },
-    "no-extra-boolean-cast": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/kugou/kugouTransport.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 11
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 12
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 22
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/listeningRank.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
-    }
-  },
-  "src/services/onlineMusic/login/loginBackendDiagnostics.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
     }
   },
   "src/services/onlineMusic/login/loginDiagnosticReport.ts": {
@@ -9708,194 +10010,6 @@
     },
     "@typescript-eslint/no-unnecessary-template-expression": {
       "count": 6
-    }
-  },
-  "src/services/onlineMusic/loginSelfCheck.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/netease.ts": {
-    "@stylistic/indent": {
-      "count": 858
-    },
-    "@stylistic/quotes": {
-      "count": 2
-    },
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 34
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 84
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 18
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 271
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 64
-    },
-    "@typescript-eslint/only-throw-error": {
-      "count": 3
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    },
-    "no-useless-escape": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseExplore.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 21
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 45
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "@typescript-eslint/unbound-method": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseFailure.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 5
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseLocalService.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseLoginDiagnostics.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unnecessary-template-expression": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseLoginFailure.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 5
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseProvider.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 23
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 119
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 28
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 244
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 10
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/restrict-plus-operands": {
-      "count": 12
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseRaw.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/useNeteaseApiStatusStore.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
     }
   },
   "src/services/onlineMusic/omni.ts": {
@@ -9909,7 +10023,7 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 49
+      "count": 37
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -9941,628 +10055,7 @@
       "count": 9
     }
   },
-  "src/services/onlineMusic/qishui/qishuiCatalog.ts": {
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiPlayback.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiProvider.ts": {
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiRecommendations.ts": {
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiSceneCover.ts": {
-    "@typescript-eslint/no-misused-spread": {
-      "count": 1
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqAccount.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 6
-    }
-  },
-  "src/services/onlineMusic/qq/qqExplore.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 16
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 14
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 43
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "@typescript-eslint/prefer-promise-reject-errors": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 3
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqGuessYouLike.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 18
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/qq/qqListeningRank.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
-    }
-  },
-  "src/services/onlineMusic/qq/qqLists.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 19
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 34
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "@typescript-eslint/restrict-plus-operands": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/qq/qqLoginDiagnostics.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-useless-default-assignment": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/qq/qqLoginFailure.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 13
-    }
-  },
-  "src/services/onlineMusic/qq/qqLyricProvider.ts": {
-    "@stylistic/indent": {
-      "count": 150
-    },
-    "@stylistic/quotes": {
-      "count": 14
-    },
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-deprecated": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 17
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 22
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqMutations.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 12
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 17
-    }
-  },
-  "src/services/onlineMusic/qq/qqNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 13
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 27
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 25
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqPlaylistDiagnostics.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 14
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 34
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqPreferences.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 8
-    }
-  },
-  "src/services/onlineMusic/qq/qqPreview.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 4
-    }
-  },
-  "src/services/onlineMusic/qq/qqProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 4
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 24
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 9
-    },
-    "@typescript-eslint/no-unnecessary-template-expression": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 76
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 103
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 2
-    },
-    "@typescript-eslint/only-throw-error": {
-      "count": 2
-    },
-    "@typescript-eslint/restrict-plus-operands": {
-      "count": 3
-    },
-    "@typescript-eslint/return-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/qq/qqRecommendations.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 16
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqSearch.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 12
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 13
-    }
-  },
-  "src/services/onlineMusic/qq/qqSessionRefresh.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 4
-    }
-  },
-  "src/services/onlineMusic/qq/qqSongDetail.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qqTransport.ts": {
-    "@typescript-eslint/no-dynamic-delete": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unnecessary-template-expression": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 9
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 21
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qq/qrcDecrypt.ts": {
-    "@stylistic/indent": {
-      "count": 210
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/songMetadata.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyExplore.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 3
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyMutations.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyNormalize.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyRecommendations.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifySoloistPlayback.ts": {
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/ytm/ytmAccount.ts": {
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/ytm/ytmCatalog.ts": {
-    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/ytm/ytmExplore.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/ytm/ytmNormalize.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/ytm/ytmRecommendations.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/ytm/ytmTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     }
@@ -11263,14 +10756,6 @@
       "count": 1
     }
   },
-  "src/utils/errorText.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    }
-  },
   "src/utils/fontStacks.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
@@ -11418,10 +10903,10 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 3
@@ -11507,14 +10992,6 @@
   },
   "src/utils/lyrics/lyricLineRules.ts": {
     "@typescript-eslint/switch-exhaustiveness-check": {
-      "count": 1
-    }
-  },
-  "src/utils/lyrics/lyricMatchSources.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
@@ -11891,10 +11368,10 @@
   },
   "src/vite-env.d.ts": {
     "@stylistic/indent": {
-      "count": 997
+      "count": 919
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 64
+      "count": 46
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
@@ -11975,7 +11452,7 @@
   },
   "test/component/accountBehavior.spec.ts": {
     "@stylistic/indent": {
-      "count": 405
+      "count": 144
     }
   },
   "test/component/artistBehavior.spec.ts": {
@@ -12091,6 +11568,14 @@
   "test/manual/issue125-inject-invalid-embedded-cover.js": {
     "@stylistic/indent": {
       "count": 41
+    }
+  },
+  "test/manual/kugouLyricProvider.ts": {
+    "@stylistic/indent": {
+      "count": 277
+    },
+    "@typescript-eslint/consistent-type-imports": {
+      "count": 1
     }
   },
   "test/manual/kugou_test.ts": {
@@ -12689,7 +12174,7 @@
   },
   "test/unit/lyrics/autoMatchNonPlatformSource.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 2
+      "count": 1
     }
   },
   "test/unit/lyrics/decryption.test.ts": {
@@ -12710,7 +12195,7 @@
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "test/unit/lyrics/lyricSourceStoredValues.test.ts": {
@@ -12766,7 +12251,7 @@
   },
   "test/unit/mod-system/foliumOmni.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 2
+      "count": 1
     }
   },
   "test/unit/mod-system/foliumQueueVersion.test.ts": {
@@ -12798,19 +12283,11 @@
     }
   },
   "test/unit/navigation/homeStageEntry.test.ts": {
-    "@stylistic/quotes": {
-      "count": 1
-    },
     "@typescript-eslint/await-thenable": {
       "count": 1
     }
   },
   "test/unit/onlineMusic/accountRead.test.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    }
-  },
-  "test/unit/onlineMusic/kugouProvider.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
       "count": 1
     }
@@ -12874,11 +12351,6 @@
       "count": 1
     }
   },
-  "test/unit/onlineMusic/onlineFailurePlatforms.test.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
   "test/unit/onlineMusic/providerSignOutAsks.test.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -12895,11 +12367,6 @@
     }
   },
   "test/unit/onlineMusic/qqLists.test.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    }
-  },
-  "test/unit/onlineMusic/qqProvider.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
       "count": 1
     }

@@ -2,13 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchAmllDbLyrics, searchAmllDbSongs } from '@/utils/lyrics/providers/amllDbProvider';
 import { fetchLyricsForMatchSource, searchAmllDbLyricCandidates } from '@/utils/lyrics/lyricMatchSources';
 import type { AmllApiSongItem } from '@/utils/lyrics/providers/amllApi';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 
 // test/unit/lyrics/lyricMatchSources.test.ts
 // Covers source-specific lyric matching orchestration.
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
+vi.mock('../../../sources/netease/core/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),
@@ -21,12 +20,7 @@ vi.mock('@/utils/lyrics/neteaseProcessing', () => ({
     processNeteaseLyrics: vi.fn(),
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
-    searchQQLyrics: vi.fn(),
-    fetchQQLyrics: vi.fn(),
-}));
-
-vi.mock('@/services/onlineMusic/kugou/kugouLyricProvider', () => ({
+vi.mock('../../manual/kugouLyricProvider', () => ({
     searchKugouLyrics: vi.fn(),
     fetchKugouLyrics: vi.fn(),
 }));

@@ -1,0 +1,11 @@
+{
+    "name": {
+        "short": "Apple Music"
+    },
+    "login": {
+        "title": "Sign in to Apple Music",
+        "note": "Sign in using the Apple window. Your password stays with Apple."
+    },
+    "linuxUnsupported": "Not supported on Linux yet",
+    "libraryPlaylistName": "All songs"
+}

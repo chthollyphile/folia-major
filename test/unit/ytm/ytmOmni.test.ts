@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
@@ -17,10 +18,11 @@ const songOf = (providerId: string): UnifiedSong => ({
 });
 
 describe('sign-in in the browser through Omni', () => {
-    it('registers YouTube Music as a desktop-only provider that needs an account', () => {
+    // A source mod runs in the desktop app only, so there is no "no bridge on the web build" to declare.
+    it('registers YouTube Music as a provider that needs an account', () => {
         const summary = omni.getProviderSummaries().find(provider => provider.providerId === 'ytm');
         expect(summary).toMatchObject({ displayName: 'YouTube Music', shortName: 'YT Music', requiresAccount: true,
-            availability: { configured: false, reason: 'runtime-unavailable' } });
+            availability: { configured: true } });
     });
 
     it('returns no QR image for the sign-in, which is confirmed in the browser, and opens the page through the provider', async () => {
@@ -42,7 +44,7 @@ describe('sign-in in the browser through Omni', () => {
     });
 
     it('has a sentence for a sign-in that found no browser only where the provider declares one', () => {
-        expect(omni.getLoginTexts('ytm')?.caseNotes?.['no-browser']).toBe('home.loginNoBrowserYtm');
+        expect(omni.getLoginTexts('ytm')?.caseNotes?.['no-browser']).toBe('folium-mod/ytm:login.noBrowser');
         expect(omni.getLoginTexts('bodian')?.caseNotes?.['no-browser']).toBeUndefined();
         // Asked after a failure, it does not fail itself: a provider that is not there has none.
         expect(omni.getLoginTexts('gone')).toBeNull();

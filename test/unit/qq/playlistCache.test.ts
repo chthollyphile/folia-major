@@ -1,13 +1,15 @@
+// @builtin-sources
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeQqCollection } from '@/services/onlineMusic/qq/qqNormalize';
+import { hostQqCollection } from '../helpers/qqSource';
 import { createOnlineCollectionResource, type OnlineCollectionResourceDeps } from '@/library/core/collection/resource/onlineCollectionResource.service';
 import { createCollectionTrackSnapshot } from '@/library/core/collection/resource/collectionTrackSnapshot.service';
 import type { OnlineTracksCacheEntry } from '@/library/core/collection/resource/onlineCollectionCache.service';
 import type { OnlineGridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 
-// Verify that QQ account hydration preserves the version used by the shared disk snapshot cache.
+// Verify that QQ account hydration preserves the version used by the shared disk snapshot cache. The collections are
+// the host's (the registered source mod's normalizing, then the host's shape), and hydration hands one back through it.
 const descriptor = (updateTime: number): OnlineGridViewCollectionDescriptor => ({
-    ...normalizeQqCollection({ tid: 7, dirId: 1, dirName: 'Playlist', songNum: 1, updateTime }),
+    ...hostQqCollection({ tid: 7, dirId: 1, dirName: 'Playlist', songNum: 1, updateTime }),
     source: 'online',
 });
 const settle = async () => {
@@ -37,7 +39,7 @@ describe('QQ playlist snapshot cache', () => {
         first.dispose();
         expect(cache.snapshotTime).toBe(1792948025000);
 
-        const hydrated = { ...normalizeQqCollection(collection), source: 'online' as const };
+        const hydrated = { ...hostQqCollection(collection), source: 'online' as const };
         const reopened = createOnlineCollectionResource('k', deps);
         reopened.ensure(hydrated, {});
         await settle();

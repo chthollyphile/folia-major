@@ -28,14 +28,20 @@ exports.default = async (context) => {
   const { prepareSteamAudio, hasSteamAudioFor } = await import("./fetchSteamAudio.mjs");
   if (hasSteamAudioFor(context.electronPlatformName, arch)) await prepareSteamAudio();
   else console.log(`[steam-audio] no library for ${context.electronPlatformName}-${arch}, skipped`);
-  if (context.electronPlatformName === 'win32') {
-    // The Apple Music WebView2 host (electron/appleMusic/windows), compiled with MSBuild.
-    const { prepareWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+  // The Apple Music companion only goes into a package that carries the Apple Music source (FOLIA_BUNDLED_SOURCES,
+  // build/bundledSources.mjs).
+  const { bundlesSource } = await import('./bundledSources.mjs');
+  const withAppleMusic = bundlesSource('appleMusic');
+  if (context.electronPlatformName === 'win32' && withAppleMusic) {
+    // The Apple Music WebView2 host (sources/appleMusic/native/windows), compiled with MSBuild.
+    const { prepareWindowsCompanion } = require('../sources/appleMusic/native/windows/prepareBundle.cjs');
     prepareWindowsCompanion({ arch, projectRoot: context.packager.projectDir });
   }
   if (context.electronPlatformName === 'darwin') {
-    const { prepareMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
-    prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });
+    if (withAppleMusic) {
+      const { prepareMacCompanion } = require('../sources/appleMusic/native/macos/prepareBundle.cjs');
+      prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });
+    }
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });
     // The wallpaper's Stage Manager click guard (issue #698), a small native helper.

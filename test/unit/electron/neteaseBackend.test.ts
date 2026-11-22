@@ -8,16 +8,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // 网易后端的错误边界：上游包加载前的准备失败（#690：临时目录不可用）不能带崩主进程，要变成 load 步骤的失败与 error 状态。
 // 用真的工作线程跑：加载在线程里进行，失败要经线程的回话变成主进程这边的状态和诊断。
 
-const { createNeteaseBackend } = require('../../../electron/netease/neteaseBackend.cjs') as {
+const { createNeteaseBackend } = require('../../../sources/netease/main/neteaseBackend.cjs') as {
     createNeteaseBackend: (options: Record<string, unknown>) => {
         start: (reason?: string) => Promise<any>;
         getStatus: () => any;
         getPort: () => number | null;
         getDiagnostics: () => Promise<any>;
+        preload: () => void;
+        stop: () => Promise<void>;
     };
 };
 
-const WORKER_PATH = path.resolve(__dirname, '../../../electron/netease/neteaseApiWorker.cjs');
+const WORKER_PATH = path.resolve(__dirname, '../../../sources/netease/main/neteaseApiWorker.cjs');
 const workers: Worker[] = [];
 const createWorker = () => {
     const worker = new Worker(WORKER_PATH, { env: SHARE_ENV });
@@ -77,8 +79,16 @@ describe('NetEase backend load boundary', () => {
 class FakeWorker extends EventEmitter {
     posted: any[] = [];
 
+    terminated = 0;
+
     postMessage(message: any) {
         this.posted.push(message);
+    }
+
+    async terminate() {
+        this.terminated += 1;
+        this.emit('exit', 1);
+        return 1;
     }
 }
 
@@ -103,7 +113,7 @@ describe('NetEase backend on the main thread', () => {
             const message = worker.posted[worker.posted.length - 1];
             worker.emit('message', { type: 'result', id: message.id, ...value });
         };
-        return { backend, fakes, answer, advance: (ms: number) => { clock += ms; } };
+        return { backend, fakes, answer, broadcast, advance: (ms: number) => { clock += ms; } };
     };
 
     it('runs on the port the worker listened on, and goes down when the worker ends', async () => {
@@ -131,5 +141,57 @@ describe('NetEase backend on the main thread', () => {
         advance(10_000);
         void backend.start('needed');
         expect(fakes[0].posted).toHaveLength(2);
+    });
+
+    // The source mod stops or the app quits (main/index.ts): the thread ends and the state goes back to idle. After
+    // that nothing starts it again: a start answers the state as it is, a preload opens no thread.
+    it('ends the worker when stopped, says idle, and starts nothing after', async () => {
+        const { backend, fakes, answer, broadcast } = setup();
+        const started = backend.start();
+        answer({ ok: true, value: { port: 4321 } });
+        await started;
+
+        await backend.stop();
+        expect(fakes[0].terminated).toBe(1);
+        expect(backend.getStatus()).toMatchObject({ status: 'idle', port: null, error: null });
+        expect(backend.getPort()).toBeNull();
+        expect(broadcast).toHaveBeenLastCalledWith('netease-api-status-changed', expect.objectContaining({ status: 'idle' }));
+
+        await expect(backend.start('needed')).resolves.toMatchObject({ status: 'idle' });
+        backend.preload();
+        expect(fakes).toHaveLength(1);
+        expect(fakes[0].posted).toHaveLength(1);
+    });
+
+    it('stopped while a start waits, ends that start too, without telling the page it failed', async () => {
+        const { backend, fakes, broadcast } = setup();
+        const started = backend.start();
+        await backend.stop();
+        await expect(started).resolves.toMatchObject({ status: expect.any(String) });
+        expect(fakes[0].terminated).toBe(1);
+        expect(backend.getStatus()).toMatchObject({ status: 'idle' });
+        // Switched off or cleared while starting: the page hears starting, then idle, never an error to show.
+        const told = broadcast.mock.calls.map(([, status]) => (status as { status: string }).status);
+        expect(told).not.toContain('error');
+        expect(told[told.length - 1]).toBe('idle');
+    });
+
+    it('hands an exception the worker did not catch to onWorkerError instead of throwing it', () => {
+        const onWorkerError = vi.fn();
+        const fakes: FakeWorker[] = [];
+        const backend = createNeteaseBackend({
+            broadcast: vi.fn(),
+            logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+            onWorkerError,
+            createWorker: () => {
+                const worker = new FakeWorker();
+                fakes.push(worker);
+                return worker;
+            },
+        });
+        void backend.start();
+        const error = new Error('thrown in a callback of the package');
+        expect(() => fakes[0].emit('error', error)).not.toThrow();
+        expect(onWorkerError).toHaveBeenCalledWith(error);
     });
 });

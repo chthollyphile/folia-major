@@ -279,6 +279,8 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `delete-collection` | 删除歌单 / 文件夹 | 可选，需要确认 | `mutations.deleteCollection` |
 | `resync-folder` / `resync-all-folders` | 重新扫描文件夹 | 可选 | `mutations.resyncFolder` / `resyncAllFolders` |
 | `export-playlist` | 导出本地歌单 | 可选 | `mutations.exportPlaylist` |
+| `save-to-folia` | 把平台歌单 / 专辑（在线音源或 Navidrome）存成 Folia 歌单（打开宿主的对话框） | 可选 | `mutations.saveToFolia` |
+| `refresh-from-origin` | 转存来的 Folia 歌单从原歌单更新（打开宿主的对话框） | 可选 | `mutations.refreshFromOrigin` |
 | `edit-entity` / `organize-song-info` / `match-song` | 打开宿主的编辑 / 整理 / 匹配对话框 | 可选，几乎零成本（对话框由宿主提供） | `mutations.editEntity` / `organizeSongInfo` / `matchSong` |
 | `set-cover` | 打开宿主的集合封面对话框（本地文件夹 / 专辑 / 歌单的自定义封面：poster.png、上传、选一首歌的封面，或恢复默认） | 可选，几乎零成本（对话框由宿主提供） | `mutations.setCover`；能力 `capabilities.setCover`。封面本身由 core 解析好（首页分组、集合描述的 `coverUrl`、本地歌手页的专辑），suite 不必自己查；画曲目本身时用描述的 `automaticCoverUrl` |
 | `daily-date` | 切换每日推荐的历史日期 | 可选 | `mutations.setDailyDate` |
@@ -419,7 +421,7 @@ account surface 只在 `pendingSwitch` 非空时渲染内容。它不是一页�
 
 写首页上的账户入口与 account surface 时：
 
-- 不要调 Omni 的登录 / 登出接口，也不要读 `useOnlineProviderAccountStore`、`useNeteaseApiStatusStore`，数据和动作都来自 controller；要登录就调 `openLoginWindow`，不要自己画登录界面。
+- 不要调 Omni 的登录 / 登出接口，也不要读 `useOnlineProviderAccountStore`，数据和动作都来自 controller；要登录就调 `openLoginWindow`，不要自己画登录界面。
 - 确认框按下确认后立即收起：`confirmSwitch` 同步清掉 `pendingSwitch`，不要 `await confirmSwitch` 再关框（它要等清理与刷新走完）。
 - 登出入口的可用性用 `core/account/accountRules` 的 `canLogoutProvider`，且 `logout.status` 不是 `pending`；与 controller 的判定、登录窗口、AccountTab 一致。
 - 键盘只在 `isInteractive` 为真且确认框显示着时接。`isInteractive` 是首页外壳层的值，集合层打开时可能仍为真；确认框在最上层时，挂 `data-folia-keyboard-window` 让底下的页面按键与全局热键让路。独占不带修饰键的按键可以复用 `src/hooks/useExclusiveKeyLayer`。

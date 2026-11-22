@@ -25,6 +25,13 @@
 //     used without its permission declared is a problem;
 //   - that the folder can be hashed (a folder that cannot is never enabled), and
 //     whether it carries an official signature that still matches its files;
+//   - Folium 2.0 source mods (mod.json `sources`): they need no `net.fetch` or
+//     `filesystem.data` for `folium.net.fetch`, `folium.storage` and `api.storage`;
+//     each declared source is registered in the client (`folium.sources.register`
+//     with its id written out); the capability ids the code names are ones this
+//     host knows (src/mods/folium/sources/capabilities.ts). A mod that is no source
+//     mod cannot register one, and a `folium: 1` mod has no `folium.sources` or
+//     `folium.i18n`. An empty `sources` is refused by the manifest check itself;
 //   - Folium 1.6 only: the names Folium 2 removes, in mod.json and in the code
 //     (the tables of src/mods/folium/deprecated/oldNames.ts and
 //     electron/modSystem/deprecated.cjs). They still work: each is a warning,
@@ -52,9 +59,10 @@ import { FOLIUM_KINDS } from '../../src/mods/folium/kinds.ts';
 import { FOLIUM_EVENT_TYPES } from '../../src/mods/folium/eventTypes.ts';
 import { FOLIUM_OLD_CLIENT_NAMES, FOLIUM_OLD_REGISTRY_NAMES, foliumOldNameAdvice } from '../../src/mods/folium/deprecated/oldNames.ts';
 import { readFoliumShared } from './api-docs.mjs';
+import { isFoliumStandardCapability, parseFoliumCapabilityKey, supportsFoliumCapability, FOLIUM_CUSTOM_CAPABILITY_PATTERN } from '../../src/mods/folium/sources/capabilities.ts';
 
 const require = createRequire(import.meta.url);
-const { validateManifest, satisfiesHostRange } = require('../../electron/modSystem/manifest.cjs');
+const { validateManifest, satisfiesHostRange, isSourceManifest } = require('../../electron/modSystem/manifest.cjs');
 const { OLD_MAIN_NAMES, oldNameText, oldNameWarnings } = require('../../electron/modSystem/deprecated.cjs');
 const { computeModDigest } = require('../../electron/modSystem/modDigest.cjs');
 const { verifyModSignature } = require('../../electron/modSystem/modSignature.cjs');
@@ -155,7 +163,16 @@ const readUses = (text) => {
         const literal = strings.get(match.index + match[0].length);
         if (literal && /^[a-z][a-z0-9-]*$/.test(literal.text)) platformRequests.push(literal.text);
     }
-    return { code, registries, experimental, events, platformRequests };
+    // Folium 2.0: every string the code writes out (source ids, capability keys), and its use of the sources.
+    const literals = Array.from(strings.values(), (literal) => literal.text);
+    // Written out as `folium.sources.register` (what a mod that is no source mod is held to), or any `.register(`
+    // after a `sources` (an aliased `const s = folium.sources`), which is all a reading of text can see.
+    const callsFoliumSourcesRegister = /\bfolium\s*(?:\?\.|\.)\s*sources\s*(?:\?\.|\.)\s*register\b/.test(code);
+    const mayRegisterSource = /\bsources\b/.test(code) && /(?:\?\.|\.)\s*register\s*\(/.test(code);
+    // The Folium 2 members a `folium: 1` mod does not have: the two services, and two members of 1.x services.
+    const foliumTwoMembers = [...code.matchAll(/\bfolium\s*(?:\?\.|\.)\s*(sources|i18n|lyrics\s*(?:\?\.|\.)\s*isPureMusicText|omni\s*(?:\?\.|\.)\s*capability)\b/g)]
+        .map((match) => match[1].replace(/\s*\??\.\s*/, '.'));
+    return { code, registries, experimental, events, platformRequests, literals, callsFoliumSourcesRegister, mayRegisterSource, foliumTwoMembers };
 };
 
 /** Matches a use of `member` (e.g. `api.runtime.getPlaybackSnapshot`), each dot also written `?.`. */
@@ -201,6 +218,50 @@ const oldNameWarningsIn = (files, rows, text) => {
             ? Array.from(strings.values()).some((literal) => pattern.test(literal.text))
             : pattern.test(code))))
         .map(text);
+};
+
+/*
+ * Folium 2.0 (plan §4.1, §5.2): what a client's code does with `folium.sources`, against its manifest. A source
+ * mod registers each source it declares (its id written out in the code), and names only capabilities this host
+ * knows; any other mod registers none; a `folium: 1` mod has no Folium 2 member at all.
+ */
+const checkSources = (manifest, isSource, used, problems, notes) => {
+    if (manifest.folium !== 2) {
+        for (const name of used.foliumTwoMembers) {
+            problems.push(`folium.${name} is Folium 2: mod.json says "folium": 1, and such a mod has none`);
+        }
+        return;
+    }
+    if (!isSource) {
+        if (used.callsFoliumSourcesRegister) problems.push('folium.sources.register is for a source mod: declare the sources under "sources" in mod.json');
+        return;
+    }
+    if (!used.callsFoliumSourcesRegister && !used.mayRegisterSource) {
+        problems.push('mod.json declares sources and the client never calls folium.sources.register: the app would take the source exemptions back');
+    }
+    for (const source of manifest.sources) {
+        if (!used.literals.has(source.id)) {
+            problems.push(`mod.json declares the source "${source.id}" and the client never names it: register it with folium.sources.register({ id: '${source.id}', … })`);
+        }
+    }
+    for (const text of used.literals) {
+        if (text.startsWith('x.') && text.includes('@')) {
+            // Another mod's custom capability may be read (folium.omni.capability); only one of this mod's own
+            // that is badly written is sure to be wrong. One of another mod as a key of `capabilities` is left
+            // out by the app (said in the mod's row), which a reading of text cannot tell from reading it.
+            if (text.startsWith(`x.${manifest.id}.`) && !FOLIUM_CUSTOM_CAPABILITY_PATTERN.test(text)) {
+                problems.push(`capability "${text}": a custom capability of this mod is named x.${manifest.id}.<name>@<version>`);
+            } else if (!text.startsWith(`x.${manifest.id}.`) && FOLIUM_CUSTOM_CAPABILITY_PATTERN.test(text)) {
+                notes.push(`capability "${text}" is another mod's: reading it with folium.omni.capability is fine; as a key of your capabilities the app leaves it out`);
+            }
+            continue;
+        }
+        const key = parseFoliumCapabilityKey(text);
+        if (!key || !isFoliumStandardCapability(key.id)) continue;
+        if (!supportsFoliumCapability(key.id, key.version)) {
+            notes.push(`capability "${text}": this host does not implement it, and leaves it out (folium.sources.supports('${key.id}', ${key.version}) is false)`);
+        }
+    }
 };
 
 /**
@@ -251,11 +312,16 @@ export const checkFoliumMod = (directory) => {
     }
 
     const shared = readFoliumShared();
+    // Folium 2.0 (plan §5.2): a source mod needs neither of these for the network and the data file.
+    const isSource = isSourceManifest(manifest);
+    const SOURCE_EXEMPT = new Set(['net.fetch', 'filesystem.data']);
     // Each member a permission guards, with that permission. A registry's permission is the kinds
     // table's, which the app's registries read; those are checked with the registries below.
-    const guarded = Object.entries(shared.permissions).flatMap(([id, permission]) => permission.guards
-        .filter((member) => !member.startsWith('folium.registries.'))
-        .map((member) => ({ member, id, pattern: memberPattern(member) })));
+    const guarded = Object.entries(shared.permissions)
+        .filter(([id]) => !(isSource && SOURCE_EXEMPT.has(id)))
+        .flatMap(([id, permission]) => permission.guards
+            .filter((member) => !member.startsWith('folium.registries.'))
+            .map((member) => ({ member, id, pattern: memberPattern(member) })));
     // `root` is 'folium' for the client entry's code, 'api' for the main entry's.
     const checkGuarded = (codes, root) => {
         for (const { member, id, pattern } of guarded) {
@@ -276,13 +342,21 @@ export const checkFoliumMod = (directory) => {
                 problems.push(`${manifest.client} has no default export: the app calls its default export as activate(folium)`);
             }
         }
-        const used = { registries: new Set(), experimental: new Set(), events: new Set(), platformRequests: new Set() };
+        const used = {
+            registries: new Set(), experimental: new Set(), events: new Set(), platformRequests: new Set(),
+            literals: new Set(), foliumTwoMembers: new Set(), callsFoliumSourcesRegister: false, mayRegisterSource: false,
+        };
         for (const use of uses.values()) {
             use.registries.forEach((name) => used.registries.add(name));
             use.experimental.forEach((name) => used.experimental.add(name));
             use.events.forEach((name) => used.events.add(name));
             use.platformRequests.forEach((id) => used.platformRequests.add(id));
+            use.literals.forEach((text) => used.literals.add(text));
+            use.foliumTwoMembers.forEach((name) => used.foliumTwoMembers.add(name));
+            used.callsFoliumSourcesRegister ||= use.callsFoliumSourcesRegister;
+            used.mayRegisterSource ||= use.mayRegisterSource;
         }
+        checkSources(manifest, isSource, used, problems, notes);
         for (const usedName of used.registries) {
             // Folium 1.6 only: an old registry name means the registry it is now (the warning is below).
             const name = Object.hasOwn(FOLIUM_OLD_REGISTRY_NAMES, usedName) ? FOLIUM_OLD_REGISTRY_NAMES[usedName] : usedName;

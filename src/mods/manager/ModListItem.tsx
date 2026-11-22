@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckSquare, ChevronDown, CircleCheck, CircleOff, FlaskConical, ShieldAlert, ShieldCheck, ShieldQuestion, Square, TriangleAlert } from 'lucide-react';
+import { CheckSquare, ChevronDown, CircleCheck, CircleOff, FlaskConical, Package, ShieldAlert, ShieldCheck, ShieldQuestion, Square, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '@/types';
 import { SettingsToggle } from '../../components/modal/settings/SettingsRow';
@@ -15,6 +15,7 @@ import { translateModError } from './modErrors';
 import { MOD_FILES_PERMISSION, ModStorageUsage, type ModNotice } from './ModStorageUsage';
 import { useFoliumOldNameStore } from '../folium/deprecated/warnings';
 import { omni } from '@/services/onlineMusic/omni';
+import { openSettings } from '@/stores/useSettingsModalStore';
 
 // src/mods/manager/ModListItem.tsx
 // One mod as a row of the manager's list card. The row expands in place to show the mod's
@@ -51,6 +52,14 @@ const platformGrantsOf = (mod: ModRuntimeInfo, access: 'read' | 'write'): string
 const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = ({ mod, isDaylight }) => {
     const { t } = useTranslation();
     const { status } = mod.signature;
+    // Folium 2.0: a built-in copy carries no signature; the installation vouches for it (plan §5.2).
+    if (status === 'builtin') {
+        return (
+            <span title={t('mods.signatureBuiltin')} className={`shrink-0 ${isDaylight ? 'text-sky-700' : 'text-sky-300'}`}>
+                <Package size={14} />
+            </span>
+        );
+    }
     if (status === 'verified') {
         return (
             <span title={t('mods.signatureVerified')} className={`shrink-0 ${isDaylight ? 'text-emerald-600' : 'text-emerald-300'}`}>
@@ -79,6 +88,18 @@ const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = (
 const SignatureNotice: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean; classes: ModManagerClasses }> = ({ mod, isDaylight, classes }) => {
     const { t } = useTranslation();
     const { status, reason, keyId, keyLabel } = mod.signature;
+    if (status === 'builtin') {
+        return (
+            <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.success}`}>
+                <Package size={14} className="mt-px shrink-0" />
+                <span>
+                    <span className="font-medium">{t('mods.signatureBuiltin')}</span>
+                    {' · '}
+                    {t('mods.signatureBuiltinDetail')}
+                </span>
+            </div>
+        );
+    }
     if (status === 'verified') {
         return (
             <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.success}`}>
@@ -131,10 +152,11 @@ const SignatureNotice: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean; clas
     );
 };
 
-const StatusIcon: React.FC<{ status: string; isDaylight: boolean }> = ({ status, isDaylight }) => {
+const StatusIcon: React.FC<{ status: string; error?: string | null; isDaylight: boolean }> = ({ status, error, isDaylight }) => {
     if (status === 'loaded') return <CircleCheck size={15} className={`${isDaylight ? 'text-emerald-600' : 'text-emerald-300'} shrink-0`} />;
     // 'skipped' (this run was started without mods) is not running and not broken: it reads as off.
-    if (status === 'disabled' || status === 'skipped') return <CircleOff size={15} className={`${isDaylight ? 'text-zinc-400' : 'text-white/35'} shrink-0`} />;
+    // A community mod while community mods are off is held back by the user's own switch, not broken.
+    if (status === 'disabled' || status === 'skipped' || error === 'community-off') return <CircleOff size={15} className={`${isDaylight ? 'text-zinc-400' : 'text-white/35'} shrink-0`} />;
     return <TriangleAlert size={15} className={`${isDaylight ? 'text-red-600' : 'text-red-300'} shrink-0`} />;
 };
 
@@ -204,12 +226,22 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                         {selected ? <CheckSquare size={15} /> : <Square size={15} />}
                     </span>
                 ) : (
-                    <StatusIcon status={mod.status} isDaylight={isDaylight} />
+                    <StatusIcon status={mod.status} error={mod.error} isDaylight={isDaylight} />
                 )}
                 <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{mod.name}</span>
                         <SignatureBadge mod={mod} isDaylight={isDaylight} />
+                        {mod.kind === 'source' ? (
+                            <span className="shrink-0 text-[10px] px-1.5 py-px rounded-full border opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                {t('mods.kindSource')}
+                            </span>
+                        ) : null}
+                        {mod.error === 'community-off' ? (
+                            <span data-mod-community-off="" className={`shrink-0 text-[10px] px-1.5 py-px rounded-full border ${classes.muted}`}>
+                                {t('mods.communityOffMark')}
+                            </span>
+                        ) : null}
                         {isModSlow(runningCost) ? <ModSlowMark isDaylight={isDaylight} /> : null}
                     </div>
                     <div className="text-[11px] opacity-50 truncate" style={{ color: 'var(--text-secondary)' }}>{meta}</div>
@@ -261,6 +293,20 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                             <SignatureNotice mod={mod} isDaylight={isDaylight} classes={classes} />
                             {mod.devSource ? (
                                 <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>{t('mods.devSourceHint')}</div>
+                            ) : null}
+                            {/* Folium 2.0 (plan §5.3): a source mod's sources are switched one by one in Settings → Sources. */}
+                            {mod.kind === 'source' ? (
+                                <div className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('mods.sourceSwitchHint')}
+                                    {' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => openSettings('options', 'sources', null, 'sourceList')}
+                                        className="underline underline-offset-2 hover:opacity-80"
+                                    >
+                                        {t('mods.sourceSwitchOpen')}
+                                    </button>
+                                </div>
                             ) : null}
                             {readPlatforms.length > 0 ? (
                                 <div className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>

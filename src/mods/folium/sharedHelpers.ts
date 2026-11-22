@@ -8,6 +8,7 @@ import { buildWordColorRanges, resolveWordColor } from '@/components/visualizer/
 import type { FoliumLine, FoliumLyricsHelpers, FoliumThemeHelpers } from './contract';
 import { toFoliumLines } from './dto';
 import { normalizeFoliumLyricsTrack, parseFoliumLyricsTrack } from './lyricsSource';
+import { isPureMusicLyricText } from '@/utils/lyrics/pureMusic';
 
 // src/mods/folium/sharedHelpers.ts
 // `folium.lyrics` and `folium.theme`: the pure helpers builtin visualizers
@@ -53,6 +54,7 @@ const lyricsHelpers: FoliumLyricsHelpers = {
             isWordByWord: Boolean(lyrics?.isWordByWord && lyrics.lines.length > 0),
         });
     },
+    isPureMusicText: (text) => isPureMusicLyricText(typeof text === 'string' ? text : null),
 };
 
 export const FOLIUM_LYRICS_HELPERS: FoliumLyricsHelpers = Object.freeze(lyricsHelpers);

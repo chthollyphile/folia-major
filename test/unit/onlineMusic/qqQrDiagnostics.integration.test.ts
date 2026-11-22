@@ -2,9 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryAccountAuthPort, LibraryAccountClock } from '@/library/core/account/account.contract';
 
 // test/unit/onlineMusic/qqQrDiagnostics.integration.test.ts
-// 正式的 transport、provider 与 core 的登录会话串起来，只把 HTTP 换成桩：后端回了什么，复制出来的报告里就有它说的
+// 正式的 transport、网页版的 QQ 音源（web/qq.ts 经适配层注册）与 core 的登录会话串起来，只把 HTTP 换成桩：后端回了什么，复制出来的报告里就有它说的
 // （失败阶段与原因、HTTP 状态、退避时长、窗口显示的那一种情况），而登录凭据（session 的值）永远不出现。
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ fetchQQLyrics: vi.fn(), searchQQLyrics: vi.fn(), searchQQSongs: vi.fn() }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', async importOriginal => ({
+    ...await importOriginal<object>(),
+    fetchQQLyrics: vi.fn(),
+    searchQQLyrics: vi.fn(),
+    searchQQSongs: vi.fn(),
+}));
 
 const storage = new Map<string, string>();
 const fetchMock = vi.fn();
@@ -41,10 +46,12 @@ const createManualClock = () => {
 };
 
 const createSession = async () => {
-    const { qqProvider } = await import('@/services/onlineMusic/qq/qqProvider');
+    const { registerWebSource } = await import('@/services/onlineMusic/web/qq');
+    const { getOnlineMusicProvider } = await import('@/services/onlineMusic/providerRegistry');
+    registerWebSource();
     const { createProviderLoginSession } = await import('@/library/core/account/providerLoginSession.service');
     const { noteLoginFailure } = await import('@/services/onlineMusic/login/loginFailureCase');
-    const qqAuth = qqProvider.auth!;
+    const qqAuth = getOnlineMusicProvider('qq')!.auth!;
     // omni's runLoginStep: the provider's own words for a thrown error go with it.
     const step = async <T,>(name: 'start' | 'check', run: () => Promise<T>): Promise<T> => {
         try {
@@ -97,11 +104,14 @@ describe('QQ QR copied report integration', () => {
         fetchMock.mockReset();
         vi.stubEnv('VITE_QQ_API_BASE', 'https://qq.example.test');
         vi.stubGlobal('fetch', fetchMock);
-        vi.stubGlobal('localStorage', {
+        const localStorage = {
             getItem: (key: string) => storage.get(key) ?? null,
             setItem: (key: string, value: string) => storage.set(key, value),
             removeItem: (key: string) => storage.delete(key),
-        });
+        };
+        vi.stubGlobal('localStorage', localStorage);
+        // 页面存储（宿主的 pageStore）只在有 window 的地方读写 localStorage。
+        vi.stubGlobal('window', { localStorage });
         vi.spyOn(console, 'info').mockImplementation(() => { });
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });

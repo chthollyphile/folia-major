@@ -155,6 +155,61 @@ export const timeFoliumMod = <T>(modId: string, where: string, call: () => T): T
 );
 
 /*
+ * Folium 2.0 (plan §5.2, `guard.ts:148-155` in §5.4): the source mods whose synchronous members the host calls
+ * on its hot paths (capabilities, song metadata, a status check in a 500 ms poll). Those are not timed and not
+ * wrapped: a source's failure there is an ordinary result its contract describes. The registry adapter of S3
+ * marks a source mod here and calls its members through callFoliumSourceMember.
+ */
+const untimedSourceMods = new Set<string>();
+
+/** Marks `modId` as a source mod (or not): its hot-path members then skip the gate. */
+export const markFoliumSourceMod = (modId: string, isSource: boolean): void => {
+    if (isSource) untimedSourceMods.add(modId);
+    else untimedSourceMods.delete(modId);
+};
+
+/**
+ * Calls a synchronous member of a mod on a host hot path: a source mod's is called as it is (no clock reads, no
+ * catch: a throw reaches the caller); any other mod's goes through the gate like timeFoliumMod.
+ */
+export const callFoliumSourceMember = <T>(modId: string, where: string, call: () => T): T => (
+    untimedSourceMods.has(modId) ? call() : timeFoliumMod(modId, where, call)
+);
+
+/* The (mod, member) pairs whose throw has been logged this run: once is enough on a path called every frame. */
+const loggedSourceMemberThrows = new Set<string>();
+
+/**
+ * Folium 2.0 (S3): a synchronous member of a mod's source as the host calls it on its hot paths, made once when
+ * the source is adapted. A source mod's member reads no clock and is not counted (plan §5.2), but a throw does not
+ * reach the host: these members are called while the UI renders (a list row asks a song's availability), and
+ * nothing above that render catches, so one bad source would take the whole window down. The call answers
+ * `fallback(...args)` instead, the member's cautious answer (not playable, not editable, no state), logged once a
+ * run; like any failure of a source method it is an ordinary result, nothing is shown (plan §5.2). Any other
+ * mod's member goes through the gate like callFoliumSourceMember.
+ */
+export const foliumSourceMember = <Args extends unknown[], Result>(
+    modId: string,
+    where: string,
+    member: (...args: Args) => Result,
+    fallback: (...args: Args) => Result,
+): ((...args: Args) => Result) => {
+    if (!untimedSourceMods.has(modId)) return (...args: Args) => timeFoliumMod(modId, where, () => member(...args));
+    return (...args: Args): Result => {
+        try {
+            return member(...args);
+        } catch (error) {
+            const key = `${modId}\n${where}`;
+            if (!loggedSourceMemberThrows.has(key)) {
+                loggedSourceMemberThrows.add(key);
+                console.warn(`[FoliumSources] ${modId}: ${where} threw; the host takes its cautious answer`, error);
+            }
+            return fallback(...args);
+        }
+    };
+};
+
+/*
  * Wraps a function a mod hands over to be called again and again (a listener,
  * a predicate). This is the per-frame path: a clock listener runs every frame,
  * so one call costs a try, two clock reads and a few additions, allocates

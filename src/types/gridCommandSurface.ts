@@ -24,6 +24,8 @@ export type GridSurfaceActionId =
     | 'organize-song-info'
     | 'reorder-playlist'
     | 'export-playlist'
+    | 'save-to-folia'
+    | 'refresh-from-origin'
     | 'edit-entity'
     | 'set-cover'
     | 'toggle-edit-mode'

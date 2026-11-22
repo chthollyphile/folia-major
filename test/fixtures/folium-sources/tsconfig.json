@@ -1,0 +1,11 @@
+{
+  "extends": "../../../sources/tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@folia/folium": ["../../../mods/folium.d.ts"],
+      "@folia/folium-source-kit": ["../../../packages/folium-source-kit/src/index.ts"],
+      "@folia/source-deps": ["../../../dev/sources/sourceDeps.d.ts"]
+    }
+  },
+  "include": ["*/core/**/*", "*/client/**/*", "*/main/**/*", "client-only/*/client/**/*", "deps-archive/*/client/**/*", "deps-archive/*/main/**/*", "deps-archive/shared/**/*"]
+}

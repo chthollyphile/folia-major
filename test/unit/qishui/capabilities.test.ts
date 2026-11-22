@@ -1,25 +1,28 @@
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
-import { qishuiCatalog, qishuiLibrary } from '@/services/onlineMusic/qishui/qishuiCatalog';
-import { qishuiMutations } from '@/services/onlineMusic/qishui/qishuiMutations';
-import { clearQishuiPlayback, readQishuiSongs } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { normalizeQishuiCollection, normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
+import { clearQishuiPlayback, readQishuiSongs } from '../../../sources/qishui/client/qishuiPlayback';
 import { omni } from '@/services/onlineMusic/omni';
 import type { ProviderCollection } from '@/types/onlineMusic';
+import { answerQishuiRequests, hostQishuiCollection, hostQishuiSong, lazyQishui, qishuiProvider } from '../helpers/qishuiSource';
 import { track } from './fixtures';
 
-// Exercise the existing Omni entry points and renderer adapter with safe IPC replies.
+// Exercise the existing Omni entry points and the registered source mod with safe replies of the main entry.
 const request = vi.fn();
+const qishuiCatalog = lazyQishui(provider => provider.catalog);
+const qishuiLibrary = lazyQishui(provider => provider.library);
+const qishuiMutations = lazyQishui(provider => provider.mutations);
+const normalizeQishuiCollection = (raw: unknown) => hostQishuiCollection(raw);
+let off = () => {};
 const playlist = (extra: Partial<ProviderCollection> = {}): ProviderCollection => ({
     providerId: 'qishui', type: 'playlist', id: '99', name: 'List', isOwned: true, ...extra,
 });
-const song = () => normalizeQishuiSong(track());
+const song = () => hostQishuiSong(track());
 beforeEach(() => {
     clearQishuiPlayback();
     request.mockReset().mockResolvedValue({ ok: true, data: null });
-    vi.stubGlobal('window', { electron: { qishuiRequest: request } });
+    off = answerQishuiRequests((operation, params) => request(operation, params)).off;
 });
-afterEach(() => { clearQishuiPlayback(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { clearQishuiPlayback(); off(); vi.restoreAllMocks(); });
 
 describe('Qishui account capabilities', () => {
     it('offers hearts and playlist edits through Omni, while unavailable writes stay absent', () => {
@@ -57,13 +60,12 @@ describe('Qishui account capabilities', () => {
             id: '99', ids: ['7676337516358617115'],
         });
     });
-    it('rejects foreign tracks, non-owned/liked/history lists, and oversized batches before IPC', async () => {
-        for (const target of [playlist({ isOwned: false }), playlist({ isLiked: true }), playlist({ type: 'history' }), playlist({ providerId: 'netease' })]) {
+    // Another platform's songs and playlists never reach the source: omni hands each source its own (the source mod
+    // sees only DTOs, which carry no platform), so those two cases are omni's to guard, not the mod's.
+    it('rejects non-owned/liked/history lists and oversized batches before IPC', async () => {
+        for (const target of [playlist({ isOwned: false }), playlist({ isLiked: true }), playlist({ type: 'history' })]) {
             await expect(qishuiMutations.updatePlaylistTracks!('add', target, [song()])).rejects.toMatchObject({ code: 'unsupported' });
         }
-        const foreign = { ...song(), sourceRef: { kind: 'online' as const, providerId: 'netease', mediaId: '1' } };
-        await expect(qishuiMutations.likeSong!(foreign, true)).rejects.toMatchObject({ code: 'unsupported' });
-        await expect(qishuiMutations.updatePlaylistTracks!('add', playlist(), [foreign])).rejects.toMatchObject({ code: 'unsupported' });
         await expect(qishuiMutations.updatePlaylistTracks!('add', playlist(), Array(101).fill(song()))).rejects.toMatchObject({ code: 'unsupported' });
         expect(request).not.toHaveBeenCalled();
     });
@@ -127,20 +129,21 @@ describe('Qishui explicit playability checks', () => {
         request.mockResolvedValue({ ok: true, data: { statuses: [
             { id: '1', riskResult: 0 }, { id: '2', riskResult: 5 }, { id: '3', riskResult: -1 },
         ] } });
-        const songs = await readQishuiSongs(['1', '2', '3', '4'].map(id => track(id)));
-        expect(songs.map(song => qishuiProvider.playback!.getAvailability!(song))).toEqual([
+        await readQishuiSongs(['1', '2', '3', '4'].map(id => track(id)));
+        const songs = ['1', '2', '3', '4'].map(id => hostQishuiSong(track(id)));
+        expect(songs.map(song => qishuiProvider().playback!.getAvailability!(song))).toEqual([
             { state: 'playable' }, { state: 'unknown', reason: 'restricted' }, { state: 'unknown' }, { state: 'unknown' },
         ]);
         clearQishuiPlayback();
-        expect(qishuiProvider.playback!.getAvailability!(songs[0])).toEqual({ state: 'unknown' });
+        expect(qishuiProvider().playback!.getAvailability!(songs[0])).toEqual({ state: 'unknown' });
     });
     it('does not hide search results when the optional check fails', async () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         request.mockResolvedValueOnce({ ok: true, data: { items: [track('1')], nextOffset: 1, hasMore: false } })
             .mockResolvedValueOnce({ ok: false, error: { code: 'network', message: 'Unavailable' } });
-        const page = await qishuiProvider.search!.searchSongs('Song', 20, 0);
+        const page = await qishuiProvider().search!.searchSongs('Song', 20, 0);
         expect(page.items.map(song => song.id)).toEqual(['1']);
-        expect(qishuiProvider.playback!.getAvailability!(page.items[0])).toEqual({ state: 'unknown' });
+        expect(qishuiProvider().playback!.getAvailability!(page.items[0])).toEqual({ state: 'unknown' });
     });
     it('drops a playability answer that arrives after an account change', async () => {
         let finish!: (reply: unknown) => void;
@@ -148,7 +151,7 @@ describe('Qishui explicit playability checks', () => {
         const pending = readQishuiSongs([track('1')]);
         clearQishuiPlayback();
         finish({ ok: true, data: { statuses: [{ id: '1', riskResult: 0 }] } });
-        const [song] = await pending;
-        expect(qishuiProvider.playback!.getAvailability!(song)).toEqual({ state: 'unknown' });
+        await pending;
+        expect(qishuiProvider().playback!.getAvailability!(hostQishuiSong(track('1')))).toEqual({ state: 'unknown' });
     });
 });

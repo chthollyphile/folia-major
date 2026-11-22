@@ -1,11 +1,13 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppleMusicPlaylists } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
+import { getAppleMusicPlaylists } from '../../../sources/appleMusic/client/appleMusicData';
+import { stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // A one-row response is not the playlist's total; missing counts remain unknown.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Apple Music playlist counts', () => {
@@ -24,7 +26,7 @@ describe('Apple Music playlist counts', () => {
             ? { ok: true, data: { items: ['a', 'b', 'c'].map(id => ({ id: `p.${id}`, type: 'library-playlists', attributes: {} })), hasMore: false, nextOffset: 3 } }
             : params.playlistId === 'p.c' ? { ok: false, error: 'request-failed' }
                 : { ok: true, data: { total: params.playlistId === 'p.a' ? 63 : 0 } });
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const result = await getAppleMusicPlaylists(100, 0, true);
         expect(result.items.map(item => item.trackCount)).toEqual([undefined, 63, 0, undefined]);
         expect(request.mock.calls.filter(([op]) => op === 'playlistTrackCount').map(([, params]) => params.playlistId)).toEqual(['p.a', 'p.b', 'p.c']);
@@ -42,14 +44,14 @@ describe('Apple Music playlist counts', () => {
             active--;
             return { ok: true, data: { total: 12 } };
         });
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const result = await getAppleMusicPlaylists(100, 0, true);
         expect(maximum).toBe(2);
         expect(result.items.map(item => item.trackCount)).toEqual([undefined, 12, 12, 12, 12, 12]);
     });
     it('does not fetch optional counts for internal favorite-list discovery', async () => {
         const request = vi.fn(async () => ({ ok: true, data: { items: [{ id: 'p.a', type: 'library-playlists', attributes: {} }], hasMore: false, nextOffset: 1 } }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         await getAppleMusicPlaylists(100, 0, false);
         expect(request).toHaveBeenCalledOnce();
     });

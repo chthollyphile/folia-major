@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import type { LocalLibraryGroup, LocalSong } from '../../../types';
 import type { LibraryDirectoryBatchConfig, LibraryDirectoryBatchController, LibraryDirectoryNode, LibraryDirectorySelectionType } from '../directory/directory.contract';
 import type { LibraryLocalCatalogSnapshot } from './home.contract';
 import type { LibraryHomeCard, LibraryLocalDirectoryTreesResource, LibraryLocalDirectoryTreesSnapshot } from './homeModel.contract';
@@ -18,9 +18,9 @@ import { applyLocalCollectionCoverOverrides } from '../collection/cover/localCol
 import { useLocalCollectionCoverUrls } from '../collection/cover/useLocalCollectionCoverUrls';
 
 // src/library/core/home/useLibraryHomeLocal.ts
-// 本地页签的模型：四组条目（core/home/localHomeModel，曲库实体用宿主那份 catalog）、四个 section 的文案与卡片、
+// 本地页签的模型：三组条目（core/home/localHomeModel，曲库实体用宿主那份 catalog）、三个 section 的文案与卡片、
 // 当前 section 与它的批量类型；以及本地文件夹树（首页宿主持有的 core/directory/localDirectoryTrees.service，跟着曲库重读）。
-// 文件夹、专辑、歌单设了自定义封面的（core/collection/cover），分组与卡片带的是那张封面。
+// 文件夹、专辑设了自定义封面的（core/collection/cover），分组与卡片带的是那张封面。Folia 聚合歌单的列表在 useLibraryHomeFolia。
 
 export type LibraryHomeLocalSection = {
     key: LocalHomeSectionKey;
@@ -40,12 +40,10 @@ export type LibraryHomeLocal = {
 
 export const useLibraryHomeLocal = ({
     localSongs,
-    localPlaylists,
     catalog,
     activeRow,
 }: {
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
     /** 宿主的曲库实体快照（与应用其它地方同一份；没读好时按歌曲的原始标签分组）。 */
     catalog: LibraryLocalCatalogSnapshot;
     activeRow: number;
@@ -54,18 +52,16 @@ export const useLibraryHomeLocal = ({
     const { ready, entities, assignments } = catalog;
     const builtGroups = useMemo(() => buildLocalHomeGroups(
         localSongs,
-        localPlaylists,
         t,
         ready ? { entities, assignments } : undefined,
         getLocalCoverAssetUrl,
-    ), [assignments, entities, localPlaylists, localSongs, ready, t]);
+    ), [assignments, entities, localSongs, ready, t]);
     // 自定义封面盖在自动封面上：分组本身照旧按歌推出来，换封面不必重新分组。
     const coverOverrides = useLocalCollectionCoverUrls();
     const groups = useMemo(() => ({
         folders: applyLocalCollectionCoverOverrides(builtGroups.folders, coverOverrides),
         albums: applyLocalCollectionCoverOverrides(builtGroups.albums, coverOverrides),
         artists: builtGroups.artists,
-        playlists: applyLocalCollectionCoverOverrides(builtGroups.playlists, coverOverrides),
     }), [builtGroups, coverOverrides]);
 
     const sections = useMemo<LibraryHomeLocalSection[]>(() => LOCAL_HOME_SECTIONS.map(section => {

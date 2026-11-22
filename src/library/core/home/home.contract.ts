@@ -3,12 +3,12 @@ import type {
     LocalLibraryAssignment,
     LocalLibraryEntity,
     LocalLibraryGroup,
-    LocalPlaylist,
     LocalSong,
     SongResult,
     StatusMessage,
     Theme,
 } from '../../../types';
+import type { FoliaPlaylistSummary } from '../../../types/foliaPlaylist';
 import type { OnlineProviderId, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
 import type { NavidromeSong } from '../../../types/navidrome';
 import type { GridViewCollectionDescriptor } from '../collection/collection.contract';
@@ -21,7 +21,7 @@ import type { GridViewCollectionDescriptor } from '../collection/collection.cont
 // 两边一旦不一致，Home.tsx 把首页模型交给 surface 的那一行就会编译失败。
 
 export type LibraryHomeLocalMusicState = {
-    activeRow: 0 | 1 | 2 | 3;
+    activeRow: 0 | 1 | 2;
     selectedGroup: LocalLibraryGroup | null;
     detailStack: LocalLibraryGroup[];
     detailOriginView: 'home' | 'player' | null;
@@ -66,7 +66,8 @@ export interface LibraryHomeData {
     currentTrack?: SongResult | null;
     localSongs: LocalSong[];
     localLibraryCatalog: LibraryLocalCatalogSnapshot;
-    localPlaylists: LocalPlaylist[];
+    /** Folia 聚合歌单（旧的本地歌单已并进去）；本地页签只显示其中的本地歌。 */
+    localPlaylists: FoliaPlaylistSummary[];
     onRefreshLocalPlaylists: () => Promise<void> | void;
     onRefreshLocalSongs: () => Promise<void> | void;
     onAddLocalSongToQueue?: (song: LocalSong) => void;

@@ -11,6 +11,10 @@ import ObsPlayerCapSourceApp from './components/obs/ObsPlayerCapSourceApp';
 import { initializeLocalCoverRuntime } from './services/localCoverRuntime';
 import { installFoliumHomePageDismissal } from './components/app/home/foliumHomePageDismissal';
 import { installLibrarySuiteChromeCommands } from './library/app/installLibrarySuiteChromeCommands';
+import { installProviderSearchCommands } from './components/command-palette/providerSearchCommandsInstaller';
+import { installSourceSwitchCommands } from './components/command-palette/sourceSwitchCommandsInstaller';
+import { isModsBridgeAvailable } from './mods/ipc';
+import { registerWebSources } from './services/onlineMusic/web';
 import { noteFoliumFirstScreenMounted, startFoliumForMainWindow } from './mods/runtime/mainWindowStart';
 import { installNativeDragGuard } from './utils/nativeDragGuard';
 import { prewarmSavedVisualizer, prewarmVisualizersWhenIdle } from './components/visualizer/prewarmVisualizers';
@@ -95,6 +99,13 @@ const renderApp = () => root.render(
 // registry, so the commands are put into its list here, before anything renders (main window only,
 // like the mod commands below). A clashing execute shortcut throws here, at startup.
 if (isMainApp) installLibrarySuiteChromeCommands();
+// The web build has no mod runtime: its three platforms are registered here, in every window, before
+// anything renders (Folium 2.0 plan §8, services/onlineMusic/web/). The desktop gets them from their source mods.
+if (!isModsBridgeAvailable()) registerWebSources();
+// One search command per registered online source (no default platform), put in again when the sources change.
+if (isMainApp) installProviderSearchCommands();
+// One command per state each source can be switched to (Settings → Sources), following the main process's states.
+if (isMainApp) installSourceSwitchCommands();
 
 // 界面缩放（#1264）在首屏渲染前套上，免得先按 100% 排一遍版再缩。只缩主窗口。
 if (isMainApp) installUiZoom();

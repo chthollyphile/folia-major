@@ -1,51 +1,53 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppleMusicTransportAvailability, requestAppleMusic } from '../../../src/services/onlineMusic/appleMusic/appleMusicTransport';
+import i18n from '../../../src/i18n/config';
+import { requestAppleMusic } from '../../../sources/appleMusic/client/appleMusicTransport';
+import { freshAppleMusicProvider, stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // The renderer must receive common provider errors, not companion protocol details or credentials.
-afterEach(() => { vi.unstubAllGlobals(); });
+let off: (() => void) | null = null;
+afterEach(() => { off?.(); off = null; vi.unstubAllGlobals(); });
 
 describe('Apple Music transport', () => {
-    it('returns the companion result through its preload boundary', async () => {
+    it('returns the companion result through the main entry', async () => {
         const request = vi.fn(async () => ({ ok: true, data: { items: [] } }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        off = stubAppleMusicBridge(request);
         await expect(requestAppleMusic('search', { query: 'example' })).resolves.toEqual({ items: [] });
         expect(request).toHaveBeenCalledWith('search', { query: 'example' });
     });
 
     it('maps authentication and malformed-response errors to the common contract', async () => {
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({ ok: false, error: 'auth-required' })) } });
-        await expect(requestAppleMusic('playlists')).rejects.toMatchObject({ code: 'auth-required', providerId: 'appleMusic' });
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({ ok: false, error: 'invalid-response' })) } });
+        off = stubAppleMusicBridge(vi.fn(async () => ({ ok: false, error: 'auth-required' })));
+        await expect(requestAppleMusic('playlists')).rejects.toMatchObject({ code: 'auth-required', cause: 'auth-required' });
+        // Through the host's provider the error names the source.
+        await expect(freshAppleMusicProvider().library!.getUserPlaylists!('', 20, 0)).rejects.toMatchObject({ code: 'auth-required', providerId: 'appleMusic' });
+        off = stubAppleMusicBridge(vi.fn(async () => ({ ok: false, error: 'invalid-response' })));
         await expect(requestAppleMusic('playlists')).rejects.toMatchObject({ code: 'invalid-response' });
     });
 
     it('includes only allowlisted playback stages in failures', async () => {
-        const request = vi.fn(async () => ({ ok: false, error: 'playback-failed', playbackStage: 'play' }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        const request = vi.fn(async (): Promise<unknown> => ({ ok: false, error: 'playback-failed', playbackStage: 'play' }));
+        off = stubAppleMusicBridge(request);
         await expect(requestAppleMusic('playSong')).rejects.toMatchObject({ code: 'not-playable', cause: 'playback-failed', message: 'Apple Music companion request failed (stage: play)' });
         request.mockResolvedValueOnce({ ok: false, error: 'playback-failed', playbackStage: 'private-url-or-token' });
         await expect(requestAppleMusic('playSong')).rejects.toMatchObject({ message: 'Apple Music companion request failed' });
     });
-    it('reports an absent desktop bridge without making a request', async () => {
-        vi.stubGlobal('window', {});
-        await expect(requestAppleMusic('accountStatus')).rejects.toMatchObject({ code: 'unavailable' });
+
+    it('reports a main entry that does not answer as a failed request', async () => {
+        await expect(requestAppleMusic('accountStatus')).rejects.toMatchObject({ code: 'network' });
     });
 });
 
-describe('Apple Music transport availability', () => {
-    it('offers the source on Windows with the desktop bridge', () => {
-        vi.stubGlobal('window', { electron: { platform: 'win32', appleMusicRequest: vi.fn() } });
-        expect(getAppleMusicTransportAvailability()).toEqual({ configured: true });
-    });
-    it('offers the source on macOS with the desktop bridge only', () => {
-        const request = vi.fn();
-        vi.stubGlobal('window', { electron: { platform: 'darwin', appleMusicRequest: request } });
-        expect(getAppleMusicTransportAvailability()).toEqual({ configured: true });
-        vi.stubGlobal('window', { electron: { platform: 'linux', appleMusicRequest: request } });
-        expect(getAppleMusicTransportAvailability()).toEqual({ configured: false, reason: 'not-configured', messageKey: 'home.appleMusicLinuxUnsupported' });
-        vi.stubGlobal('window', { electron: { platform: 'darwin' } });
-        expect(getAppleMusicTransportAvailability()).toEqual({ configured: false, reason: 'runtime-unavailable' });
-        vi.stubGlobal('window', {});
-        expect(getAppleMusicTransportAvailability()).toEqual({ configured: false, reason: 'runtime-unavailable' });
+describe('Apple Music availability', () => {
+    it('offers the source on Windows and macOS only', () => {
+        expect(freshAppleMusicProvider({ platform: 'win32' }).getAvailability!()).toEqual({ configured: true });
+        expect(freshAppleMusicProvider({ platform: 'darwin' }).getAvailability!()).toEqual({ configured: true });
+        const linux = freshAppleMusicProvider({ platform: 'linux' }).getAvailability!();
+        expect(linux).toMatchObject({ configured: false, reason: 'not-configured' });
+        // The message is the mod's own text, followed across languages.
+        expect(linux.messageKey).toBeTruthy();
+        expect(i18n.t(linux.messageKey!)).not.toBe(linux.messageKey);
+        expect(freshAppleMusicProvider({ platform: 'unknown' }).getAvailability!()).toMatchObject({ configured: false, reason: 'runtime-unavailable' });
+        freshAppleMusicProvider();
     });
 });

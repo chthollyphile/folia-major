@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     requestQq: requestMock,
 }));
 
-import { resetQqVipMemory, withQqVipType } from '@/services/onlineMusic/qq/qqAccount';
+import { resetQqVipMemory, withQqVipType } from '../../../sources/qq/core/qqAccount';
 
 const ALICE = { id: '10001', nickname: '示例用户 A' };
 const BOB = { id: '20002', nickname: '示例用户 B' };

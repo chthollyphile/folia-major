@@ -3,7 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 
 // Slow buffering must release IPC while retaining deferred error and cancellation handling.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 it('returns before slow play resolves and reports a later rejection', async () => {
     let reject!: (error: Error) => void;
     const pending = new Promise((_, fail) => { reject = fail; });

@@ -1,21 +1,24 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 
 // test/unit/spotify/spotifyLoginFailure.test.ts
 // Which case each failure of a Spotify sign-in sorts to. The desktop side is the real one
-// (electron/spotify/signIn.cjs and spotifyApiBridge.cjs) over stand-ins for Spotify, the loopback
-// server and the system browser; the renderer side is the real facade, adapter and transport.
+// (sources/spotify/main/signIn.cjs and spotifyApiBridge.cjs) over stand-ins for Spotify, the loopback
+// server and the system browser; the renderer side is the real facade and the source mod as the adapter registers
+// it, its `request` to the main entry handed to the bridge.
 // Each test is named after the case it ends in. The other platforms are in
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts. Nothing here asks Spotify.
 
 vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAccountSnapshot: vi.fn() }));
 
 const require = createRequire(import.meta.url);
-const { createSpotifyApiBridge } = require('../../../electron/spotify/spotifyApiBridge.cjs');
-const { createSpotifySignIn } = require('../../../electron/spotify/signIn.cjs');
+const { createSpotifyApiBridge } = require('../../../sources/spotify/main/spotifyApiBridge.cjs');
+const { createSpotifySignIn } = require('../../../sources/spotify/main/signIn.cjs');
 
 const json = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 const cipher = { isEncryptionAvailable: () => true, encryptString: (text: string) => Buffer.from(text), decryptString: (data: Buffer) => data.toString() };
@@ -44,7 +47,7 @@ const desktop = ({
         store: { get: (key: string) => store.get(key), set: (key: string, value: unknown) => store.set(key, value), delete: (key: string) => store.delete(key) },
         safeStorage: cipher, fetch, openExternal, now, log: quiet, warn: quiet, signIn,
     });
-    vi.stubGlobal('window', { electron: { spotifyRequest: bridge.request } });
+    setBuiltinSourceRpc('spotify', { request: (operation, params) => bridge.request(operation as string, (params ?? {}) as Record<string, unknown>) });
     const visit = async (answer: string) => {
         const state = new URL(openExternal.mock.calls.at(-1)![0]).searchParams.get('state')!;
         const response: any = { writeHead: () => response };
@@ -160,7 +163,7 @@ describe('Spotify', () => {
     });
 
     it('unreachable: the desktop side does not answer', async () => {
-        vi.stubGlobal('window', { electron: { spotifyRequest: async () => { throw new Error('ipc'); } } });
+        setBuiltinSourceRpc('spotify', { request: async () => { throw new Error('ipc'); } });
         expect(await thrown('start', () => omni.startLogin('spotify'))).toMatchObject({ id: 'unreachable' });
     });
 

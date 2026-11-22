@@ -1,0 +1,16 @@
+{
+  "name": "@folia-sources/deps-archive-netease",
+  "private": true,
+  "description": "依赖归档样例：上游库声明成 asar，版本和根 package.json 钉的一致（构建核对装着的版本）。",
+  "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "4.41.1"
+  },
+  "folia": {
+    "dependencies": {
+      "@neteasecloudmusicapienhanced/api": "asar"
+    },
+    "workers": {
+      "worker": "main/worker.ts"
+    }
+  }
+}

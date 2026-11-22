@@ -19,6 +19,8 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlayExternally: () => false,
         prefersOwnWordByWordLyrics: () => false,
         resolveAudioQuality: (_providerId: string, quality: string) => quality,
+        // Every source here is enabled (Folium 2.0 §5.3: what was prefetched for a source used only for matching is not handed out).
+        isSourceSwitchedOn: () => true,
     },
 }));
 vi.mock('@/services/onlineMusic/resourceCache', async (importOriginal) => ({

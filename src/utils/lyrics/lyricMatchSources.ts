@@ -1,31 +1,24 @@
 import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
-import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
+import { isParticipantReady } from '../../services/onlineMusic/crossSource';
 import type { AmllDbPlatform, LyricData, LyricProviderSource, SongResult } from '../../types';
-import type { ChorusRange, ProviderLyricsResult } from '../../types/onlineMusic';
 import { calculateMatchScore } from './matchScore';
-import { searchQQLyrics, fetchQQLyrics } from '../../services/onlineMusic/qq/qqLyricProvider';
 import { fetchAmllDbLyrics, getAmllDbMusicIds, searchAmllDbSongs } from './providers/amllDbProvider';
 import { buildAmllDbSearchQueries, toAmllDbSongResults } from './amllDbCandidates';
 import { applyChorusRangesByTime } from './chorusEffects';
 import { hasRenderableLyrics } from './validity';
-import { LYRIC_SOURCE_IDS, getLyricSource } from './lyricSources';
+import { getLyricSourceOwnAccess, type LyricMatchSearchTarget, type LyricSourceAccess, type LyricSourceLyrics } from './lyricSources';
 
 // src/utils/lyrics/lyricMatchSources.ts
 // How each lyric source of lyricSources.ts is searched and fetched: for the match windows, for
-// the automatic pick and for the metadata search.
+// the automatic pick and for the metadata search. A platform source is reached through its
+// provider, unless its own folder registered how else (registerLyricSourceAccess); AMLL DB, the
+// host's own source, is reached here.
+
+export type { LyricMatchSearchTarget, LyricSourceAccess, LyricSourceLyrics };
 
 const AMLL_DB_SEARCH_PAGE_SIZE = 50;
 const AMLL_DB_MAX_RESULTS = 20;
 const MATCH_WINDOW_SEARCH_LIMIT = 50;
-// QQ's search has only ever been asked for one page of 20 songs at most.
-const QQ_SEARCH_PAGE_MAX = 20;
-
-export type LyricMatchSearchTarget = {
-    title: string;
-    artist: string;
-    durationMs: number;
-    album?: string;
-};
 
 export type LyricMatchFetchResult = {
     lyrics: LyricData | null;
@@ -33,42 +26,19 @@ export type LyricMatchFetchResult = {
     matchedLyricsProviderPlatform?: AmllDbPlatform;
 };
 
-// What a source gives for one song. A lyric from AMLL DB names the platform it was kept under.
-export type LyricSourceLyrics = ProviderLyricsResult & { matchedLyricsProviderPlatform?: AmllDbPlatform };
+// Whether the source takes part in the lyric match now (crossSource.ts): its platform is there and set up,
+// and signed in where it answers only with an account. A source that is not registered does not.
+export const isLyricMatchSourceOffered = (source: LyricProviderSource): boolean => isParticipantReady('lyrics', source);
 
-export interface LyricSourceAccess {
-    /**
-     * The source's songs for `query`, `limit` of them at most. `target` is the song being matched,
-     * for a source that has to choose its candidates itself.
-     */
-    search(query: string, limit: number, target: LyricMatchSearchTarget): Promise<SongResult[]>;
-    /**
-     * The lyrics of one of the source's songs, or null when the source cannot be asked.
-     * `lent.chorusRanges` are chorus ranges found elsewhere, for a fetch that marks the chorus itself.
-     */
-    fetch(song: SongResult, lent: { chorusRanges: ChorusRange[] }): Promise<LyricSourceLyrics | null>;
-    /** What the source knows a song by, as text: two songs with one key are the same song there. */
-    songKey(song: Pick<SongResult, 'id' | 'qqMid' | 'kgHash'>): string;
-    /**
-     * Set when a song's id alone is enough to fetch its lyrics: gives the id to fetch with, or
-     * null when `songId` cannot be one of the source's. Without it, a song picked for the source
-     * is looked for among the source's search results.
-     */
-    knownById?(songId: number | string): number | string | null;
-    /** True when the chorus ranges it gives are kept, to be lent to a fetch that marks the chorus itself. */
-    sharesChorusRanges?: boolean;
-    /** True when its fetch has marked the chorus already, from the ranges lent to it or from its own text. */
-    marksChorusOnFetch?: boolean;
-}
+// The online platform AMLL DB keeps a lyric under, by AMLL DB's own name for it: its chorus ranges are that
+// platform's to give.
+const AMLL_DB_PLATFORM_SOURCES: Record<AmllDbPlatform, LyricProviderSource> = { ncm: 'netease', qq: 'qq' };
 
-// A source that needs an account is a source only while one is signed in.
-export const isLyricMatchSourceOffered = (source: LyricProviderSource): boolean => {
-    const entry = getLyricSource(source);
-    if (entry.needsConfiguredProvider) {
-        const provider = getOnlineMusicProvider(source);
-        if (!provider || provider.getAvailability?.().configured === false) return false;
-    }
-    return !entry.needsAccount || Boolean(useOnlineProviderAccountStore.getState().accounts[source]?.user);
+/** The chorus ranges of the song `songId` as the platform AMLL DB kept it under has them; none while that platform is not there. */
+export const getAmllDbPlatformChorusRanges = async (platform: AmllDbPlatform, songId: number | string) => {
+    const source = AMLL_DB_PLATFORM_SOURCES[platform];
+    if (!isLyricMatchSourceOffered(source)) return [];
+    return await getOnlineMusicProvider(source)?.lyrics?.getChorusRanges?.(songId) ?? [];
 };
 
 const sortByMatchScore = (songs: SongResult[], target: LyricMatchSearchTarget) => (
@@ -107,8 +77,9 @@ async function fetchAmllDbCandidateLyrics(song: SongResult): Promise<LyricSource
     }
     const fetchedLyrics = await fetchAmllDbLyrics(platform, getAmllDbMusicIds(platform, song));
     const lyrics = hasRenderableLyrics(fetchedLyrics) ? fetchedLyrics : null;
+    // Only NetEase's ranges were ever asked for here (a QQ lyric's chorus comes with QQ's own fetch).
     const chorusRanges = platform === 'ncm' && !hasChorusMarkers(lyrics)
-        ? await getOnlineMusicProvider('netease')?.lyrics?.getChorusRanges?.(song.id) ?? []
+        ? await getAmllDbPlatformChorusRanges(platform, song.id)
         : [];
 
     return {
@@ -128,45 +99,20 @@ const platformAccess = (providerId: LyricProviderSource): LyricSourceAccess => (
     songKey: song => String(song.id),
 });
 
-// Where a source differs from that. A source with no entry here is reached as its platform alone.
-const OWN_ACCESS: Partial<Record<LyricProviderSource, Partial<LyricSourceAccess>>> = {
-    netease: {
-        knownById: (songId) => {
-            const numericId = typeof songId === 'number' ? songId : Number(songId);
-            return Number.isSafeInteger(numericId) && numericId > 0 ? numericId : null;
-        },
-        sharesChorusRanges: true,
-    },
-    // AMLL DB is searched through its own API, by the words typed like the platforms (#515).
-    amll: {
-        search: (query, _limit, target) => searchAmllDbLyricCandidates(query, target),
-        fetch: song => fetchAmllDbCandidateLyrics(song),
-    },
-    // QQ's lyrics are read from QQ's own lyric service, which needs no QQ account and knows a
-    // song by its mid.
-    qq: {
-        search: (query, limit) => searchQQLyrics(query, 1, Math.min(limit, QQ_SEARCH_PAGE_MAX)),
-        fetch: async (song, lent) => ({ lyrics: await fetchQQLyrics(song, lent) ?? null, isPureMusic: false }),
-        songKey: song => String(song.qqMid ?? song.id),
-        marksChorusOnFetch: true,
-    },
-    kugou: {
-        songKey: song => String(song.kgHash ?? song.id).toUpperCase(),
-    },
-    // Its track ids are 1-30 digits, past what a number holds exactly: kept as text, never made a number.
-    qishui: {
-        knownById: songId => (typeof songId === 'string' ? /^\d{1,30}$/.test(songId) ? songId : null
-            : Number.isSafeInteger(songId) && songId >= 0 ? String(songId) : null),
-    },
+// AMLL DB is searched through its own API, by the words typed like the platforms (#515).
+const AMLL_DB_ACCESS: Partial<LyricSourceAccess> = {
+    search: (query, _limit, target) => searchAmllDbLyricCandidates(query, target),
+    fetch: song => fetchAmllDbCandidateLyrics(song),
 };
 
-const accessBySource = new Map<LyricProviderSource, LyricSourceAccess>(
-    LYRIC_SOURCE_IDS.map(source => [source, { ...platformAccess(source), ...OWN_ACCESS[source] }]),
-);
-
-export const getLyricSourceAccess = (source: LyricProviderSource): LyricSourceAccess => (
-    accessBySource.get(source) as LyricSourceAccess
-);
+/**
+ * How `source` is searched and fetched: as its platform, with what its own folder registered over that
+ * (registerLyricSourceAccess); AMLL DB as the host reaches it.
+ */
+export const getLyricSourceAccess = (source: LyricProviderSource): LyricSourceAccess => ({
+    ...platformAccess(source),
+    ...(source === 'amll' ? AMLL_DB_ACCESS : getLyricSourceOwnAccess(source)),
+});
 
 export async function searchLyricsByMatchSource(
     source: LyricProviderSource,

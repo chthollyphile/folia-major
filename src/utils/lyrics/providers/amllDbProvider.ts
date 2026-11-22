@@ -24,12 +24,18 @@ export function clearAmllDbLyricsCache(): void {
     lyricsCache.clear();
 }
 
-// AMLL 里 QQ 歌曲有的按 mid 收录，有的按数字 ID 收录（约 2:1），两种都要试；mid 在前
+// AMLL 里 QQ 歌曲有的按 mid 收录，有的按数字 ID 收录（约 2:1），两种都要试；mid 在前。
+// 音源模组的歌 id 就是 mid，数字 ID 在 sourceRef.providerData.songId（模组归一时放的）；旧的歌 id 本身就是数字 ID。
+const numericSongIdOf = (ref: SongResult['sourceRef']): AmllDbMusicId => {
+    const songId = ref?.kind === 'online' ? ref.providerData?.songId : undefined;
+    return typeof songId === 'number' || typeof songId === 'string' ? songId : undefined;
+};
+
 export function getAmllDbMusicIds(
     platform: AmllDbPlatform,
-    song: Pick<SongResult, 'id' | 'qqMid'>,
+    song: Pick<SongResult, 'id' | 'qqMid' | 'sourceRef'>,
 ): string[] {
-    return normalizeMusicIds(platform === 'qq' ? [song.qqMid, song.id] : [song.id]);
+    return normalizeMusicIds(platform === 'qq' ? [song.qqMid, song.id, numericSongIdOf(song.sourceRef)] : [song.id]);
 }
 
 async function fetchAmllDbLyricsUncached(

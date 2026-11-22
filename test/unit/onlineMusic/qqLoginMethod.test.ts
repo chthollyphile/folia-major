@@ -1,3 +1,4 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqLoginMethod.test.ts
@@ -5,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<object>(),
     getQqTransportAvailability: () => ({ configured: true }),
     hasQqSession: () => true,
     hasUsableQqSession: () => true,
@@ -13,18 +15,31 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
     requestQq: requestMock,
 }));
 
-vi.mock('@/services/onlineMusic/providerStorage', () => ({
-    writeProviderSessionValue: vi.fn(),
-}));
-
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
-    searchQQLyrics: vi.fn(),
+vi.mock('../../../sources/qq/core/qqLyricProvider', async importOriginal => ({
+    ...await importOriginal<object>(),
     searchQQSongs: vi.fn(),
-    fetchQQLyrics: vi.fn(),
 }));
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { omni } from '@/services/onlineMusic/omni';
-import { resetQqLoginChannelCache } from '@/services/onlineMusic/qq/qqProvider';
+import { QQ_ICON, QQ_MUSIC_ICON, WECHAT_ICON } from '../../../sources/qq/core/qqLoginIcons';
+// 通道、登录样子与后端宣告都在 resetQqProviderRuntimeCache 里清（迁之前单独的 resetQqLoginChannelCache 并进去了）。
+import { resetQqProviderRuntimeCache as resetQqLoginChannelCache } from '../../../sources/qq/core/qqProvider';
+
+// 模组自己的语言文件（sources/qq/locales）：登录窗口的词条都是 folium-mod/qq: 下的键。
+const MOD_LOCALES = ['en', 'in', 'vi', 'zh-CN'].map(name => (
+    JSON.parse(readFileSync(resolve(process.cwd(), 'sources/qq/locales', `${name}.json`), 'utf8')) as Record<string, unknown>
+));
+const modText = (locale: Record<string, unknown>, key: string): unknown => key
+    .replace(/^folium-mod\/qq:/, '')
+    .split('.')
+    .reduce<unknown>((table, part) => (table && typeof table === 'object' ? (table as Record<string, unknown>)[part] : undefined), locale);
+const expectInEveryLanguage = (...keys: string[]) => {
+    for (const locale of MOD_LOCALES) {
+        for (const key of keys) expect(modText(locale, key), key).toEqual(expect.any(String));
+    }
+};
 
 describe('QQ login method selection', () => {
     beforeEach(() => {
@@ -33,14 +48,15 @@ describe('QQ login method selection', () => {
         resetQqLoginChannelCache();
     });
 
-    it('declares both scan methods with an i18n key and an icon key, never an asset', () => {
+    // 图标是模组自带的 data: URL（网页版没有模组目录），不是宿主 src/assets 里的文件。
+    it('declares both scan methods with an i18n key and an icon of its own, never a host asset', () => {
         const methods = omni.getLoginMethods('qq');
 
         expect(methods).toEqual([
-            { id: 'qq', labelKey: 'home.qqLoginMethodMobile', iconKey: 'qq' },
-            { id: 'wechat', labelKey: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
+            { id: 'qq', labelKey: 'folium-mod/qq:login.method.mobile', iconKey: QQ_ICON },
+            { id: 'wechat', labelKey: 'folium-mod/qq:login.method.wechat', iconKey: WECHAT_ICON },
         ]);
-        // services 层不 import .svg：iconKey 只是字符串，映射留在 UI 层。
+        // services 层不 import .svg：图标是模组自带的 data: URL，不是宿主的文件。
         for (const method of methods) {
             expect(method.iconKey).not.toMatch(/\.svg$/);
         }
@@ -192,9 +208,9 @@ describe('QQ login channels declared by the backend', () => {
         const methods = await omni.resolveLoginMethods('qq');
 
         expect(methods).toEqual([
-            { id: 'qq', labelKey: 'home.qqLoginMethodMobile', iconKey: 'qq' },
-            { id: 'wechat', labelKey: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
-            { id: 'qqmusic', labelKey: 'home.qqLoginMethodQqMusic', iconKey: 'qqmusic' },
+            { id: 'qq', labelKey: 'folium-mod/qq:login.method.mobile', iconKey: QQ_ICON },
+            { id: 'wechat', labelKey: 'folium-mod/qq:login.method.wechat', iconKey: WECHAT_ICON },
+            { id: 'qqmusic', labelKey: 'folium-mod/qq:login.method.qqMusic', iconKey: QQ_MUSIC_ICON },
         ]);
     });
 
@@ -223,42 +239,35 @@ describe('QQ login channels declared by the backend', () => {
         expect(requestMock).toHaveBeenCalledWith('login_qr_key', { channel: 'qqmusic' });
     });
 
-    it('has an icon file and a label in every language for each method', async () => {
+    it('has an icon and a label in every language for each method', async () => {
         declare(['qq', 'wechat', 'qqmusic']);
         const methods = await omni.resolveLoginMethods('qq');
-        const { existsSync } = await import('node:fs');
-        const { resolve } = await import('node:path');
-        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
 
+        expect(methods).toHaveLength(3);
         for (const method of methods) {
-            expect(existsSync(resolve(process.cwd(), 'src/assets/providers', `${method.iconKey}.svg`))).toBe(true);
-            const [group, key] = method.labelKey.split('.');
-            for (const locale of locales) {
-                const table = locale.default ?? Object.values(locale)[0];
-                expect(table?.[group]?.[key]).toEqual(expect.any(String));
-            }
+            expect(method.iconKey).toMatch(/^data:image\/svg\+xml;base64,/);
+            expectInEveryLanguage(method.labelKey);
         }
     });
 
     it('tells a person who scanned with the wrong app what to do here, by the channels the backend has', async () => {
         // 登录文字在通道问到之前就被拿走了：显示时才按通道说。
         const texts = omni.getLoginTexts('qq');
-        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanAppMobileOnly');
+        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('folium-mod/qq:login.case.wrongScanAppMobileOnly');
 
         declare(['qq', 'wechat', 'qqmusic']);
         await omni.resolveLoginMethods('qq');
-        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanApp');
+        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('folium-mod/qq:login.case.wrongScanApp');
 
         resetQqLoginChannelCache();
         declare(['qq', 'wechat']);
         await omni.resolveLoginMethods('qq');
-        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanAppMobileOnly');
+        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('folium-mod/qq:login.case.wrongScanAppMobileOnly');
 
-        // 两句在三种语言里都有。
+        // 两句在每种语言里都有（模组的语言文件），宿主共用的那两句在宿主的语言包里。
+        expectInEveryLanguage('login.case.wrongScanApp', 'login.case.wrongScanAppMobileOnly');
         const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
         for (const locale of locales) {
-            expect(locale.default.home.loginCaseQqWrongScanApp).toEqual(expect.any(String));
-            expect(locale.default.home.loginCaseQqWrongScanAppMobileOnly).toEqual(expect.any(String));
             expect(locale.default.login.caseWrongScanApp).toEqual(expect.any(String));
             expect(locale.default.login.noteWrongScanApp).toEqual(expect.any(String));
         }
@@ -266,9 +275,8 @@ describe('QQ login channels declared by the backend', () => {
 
     it('tells a person whose account has no device left where to remove one in the QQ Music app', async () => {
         // 共用那一句只说「在手机上退出不用的设备」；QQ 的设备是在 QQ 音乐 App 的设置最下面「设备管理」里移除。
-        expect(omni.getLoginTexts('qq')?.caseNotes?.['device-limit']).toBe('home.loginCaseQqDeviceLimit');
-        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
-        for (const locale of locales) expect(locale.default.home.loginCaseQqDeviceLimit).toEqual(expect.any(String));
+        expect(omni.getLoginTexts('qq')?.caseNotes?.['device-limit']).toBe('folium-mod/qq:login.case.deviceLimit');
+        expectInEveryLanguage('login.case.deviceLimit');
     });
 
     it('probes the backend only once however often the methods are read', async () => {
@@ -341,30 +349,25 @@ describe('QQ Music app scan only, where the backend keeps the session', () => {
 
     it('says the three apps can scan the code, and goes back to the usual words elsewhere', async () => {
         const texts = omni.getLoginTexts('qq');
-        expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
+        expect(texts).toMatchObject({ title: 'folium-mod/qq:login.title', note: 'folium-mod/qq:login.note' });
 
         // 文字在通道问到之前就被拿走了：显示时才按通道说。
         declare(['qq', 'wechat', 'qqmusic'], 'stored');
         await omni.resolveLoginMethods('qq');
-        expect(texts).toMatchObject({ title: 'home.loginTitleQqAppScan', note: 'home.loginNoteQqAppScan' });
+        expect(texts).toMatchObject({ title: 'folium-mod/qq:login.titleAppScan', note: 'folium-mod/qq:login.noteAppScan' });
 
         resetQqLoginChannelCache();
         // Serverless 带 QQ 音乐 App 扫码：选择器有三种，说明也说三种。
         declare(['qq', 'wechat', 'qqmusic'], 'sealed');
         await omni.resolveLoginMethods('qq');
-        expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQqWithApp' });
+        expect(texts).toMatchObject({ title: 'folium-mod/qq:login.title', note: 'folium-mod/qq:login.noteWithApp' });
 
         resetQqLoginChannelCache();
         declare(['qq', 'wechat'], 'sealed');
         await omni.resolveLoginMethods('qq');
-        expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
+        expect(texts).toMatchObject({ title: 'folium-mod/qq:login.title', note: 'folium-mod/qq:login.note' });
 
-        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
-        for (const locale of locales) {
-            expect(locale.default.home.loginTitleQqAppScan).toEqual(expect.any(String));
-            expect(locale.default.home.loginNoteQqAppScan).toEqual(expect.any(String));
-            expect(locale.default.home.loginNoteQqWithApp).toEqual(expect.any(String));
-        }
+        expectInEveryLanguage('login.titleAppScan', 'login.noteAppScan', 'login.noteWithApp');
     });
 
     it('names the method the window offers in the report', async () => {
@@ -397,8 +400,8 @@ describe('QQ Music app scan only, where the backend keeps the session', () => {
             await vi.waitFor(() => expect(omni.getLoginMethods('qq')).toEqual([]));
 
             // 窗口上还是那个选择器给的码：文字照这一次登录解析出的方式说。
-            expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
-            expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanAppMobileOnly');
+            expect(texts).toMatchObject({ title: 'folium-mod/qq:login.title', note: 'folium-mod/qq:login.note' });
+            expect(texts?.caseNotes?.['wrong-scan-app']).toBe('folium-mod/qq:login.case.wrongScanAppMobileOnly');
         } finally {
             vi.useRealTimers();
         }

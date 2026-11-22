@@ -67,6 +67,9 @@ export const quickSlotsForWidth = (width: number, cell: number, gap: number): nu
 const QUICK_ORDER: Readonly<Record<string, number>> = {
     'add-to-playlist': 0,
     'collect-scratchpad': 1,
+    // 平台歌单 / 专辑页的「存成 Folia 歌单」跟在速记簿后面；转存来的歌单的「从原歌单更新」同一个位置（两者不会同时出现）。
+    'save-to-folia': 1.5,
+    'refresh-from-origin': 1.5,
     rename: 2,
     'set-cover': 3,
     'resync-folder': 4,
@@ -81,6 +84,10 @@ const QUICK_ORDER: Readonly<Record<string, number>> = {
     'refresh-navidrome': 2,
     'refresh-explore': 2,
     'home-import-playlist': 3,
+    'home-folia-new-playlist': 1,
+    'home-folia-reorder-playlists': 2,
+    'home-folia-import-playlist': 3,
+    'home-folia-open-scratchpad': 4,
 };
 
 /** 一项在动作格里的优先级（不在表里的返回 undefined：只在「⋯」里）。 */

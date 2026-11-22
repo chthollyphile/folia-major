@@ -1,12 +1,17 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { QQ_ONLINE_REQUEST_LIMIT_MS, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
-import { NETEASE_ONLINE_REQUEST_LIMIT_MS } from '@/services/onlineMusic/netease/netease';
+import { QQ_ONLINE_REQUEST_LIMIT_MS, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
+import { NETEASE_ONLINE_REQUEST_LIMIT_MS } from '../../../sources/netease/core/netease';
 import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
 import type { UnifiedSong } from '@/types';
 import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } from '@/types/onlineMusic';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { answerQqBackend } from '../helpers/qqSource';
+import { answerNeteaseBackend, type NeteaseBackendStatusAnswer } from '../helpers/neteaseSource';
+import { noteNeteaseBackendStatus } from '../../../sources/netease/core';
 
 // test/unit/onlineMusic/onlineFailurePlatforms.test.ts
 // Which case each platform's own failure to give a song's audio or a collection's tracks sorts
@@ -18,10 +23,10 @@ import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } fro
 vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAccountSnapshot: vi.fn() }));
 
 const require = createRequire(import.meta.url);
-const { normalizeBridgeError } = require('../../../electron/kugou/kugouApiBridge.cjs');
-const { toErrorResult: ytmErrorResult } = require('../../../electron/ytm/errors.cjs');
-const { createSpotifyApiBridge } = require('../../../electron/spotify/spotifyApiBridge.cjs');
-const { publicAccountId, SESSION_KEY: SPOTIFY_SESSION_KEY } = require('../../../electron/spotify/session.cjs');
+const { normalizeBridgeError } = require('../../../sources/kugou/main/kugouApiBridge.cjs');
+const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
+const { createSpotifyApiBridge } = require('../../../sources/spotify/main/spotifyApiBridge.cjs');
+const { publicAccountId, SESSION_KEY: SPOTIFY_SESSION_KEY } = require('../../../sources/spotify/main/session.cjs');
 const { createWire } = require('../../helpers/bodianWire.cjs');
 
 const songOf = (providerId: OnlineProviderId, mediaId: string, extra: Partial<UnifiedSong> = {}): UnifiedSong => ({
@@ -76,11 +81,24 @@ afterEach(() => {
     vi.unstubAllEnvs();
 });
 
+// NetEase's local service is the API in its source mod's main entry: the rpc `status` / `restart` answer for it here. A
+// running one's port is kept by the source until it is told of a change: each case forgets it.
+let neteaseBackendOff: (() => void) | null = null;
+const neteaseBackend = (answer: NeteaseBackendStatusAnswer = {}) => {
+    neteaseBackendOff?.();
+    const made = answerNeteaseBackend(answer);
+    neteaseBackendOff = made.off;
+    return made;
+};
+afterEach(() => {
+    neteaseBackendOff?.();
+    neteaseBackendOff = null;
+    noteNeteaseBackendStatus(null);
+});
+
 describe('NetEase', () => {
     // The desktop app: the local service's port, or none while it is down.
-    const desktop = (port: number | null) => vi.stubGlobal('window', {
-        electron: { getNeteasePort: async () => port, getNeteaseApiStatus: async () => ({ status: port ? 'running' : 'error' }) },
-    });
+    const desktop = (port: number | null) => neteaseBackend({ port });
     const song = songOf('netease', '42');
 
     it('local-service-stopped: the local service is not listening', async () => {
@@ -92,14 +110,15 @@ describe('NetEase', () => {
     it('unreachable: the local service could not start for want of the network; once it is back, the next request starts it', async () => {
         let port: number | null = null;
         let status: Record<string, unknown> = { status: 'error', port: null, error: 'getaddrinfo ENOTFOUND interface.music.163.com', offline: true, updatedAt: 1 };
-        // Still down: the main process answers the status as it is (too soon, or the start failed again).
-        const restartNeteaseApi = vi.fn(async (_reason?: string) => status);
-        vi.stubGlobal('window', { electron: { getNeteasePort: async () => port, getNeteaseApiStatus: async () => status, restartNeteaseApi } });
+        // Still down: the main entry answers the status as it is (too soon, or the start failed again).
+        const backend = neteaseBackend();
+        backend.status.mockImplementation(() => status);
+        const restartNeteaseApi = backend.restart.mockImplementation(() => status);
         expect((await audio(song)).id).toBe('unreachable');
         expect(restartNeteaseApi).toHaveBeenCalledExactlyOnceWith('needed');
 
         // The network is back: the start the next request asks for comes up, and the request goes through.
-        restartNeteaseApi.mockImplementationOnce(async () => {
+        restartNeteaseApi.mockImplementationOnce(() => {
             port = 35001;
             status = { status: 'running', port, error: null, offline: false, updatedAt: 2 };
             return status;
@@ -212,9 +231,10 @@ describe('NetEase', () => {
 });
 
 describe('QQ Music', () => {
+    // The source mod's main entry answers `status` with the embedded backend's port (none: it is not running).
     const desktop = (port: number | null) => {
         resetQqTransportRuntimeCache();
-        vi.stubGlobal('window', { electron: { getQqPort: async () => port } });
+        answerQqBackend({ port });
     };
     const song = songOf('qq', '003rJSwm3TechU');
 
@@ -274,15 +294,23 @@ describe('QQ Music', () => {
 });
 
 describe('KuGou', () => {
-    // What the desktop app's request rejects with: the bridge's one line, behind Electron's prefix.
-    const rejection = (operation: string, answer: unknown) => new Error(
-        `Error invoking remote method 'kugou-api-request': KuGouApiError: ${normalizeBridgeError(operation, answer).message}`,
-    );
-    // The desktop app; the legacy mobile endpoint, asked last, goes through the lyric relay.
-    const desktop = (kugouRequest: (...args: unknown[]) => unknown, legacy: unknown = { ok: false, status: 502, bodyText: '' }) => {
-        const fetchLyricProxy = vi.fn(async () => legacy);
-        vi.stubGlobal('window', { electron: { kugouRequest, fetchLyricProxy } });
-        return fetchLyricProxy;
+    // What the source mod's main entry answers a failed request with: the bridge's one line (sources/kugou/main/index.ts).
+    const rejection = (operation: string, answer: unknown) => normalizeBridgeError(operation, answer) as Error;
+    // The main entry: KuGouMusicApi's answer (`kugouRequest` resolves to its data or throws the bridge's line), and the
+    // legacy mobile endpoint, asked last, which main asks itself (KuGou's status and body, or that it was not reached).
+    const desktop = (kugouRequest: (...args: unknown[]) => unknown, legacy: unknown = { status: 502, bodyText: '' }) => {
+        const legacyPlayInfo = vi.fn(async () => legacy);
+        setBuiltinSourceRpc('kugou', {
+            request: async (...args: unknown[]) => {
+                try {
+                    return { ok: true, data: await kugouRequest(...args) };
+                } catch (error) {
+                    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+                }
+            },
+            legacyPlayInfo,
+        });
+        return legacyPlayInfo;
     };
     const song = songOf('kugou', 'ABC123', { kgHash: 'ABC123' } as Partial<UnifiedSong>);
 
@@ -300,7 +328,7 @@ describe('KuGou', () => {
     });
 
     it('no-audio: KuGou answers without a URL, with its error code', async () => {
-        desktop(vi.fn().mockResolvedValue({ status: 0, error_code: 20010 }), { ok: true, status: 200, bodyText: '{"status":0}' });
+        desktop(vi.fn().mockResolvedValue({ status: 0, error_code: 20010 }), { status: 200, bodyText: '{"status":0}' });
         expect(await audio(song)).toMatchObject({ id: 'no-audio', errorCode: 'not-playable', code: '20010' });
     });
 
@@ -316,7 +344,7 @@ describe('KuGou', () => {
 
     it('local-service-stopped: the desktop side could not load KuGouMusicApi', async () => {
         const unloaded = normalizeBridgeError('song_url', new Error("Cannot find module 'kugoumusicapi'"), true);
-        desktop(vi.fn().mockRejectedValue(new Error(`Error invoking remote method 'kugou-api-request': KuGouApiError: ${unloaded.message}`)));
+        desktop(vi.fn().mockRejectedValue(unloaded));
         expect((await audio(song)).id).toBe('local-service-stopped');
     });
 
@@ -327,14 +355,14 @@ describe('KuGou', () => {
 });
 
 describe('YouTube Music', () => {
-    // The desktop side's answers, by operation.
-    const desktop = (byOperation: Record<string, unknown>) => vi.stubGlobal('window', {
-        electron: { ytmRequest: async (operation: string) => byOperation[operation] ?? { ok: true, data: {} } },
+    // The desktop side's answers, by operation: the source mod's main entry, through its rpc `request`.
+    const desktop = (byOperation: Record<string, unknown>) => setBuiltinSourceRpc('ytm', {
+        request: async (operation: unknown) => byOperation[operation as string] ?? { ok: true, data: {} },
     });
     const song = songOf('ytm', 'a0000000006');
 
     it('no-audio: YouTube\'s playability status word is quoted', async () => {
-        // As electron/ytm/ytmApiBridge.cjs answers it (test/unit/ytm/ytmApiBridge.test.ts).
+        // As sources/ytm/main/ytmApiBridge.cjs answers it (test/unit/ytm/ytmApiBridge.test.ts).
         for (const word of ['UNPLAYABLE', 'AGE_CHECK_REQUIRED']) {
             desktop({ audio: { ok: false, error: { code: 'not-playable', message: `YouTube Music cannot play this track (${word})` } } });
             expect(await audio(song)).toMatchObject({ id: 'no-audio', code: word });
@@ -362,7 +390,7 @@ describe('YouTube Music', () => {
 });
 
 describe('Spotify', () => {
-    // The real bridge, signed in, over a stand-in for Spotify's services.
+    // The real bridge (sources/spotify/main/), signed in, over a stand-in for Spotify's services.
     const desktop = (respond: () => unknown) => {
         const values = new Map<string, unknown>([[SPOTIFY_SESSION_KEY, Buffer.from(JSON.stringify({
             version: 1, credentials: { access_token: 'access-private', refresh_token: 'refresh-private', expires_at: Date.now() + 3600_000 },
@@ -373,7 +401,8 @@ describe('Spotify', () => {
             safeStorage: { isEncryptionAvailable: () => true, encryptString: (text: string) => Buffer.from(text), decryptString: (data: Buffer) => data.toString() },
             fetch: async () => respond(), openExternal: async () => { }, log: () => { }, warn: () => { },
         });
-        vi.stubGlobal('window', { electron: { spotifyRequest: bridge.request } });
+        // The source mod's main entry runs the bridge; its client reaches it over the rpc.
+        setBuiltinSourceRpc('spotify', { request: (operation, params) => bridge.request(operation as string, (params ?? {}) as Record<string, unknown>) });
     };
     const list = collectionOf('spotify', 'playlist', '37i9dQZF1DXcBWIGoYBM5M');
 
@@ -391,7 +420,8 @@ describe('Bodian', () => {
     // The real package, as the desktop side runs it, over a stand-in for the network.
     const desktop = (respond: () => unknown) => {
         const api = createBodianApi({ deviceId: 'a'.repeat(32), requestFactory: createWire(respond).factory });
-        vi.stubGlobal('window', { electron: { bodianRequest: api.request } });
+        // Folium 2.0 S5: the source mod's main entry runs the package; its client reaches it over the rpc.
+        setBuiltinSourceRpc('bodian', { request: (operation, params) => api.request(operation as never, params as never) });
     };
     const song = songOf('bodian', '1001');
 

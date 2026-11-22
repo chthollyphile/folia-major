@@ -1,0 +1,17 @@
+{
+  "name": "@folia-sources/ytm",
+  "private": true,
+  "description": "YouTube Music 音源模组的依赖：youtubei.js、googlevideo、bgutils-js 钉死版本，都是 ESM-only，打进 main 入口旁的 vendor.<指纹>.mjs（require(esm)）。",
+  "dependencies": {
+    "bgutils-js": "4.0.3",
+    "googlevideo": "4.1.1",
+    "youtubei.js": "18.1.0"
+  },
+  "folia": {
+    "dependencies": {
+      "bgutils-js": "vendor",
+      "googlevideo": "vendor",
+      "youtubei.js": "vendor"
+    }
+  }
+}

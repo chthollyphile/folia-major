@@ -1,9 +1,11 @@
 import type { TFunction } from 'i18next';
-import type { LocalPlaylist, LocalSong } from '../../../types';
+import type { LocalLibraryGroup, LocalSong } from '../../../types';
+import type { FoliaPlaylistSummary } from '../../../types/foliaPlaylist';
 import type { ProviderArtistSummary } from '../../../types/onlineMusic';
 import type { LocalGridViewCollectionDescriptor } from '../../../library/core/collection/collection.contract';
 import type { LocalLibraryDisplayCatalog } from '../../../services/playbackAdapters';
 import { buildLocalHomeGroups, type LocalHomeGroups } from '../../../library/core/home/localHomeModel';
+import { buildFoliaHomeGroups } from '../../../library/core/home/foliaHomeModel';
 import { applyLocalCollectionCoverOverrides } from '../../../library/core/collection/cover/localCollectionCover';
 import { localCollectionCovers } from '../../../library/core/collection/cover/localCollectionCovers.service';
 import { getLocalCoverAssetUrl } from '../../../services/localCoverAssetUrl';
@@ -11,8 +13,9 @@ import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/loc
 import { createLocalGridViewCollection } from '../home/gridViewCollectionAdapters';
 
 // src/components/app/search/localSearchCollections.ts
-// 搜索页「本地」来源的专辑、歌单从哪来：与首页本地页签同一套分组（buildLocalHomeGroups）、同样换上自定义封面，
-// 打开时就是同一张集合页。专辑另外带上专辑歌手（按歌手名也能搜到，结果行有副标题）。
+// 搜索页「本地」来源的专辑、歌单从哪来：专辑与首页本地页签同一套分组（buildLocalHomeGroups），歌单是 Folia 的聚合歌单
+// （本地歌单已经并进 Folia 歌单，首页 Folia 组同一套分组 buildFoliaHomeGroups），都同样换上自定义封面，打开时就是同一张
+// 集合页。专辑另外带上专辑歌手（按歌手名也能搜到，结果行有副标题）。
 // 分组到第一次搜本地专辑或歌单时才算，同一份曲库数据只算一次。
 
 /** 曲库目录读好之前 ready 是 false：那时按歌曲的原始标签分组，和首页一样。 */
@@ -58,27 +61,29 @@ export const createLocalSearchCollectionsReader = ({
     t,
 }: {
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
+    /** Folia 聚合歌单的摘要（App 里的 localPlaylists）。 */
+    localPlaylists: readonly FoliaPlaylistSummary[];
     catalog: LocalSearchCatalog;
     t: TFunction;
 }) => {
     const catalogReady = catalog.ready !== false;
     let groups: LocalHomeGroups | null = null;
+    let playlistGroups: LocalLibraryGroup[] | null = null;
     let songArtists: Map<string, ProviderArtistSummary[]> | null = null;
     // 自定义封面可能在两次搜索之间换过：快照换了才重新套一遍。
     let albums: { overrides: ReadonlyMap<string, string>; list: LocalGridViewCollectionDescriptor[] } | null = null;
     return (kind: 'album' | 'playlist'): LocalGridViewCollectionDescriptor[] => {
+        const overrides = localCollectionCovers.getSnapshot();
+        if (kind === 'playlist') {
+            playlistGroups ??= buildFoliaHomeGroups(localPlaylists, localSongs, t, getLocalCoverAssetUrl);
+            return applyLocalCollectionCoverOverrides(playlistGroups, overrides).map(createLocalGridViewCollection);
+        }
         groups ??= buildLocalHomeGroups(
             localSongs,
-            localPlaylists,
             t,
             catalogReady ? { entities: catalog.entities, assignments: catalog.assignments } : undefined,
             getLocalCoverAssetUrl,
         );
-        const overrides = localCollectionCovers.getSnapshot();
-        if (kind === 'playlist') {
-            return applyLocalCollectionCoverOverrides(groups.playlists, overrides).map(createLocalGridViewCollection);
-        }
         if (albums?.overrides !== overrides) {
             if (catalogReady) songArtists ??= buildSongArtists(catalog);
             const artistsBySong = songArtists;

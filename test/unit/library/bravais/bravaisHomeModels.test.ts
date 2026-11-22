@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { LibraryDirectoryNode } from '@/library/core/directory/directory.contract';
-import type { LibraryHomeCard } from '@/library/core/home/homeModel.contract';
+import type { LibraryHomeCard, LibraryHomeGroupView } from '@/library/core/home/homeModel.contract';
 import { getWallSlot } from '@/components/wall/wallSlots';
 import {
     createHomeItemCache,
     cycleHomeSeamTab,
     cycleHomeTab,
     projectDirectoryRows,
-    projectHomeSeamTabs,
+    projectHomeSeamGroups,
     projectHomeShortcuts,
     projectHomeWallItems,
     resolveHomeWallMode,
@@ -277,19 +277,28 @@ describe('select-all and tabs', () => {
     ] as const;
     const extra = (id: string, active = false) => ({ id, label: id.toUpperCase(), active });
 
-    it('projects contributed pages after native tabs and lets an open page take the selection', () => {
-        expect(projectHomeSeamTabs(nativeTabs, 'local')).toEqual([
-            { key: 'playlist', label: 'Playlists', active: false, disabled: false },
-            { key: 'radio', label: 'Radio', active: false, disabled: true },
+    // 缝里的一级页签是首页两级页签的组；在线组和别的组一样只是一个页签（名字是当前音源的名字）。
+    const nativeGroups: LibraryHomeGroupView[] = [
+        { key: 'folia', label: 'Folia', active: false, tabs: [], target: 'folia' },
+        { key: 'online', label: 'Source A', active: false, tabs: [], target: 'radio' },
+        { key: 'local', label: 'Local', active: true, tabs: [], target: 'local' },
+        { key: 'navidrome', label: 'Navidrome', active: false, tabs: [], target: null, disabledReason: 'off' },
+    ];
+
+    it('projects groups as the first-level tabs, contributed pages after them, and lets an open page take the selection', () => {
+        expect(projectHomeSeamGroups(nativeGroups)).toEqual([
+            { key: 'folia', label: 'Folia', active: false, disabled: false },
+            { key: 'online', label: 'Source A', active: false, disabled: false },
             { key: 'local', label: 'Local', active: true, disabled: false },
+            { key: 'navidrome', label: 'Navidrome', active: false, disabled: true, title: 'off' },
         ]);
-        const closed = projectHomeSeamTabs(nativeTabs, 'local', [extra('mod:a'), extra('mod:b')]);
+        const closed = projectHomeSeamGroups(nativeGroups, [extra('mod:a'), extra('mod:b')]);
         expect(closed.filter(tab => tab.active).map(tab => tab.key)).toEqual(['local']);
-        expect(closed.slice(3)).toEqual([
+        expect(closed.slice(4)).toEqual([
             { key: 'mod:a', label: 'MOD:A', active: false, disabled: false },
             { key: 'mod:b', label: 'MOD:B', active: false, disabled: false },
         ]);
-        const open = projectHomeSeamTabs(nativeTabs, 'local', [extra('mod:a'), extra('mod:b', true)]);
+        const open = projectHomeSeamGroups(nativeGroups, [extra('mod:a'), extra('mod:b', true)]);
         expect(open.filter(tab => tab.active).map(tab => tab.key)).toEqual(['mod:b']);
     });
 

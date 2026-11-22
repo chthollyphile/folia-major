@@ -81,6 +81,8 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'resync-all-folders',
     'reorder-playlist',
     'export-playlist',
+    'save-to-folia',
+    'refresh-from-origin',
     'edit-entity',
     // 「⋯ 更多」里的「设置封面」：本地文件夹 / 专辑 / 歌单的自定义封面（宿主的封面对话框）。
     'set-cover',

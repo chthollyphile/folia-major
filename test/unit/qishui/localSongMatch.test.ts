@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { normalizeLyricMatchMetadataCandidate } from '@/services/onlineMetadataSearchService';
@@ -6,7 +7,8 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { getLyricSourceAccess } from '@/utils/lyrics/lyricMatchSources';
 import type { LocalSong, UnifiedSong } from '@/types';
 
-// A stored manual selection must win over a different version ranked first during later lyric matching.
+// A stored manual selection must win over a different version ranked first during later lyric matching. The
+// Qishui lyric source is the registered source mod's (lyrics@1.crossSource and songIdOf).
 afterEach(() => vi.restoreAllMocks());
 
 const selected: UnifiedSong = {
@@ -28,7 +30,6 @@ const matchLocal = async (results: UnifiedSong[]) => {
     };
     const context = buildLocalSongLyricMatchContext(local);
     const provider = getOnlineMusicProvider('qishui')!;
-    vi.spyOn(provider, 'getAvailability').mockReturnValue({ configured: true });
     const search = vi.spyOn(provider.search!, 'searchSongs').mockResolvedValue({ items: results, hasMore: false, nextOffset: results.length });
     const fetch = vi.spyOn(provider.lyrics!, 'getLyrics').mockResolvedValue(lyric);
     const result = await autoMatchBestLyric(context.title, context.artist, context.durationMs, {

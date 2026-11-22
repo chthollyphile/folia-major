@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     CalendarPlus,
     Check,
+    Compass,
     DiscAlbum,
     Folder,
     FoldHorizontal,
@@ -10,8 +11,10 @@ import {
     LayoutGrid,
     ListFilter,
     Library,
+    ListMusic,
     Maximize2,
     MicVocal,
+    Radio,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer, BravaisSeamTab } from './bravaisLayer';
@@ -86,8 +89,13 @@ export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; com
     </div>
 );
 
-/** 二级切换的图标（本地四行与 Navidrome 的 section 按 key 取；未知的 key 用 LayoutGrid）。 */
+export const seamTabClassName = (tab: BravaisSeamTab) => `bravais-seam-home-tab${tab.active ? ' is-active' : ''}`;
+
+/** 二级切换的图标（在线组的页、本地四行与 Navidrome 的 section 按 key 取；未知的 key 用 LayoutGrid）。 */
 const SECTION_ICONS: Record<string, React.ComponentType<{ 'aria-hidden'?: boolean }>> = {
+    playlist: ListMusic,
+    radio: Radio,
+    explore: Compass,
     folders: Folder,
     albums: DiscAlbum,
     artists: MicVocal,
@@ -144,7 +152,8 @@ export const HomeSeamSections: React.FC<{
                     role="tab"
                     aria-selected={section.active}
                     aria-label={section.label}
-                    title={section.label}
+                    title={section.title ?? section.label}
+                    disabled={section.disabled}
                     data-bravais-section={section.key}
                     className={`bravais-seam-section${section.active ? ' is-active' : ''}`}
                     onClick={() => onSelect?.(section.key)}
@@ -247,7 +256,7 @@ const HomeSeamHead: React.FC<{
                 {lead}
                 {tabs.length > 0 && (measure ? (
                     <div className="bravais-seam-tabs">
-                        {tabs.map(tab => <span key={tab.key} className="bravais-seam-home-tab">{tab.label}</span>)}
+                        {tabs.map(tab => <span key={tab.key} className={seamTabClassName({ ...tab, active: false })}>{tab.label}</span>)}
                     </div>
                 ) : (
                     <div className={`bravais-seam-tabs${shorts ? ' is-short' : ''}`} role="tablist" aria-label={title} aria-orientation="vertical">
@@ -258,11 +267,11 @@ const HomeSeamHead: React.FC<{
                                 role="tab"
                                 aria-selected={tab.active}
                                 aria-label={shorts ? tab.label : undefined}
-                                title={tab.label}
+                                title={tab.title ?? tab.label}
                                 disabled={tab.disabled}
                                 data-bravais-tab={tab.key}
                                 data-bravais-tab-short={shorts ? 'true' : undefined}
-                                className={`bravais-seam-home-tab${tab.active ? ' is-active' : ''}`}
+                                className={seamTabClassName(tab)}
                                 onClick={() => onSelectTab?.(tab.key)}
                             >
                                 {shorts ? shorts[index] : tab.label}

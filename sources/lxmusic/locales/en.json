@@ -1,0 +1,46 @@
+{
+    "name": {
+        "full": "LX Music Source",
+        "short": "LX"
+    },
+    "availability": {
+        "noScript": "No custom source script imported yet. Run “LX Music Source: Import a custom source script…” from the command palette."
+    },
+    "platform": {
+        "kw": "Kuwo",
+        "kg": "Kugou",
+        "tx": "QQ Music",
+        "wy": "NetEase",
+        "other": "the current platform"
+    },
+    "explore": {
+        "charts": {
+            "kw": "Kuwo charts",
+            "kg": "Kugou charts",
+            "tx": "QQ Music charts",
+            "wy": "NetEase charts",
+            "other": "Charts"
+        }
+    },
+    "import": {
+        "cancelled": "No file picked",
+        "done": "Imported “{{name}}” and made it the current script",
+        "failed": {
+            "too-large": "The file is too large: a script is 2 MB at most",
+            "not-a-script": "This is not an LX Music custom source script",
+            "no-platform": "The script declares none of Kuwo, Kugou, QQ Music or NetEase",
+            "too-many": "Too many scripts: remove one before importing another",
+            "load-failed": "The script did not start (it never reported which platforms it serves)",
+            "unreadable": "The file could not be read"
+        }
+    },
+    "select": {
+        "done": "Now using “{{name}}”"
+    },
+    "remove": {
+        "done": "Removed “{{name}}”"
+    },
+    "platformSwitch": {
+        "done": "Now searching {{platform}}"
+    }
+}

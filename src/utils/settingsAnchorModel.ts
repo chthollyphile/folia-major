@@ -96,6 +96,11 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     gpuPreference: { section: 'graphics' },
     lyricRenderScale: { section: 'graphics' },
 
+    // pages/SourcesPage (desktop app only)
+    sourceList: { section: 'sources' },
+    sourceInstall: { section: 'sources' },
+    sourceOther: { section: 'sources' },
+
     // pages/ModsPage
     modSystem: { section: 'mods' },
     modList: { section: 'mods' },

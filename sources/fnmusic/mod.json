@@ -1,0 +1,33 @@
+{
+  "folium": 2,
+  "id": "fnmusic",
+  "name": "飞牛音乐",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的飞牛音乐音源（仅桌面端）：连用户自己 fnOS NAS 上的飞牛音乐服务，表单登录（局域网地址或 FN Connect 的 FN ID）、搜索、播放、歌词、曲库、歌单改动，在主进程里请求。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "fnmusic",
+      "name": {
+        "zh-CN": "飞牛音乐",
+        "en": "fnOS Music",
+        "in": "fnOS Music",
+        "vi": "fnOS Music"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "mutations@1"
+      ],
+      "selfSignedUserServers": true
+    }
+  ]
+}

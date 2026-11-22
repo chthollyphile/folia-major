@@ -9,6 +9,7 @@ import type { LayerTransition } from './styleTransition/layerTransition';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
 import { isMainAppSurface } from '../../utils/appSurface';
 import { FoliumStageLayerSlot } from '../../mods/folium/registries/stageLayers';
+import { useSurfaceShowing } from '../app/playback/surface/surfaceShowing';
 
 // src/components/visualizer/VisualizerBackdrop.tsx
 // What a lyric style is drawn over: the background, and the video layer above it. VisualizerRenderer
@@ -119,6 +120,9 @@ const VisualizerBackdrop: React.FC<VisualizerBackdropProps> = ({ entry, props, t
     // Folium stage layers exist on the real player page only, never in previews.
     const showStageLayers = !props.isPreviewMode && !props.staticMode;
     const stageProps = { theme: props.theme, isDaylight: props.isDaylight ?? false, paused: props.paused ?? false };
+    // A source's picture shows under the player page (playback.surface): the background is left out over it,
+    // and the lyrics, the subtitles and the stage layers stay on top. Previews draw their own as ever.
+    const surfaceShowing = useSurfaceShowing() && !props.isPreviewMode && !props.staticMode;
 
     return (
         <div ref={setPointerArea} className="relative w-full h-full overflow-hidden" style={{ opacity: props.visualizerOpacity ?? 1 }}>
@@ -127,7 +131,7 @@ const VisualizerBackdrop: React.FC<VisualizerBackdropProps> = ({ entry, props, t
                 audioPower={props.audioPower}
                 audioBands={props.audioBands}
                 sharedProps={entry.background ? { ...props, background: entry.background(props) } : props}
-                renderBackground={entry.background !== false}
+                renderBackground={entry.background !== false && !surfaceShowing}
                 transition={transition}
                 waits={waits}
             />

@@ -1,3 +1,4 @@
+// @builtin-sources
 import { readdir, readFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistry';

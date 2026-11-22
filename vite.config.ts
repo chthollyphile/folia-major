@@ -4,6 +4,7 @@ import { type ConfigEnv, type UserConfig, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { commandPinyinPlugin } from './dev/pinyin/commandPinyinPlugin.mjs';
 import { traditionalLocalePlugin } from './dev/i18n/traditionalLocalePlugin.mjs';
+import { webSourcePlugin } from './dev/sources/webSourcePlugin.mjs';
 import { icuFoliaDataPlugin } from './dev/icuFolia/icuFoliaDataPlugin.mjs';
 import { nebbiaStrokesPlugin } from './dev/nebbia/nebbiaStrokesPlugin.mjs';
 import { normalizeBuildCommit, resolveBuildKind, resolveBuildRepo, resolveDevBuildKindOverride } from './dev/build/buildIdentity.mjs';
@@ -268,13 +269,16 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
         // .claude holds the git worktrees of parallel sessions, each a full checkout of the repo:
         // watched, they cost one handle per file (hundreds of thousands on Windows), and setting
         // those up starves the dev server for minutes before it answers the first page.
-        ignored: ['**/release/**', '**/models/**', '**/.claude/**'],
+        // dist-mods/ is the build output of the source mods (dev/sources/build.mjs --watch rewrites it); the app's
+        // main process reloads it, the page never imports it.
+        ignored: ['**/release/**', '**/models/**', '**/.claude/**', '**/dist-mods/**'],
       },
     },
     plugins: [
       devLyricProxyPlugin(),
       commandPinyinPlugin(),
       traditionalLocalePlugin(),
+      webSourcePlugin(),
       icuFoliaDataPlugin(),
       nebbiaStrokesPlugin(),
       react(),
@@ -337,6 +341,8 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        // 音源模组共用的纯函数（packages/folium-source-kit），宿主和 sources/ 都从包的入口取。
+        '@folia/folium-source-kit': path.resolve(__dirname, './packages/folium-source-kit/src/index.ts'),
       }
     }
   };

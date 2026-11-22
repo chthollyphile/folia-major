@@ -20,7 +20,7 @@ import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import { buildDuplicateOccurrences, entryKeyAt, findEntryIndex } from '../collectionEntries';
 import {
     isSerializedRemoval,
-    localPlaylistSongIdOf,
+    foliaPlaylistEntryKeyOf,
     localSongIdOf,
     resolveCollectionMutationBranches,
     resolveCollectionMutationCapabilities,
@@ -379,12 +379,12 @@ export const createCollectionMutationController = (
         playlistId: string,
         removePlaylistSongs: RemovePlaylistSongs<string>,
     ): Promise<LibraryMutationResult> => {
-        const songId = localPlaylistSongIdOf(entry.track);
-        await removePlaylistSongs(playlistId, [songId]);
-        // 歌单按 songId 删（同一首出现几次都删掉），资源也删掉同 songId 的全部条目。
+        const entryKey = foliaPlaylistEntryKeyOf(entry.track);
+        await removePlaylistSongs(playlistId, [entryKey]);
+        // 歌单按条目 key 删（一张歌单里同一个 key 只有一条），资源也删掉同 key 的条目。
         // 本地集合的资源会随曲库刷新换新，所以提交给此刻的那一个。
         try {
-            await inputs.resource?.removeTracks(track => localPlaylistSongIdOf(track) === songId);
+            await inputs.resource?.removeTracks(track => foliaPlaylistEntryKeyOf(track) === entryKey);
         } catch (error) {
             console.warn('[LibraryUi] Failed to commit local playlist removal:', error);
         }
@@ -437,7 +437,7 @@ export const createCollectionMutationController = (
     const removalScope = (kind: CollectionEntryRemovalKind, entry: LibraryEntryRef) => {
         if (isSerializedRemoval(kind)) return 'collection';
         return kind === 'local-playlist'
-            ? `local:${localPlaylistSongIdOf(entry.track)}`
+            ? `folia:${foliaPlaylistEntryKeyOf(entry.track)}`
             : `song:${getPlaybackSongKey(entry.track)}`;
     };
 
@@ -756,6 +756,20 @@ export const createCollectionMutationController = (
                     ? port.local?.exportPlaylist?.(descriptor.playlistId)
                     : undefined
             ));
+        },
+        saveToFolia: () => {
+            const { descriptor, port } = inputs;
+            return runSourceAction('saveToFolia', () => {
+                if (descriptor.source !== 'local') port.folia?.saveCollection?.(descriptor);
+            }, { exclusive: false });
+        },
+        refreshFromOrigin: () => {
+            const { descriptor, port } = inputs;
+            return runSourceAction('refreshFromOrigin', () => {
+                if (descriptor.source === 'local' && descriptor.playlistId) {
+                    port.folia?.refreshFromOrigin?.(descriptor.playlistId);
+                }
+            }, { exclusive: false });
         },
         addToPlaylist: (playlistId, tracks) => runSourceAction(
             'addToPlaylist',

@@ -1,25 +1,27 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
-import { getAppleMusicLyricSearchAlias } from '../../../src/services/onlineMusic/appleMusic/appleMusicOriginal';
-import { normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { getAppleMusicLyricSearchAlias } from '../../../sources/appleMusic/client/appleMusicOriginal';
+import { normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // Exercise the bounded cross-storefront bridge and cache without using personal account data.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 afterEach(() => vi.unstubAllGlobals());
 describe('Apple Music original metadata', () => {
     it('uses a library song catalog identity and returns a paired title and artist', async () => {
         const request = vi.fn(async () => ({ ok: true, data: { name: '宵の余、良い!', artistName: '百鬼あやめ', albumName: '作品' } }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const song = normalizeAppleMusicSong({ id: 'i.library', type: 'library-songs', attributes: { name: 'Yoi no Yo,Yoi!', playParams: { catalogId: '1588262504' } } });
-        expect(await getAppleMusicLyricSearchAlias(song)).toMatchObject({ title: '宵の余、良い!', artist: '百鬼あやめ', song: { aliases: ['宵の余、良い!', '百鬼あやめ'] } });
+        expect(await getAppleMusicLyricSearchAlias(song)).toEqual({ title: '宵の余、良い!', artist: '百鬼あやめ', album: '作品' });
         await getAppleMusicLyricSearchAlias(song);
         expect(request).toHaveBeenCalledTimes(2);
         expect(request).toHaveBeenCalledWith('songOriginal', { catalogId: '1588262504' });
     });
     it('never asks for an already non-Latin title', async () => {
         const request = vi.fn(async () => ({ ok: true, data: null }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const song = normalizeAppleMusicSong({ id: '8001', type: 'songs', attributes: { name: '日本語' } });
         expect(await getAppleMusicLyricSearchAlias(song)).toBeNull();
         expect(request).not.toHaveBeenCalled();
@@ -30,7 +32,7 @@ describe('Apple Music original metadata', () => {
     });
     it('does not return an alias when the original title is unchanged', async () => {
         const request = vi.fn(async () => ({ ok: true, data: { name: 'Same title', artistName: '原文歌手' } }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const song = normalizeAppleMusicSong({ id: '8003', type: 'songs', attributes: { name: 'Same title', artistName: 'Artist' } });
         expect(await getAppleMusicLyricSearchAlias(song)).toBeNull();
     });

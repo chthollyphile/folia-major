@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from '../../../sources/appleMusic/client/appleMusicNormalize';
 
 // Check catalog and library identities using synthetic versions of observed response shapes.
 describe('Apple Music resource normalization', () => {
@@ -13,10 +13,9 @@ describe('Apple Music resource normalization', () => {
             },
         });
         expect(song.id).toBe('12345678901234567890');
-        expect(song.sourceRef).toMatchObject({ kind: 'online', providerId: 'appleMusic', mediaId: song.id });
-        expect(song.album.coverUrl).toBe('https://example.test/512x512.jpg');
+        expect(song.data).toMatchObject({ resourceType: 'songs' });
+        expect(song.album?.coverUrl).toBe('https://example.test/512x512.jpg');
         expect(song.durationMs).toBe(123456);
-        expect(normalizeAppleMusicSong(song)).toBe(song);
     });
 
     it('does not replace a library identity with its catalog identity', () => {
@@ -24,19 +23,16 @@ describe('Apple Music resource normalization', () => {
             id: 'i.library', type: 'library-songs',
             attributes: { playParams: { id: 'i.library', kind: 'song', isLibrary: true, catalogId: '100' } },
         });
-        expect(song.sourceRef).toMatchObject({
-            kind: 'online', providerId: 'appleMusic', mediaId: 'i.library',
-            providerData: { resourceType: 'library-songs', playbackId: 'i.library', catalogId: '100', isLibrary: true },
-        });
+        expect(song.id).toBe('i.library');
+        expect(song.data).toMatchObject({ resourceType: 'library-songs', playbackId: 'i.library', catalogId: '100', isLibrary: true });
         expect(song.durationMs).toBe(0);
         expect(song.artists).toEqual([]);
     });
 
     it('preserves the playlist resource kind and leaves an unknown count unset', () => {
         const list = normalizeAppleMusicPlaylist({ id: 'p.example', type: 'library-playlists', attributes: { name: 'Example' } });
-        expect(list).toMatchObject({ id: 'p.example', providerId: 'appleMusic', type: 'playlist', providerData: { resourceType: 'library-playlists' } });
+        expect(list).toMatchObject({ id: 'p.example', type: 'playlist', data: { resourceType: 'library-playlists' } });
         expect(list.trackCount).toBeUndefined();
-        expect(normalizeAppleMusicPlaylist(list)).toBe(list);
     });
 
     it('rejects resources without a supported identity and handles invalid durations', () => {

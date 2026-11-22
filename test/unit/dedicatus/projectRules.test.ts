@@ -85,6 +85,32 @@ describe('D513 Folium stable interface', () => {
         expect([3, 5, 8].map(line => flags[line])).toEqual([false, true, true]);
     });
 
+    it('holds the source sections of the generated file to the stable rules, now that they are no longer a preview', () => {
+        // Folium 2.0 (plan §10, delivery): the source interface was a preview until edge went into main; its two
+        // sections (Sources, Source main API) are stable like the rest, and a comment under their markers changes nothing.
+        const section = (name: string) => `// ---------------------------------------------------------------- ${name}`;
+        const sample = [
+            section('Client API'),
+            'export interface A { a(): void; }',
+            section('Sources'),
+            '// 预览：Folium 2 的音源接口还是预览版',
+            'export interface B { b(): void; }',
+        ].join('\n');
+        expect([2, 5].map(line => experimentalLines(sample)[line])).toEqual([false, false]);
+        const text = readFileSync(path.join(ROOT, 'mods/folium.d.ts'), 'utf8');
+        expect(text).not.toMatch(/^\/\/ 预览：/m);
+        const lines = text.split('\n');
+        const flags = experimentalLines(text);
+        const at = (needle: string) => {
+            const index = lines.findIndex(line => line.startsWith(needle));
+            expect(index, needle).toBeGreaterThan(-1);
+            return flags[index + 1];
+        };
+        expect(at('export interface FoliumSourcesService')).toBe(false);
+        expect(at('export interface FoliumSourceMainApi')).toBe(false);
+        expect(at('export interface FoliumClientApi')).toBe(false);
+    });
+
     it('keeps the members of an experimental declaration experimental, and finds lower-case experimental members', () => {
         const text = readFileSync(path.join(ROOT, 'mods/folium.d.ts'), 'utf8');
         const lines = text.split('\n');
@@ -125,6 +151,12 @@ describe('D513 Folium stable interface', () => {
         expect(minor.map(finding => finding.key)).toEqual(['D513:removed:play(): void;']);
         const major = checkFoliumApi(files, { readBase: read('{ "major": 1, "minor": 8 }', types), readCurrent: read('{ "major": 2, "minor": 0 }', after) });
         expect(major).toEqual([]);
+        // Folium 2.0: the host version stays, the version a folium 1 mod reads moved (a 1.x member synced in from main).
+        const two = (one: number) => (file: string) => (file === 'mods/folium.d.ts'
+            ? (one === 9 ? types : after)
+            : `{ "version": { "major": 2, "minor": 0 }, "foliumOneVersion": { "major": 1, "minor": ${one} } }`);
+        const oneTrack = checkFoliumApi(files, { readBase: two(9), readCurrent: two(10) });
+        expect(oneTrack.map(finding => finding.key)).toEqual(['D513:removed:play(): void;']);
     });
 
     it('lets a minor bump rewrite the version line itself', () => {
@@ -232,7 +264,7 @@ describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
     tester.run('dedicatus/registered-sites', plugin.rules['registered-sites'], {
         valid: [
             // D121：登记过的函数依据平台记录给出下架；比较、类型表不算“给出”
-            { code: "export const resolveNeteaseSongAvailability = (song) => ({ state: 'unavailable', reason: 'taken-down' });", filename: inRepo('src/services/onlineMusic/netease/netease.ts'), options: sitesOptions },
+            { code: "export const resolveNeteaseSongAvailability = (song) => ({ state: 'unavailable', reason: 'taken-down' });", filename: inRepo('sources/netease/core/netease.ts'), options: sitesOptions },
             { code: "if (shown.case === 'taken-down') present(shown);", filename: inRepo('src/services/onlineMusic/qq/qqProvider.ts'), options: sitesOptions },
             // 查询也是读
             { code: "const down = reasons.includes('taken-down') || DOWN.has('taken-down') || isFailureCase(failure, 'taken-down'); const text = TEXTS['taken-down'];", filename: inRepo('src/components/x/Thing.tsx'), options: sitesOptions },

@@ -1,15 +1,16 @@
 // dev/probes/accountBehavior/probeApi.ts
 // 账户行为探针挂在 window 上的驱动接口。只有类型：component 用例 import 它不会把探针运行时带进 Node。
 //
-// 这里只放「环境」：假 auth provider 的编排、账户与当前平台的种子、网易本地后端、调用账。登录弹窗、切换器、
-// 确认框这些界面由用例按 suite 的 DOM 去点（A0 只有网格），探针不替界面做动作，否则钉不住真实交互。
-// A6 起用例按 suite 参数化：grid 驱动点网格的 DOM，tui 驱动按 TUI 的键（见 test/component/accountBehavior.spec.ts）。
+// 这里只放「环境」：假 auth provider 的编排、账户与当前平台的种子、网易本地后端、调用账。登录窗口、切换器、
+// TUI 的平台列表这些界面由用例按 suite 的 DOM 去点，探针不替界面做动作，否则钉不住真实交互。
+// 用例按 suite 参数化的是「从哪里进」：grid 驱动点右下角的切换器打开登录窗口，tui 驱动按 TUI 平台列表的键；
+// 登录窗口本身两个 suite 共用（见 test/component/accountBehavior.spec.ts）。
 
 /** 失败后自检的剧本：返回的结果推出哪种结论（tls-reset / network-ok），或自检本身出错（error）。 */
 export type AccountSelfCheckScript = 'tls-reset' | 'network-ok' | 'error';
 
 /** 二维码轮询时 checkQr 依次返回的状态；队列空了一律返回 waiting。 */
-/** canceled：用户在手机上取消，后端要求冷却 ACCOUNT_CANCEL_COOLDOWN_MS 之后才能再要码。 */
+/** canceled：用户在手机上取消，平台报错并要求等 ACCOUNT_CANCEL_COOLDOWN_MS 之后才能再要码（failure.retryAfterMs）。 */
 export type AccountQrState = 'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error' | 'canceled';
 
 export type AccountCallOp =
@@ -24,13 +25,13 @@ export type AccountCallOp =
     | 'auth-logout'
     /** 宿主注入给平台的 per-provider 登出（App 的 onlineProviderLogouts）。 */
     | 'host-logout'
-    /** 宿主注入给平台的 per-provider 账户刷新（App 的 onlineProviderRefreshers）。 */
+    /** 读账号时问平台谁登录着（omni.readAccount → provider.auth.getLoginStatus）：登录确认之后、切到这个平台之后各一次。 */
     | 'refresh'
     /** 切换时离开旧平台（账户 controller 的平台端口 leaveProvider，即应用的 createLibraryAccountSwitchCleanupPort）。 */
     | 'switch-cleanup'
     /** 退出登录时移出那个平台的歌（同一个端口的 dropSongsOf）。 */
     | 'drop-songs'
-    /** 网易本地后端的重启动作（useNeteaseApiStatusStore.restart）。 */
+    /** 网易本地后端的重启动作（登录窗口经 auth.localService.restart，假的在 fakeAuthProviders.ts）。 */
     | 'backend-restart'
     /** 登录失败后的主动自检（provider.runQrLoginSelfCheck）。 */
     | 'self-check';
@@ -41,7 +42,7 @@ export type AccountCall = {
     providerId: string;
     key?: string;
     methodId?: string | null;
-    /** refresh 的结果（false 表示刷新失败）。 */
+    /** refresh 的结果（false 表示没问到，账号没读到）。 */
     ok?: boolean;
 };
 
@@ -65,7 +66,7 @@ export type AccountProbeApi = {
     scriptQr: (providerId: string, states: AccountQrState[]) => void;
     /** 二维码寿命（毫秒）；null 表示不声明，只认后端报的过期。在要码之前设置。 */
     setQrTtl: (providerId: string, ttlMs: number | null) => void;
-    /** 接下来 times 次账户刷新返回 false（扫码确认了却没拿到登录态）。 */
+    /** 接下来 times 次读账号时问不到平台（扫码确认了却没读到账号）。 */
     failRefresh: (providerId: string, times: number) => void;
     /** 接下来 times 次要码抛错。 */
     failCreate: (providerId: string, times: number) => void;
@@ -88,9 +89,8 @@ export type AccountProbeApi = {
     /** 换 suite（与 DEV 浮层同一个 store；首页上没有打开的集合，不需要转场重置）。 */
     setSuite: (suiteId: string) => void;
     /**
-     * 直接调账户 controller 的 startLogin，返回结果的 status。给还没有账户入口的 suite（A5 时的 TUI）用：
-     * 登录界面由 registry 解析出的 account surface 渲染。A6 起 TUI 有了自己的平台列表与 account surface，
-     * `[switch]` 用例仍用它绕开首页入口、直接验证「选中的 suite 由自己的 account surface 答复」。
+     * 直接调账户 controller 的 startLogin，返回结果的 status。登录窗口不会因此打开（窗口只由 openLoginWindow 打开，
+     * 选中一行时自己调 startLogin）；现在的用例都从界面进，不再用它，留给手动排查。
      */
     startLogin: (providerId: string) => Promise<string>;
     /** 直接调 controller 的 requestSwitch；不等用户答复，结局经 switchResult 读。 */

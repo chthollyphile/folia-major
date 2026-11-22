@@ -1,23 +1,31 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SongResult } from '@/types';
-import { qrcDecrypt } from '@/services/onlineMusic/qq/qrcDecrypt';
-import { fetchQQLyrics, searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { FoliumSourceSong } from '@/mods/folium/sources/contract';
+import { qrcDecrypt } from '../../../sources/qq/core/qrcDecrypt';
+import { fetchQQLyrics, searchQQSongs } from '../../../sources/qq/core/qqLyricProvider';
+import { createQqCore } from '../helpers/qqSource';
 
 // test/unit/lyrics/qqLyricProvider.test.ts
-// Verifies QQ's anonymous lyric request parses the optional romanization track.
+// Verifies QQ's anonymous lyric request hands over the optional romanization track (the host parses the tracks), and
+// that the anonymous song search the lyric match uses stays anonymous. Only the core (createQqCore, the web build: the
+// requests go through the lyric relay to the stubbed fetch).
 
-vi.mock('@/services/onlineMusic/qq/qrcDecrypt', () => ({
+vi.mock('../../../sources/qq/core/qrcDecrypt', () => ({
     qrcDecrypt: vi.fn(),
 }));
 
-const song: SongResult = {
-    id: 42,
-    name: 'Test song',
-    artists: [{ id: 1, name: 'Artist' }],
-    album: { id: 1, name: 'Album' },
+// The lyric request needs the numeric songid (the song's data) beside the songmid (its id).
+const song: FoliumSourceSong = {
+    id: 'qq-mid',
+    title: 'Test song',
+    artists: [{ id: '', name: 'Artist' }],
+    album: { id: '', name: 'Album' },
     durationMs: 60_000,
-    qqMid: 'qq-mid',
+    data: { songId: 42 },
 };
+
+beforeAll(async () => {
+    await createQqCore();
+});
 
 describe('QQ lyric provider', () => {
     afterEach(() => {
@@ -25,7 +33,7 @@ describe('QQ lyric provider', () => {
         vi.clearAllMocks();
     });
 
-    it('fetches and parses QQ romanization anonymously', async () => {
+    it('fetches QQ romanization anonymously', async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
                 code: 0,
                 request: { code: 0, data: { lyric: 'orig', trans: 'trans', roma: 'roma', roma_t: 1 } },
@@ -39,9 +47,11 @@ describe('QQ lyric provider', () => {
 
         const lyrics = await fetchQQLyrics(song);
 
-        expect(lyrics?.lines[0]).toMatchObject({
-            translation: '我喜欢你',
-            romanization: 'Kimi no koto ga suki',
+        expect(lyrics?.main).toMatchObject({
+            format: 'lrc',
+            text: '[00:01.00]君のことが好き',
+            translationText: '[00:01.00]我喜欢你',
+            romanizationText: '[00:01.00]Kimi no koto ga suki',
         });
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -59,7 +69,7 @@ describe('QQ lyric provider', () => {
         })));
         vi.stubGlobal('fetch', fetchMock);
 
-        await expect(searchQQLyrics('test')).resolves.toEqual([]);
+        await expect(searchQQSongs('test')).resolves.toEqual([]);
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const searchRequestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
@@ -89,7 +99,7 @@ describe('QQ lyric provider', () => {
         })));
         vi.stubGlobal('fetch', fetchMock);
 
-        const [result] = await searchQQLyrics('Test song');
+        const [result] = await searchQQSongs('Test song');
 
         expect(result).toMatchObject({
             durationMs: 60_000,

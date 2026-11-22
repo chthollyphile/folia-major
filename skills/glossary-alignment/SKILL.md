@@ -36,7 +36,7 @@ description: Use when the user refers to repository-specific spoken terms - home
 | 本地库首页面 / 本地 3D 网格 | `LocalGrid3DView`、`localGrid3DModel` |
 | Navidrome 首页面 | `NavidromeGrid3DView`、`useNavidromeGridLibrary` |
 | 本地库扫描 / 索引 / 重扫 | `useLocalLibraryCatalog` → `localLibraryCatalogService`、`localMusicService`、`localLibraryIndex` |
-| 本地文件夹 / 本地歌单 / 实体编辑 | `entityEditorModel`、`localPlaylistService` |
+| 本地文件夹 / 本地歌单 / 实体编辑 | `entityEditorModel`、`foliaPlaylistService`（本地歌单已并进 Folia 聚合歌单） |
 | 在线 provider 账号 / 登录 | `useOnlineProviderAccountStore`、`useOnlineProviderPlatform`；登录窗口 `LoginHost`（`App.tsx` 挂一次）、`openLoginWindow`（`loginWindowStore`）；账户 controller `useLibraryAccountController` |
 
 ## 资料库 suite / bravais 墙
@@ -113,8 +113,8 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | 口头说法 | 名字 |
 | --- | --- |
 | 在线歌曲的一切（搜索/歌词/音频/歌单/账户） | `omni` —— 这是公共边界，普通调用只经过它 |
-| 某个平台的 provider | `neteaseProvider`、`kugouProvider`、`qqProvider`、`bodianProvider`、`ytmProvider`、`spotifyProvider`；请求在各自的 `*Transport`（网易云是 `neteaseApi`）—— 实现边界，UI/hook/store 不应直连 |
-| provider 注册 / 账号缓存 | `providerRegistry`（唯一的平台清单）、`providerAccountCache`、`providerStorage` |
+| 某个平台的 provider | `neteaseProvider`、`kugouProvider`、`qqProvider`、`bodianProvider`、`ytmProvider`、`spotifyProvider` 等，都在各自的 `sources/<id>/`；请求在各自的 `*Transport`（网易云是 `sources/netease/core/netease.ts`）—— 实现边界，UI/hook/store 不应直连 |
+| provider 注册 / 账号缓存 | `providerRegistry`（运行时的注册表；平台是 `sources/<id>/` 下的音源模组，经 `folium.sources.register` 注册进来，内置的在受信表 `builtinSources.cjs` 里）、`providerAccountCache`、`providerStorage` |
 | 探索页 | `ExploreSurface`、`useExploreFeedStore`；平台那边是 `*Explore`（`createNeteaseExplore` 等）和 `exploreReads` |
 | Navidrome / Subsonic | `navidromeService` —— **不是** Omni provider |
 

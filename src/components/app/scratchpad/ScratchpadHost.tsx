@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { ListPlus, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
-import { groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
+import { groupScratchpadEntries, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { useScratchpadSettingsStore } from '../../../stores/useScratchpadSettingsStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
@@ -216,7 +216,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
             else if (list.length > 1) latest.current.playback.enqueueAll(list.map(entry => entry.song));
         },
         addToPlaylist: list => {
-            if (list.length > 0) openAddSongsToPlaylist(list.map(entry => entry.song));
+            // 速记簿交出去的一批（一行、一组、选中的、整本）：保存是复制，成功提示里带「清空速记簿」。
+            if (list.length > 0) openAddSongsToPlaylist(list.map(entry => entry.song), 'scratchpad');
         },
         remove: keys => useScratchpadStore.getState().remove(keys),
         move: (groupKey, keys, targetIndex) => useScratchpadStore.getState().move(groupKey, keys, targetIndex),
@@ -240,19 +241,16 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         };
     }), [actions, groups, t]);
     const removeEntries = useCallback((list: ScratchpadEntry[]) => actions.remove(list.map(entry => entry.key)), [actions]);
-    // 选中后的菜单：入队、加入歌单（选中的都来自同一组、那个来源允许时）、移出速记簿。
+    // 选中后的菜单：入队、加入歌单（来源不同也行，收藏框的 Folia 栏收任何来源）、移出速记簿。
     const notesSelectionActions = useCallback((list: ScratchpadEntry[]): ScratchpadAction[] => {
-        const groupKeys = new Set(list.map(entry => scratchpadGroupKey(entry.song)));
-        const sameGroup = groupKeys.size === 1;
         return [
             { id: 'enqueue', label: t('scratchpad.enqueue'), icon: ListPlus, run: () => actions.enqueue(list) },
             {
                 id: 'add-to-playlist',
                 label: t('scratchpad.addToPlaylist'),
-                title: sameGroup ? undefined : t('scratchpad.mixedSourcesHint'),
                 icon: Star,
                 run: () => actions.addToPlaylist(list),
-                disabled: !sameGroup || list.length === 0 || !actions.canAddToPlaylist(list[0].song),
+                disabled: list.length === 0 || !list.every(entry => actions.canAddToPlaylist(entry.song)),
             },
             { id: 'remove', label: t('scratchpad.removeSelected'), icon: Trash2, run: () => actions.remove(list.map(entry => entry.key)) },
         ];
@@ -409,6 +407,18 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
             <button type="button" className="scratchpad-pill" onClick={() => playback.replaceQueue(songs)}>
                 <Play aria-hidden="true" />
                 <span>{t('scratchpad.replaceQueue')}</span>
+            </button>
+            {/* 整本存成歌单：交给收藏框的 Folia 栏（新建一张是第一次保存，选已有的只追加）。 */}
+            <button
+                type="button"
+                className="scratchpad-pill is-icon"
+                data-scratchpad-save-all=""
+                title={t('scratchpad.saveAllToPlaylist')}
+                aria-label={t('scratchpad.saveAllToPlaylist')}
+                disabled={!entries.every(entry => actions.canAddToPlaylist(entry.song))}
+                onClick={() => actions.addToPlaylist(groups.flatMap(group => group.entries))}
+            >
+                <Star aria-hidden="true" />
             </button>
             <span className="scratchpad-footer-spacer" />
             <button

@@ -1,0 +1,21 @@
+{
+  "name": "@folia-sources/fixture-source",
+  "private": true,
+  "description": "构建夹具音源的依赖声明：四种做法各一个本地包（file:），native 那个只声明、不 import。",
+  "dependencies": {
+    "fixture-bundle-dep": "file:deps/bundle-dep",
+    "fixture-asar-dep": "file:deps/asar-dep",
+    "fixture-esm-only": "file:deps/esm-only",
+    "fixture-native-addon": "file:deps/native-addon"
+  },
+  "folia": {
+    "dependencies": {
+      "fixture-asar-dep": "asar",
+      "fixture-esm-only": "vendor",
+      "fixture-native-addon": "native"
+    },
+    "workers": {
+      "worker": "main/worker.ts"
+    }
+  }
+}

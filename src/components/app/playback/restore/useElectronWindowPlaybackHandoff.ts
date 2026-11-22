@@ -27,7 +27,8 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
-import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, handOverExternalPlaybackDuringRestore, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
+import { builtinSourcesSettled, sourceRegistered } from '../../../../services/onlineMusic/sourceReadiness';
+import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, handOverExternalPlaybackDuringRestore, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack, restartSurfaceAfterHandoff } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
@@ -353,6 +354,15 @@ export function useElectronWindowPlaybackHandoff({
             return;
         }
 
+        // A source mod's client can still be starting (one that ran past the first screen's wait for it):
+        // asked before its platform is registered, the song would count as one nothing can play, and a player
+        // of its own that sounds it through the rebuild as no one's to take over. The window renders only
+        // after the first screen's wait (bootstrap.tsx), so that wait alone is over by now; the song's own
+        // platform is waited for past it, up to sourceReadiness.SOURCE_REGISTER_WAIT_MS. Both are over at once
+        // when the source is up (or switched off), so an ordinary hand-off, and a local song's, does not wait.
+        await builtinSourcesSettled();
+        const handedSource = snapshot.currentSong.sourceRef;
+        if (handedSource?.kind === 'online') await sourceRegistered(handedSource.providerId);
         // The snapshot URL was playing moments ago: falling back to it beats seconds of silence spent on retries.
         const fallbackAudioSrc = snapshot.audioSrc && !snapshot.audioSrc.startsWith('blob:') ? snapshot.audioSrc : null;
         const restored = await restorePlaybackSourceForSong(snapshot.currentSong, {
@@ -386,6 +396,19 @@ export function useElectronWindowPlaybackHandoff({
         // released above when nothing restores it), the song is shown paused, and the play path
         // starts it when the listener asks.
         if (!omni.canPlayExternally(snapshot.currentSong)) return;
+        const handedSong = snapshot.currentSong;
+        if (omni.playsOnSurface(handedSong)) {
+            // A surface player (plan §4.2) was the old window's own page and went with it: there is nothing
+            // to take over (nor to stop). The song starts again where the snapshot left it if it was playing;
+            // paused, it waits for the listener's play as after a restart. External players keep the adoption
+            // below untouched: they outlive the window, and starting them again would race the one sounding.
+            const wanted = () => stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(handedSong);
+            shouldAutoPlayRef.current = false;
+            if (restored === 'restored' && stillThatSong && snapshot.playerState === PlayerState.PLAYING
+                && await restartSurfaceAfterHandoff(handedSong, snapshot.currentTime, wanted)) return;
+            if (wanted() && usePlaybackStore.getState().playerState === PlayerState.PLAYING) setPlayerState(PlayerState.PAUSED);
+            return;
+        }
         if (restored === 'restored' && stillThatSong) {
             // Nothing of this window starts the player by itself; the adoption says whether it plays.
             shouldAutoPlayRef.current = false;

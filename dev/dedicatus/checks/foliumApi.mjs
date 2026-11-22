@@ -3,6 +3,8 @@
 // 稳定部分有删除或改写的行、而大版本（electron/modSystem/foliumShared.json 的 version.major）没变，报 error；
 // 稳定部分有新增的行、而小版本没变，也报 error（新增稳定接口要升 minor）。注释的改动不算；实验部分
 // （“---- Experimental”一节，以及文档注释带实验标记的声明或成员，见 experimentalLines）不受限。
+// Folium 2.0（方案 §10「交付」）：音源接口（Sources、Source main API 两节）标「预览」期间曾整节算实验部分；
+// 预览标记在 edge 合进 main 之前去掉了，这两节和别处一样只加不改（维护者 2026-11-20 定）。
 // 写着版本号的那一行（FOLIUM_VERSION）不算接口：升 minor 就是改它，它该怎么变由上面两条管。
 
 export const FOLIUM_TYPES = 'mods/folium.d.ts';
@@ -97,18 +99,22 @@ export function checkFoliumApi(files, { readBase, readCurrent }) {
     const removedTexts = new Set(removed.map(entry => entry.text.trim()));
     const addedOnly = added.filter(entry => !removedTexts.has(entry.text.trim()));
 
-    const versionOf = text => {
+    const versionsOf = text => {
         try {
-            return JSON.parse(text ?? '').version ?? null;
+            const shared = JSON.parse(text ?? '');
+            return { host: shared.version ?? null, one: shared.foliumOneVersion ?? null };
         } catch {
-            return null;
+            return { host: null, one: null };
         }
     };
-    const oldVersion = versionOf(readBase(FOLIUM_VERSION_FILE));
-    const newVersion = versionOf(readCurrent(FOLIUM_VERSION_FILE));
+    const { host: oldVersion, one: oldOne } = versionsOf(readBase(FOLIUM_VERSION_FILE));
+    const { host: newVersion, one: newOne } = versionsOf(readCurrent(FOLIUM_VERSION_FILE));
     if (!oldVersion || !newVersion) return [];
     const majorBumped = newVersion.major > oldVersion.major;
-    const minorBumped = majorBumped || newVersion.minor > oldVersion.minor;
+    // Folium 2.0（方案 §9）：`folium: 1` 读到的版本单独记在 foliumOneVersion。main 上新加的 1.x 接口同步进来时
+    // 宿主版本不动，升的是这一个，也算升了小版本。
+    const oneBumped = Boolean(oldOne && newOne && newOne.major === oldOne.major && newOne.minor > oldOne.minor);
+    const minorBumped = majorBumped || newVersion.minor > oldVersion.minor || oneBumped;
 
     const findings = [];
     if (removed.length > 0 && !majorBumped) {
@@ -125,7 +131,7 @@ export function checkFoliumApi(files, { readBase, readCurrent }) {
             code: 'D513',
             file: FOLIUM_TYPES,
             line: addedOnly[0].newLine,
-            message: `新增了 ${addedOnly.length} 行稳定接口，但 Folium 小版本没升（${FOLIUM_VERSION_FILE} 的 version.minor）`,
+            message: `新增了 ${addedOnly.length} 行稳定接口，但 Folium 小版本没升（${FOLIUM_VERSION_FILE} 的 version.minor；只加 1.x 接口时是 foliumOneVersion.minor）`,
             key: 'D513:added',
         });
     }

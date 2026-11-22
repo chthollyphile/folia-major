@@ -1,17 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+// @builtin-sources
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqProvider.test.ts
+// QQ 音乐音源模组经注册着的音源跑（helpers/qqSource.ts）：测试拿到的是宿主的 provider（适配层组装的那一个），
+// transport 的几个出口用替身。原始条目经模组归一、再经宿主换成宿主的歌与集合（hostQqSong / hostQqCollection）。
 
 const requestMock = vi.hoisted(() => vi.fn());
 const musicuMock = vi.hoisted(() => vi.fn());
 const clearSessionMock = vi.hoisted(() => vi.fn());
-const writeSessionValueMock = vi.hoisted(() => vi.fn());
 const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const fetchQQLyricsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true, parked: false }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<object>(),
     getQqTransportAvailability: () => ({ configured: true }),
     getQqRemoteApiBase: () => 'https://qq.example.test',
     hasQqSession: () => transportState.hasSession,
@@ -22,30 +25,38 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
     requestQqMusicu: musicuMock,
 }));
 
-vi.mock('@/services/onlineMusic/providerStorage', () => ({
-    writeProviderSessionValue: writeSessionValueMock,
-}));
-
 // 登录确认后的续期在后台接着问后端（qqSessionRefresh.ts，有它自己的测试）；这里不让它占 requestMock 排好的回答。
-vi.mock('@/services/onlineMusic/qq/qqSessionRefresh', () => ({
+vi.mock('../../../sources/qq/core/qqSessionRefresh', async importOriginal => ({
+    ...await importOriginal<object>(),
     keepQqSessionFresh: () => { },
     stopQqSessionRefresh: () => { },
     resetQqSessionRefresh: () => { },
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
+vi.mock('../../../sources/qq/core/qqLyricProvider', async importOriginal => ({
+    ...await importOriginal<object>(),
     searchQQSongs: searchQQSongsMock,
     fetchQQLyrics: fetchQQLyricsMock,
 }));
 
-import { getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, getQqGuessYouLikeBatch } from '@/services/onlineMusic/qq/qqGuessYouLike';
-import { qqProvider, resetQqProviderRuntimeCache } from '@/services/onlineMusic/qq/qqProvider';
-import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from '@/services/onlineMusic/qq/qqNormalize';
-import { describeQqFailure } from '@/services/onlineMusic/qq/qqFailure';
-import { QQ_API_BASE_MISSING, QQ_ONLINE_REQUEST_LIMIT_MS } from '@/services/onlineMusic/qq/qqTransport';
-import { OnlineRequestTimeout } from '@/services/onlineMusic/failure/onlineRequestLimit';
+import { getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, getQqGuessYouLikeBatch } from '../../../sources/qq/core/qqGuessYouLike';
+import { resetQqProviderRuntimeCache } from '../../../sources/qq/core/qqProvider';
+import {
+    normalizeQqCollection as normalizeQqCollectionDto,
+    normalizeQqSong as normalizeQqSongDto,
+    normalizeQqUser as normalizeQqUserDto,
+} from '../../../sources/qq/core/qqNormalize';
+import { toHostUser } from '@/mods/folium/registries/sourceDtos';
+import { answerQqBackend, hostQqCollection as normalizeQqCollection, hostQqSong as normalizeQqSong, lazyQq } from '../helpers/qqSource';
+import { describeQqFailure } from '../../../sources/qq/core/qqFailure';
+import { QQ_API_BASE_MISSING, QQ_ONLINE_REQUEST_LIMIT_MS } from '../../../sources/qq/core/qqTransport';
 import { autoRetryDelaysMs, onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { OnlineProviderError } from '@/types/onlineMusic';
+import type { UnifiedSong } from '@/types';
+
+const qqProvider = lazyQq();
+/** 迁之前 normalizeQqUser 的宿主形状。 */
+const normalizeQqUser = (raw: unknown) => toHostUser(normalizeQqUserDto(raw));
 
 // Field shape of the verified `music.search.SearchCgiService` item consumed by the existing QQ search;
 // the identifiers are the public ones documented by the qq-music-api routes.
@@ -177,11 +188,12 @@ describe('qqProvider', () => {
         requestMock.mockReset();
         musicuMock.mockReset();
         clearSessionMock.mockReset();
-        writeSessionValueMock.mockReset();
         searchQQSongsMock.mockReset();
         fetchQQLyricsMock.mockReset();
         transportState.hasSession = true;
         resetQqProviderRuntimeCache();
+        // 注册着的模组是桌面版：到 main 入口的 diagnostics 这些调用由替身答（快照缺省是没有）。
+        answerQqBackend();
     });
 
     it.each(['logout', 'login'])('drops the catalog and late cover batch through %s', async action => {
@@ -208,8 +220,8 @@ describe('qqProvider', () => {
         else await qqProvider.auth!.checkLogin!('new-account');
         release({ songs: [{ mid: 'old', id: 1, name: 'old', singer: [], album: {} }] });
         await card;
-        expect((await getQqGuessYouLikeCatalog()).scenes[0].labelFallback).toBe('场景2');
-        expect((await getQqGuessYouLikeBatch({ mode: 'DEFAULT', submode: null })).map(song => song.qqMid)).toEqual(['new']);
+        expect((await getQqGuessYouLikeCatalog()).scenes[0].label).toBe('场景2');
+        expect((await getQqGuessYouLikeBatch({ mode: 'DEFAULT', submode: null })).map(song => song.id)).toEqual(['new']);
     });
 
     it('drops the catalog when a status read discovers a different account', async () => {
@@ -224,7 +236,7 @@ describe('qqProvider', () => {
         await getQqGuessYouLikeCatalog();
         account = '2';
         await qqProvider.auth!.getLoginStatus!();
-        expect((await getQqGuessYouLikeCatalog()).scenes[0].labelFallback).toBe('场景2');
+        expect((await getQqGuessYouLikeCatalog()).scenes[0].label).toBe('场景2');
     });
 
     // 3.3.0 开放了推荐、歌单增删与收藏歌单，3.3.1 补上红心与收藏专辑，3.3.6 补上历史日推与歌曲不喜欢；后端没有的不能冒出来。
@@ -264,11 +276,12 @@ describe('qqProvider', () => {
         expect(qqProvider.catalog?.getSubscriptionStatus).toBeTypeOf('function');
     });
 
-    it('normalizes a song onto songmid identity and keeps the numeric id in provider data', () => {
+    it('normalizes a song onto songmid identity and keeps the numeric id as its id and in provider data', () => {
         const song = normalizeQqSong(SEARCH_ITEM);
 
+        // The host song's id is the numeric songid (what mods get as FoliumSong.id); its mediaId is the songmid.
         expect(song).toMatchObject({
-            id: 5105918,
+            id: '5105918',
             name: '海阔天空',
             qqMid: '003rJSwm3TechU',
             durationMs: 326_000,
@@ -282,6 +295,8 @@ describe('qqProvider', () => {
                 songMid: '003rJSwm3TechU',
                 albumMid: '0016l2F430zMux',
                 mediaMid: '001MediaMidFixture',
+                // 宿主把模组给的 lyricIds 记在这里（songmid 也是 QQ 歌词的 id）。
+                '@lyricIds': { qq: '003rJSwm3TechU' },
             },
         });
     });
@@ -336,16 +351,16 @@ describe('qqProvider', () => {
             singer: [{ id: 4558, name: 'Beyond' }],
         });
 
-        expect(song.album.id).toBe(8112);
+        expect(song.album.id).toBe('8112');
         expect(song.album.catalogRef).toBeUndefined();
-        // 歌手连显示用的数字 id 都不保留：下标够用，而数字 id 会被误当成 singermid。
-        expect(song.artists).toEqual([{ id: 0, name: 'Beyond' }]);
+        // 歌手连显示用的数字 id 都不保留（宿主给没有 id 的歌手空 id）：数字 id 会被误当成 singermid。
+        expect(song.artists).toEqual([{ id: '', name: 'Beyond' }]);
     });
 
-    // 缓存水合会把正规化结果再喂回来，mid 必须原样活下来。
+    // 缓存水合会把正规化结果再喂回来（宿主把存着的歌换回模组的歌再交给模组），mid 必须原样活下来。
     it('keeps album and artist mids across a normalize round trip', () => {
-        const once = normalizeQqSong(SEARCH_ITEM);
-        expect(normalizeQqSong(once)).toEqual(once);
+        const once = normalizeQqSongDto(SEARCH_ITEM);
+        expect(normalizeQqSongDto(once)).toEqual(once);
     });
 
     // 搜索条目的 `title` 带括号译名，`name` 是原名（2026-11-04 DoSearchForQQMusicLite 实测）。
@@ -361,7 +376,8 @@ describe('qqProvider', () => {
 
         expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
         expect(song.sourceRef).toMatchObject({ providerData: { originalName: '夜に駆ける' } });
-        expect(normalizeQqSong(song)).toEqual(song);
+        const dto = normalizeQqSongDto(item);
+        expect(normalizeQqSongDto(dto)).toEqual(dto);
         await expect(qqProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
             song, title: '夜に駆ける', artist: 'YOASOBI', album: '乐与怒',
         });
@@ -375,9 +391,9 @@ describe('qqProvider', () => {
     });
 
     it('keeps a normalized song stable when it is normalized again from cache', () => {
-        const song = normalizeQqSong(SEARCH_ITEM);
+        const song = normalizeQqSongDto(SEARCH_ITEM);
 
-        expect(normalizeQqSong(song)).toEqual(song);
+        expect(normalizeQqSongDto(song)).toEqual(song);
     });
 
     // 「我喜欢」= 自建目录 201：首页特殊集合靠 isLiked 认它。收藏条目也带 dirId（创建者的目录号），不算。
@@ -390,7 +406,8 @@ describe('qqProvider', () => {
     it('keeps the owned playlist update time in milliseconds across account cache hydration', () => {
         const collection = normalizeQqCollection({ ...PLAYLIST_ITEM, updateTime: 1792948021 });
         expect(collection.updatedAt).toBe(1792948021000);
-        expect(normalizeQqCollection(collection)).toEqual(collection);
+        const dto = normalizeQqCollectionDto({ ...PLAYLIST_ITEM, updateTime: 1792948021 });
+        expect(normalizeQqCollectionDto(dto)).toEqual(dto);
         expect(normalizeQqCollection({ ...PLAYLIST_ITEM, updatedAt: 1792948021000, updateTime: 1 }).updatedAt)
             .toBe(1792948021000);
         expect(normalizeQqCollection({ tid: 8, dirId: 1, dirName: '自建歌单', songNum: 0, updateTime: '1792948025' }).updatedAt)
@@ -407,9 +424,10 @@ describe('qqProvider', () => {
     });
 
     it('normalizes the playlist and profile payloads, including a profile without a display name', () => {
+        // 集合的 id 在宿主一律是字符串。
         expect(normalizeQqCollection(PLAYLIST_ITEM)).toEqual({
             providerId: 'qq',
-            id: 7,
+            id: '7',
             name: '我喜欢',
             type: 'playlist',
             coverUrl: 'https://img.example.test/big.jpg',
@@ -418,10 +436,10 @@ describe('qqProvider', () => {
             providerData: { tid: 7, dirId: 201, owned: true },
             isLiked: true,
         });
-        expect(normalizeQqCollection(normalizeQqCollection(PLAYLIST_ITEM))).toEqual(normalizeQqCollection(PLAYLIST_ITEM));
+        expect(normalizeQqCollectionDto(normalizeQqCollectionDto(PLAYLIST_ITEM))).toEqual(normalizeQqCollectionDto(PLAYLIST_ITEM));
         expect(normalizeQqCollection({ id: 8, title: '收藏歌单', picurl: 'https://img.example.test/fav.jpg', songnum: 3 })).toEqual({
             providerId: 'qq',
-            id: 8,
+            id: '8',
             name: '收藏歌单',
             type: 'playlist',
             coverUrl: 'https://img.example.test/fav.jpg',
@@ -430,7 +448,7 @@ describe('qqProvider', () => {
         });
 
         expect(normalizeQqUser({ data: { profile: { musicid: 123, nickname: '我的 QQ 账号' } } })).toEqual({
-            id: 123,
+            id: '123',
             nickname: '我的 QQ 账号',
         });
         // The acceptance test account answered with a profile that carries no display name at all.
@@ -495,8 +513,8 @@ describe('qqProvider', () => {
             failure: { case: 'retry-later', code: '800', message: 'QR login failed', upstreamCode: '50006', retryAfterMs: 31000 },
         });
 
+        // 803 带回的会话由 transport 存下（requestQq 里，qqTransport.test.ts 测它），这里 requestQq 是替身。
         expect(requestMock).toHaveBeenCalledWith('login_qr_check', { key: 'qr-key' });
-        expect(writeSessionValueMock).toHaveBeenCalledExactlyOnceWith('qq', 'cookie', 'qqmusic_session=opaque-token');
     });
 
     // 3.1.3 起后端用 failureReason 说停在哪里：手机上取消、在那里拒绝，都是这一边结束了这个码。
@@ -521,10 +539,11 @@ describe('qqProvider', () => {
             at, level: 'info', event: 'qq-auth.upstream-result',
             details: { phase: 'credential-exchange', httpStatus: 200, globalCode: 0, upstreamCode },
         });
+        // 桌面版的诊断快照：main 入口的 rpc `diagnostics`。
         const stubDesktop = (authEvents: unknown[]) => {
-            const getLoginDiagnostics = vi.fn().mockResolvedValue({ providerId: 'qq', authEvents });
-            vi.stubGlobal('window', { electron: { getLoginDiagnostics } });
-            return getLoginDiagnostics;
+            const { diagnostics } = answerQqBackend();
+            diagnostics.mockReturnValue({ authEvents });
+            return diagnostics;
         };
         const requestKey = async () => {
             requestMock.mockResolvedValueOnce({ data: { unikey: 'qr-key' } });
@@ -553,7 +572,7 @@ describe('qqProvider', () => {
             requestMock.mockResolvedValueOnce(validationFailure);
 
             expect(await caseOfCheck()).toBe('device-limit');
-            expect(getLoginDiagnostics).toHaveBeenCalledWith('qq');
+            expect(getLoginDiagnostics).toHaveBeenCalled();
         });
 
         it('ignores an exchange from an earlier round and a different exchange code', async () => {
@@ -726,7 +745,7 @@ describe('qqProvider', () => {
         expect(firstPage).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
 
         const secondPage = await qqProvider.library!.getUserPlaylists(123, 2, 2);
-        expect(secondPage.items.map(item => item.id)).toEqual([9]);
+        expect(secondPage.items.map(item => item.id)).toEqual(['9']);
         expect(secondPage).toMatchObject({ total: 3, hasMore: false, nextOffset: 3 });
 
         const pastEnd = await qqProvider.library!.getUserPlaylists(123, 2, 4);
@@ -771,11 +790,11 @@ describe('qqProvider', () => {
     });
 
     it('keeps the favourite album shape stable when a cached collection is fed back in', async () => {
-        requestMock.mockResolvedValue({ code: 200, albums: [FAVORITE_ALBUM], total: 1, more: false });
-        const [normalized] = (await qqProvider.library!.getUserAlbums!(123, 20, 0)).items;
+        // 收藏专辑的条目照 getUserAlbums 的样子归一（模组的集合）。
+        const normalized = normalizeQqCollectionDto(FAVORITE_ALBUM, 'album');
 
         // 缓存水合会把已正规化的结果再喂回来一次，不幂等就会把封面与发行时间洗掉。
-        expect(normalizeQqCollection(normalized, 'album')).toEqual(normalized);
+        expect(normalizeQqCollectionDto(normalized, 'album')).toEqual(normalized);
     });
 
     it('pages the favourite albums through the backend and stops on an empty page', async () => {
@@ -829,7 +848,7 @@ describe('qqProvider', () => {
             .mockResolvedValueOnce({ code: 200, data: {} })
             .mockRejectedValueOnce(new OnlineProviderError('auth-required', 'QQMusicApi login required', 'qq'));
 
-        await expect(qqProvider.auth!.getLoginStatus()).resolves.toEqual({ id: 123, nickname: '我的 QQ 账号' });
+        await expect(qqProvider.auth!.getLoginStatus()).resolves.toEqual({ id: '123', nickname: '我的 QQ 账号' });
         await expect(qqProvider.auth!.getLoginStatus()).resolves.toBeNull();
         await expect(qqProvider.auth!.getLoginStatus()).resolves.toBeNull();
         expect(requestMock).toHaveBeenCalledWith('login_status');
@@ -881,15 +900,16 @@ describe('qqProvider', () => {
     it('routes search and lyrics through the existing QQ modules', async () => {
         // 没有会话时搜索走匿名直连；带会话的路径见 qqSearch.test.ts。
         transportState.hasSession = false;
+        // 匿名搜歌交回的已经是模组的歌：songmid 作 id，数字 songid 在 data 里。
         searchQQSongsMock.mockResolvedValue([{
-            id: 5105918,
-            name: '海阔天空',
-            artists: [{ id: 4558, name: 'Beyond' }],
-            album: { id: 8112, name: '乐与怒' },
+            id: '003rJSwm3TechU',
+            title: '海阔天空',
+            artists: [{ name: 'Beyond' }],
+            album: { name: '乐与怒' },
             durationMs: 326_000,
-            qqMid: '003rJSwm3TechU',
+            data: { songId: 5105918 },
         }]);
-        fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+        fetchQQLyricsMock.mockResolvedValue({ isPureMusic: true });
 
         const page = await qqProvider.search!.searchSongs('海阔天空', 20, 20);
         expect(searchQQSongsMock).toHaveBeenCalledWith('海阔天空', 2, 20);
@@ -897,13 +917,13 @@ describe('qqProvider', () => {
         expect(page).toMatchObject({ hasMore: false, nextOffset: 40 });
         expect(page.items[0]?.sourceRef).toMatchObject({ providerId: 'qq', mediaId: '003rJSwm3TechU' });
 
-        // The lyric module needs the numeric song id, which only lives in provider data after normalization.
-        const result = await qqProvider.lyrics!.getLyrics({ ...page.items[0], id: '003rJSwm3TechU' });
+        // The lyric module needs the numeric song id, which only lives in the song's data after normalization.
+        const result = await qqProvider.lyrics!.getLyrics(page.items[0]);
         expect(fetchQQLyricsMock).toHaveBeenCalledWith(expect.objectContaining({
-            id: 5105918,
-            qqMid: '003rJSwm3TechU',
+            id: '003rJSwm3TechU',
+            data: expect.objectContaining({ songId: 5105918 }),
         }));
-        expect(result).toEqual({ lyrics: { lines: [], isWordByWord: true }, isPureMusic: false });
+        expect(result).toMatchObject({ isPureMusic: true });
     });
 
     it('resolves song detail and degrades authenticated playback quality until a URL exists', async () => {
@@ -977,8 +997,8 @@ describe('qqProvider', () => {
                 expect(request.param.song_id).toBe(Number(String(id).trim()));
                 expect(request.param).not.toHaveProperty('song_mid');
                 expect(song).toMatchObject(String(id).trim() === '97773'
-                    ? { id: 97773, qqMid: '0039MnYb0qxYhV', name: '晴天' }
-                    : { id: 5105918, qqMid: '003rJSwm3TechU' });
+                    ? { id: '97773', name: '晴天', sourceRef: { mediaId: '0039MnYb0qxYhV', providerData: { songId: 97773 } } }
+                    : { id: '5105918', sourceRef: { mediaId: '003rJSwm3TechU', providerData: { songId: 5105918 } } });
             }
             expect(requestMock).not.toHaveBeenCalled();
         });
@@ -1119,7 +1139,11 @@ describe('qqProvider', () => {
 
     // Which error getAudioSource throws when no level gives a URL; what it means is said in qqFailure.ts.
     describe('audio source failures', () => {
-        const SONG = normalizeQqSong(SEARCH_ITEM);
+        // 宿主的歌要注册着的 provider 来做（setup 的 beforeAll 里才注册）。
+        let SONG: UnifiedSong;
+        beforeAll(() => {
+            SONG = normalizeQqSong(SEARCH_ITEM);
+        });
         // 后端把每个文件的原因都换成了这一句固定文案（qrLogin.js:482-495），它证明不了会员、地区或下架。
         const EMPTY_PLAY_LINK = { data: { playUrl: { '003rJSwm3TechU': { url: '', error: '暂无播放链接' } } } };
         const PLAYABLE = { data: { playUrl: { '003rJSwm3TechU': { url: 'https://audio.example.test/song.mp3' } } } };
@@ -1201,10 +1225,12 @@ describe('qqProvider', () => {
         });
 
         it('rejects a song without a songmid as an invalid response before issuing any request', async () => {
+            // 歌的 id 就是 songmid：没有它的歌 id 是空的。
             const song = {
                 ...SONG,
+                id: '',
                 qqMid: undefined,
-                sourceRef: { kind: 'local' as const, mediaId: 'file-1' },
+                sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: '' },
             };
 
             await expect(qqProvider.playback!.getAudioSource(song, 'lossless')).rejects.toMatchObject({
@@ -1219,7 +1245,8 @@ describe('qqProvider', () => {
             ['the backend asks to wait', () => new OnlineProviderError('network', 'QQMusicApi request failed: 429', 'qq', { retryAfterMs: 25_000 }, 429, 25_000)],
             ['the web build has no backend address', () => new OnlineProviderError('unavailable', QQ_API_BASE_MISSING, 'qq')],
             // QQ has no other endpoint, and the next level would wait as long again.
-            ['the request was not answered in time', () => new OnlineRequestTimeout(QQ_ONLINE_REQUEST_LIMIT_MS)],
+            // transport 的超时：network，cause 上记着 timedOut（qqTransport.ts）。
+            ['the request was not answered in time', () => new OnlineProviderError('network', `The request was not answered in ${QQ_ONLINE_REQUEST_LIMIT_MS / 1000} s`, 'qq', { timedOut: true })],
         ])('stops at the first request where %s', async (_label, thrown) => {
             const error = thrown();
             requestMock.mockRejectedValue(error);
@@ -1612,8 +1639,8 @@ describe('qqProvider', () => {
     });
 
     it('remembers that a playlist is owned when the cached collection is normalized again', () => {
-        const owned = normalizeQqCollection({ tid: 7, dirId: 2, dirName: '新建歌单', songNum: 3 });
-        expect(normalizeQqCollection(owned).providerData).toMatchObject({ tid: 7, dirId: 2, owned: true });
+        const owned = normalizeQqCollectionDto({ tid: 7, dirId: 2, dirName: '新建歌单', songNum: 3 });
+        expect(normalizeQqCollectionDto(owned).data).toMatchObject({ tid: 7, dirId: 2, owned: true });
     });
 
     // 上游的 total 可能比实际读得到的多（被过滤掉的歌）：只看 total 的话会一直翻空页。
@@ -1677,30 +1704,30 @@ describe('qqProvider', () => {
             coverUrl: 'https://y.gtimg.cn/music/photo_new/T002M0000016l2F430zMux.jpg?max_age=2592000',
             // `totalNum` 恒为 0，不在 trackCount 的取值清单里；宁可缺字段也不要写入一个假的 0，
             // 打开专辑页时 getAlbumDetail 会用 total_song_num 补齐。
-            artists: [{ id: 0, name: 'Beyond' }],
+            artists: [{ id: '', name: 'Beyond' }],
             publishedAt: Date.parse('1993-05-01'),
             providerData: { albumMid: '0016l2F430zMux' },
         });
 
         // 缺了歌手 mid 也必须幂等，否则专辑卡片水合一次就掉名字。
-        const album = normalizeQqCollection(SINGER_ALBUM_ITEM_UPSTREAM, 'album');
-        expect(normalizeQqCollection(album, album.type)).toEqual(album);
+        const album = normalizeQqCollectionDto(SINGER_ALBUM_ITEM_UPSTREAM, 'album');
+        expect(normalizeQqCollectionDto(album, album.type)).toEqual(album);
     });
 
     // 读账号的地方（`account/accountRead.ts` 的 `keptAccount`）会把已正规化的缓存再喂回来，第二遍若有损耗，
     // 曲库水合出来的就是被洗空的专辑而不是缓存里的那份。
     it('keeps album and artist collections stable when the cached copy is normalized again', () => {
-        const album = normalizeQqCollection(SINGER_ALBUM_ITEM, 'album');
-        const artist = normalizeQqCollection(SINGER_INFO_ITEM, 'artist');
+        const album = normalizeQqCollectionDto(SINGER_ALBUM_ITEM, 'album');
+        const artist = normalizeQqCollectionDto(SINGER_INFO_ITEM, 'artist');
 
-        expect(normalizeQqCollection(album, 'album')).toEqual(album);
-        expect(normalizeQqCollection(artist, 'artist')).toEqual(artist);
+        expect(normalizeQqCollectionDto(album, 'album')).toEqual(album);
+        expect(normalizeQqCollectionDto(artist, 'artist')).toEqual(artist);
         // 读账号时（account/accountRead.ts）用 `collection.type` 再正规化一次，走的是同一个分支。
-        expect(normalizeQqCollection(album, album.type)).toEqual(album);
-        expect(normalizeQqCollection(artist, artist.type)).toEqual(artist);
+        expect(normalizeQqCollectionDto(album, album.type)).toEqual(album);
+        expect(normalizeQqCollectionDto(artist, artist.type)).toEqual(artist);
         // 缓存条目也要能扛住默认的 `playlist` 类型参数。
-        expect(normalizeQqCollection(album)).toEqual(album);
-        expect(normalizeQqCollection(artist)).toEqual(artist);
+        expect(normalizeQqCollectionDto(album)).toEqual(album);
+        expect(normalizeQqCollectionDto(artist)).toEqual(artist);
     });
 
     it('merges the album detail response over the collection the caller already had', async () => {
@@ -1923,7 +1950,8 @@ describe('qqProvider', () => {
 
         it('skips the extra request when the mids already survived normalization', async () => {
             const song = normalizeQqSong(SEARCH_ITEM);
-            await expect(qqProvider.catalog!.resolveSongCatalogRefs!(song)).resolves.toBe(song);
+            // 经适配层交回的是另一个对象，内容不变。
+            await expect(qqProvider.catalog!.resolveSongCatalogRefs!(song)).resolves.toEqual(song);
             expect(requestMock).not.toHaveBeenCalled();
         });
 
@@ -1943,17 +1971,19 @@ describe('qqProvider', () => {
             requestMock.mockResolvedValue({ response: { songinfo: { data: {} } } });
             const song = normalizeQqSong(SEARCH_RESULT_WITHOUT_MIDS);
 
-            await expect(qqProvider.catalog!.resolveSongCatalogRefs!(song)).resolves.toBe(song);
+            await expect(qqProvider.catalog!.resolveSongCatalogRefs!(song)).resolves.toEqual(song);
         });
 
         // 拿不到 QQ 的歌曲标识就没有可查的对象，UI 据此不把专辑 / 歌手显示成可点击的。
         it('reports whether a song carries a QQ identity to resolve from', () => {
             expect(qqProvider.catalog!.canResolveSongCatalogRefs!(normalizeQqSong(SEARCH_ITEM))).toBe(true);
 
+            // 歌的 id 就是 songmid：没有它的歌无从查起。
             const localSong = {
                 ...normalizeQqSong(SEARCH_ITEM),
+                id: '',
                 qqMid: undefined,
-                sourceRef: { kind: 'local' as const, mediaId: 'file-1' },
+                sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: '' },
             };
             expect(qqProvider.catalog!.canResolveSongCatalogRefs!(localSong)).toBe(false);
         });
@@ -1990,20 +2020,37 @@ describe('qqProvider', () => {
 // qq-music-api 3.3.3 接上的能力：会员等级、歌单只读一次、逐首确认红心、歌单页的播放数、云盘与探索页的开关。
 // 回应形状取自 3.3.3 的使用文档（「登录后的资料与歌单」「选对歌单详情接口」「收藏与查询收藏状态」）；数字与名字是虚构示例。
 describe('qqProvider (3.3.3 library)', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         requestMock.mockReset();
         transportState.hasSession = true;
         resetQqProviderRuntimeCache();
+        answerQqBackend();
         vi.spyOn(console, 'info').mockImplementation(() => { });
         vi.spyOn(console, 'warn').mockImplementation(() => { });
+        // 通道探测（login_channels）先问完（旧后端的 404，之后 30 秒不再问）：读到登录状态后它在后台接着问，
+        // 经适配层多等几拍时会赶在用例的断言之前，占掉用例排好的回答。
+        requestMock.mockRejectedValueOnce(new OnlineProviderError('unsupported', 'QQMusicApi has no login_channels route', 'qq', undefined, 404));
+        // getAvailability no longer probes on the desktop (it would start the deferred backend): the login methods do.
+        qqProvider.auth?.getLoginMethods?.();
+        await vi.waitFor(() => expect(requestMock).toHaveBeenCalledWith('login_channels'));
+        requestMock.mockReset();
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
     });
 
+    it('does not probe the login channels for the availability on the desktop, which would start the deferred backend', async () => {
+        resetQqProviderRuntimeCache();
+        requestMock.mockReset();
+        expect(qqProvider.getAvailability?.()).toEqual({ configured: true });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(requestMock).not.toHaveBeenCalledWith('login_channels');
+    });
+
     it('declares the cloud and the explore page with their members', () => {
-        expect(qqProvider.capabilities).toMatchObject({ userCloud: true, explore: true });
+        // 云盘不另外声明：宿主看有没有 library.getCloudCollection。
+        expect(qqProvider.capabilities).toMatchObject({ explore: true });
         expect(qqProvider.library?.getCloudCollection).toBeTypeOf('function');
         expect(qqProvider.catalog?.getCloudTracks).toBeTypeOf('function');
         expect(qqProvider.explore?.getFeed).toBeTypeOf('function');
@@ -2074,7 +2121,7 @@ describe('qqProvider (3.3.3 library)', () => {
         const other = await qqProvider.library!.getUserPlaylists('20002', 50, 50);
 
         expect(requestMock).toHaveBeenCalledTimes(2);
-        expect(other.items.map(item => item.id)).toEqual(Array.from({ length: 10 }, (_, index) => 5050 + index));
+        expect(other.items.map(item => item.id)).toEqual(Array.from({ length: 10 }, (_, index) => String(5050 + index)));
     });
 
     it('asks whether songs are liked by songmid and answers only what the backend is sure of', async () => {
@@ -2104,7 +2151,7 @@ describe('qqProvider (3.3.3 library)', () => {
         it('reads an own playlist\'s play count with one song of it', async () => {
             requestMock.mockResolvedValueOnce({ code: 200, songs: [], total: 3, more: true, play_cnt: 42 });
 
-            await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toMatchObject({ id: 70001, playCount: 42 });
+            await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toMatchObject({ id: '70001', playCount: 42 });
             expect(requestMock).toHaveBeenCalledWith('user_playlist_detail', { tid: '70001', dirid: 5, offset: 0, limit: 1, playCount: 1 });
         });
 
@@ -2118,17 +2165,17 @@ describe('qqProvider (3.3.3 library)', () => {
 
             requestMock.mockClear();
             const recommended = normalizeQqCollection({ tid: 90001, title: '推荐歌单', play_cnt: 4321 });
-            await expect(qqProvider.catalog!.getPlaylistDetail!(recommended.id, recommended)).resolves.toBe(recommended);
+            await expect(qqProvider.catalog!.getPlaylistDetail!(recommended.id, recommended)).resolves.toEqual(recommended);
             expect(requestMock).not.toHaveBeenCalled();
         });
 
         it('asks nothing for the liked list, and hands the playlist back where the detail fails', async () => {
             const liked = normalizeQqCollection(PLAYLIST_ITEM);
-            await expect(qqProvider.catalog!.getPlaylistDetail!(liked.id, liked)).resolves.toBe(liked);
+            await expect(qqProvider.catalog!.getPlaylistDetail!(liked.id, liked)).resolves.toEqual(liked);
             expect(requestMock).not.toHaveBeenCalled();
 
             requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', undefined, 502));
-            await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toBe(ownPlaylist);
+            await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toEqual(ownPlaylist);
         });
 
         it('leaves the play count out where the upstream gives null', async () => {
@@ -2140,7 +2187,7 @@ describe('qqProvider (3.3.3 library)', () => {
         it('keeps reading own playlists with credentials after the anonymous detail answers 404', async () => {
             const favourite = normalizeQqCollection({ tid: 80001, dirId: 36, name: '收藏的歌单', songnum: 9 });
             requestMock.mockRejectedValueOnce(new OnlineProviderError('unsupported', 'QQMusicApi has no route', 'qq'));
-            await expect(qqProvider.catalog!.getPlaylistDetail!(favourite.id, favourite)).resolves.toBe(favourite);
+            await expect(qqProvider.catalog!.getPlaylistDetail!(favourite.id, favourite)).resolves.toEqual(favourite);
 
             requestMock.mockResolvedValueOnce({ code: 200, songs: [], total: 3, more: true, play_cnt: 42 });
             await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toMatchObject({ playCount: 42 });

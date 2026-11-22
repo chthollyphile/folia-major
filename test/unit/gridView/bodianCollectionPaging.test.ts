@@ -1,6 +1,8 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bodianCatalog } from '../../../src/services/onlineMusic/bodian/bodianCatalog';
+import { describe, expect, it, vi } from 'vitest';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { lazyBodian } from '../helpers/bodianSource';
 import { createCollectionTrackSnapshot, readCollectionTrackSnapshot } from '../../../src/library/core/collection/resource/collectionTrackSnapshot.service';
 import {
     syncRemainingCollectionPages,
@@ -11,6 +13,7 @@ import { createBodianApi } from 'bodian-music-api';
 
 // test/unit/gridView/bodianCollectionPaging.test.ts
 // Exercise real transport limits, catalog pagination and the GridView snapshot/resume boundary offline.
+// The source mod (sources/bodian/) is registered by the unit setup; its main entry's `request` is the package here.
 
 const require = createRequire(import.meta.url);
 const { createWire } = require('../../helpers/bodianWire.cjs');
@@ -25,14 +28,12 @@ function setup(firstPageSize = 99) {
     }));
     const wire = createWire(call);
     const api = createBodianApi({ deviceId: 'a'.repeat(32), requestFactory: wire.factory });
-    vi.stubGlobal('window', { electron: {
-        bodianRequest: api.request,
-    } });
+    setBuiltinSourceRpc('bodian', { request: (operation, params) => api.request(operation as never, params as never) });
     const fetchPage = (offset: number) => bodianCatalog.getPlaylistTracks!('123', GRID_BACKGROUND_BATCH_SIZE, offset);
     return { call, fetchPage };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+const bodianCatalog = lazyBodian(provider => provider.catalog);
 
 describe('Bodian collection paging through the GridView cache', () => {
     it.each([99, 100])('continues at the server cursor after a %i-row first page', async firstPageSize => {

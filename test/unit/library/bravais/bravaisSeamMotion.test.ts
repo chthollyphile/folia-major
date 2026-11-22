@@ -35,4 +35,16 @@ describe('seam motion vocabulary', () => {
         expect(resolveSeamContentIdentity(layer('collection:a', 'collection'))).not.toBe(resolveSeamContentIdentity(layer('collection:b', 'collection')));
         expect(resolveSeamContentIdentity(layer('artist:a', 'artist'))).toBe('artist:a');
     });
+
+    it('treats the pages of the online group as one seam content', () => {
+        // 2026-11-22：在线组里换歌单 / 电台 / 探索 / 专辑只是二级切换，缝不整条翻。
+        const online = resolveSeamContentIdentity(layer('home:playlist', 'home'));
+        expect(resolveSeamContentIdentity(layer('home:radio', 'home'))).toBe(online);
+        expect(resolveSeamContentIdentity(layer('home:albums', 'home'))).toBe(online);
+        expect(resolveSeamContentIdentity(layer('home:explore', 'home'))).toBe(online);
+        expect(resolveSeamContentIdentity(layer('home:folia', 'home'))).not.toBe(online);
+        expect(resolveSeamContentIdentity(layer('home:navidrome', 'home'))).not.toBe(online);
+        // 别的 surface 碰巧叫这个 key 也不算。
+        expect(resolveSeamContentIdentity(layer('home:radio', 'collection'))).toBe('home:radio');
+    });
 });

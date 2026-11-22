@@ -1,16 +1,17 @@
+// @builtin-sources
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // The request to the local backend is the one thing replaced: the table, the answer handling and omni run as they are.
-vi.mock('@/services/onlineMusic/netease/netease', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/netease/netease')>(),
+vi.mock('../../../sources/netease/core/netease', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../../../sources/netease/core/netease')>(),
     requestNeteaseRoute: vi.fn(),
 }));
 
 import { OnlineProviderError } from '@/types/onlineMusic';
-import { requestNeteaseRoute } from '@/services/onlineMusic/netease/netease';
-import { NETEASE_RAW_ENDPOINTS, neteaseRaw, neteaseRawQuery, neteaseRouteOf } from '@/services/onlineMusic/netease/neteaseRaw';
+import { requestNeteaseRoute } from '../../../sources/netease/core/netease';
+import { NETEASE_RAW_ENDPOINTS, neteaseRaw, neteaseRawQuery, neteaseRouteOf } from '../../../sources/netease/core/neteaseRaw';
 import { withoutCredentials } from '@/services/onlineMusic/rawResponse';
 import { omni } from '@/services/onlineMusic/omni';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';

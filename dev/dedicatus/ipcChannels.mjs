@@ -7,13 +7,14 @@
 // 不让它们开出别的窗口、也不让它们导航到应用以外的页面（那样的页面会带着 preload）；写、花钱、回个人数据的通道都加了来源校验。
 // 循环里拼出名字的通道（模组系统 folia-mods:*、HiFi hifi:*）扫描认不出，按前缀登记在 IPC_DYNAMIC_PREFIXES。
 // 检查在 test/unit/dedicatus/contracts/ipc.test.ts。
+// Folium 2.0：平台的 *-api-request 等通道随平台迁成模组（S5）逐个删掉（模组的 main 入口经 folia-mods:rpc 答，不再自己注册通道）；
+// sources/ 里的代码 import 不了 electron（构建脚本拒绝），注册不了通道。
 
 /** @type {Record<string, { level: 'any' | 'first-party', why: string }>} */
 export const IPC_CHANNELS = {
     'ai-list-models': { level: 'first-party', why: '现状：有来源校验' },
     'ai-test-connection': { level: 'first-party', why: '现状：有来源校验' },
     'app-quit': { level: 'first-party', why: '现状：有来源校验' },
-    'apple-music-request': { level: 'first-party', why: '经 createCompanionRequestHandler 校验：只给主窗口的主 frame' },
     'automix-beat-this': { level: 'first-party', why: '跑分析模型，占 CPU/GPU（宿主注入的来源校验）' },
     'automix-beat-this-gpu-weights': { level: 'any', why: '只读随应用分发的模型权重（公开数据）' },
     'automix-diag': { level: 'first-party', why: '写运行日志（宿主注入的来源校验，不可信来源静默忽略）' },
@@ -21,7 +22,6 @@ export const IPC_CHANNELS = {
     'automix-htdemucs': { level: 'first-party', why: '跑分离模型，占 CPU/GPU（宿主注入的来源校验）' },
     'automix-models-present': { level: 'any', why: '只读模型文件在不在' },
     'background-throttling-get': { level: 'first-party', why: '只回主窗口，别处回受限值（内联校验）' },
-    'bodian-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'choose-cache-directory': { level: 'first-party', why: '改缓存目录（firstParty）' },
     'clear-audio-cache': { level: 'first-party', why: '清空音频缓存（firstParty）' },
     'clear-cover-cache': { level: 'first-party', why: '清空封面缓存（firstParty）' },
@@ -35,7 +35,6 @@ export const IPC_CHANNELS = {
     'debug-set-state': { level: 'first-party', why: '改调试开关（宿主注入的来源校验）' },
     'discord-presence-get-status': { level: 'first-party', why: '现状：有来源校验' },
     'discord-presence-publish-snapshot': { level: 'first-party', why: '现状：有来源校验' },
-    'fnmusic-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'generate-theme': { level: 'first-party', why: '用用户的 AI 额度（firstParty）' },
     'get-audio-cache': { level: 'first-party', why: '读歌曲音频缓存，等于听歌记录（firstParty）' },
     'get-audio-cache-stats': { level: 'any', why: '只读音频缓存的总大小和条数' },
@@ -44,10 +43,6 @@ export const IPC_CHANNELS = {
     'get-cover-cache': { level: 'first-party', why: '读封面缓存（firstParty）' },
     'get-cover-cache-usage': { level: 'any', why: '只读封面缓存的总大小' },
     'get-login-diagnostics': { level: 'first-party', why: '诊断快照只给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
-    'get-netease-api-status': { level: 'first-party', why: '只回状态给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
-    'get-netease-port': { level: 'first-party', why: '只回端口给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
-    'get-qq-api-status': { level: 'first-party', why: '只回状态给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
-    'get-qq-port': { level: 'first-party', why: '只回端口给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
     'get-settings': { level: 'first-party', why: '读主进程设置：含 OBS 令牌和各平台的会话（firstParty）' },
     'global-shortcuts-backend': { level: 'any', why: '只读全局快捷键用哪种后端' },
     'global-shortcuts-set': { level: 'first-party', why: '现状：有来源校验' },
@@ -55,8 +50,6 @@ export const IPC_CHANNELS = {
     'has-audio-cache': { level: 'first-party', why: '按歌问有没有缓存，等于听歌记录（firstParty）' },
     'has-local-cover-asset': { level: 'first-party', why: '查本地歌曲封面（firstParty）' },
     'key-capture-active': { level: 'any', why: '只改调用者自己那个窗口的菜单键拦截' },
-    'kugou-api-request': { level: 'first-party', why: '现状：有来源校验' },
-    'kugou-api-status': { level: 'first-party', why: '现状：有来源校验' },
     'legacy-models-check': { level: 'first-party', why: '查旧模型目录，会删设置项（firstParty）' },
     'legacy-models-open': { level: 'first-party', why: '在系统里打开文件夹（firstParty）' },
     'legacy-models-resolve': { level: 'first-party', why: '删旧模型文件（firstParty）' },
@@ -78,7 +71,6 @@ export const IPC_CHANNELS = {
     'perf-check-open': { level: 'first-party', why: '开一个窗口（firstParty）' },
     'playback-display-sleep-set-active': { level: 'first-party', why: '现状：有来源校验' },
     'playback-sync-bridge-get-status': { level: 'first-party', why: '现状：有来源校验' },
-    'qishui-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'remote-control-close': { level: 'first-party', why: '现状：有来源校验' },
     'remote-control-get-always-on-top': { level: 'first-party', why: '现状：有来源校验' },
     'remote-control-get-pointer-inside': { level: 'first-party', why: '现状：有来源校验' },
@@ -95,18 +87,17 @@ export const IPC_CHANNELS = {
     'remove-local-cover-asset': { level: 'first-party', why: '删本地歌曲封面（firstParty）' },
     'report-device-pixel-ratio': { level: 'first-party', why: '现状：有来源校验' },
     'reset-cache-directory': { level: 'first-party', why: '改缓存目录（firstParty）' },
-    'restart-netease-api': { level: 'first-party', why: '重启内嵌后端，只给第一方窗口（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
     'run-login-self-check': { level: 'first-party', why: '登录自检只给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
     'save-audio-cache': { level: 'first-party', why: '写音频缓存文件（firstParty）' },
     'save-cover-cache': { level: 'first-party', why: '写封面缓存文件（firstParty）' },
     'save-local-cover-asset': { level: 'first-party', why: '写本地歌曲封面（firstParty）' },
     'save-settings': { level: 'first-party', why: '写主进程设置（firstParty）' },
+    'set-media-cache-limit': { level: 'first-party', why: '告诉主进程媒体缓存上限，音源模组请修剪时按它（firstParty）' },
     'scene-acoustics-available': { level: 'first-party', why: '只读场景声线追踪能不能用（firstParty）' },
     'scene-acoustics-compute': { level: 'first-party', why: '算场景房间的声音，占 CPU（firstParty）' },
     'scene-screen-capture': { level: 'first-party', why: '截主窗口一小块画面给场景打光（firstParty）' },
     'segment-lyrics': { level: 'first-party', why: '用用户的 AI 额度（firstParty）' },
     'set-app-locale': { level: 'first-party', why: '写界面语言（firstParty）' },
-    'spotify-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'stage-clear-state': { level: 'first-party', why: '清舞台状态（firstParty）' },
     'stage-complete-external-play': { level: 'first-party', why: '现状：有来源校验' },
     'stage-complete-player-control': { level: 'first-party', why: '现状：有来源校验' },
@@ -154,11 +145,14 @@ export const IPC_CHANNELS = {
     'window-set-transparent-mode': { level: 'first-party', why: '现状：有来源校验' },
     'window-toggle-fullscreen': { level: 'first-party', why: '现状：有来源校验' },
     'window-toggle-maximize': { level: 'first-party', why: '操作主窗口（firstParty）' },
-    'ytm-api-request': { level: 'first-party', why: '现状：有来源校验' },
 };
 
 /** 循环里拼出名字、扫描认不出的通道前缀。 */
 export const IPC_DYNAMIC_PREFIXES = {
-    'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，各自经模组系统的来源校验',
+    // Folium 2.0 S2：通道表（foliumShared.json channels）的每一条都经 modSystem.cjs 的 isMainWindowFrame，只答主窗口的主 frame。
+    // S2 新加的 source-states、set-source-state、source-data、clear-source-data、confirm-override、assign-source-claim 同在这张表里。
+    // S8 新加的 answer-sources-onboarding（开箱引导一次交上勾选的音源）同在这张表里。
+    // 收尾补项 A 新加的 source-usage（「设置 → 音源」每行的占用，只读）同在这张表里。
+    'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，每条都只答主窗口的主 frame（isMainWindowFrame）',
     'hifi:': 'electron/hifi/hifiIpc.cjs 按通道表循环注册',
 };

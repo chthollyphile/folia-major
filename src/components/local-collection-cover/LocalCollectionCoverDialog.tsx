@@ -6,7 +6,8 @@ import type { LocalGridViewCollectionDescriptor } from '../../library/core/colle
 import {
     localCollectionCoverKey,
     resolveLocalCollectionPosterFolder,
-    resolveLocalSongCoverCandidates,
+    toLocalCoverSong,
+    type CollectionCoverSong,
     type LocalCollectionCoverOrigin,
 } from '../../library/core/collection/cover/localCollectionCover';
 import { localCollectionCovers } from '../../library/core/collection/cover/localCollectionCovers.service';
@@ -23,7 +24,7 @@ import { setStatusMessage } from '../../stores/useStatusMessageStore';
 import { errorMessage } from '../../utils/errorText';
 import ThemedDialog from '../shared/ThemedDialog';
 import { SheetButton } from '../shared/Sheet';
-import LocalCollectionCoverSongPicks from './LocalCollectionCoverSongPicks';
+import LocalCollectionCoverSongPicks, { COVER_PICK_THUMBNAIL_SIZE } from './LocalCollectionCoverSongPicks';
 
 // src/components/local-collection-cover/LocalCollectionCoverDialog.tsx
 // 本地文件夹 / 专辑 / 歌单的「设置封面」对话框：用文件夹里的 poster.png、上传一张图、选集合里一首歌的封面，
@@ -34,8 +35,13 @@ type PosterState = { status: 'checking' } | LocalFolderPosterLookup;
 
 type LocalCollectionCoverDialogProps = {
     collection: LocalGridViewCollectionDescriptor;
-    /** 集合里的歌，按集合的顺序。 */
+    /** 集合里的本地歌，按集合的顺序（找 poster 的文件夹、自动封面用）。 */
     songs: LocalSong[];
+    /**
+     * 「用一首歌的封面」的候选歌。不给时就是 songs；Folia 聚合歌单给的是全部条目（混着各个来源，
+     * core 的 buildFoliaPlaylistCoverSongs）。
+     */
+    coverSongs?: readonly CollectionCoverSong[];
     isDaylight: boolean;
     onClose: () => void;
 };
@@ -46,12 +52,20 @@ const KIND_KEYS: Record<string, string> = {
     playlist: 'localCollectionCover.kindPlaylist',
 };
 
-const LocalCollectionCoverDialog: React.FC<LocalCollectionCoverDialogProps> = ({ collection, songs, isDaylight, onClose }) => {
+const LocalCollectionCoverDialog: React.FC<LocalCollectionCoverDialogProps> = ({ collection, songs, coverSongs, isDaylight, onClose }) => {
     const { t } = useTranslation();
     const coverKey = localCollectionCoverKey(collection);
     const overrides = useLocalCollectionCoverUrls();
     const customCoverUrl = coverKey ? overrides.get(coverKey) : undefined;
-    const automaticCoverUrl = useMemo(() => getLocalCoverUrl(songs, getLocalCoverAssetUrl), [songs]);
+    const pickSongs = useMemo(
+        () => coverSongs ?? songs.map(song => toLocalCoverSong(song, getLocalCoverAssetUrl, COVER_PICK_THUMBNAIL_SIZE)),
+        [coverSongs, songs],
+    );
+    // 自动封面与首页卡片同一条规则：本地歌的封面优先，一首本地歌都没有时用第一首带封面的条目的那张。
+    const automaticCoverUrl = useMemo(
+        () => getLocalCoverUrl(songs, getLocalCoverAssetUrl) ?? pickSongs.find(song => song.covers.length > 0)?.covers[0],
+        [pickSongs, songs],
+    );
     const previewUrl = customCoverUrl ?? automaticCoverUrl;
     const posterFolder = useMemo(() => resolveLocalCollectionPosterFolder(collection, songs), [collection, songs]);
     const [poster, setPoster] = useState<PosterState | null>(posterFolder ? { status: 'checking' } : null);
@@ -195,12 +209,9 @@ const LocalCollectionCoverDialog: React.FC<LocalCollectionCoverDialogProps> = ({
                 />
             </div>
             <LocalCollectionCoverSongPicks
-                songs={songs}
+                songs={pickSongs}
                 disabled={busy}
-                onPick={song => void apply('song', () => loadLocalSongCoverBlob(
-                    resolveLocalSongCoverCandidates(song, getLocalCoverAssetUrl),
-                    song.id,
-                ))}
+                onPick={song => void apply('song', () => loadLocalSongCoverBlob(song.covers, song.id))}
             />
         </ThemedDialog>
     );

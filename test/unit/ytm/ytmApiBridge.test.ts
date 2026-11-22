@@ -6,13 +6,13 @@ import { describe, expect, it, vi } from 'vitest';
 // Every cookie, name, address and id in this file is made up.
 
 const require = createRequire(import.meta.url);
-const { createYtmApiBridge, pickAudioFormat, YTM_OPERATIONS } = require('../../../electron/ytm/ytmApiBridge.cjs');
-const { publicAccountId, SESSION_KEY } = require('../../../electron/ytm/session.cjs');
-const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../electron/ytm/webSignIn.cjs');
+const { createYtmApiBridge, pickAudioFormat, YTM_OPERATIONS } = require('../../../sources/ytm/main/ytmApiBridge.cjs');
+const { publicAccountId, SESSION_KEY } = require('../../../sources/ytm/main/session.cjs');
+const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../sources/ytm/main/webSignIn.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const ALBUM_LIST = 'OLAK5uy_fixturefixturefixturefixturefixture01';
-const errorWords = require('../../../electron/ytm/errors.cjs');
+const errorWords = require('../../../sources/ytm/main/errors.cjs');
 const GAIA_ID = '104000000000000000001';
 const AGENT = 'Mozilla/5.0 (Test) Chrome/140.0.0.0 Safari/537.36';
 const COOKIE = 'SAPISID=sapisid-private; SID=sid-private';

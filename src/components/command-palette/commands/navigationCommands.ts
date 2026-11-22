@@ -1,6 +1,7 @@
 import type { CommandPaletteCommand } from '../types';
 import { defineCommand, createToggleCommand, createHomeTabCommand } from '../commandFactories';
 import { omni } from '../../../services/onlineMusic/omni';
+import { useHomeLayoutSettingsStore } from '../../../stores/useHomeLayoutSettingsStore';
 
 // src/components/command-palette/commands/navigationCommands.ts
 // Commands in the `navigation` group: moving between home tabs, the player, and window-level views.
@@ -39,6 +40,11 @@ export const navigationCommands: CommandPaletteCommand[] = [
         keywords: ['full screen', 'f11', 'browser fullscreen', '全屏', '浏览器全屏'],
         isAvailable: (context) => !context?.navigation.isWallpaperMode,
         execute: (_input, context) => context.navigation.toggleBrowserFullscreen(),
+    },
+    {
+        ...createHomeTabCommand('folia', 'Open Folia playlists', 'Open the Folia home tab', ['folia', 'folia playlists', 'scratchpad', '聚合歌单', 'Folia 歌单']),
+        // Hidden in settings, there is no Folia tab to open.
+        isAvailable: () => useHomeLayoutSettingsStore.getState().showHomeTabFolia,
     },
     createHomeTabCommand('playlist', 'Open playlists', 'Open playlist home tab', ['playlist', 'playlists', '歌单']),
     createHomeTabCommand('local', 'Open local music', 'Open local music tab', ['local music', 'local', '本地', '本地音乐']),

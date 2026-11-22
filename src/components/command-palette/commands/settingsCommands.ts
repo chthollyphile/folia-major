@@ -400,6 +400,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { isAvailable: context => context?.settings.canAutoScanLocalLibrary() ?? true },
     ),
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端'], 'options', 'desktop', { platform: ['electron'] }),
+    createSettingsCommand('settings-sources', 'Sources settings', 'Open the online sources: enable each, use it only for matching, or disable it', ['sources', 'online sources', 'providers', 'platforms', 'disable source', 'matching only', '音源', '音源设置', '平台', '停用音源', '只用于匹配'], 'options', 'sources', { platform: ['electron'] }),
     createSettingsCommand('settings-remote', 'Remote Control settings', 'Open the Remote Control window settings: its switches and lyric rows', ['remote control', 'remote window', 'mini player', 'remote lyrics', '遥控窗口', '遥控窗口设置', '妙控窗', '迷你播放器', '遥控歌词'], 'options', 'remote', { platform: ['electron'] }),
     createSettingsAnchorCommand('settings-update-channel', 'Update channel', 'Choose the desktop app release channel', ['release channel', 'realeco', 'limo', 'cielo', '更新通道', '发布通道'], 'updateCheck', { platform: ['electron'] }),
     {
@@ -464,6 +465,16 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ['throttle when hidden', 'pause lyrics when minimized', 'stop animation in background', 'power saving', '后台节流', '后台暂停歌词', '最小化停止动画', '省电'],
         context => context.settings.toggleBackgroundThrottling(),
         { platform: ['electron'] },
+    ),
+    // Folium 2.0: the community mods switch. The main process asks before turning it on, so this only asks it.
+    createToggleCommand(
+        'desktop-toggle-community-mods',
+        'settings',
+        'Community mods',
+        'Toggle installing and running mods that are not official source mods',
+        ['third party mods', 'unofficial mods', 'allow mods', '第三方模组', '非官方模组'],
+        context => context.settings.toggleCommunityMods(),
+        { platform: ['electron'], isAvailable: context => context?.settings.modSystemEnabled ?? true },
     ),
     createSettingsCommand('settings-wallpaper-mode', 'Wallpaper mode settings', 'Open wallpaper mode settings', ['wallpaper mode', 'desktop wallpaper', 'lyrics wallpaper', '壁纸模式', '桌面壁纸', '歌词壁纸'], 'options', 'desktop', { platform: ['linux', 'win', 'mac'] }),
     {

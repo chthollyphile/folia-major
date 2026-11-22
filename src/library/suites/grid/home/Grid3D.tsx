@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Settings, PanelsTopLeft, X, Menu } from 'lucide-react';
+import { Search, Loader2, Settings, Cable, X, Menu } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
-import { SongResult, LocalSong, LocalPlaylist, LocalLibraryGroup, Theme, type StatusMessage } from '../../../../types';
+import { SongResult, LocalSong, LocalLibraryGroup, Theme, type StatusMessage } from '../../../../types';
+import type { FoliaPlaylistSummary } from '../../../../types/foliaPlaylist';
 import LocalGrid3DView from './LocalGrid3DView';
 import NavidromeGrid3DView from './NavidromeGrid3DView';
 import { useGrid3DTabKeys } from './useGrid3DTabKeys';
@@ -25,7 +26,7 @@ import type { LibraryDirectoryBatchController } from '../../../core/directory/di
 import type { LibraryLocalCatalogSnapshot } from '../../../core/home/home.contract';
 import type { LibraryHomeResources } from '../../../core/home/homeModel.contract';
 import type { LibraryHomeExtraTab, LibraryDeclaredActions } from '../../../core/suite/suite.contract';
-import type { LibraryHomeCard, LibraryHomeListState } from '../../../core/home/homeModel.contract';
+import type { LibraryHomeCard, LibraryHomeGroupView, LibraryHomeListState, LibraryHomeTabKey } from '../../../core/home/homeModel.contract';
 import { useLibraryHomeSources } from '../../../core/home/useLibraryHomeSources';
 import { useLibraryHomeOnline } from '../../../core/home/online/useLibraryHomeOnline';
 import { useLibraryHomeActions } from '../../../core/home/useLibraryHomeActions';
@@ -33,6 +34,11 @@ import { useLibraryHomeDirectory } from '../../../core/home/useLibraryHomeDirect
 import { useLibraryHomeListRegistration, useLibraryHomeTabsRegistration } from '../../../core/home/useLibraryHomeSurfaceRegistration';
 import { cycleIndex } from '../../../core/home/homeSources';
 import HomeSearchHistory from './HomeSearchHistory';
+import Grid3DHomeTabs from './Grid3DHomeTabs';
+import HomeNoticePanel from './HomeNoticePanel';
+import FoliaGrid3DView from './FoliaGrid3DView';
+import { buildOnlineGridTabs, OnlineGridTabsRow } from './OnlineGridTabs';
+import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { useUpdateIndicator } from '../../../../hooks/useUpdateIndicator';
 import { useIsBottomLayoutCompact } from '../../../../stores/useBottomDockStore';
 
@@ -52,10 +58,10 @@ interface Grid3DProps {
     currentTrack?: SongResult | null;
     localSongs: LocalSong[];
     localLibraryCatalog: LibraryLocalCatalogSnapshot;
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylistSummary[];
     onRefreshLocalSongs: () => Promise<void> | void;
     localMusicState: {
-        activeRow: 0 | 1 | 2 | 3;
+        activeRow: 0 | 1 | 2;
         selectedGroup: LocalLibraryGroup | null;
         detailStack: LocalLibraryGroup[];
         detailOriginView: 'home' | 'player' | null;
@@ -65,7 +71,7 @@ interface Grid3DProps {
         focusedPlaylistIndex: number;
     };
     setLocalMusicState: React.Dispatch<React.SetStateAction<{
-        activeRow: 0 | 1 | 2 | 3;
+        activeRow: 0 | 1 | 2;
         selectedGroup: LocalLibraryGroup | null;
         detailStack: LocalLibraryGroup[];
         detailOriginView: 'home' | 'player' | null;
@@ -164,8 +170,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         playlists,
         cloudPlaylist,
         navidromeEnabled,
+        folia: true,
     });
-    const { tab: homeViewTab, setTab: setHomeViewTab, isOnlineTab, online, tabs: homeTabs } = homeSources;
+    const { tab: homeViewTab, setTab: setHomeViewTab, isOnlineTab, online, tabs: homeTabs, groups: homeGroups, noOnlineSources } = homeSources;
+    const onlineGroup = homeGroups.find(group => group.key === 'online');
     const activeProviderId = online.providerId;
     const activeProviderLabel = online.providerLabel;
     const activeUser = online.user;
@@ -183,6 +191,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     });
     // 在线列表只在账户已就绪时显示（无账户 / 解析中 / 未登录各有面板）。探索页签没有卡片列表：它是平台自己的推荐页。
     const showOnlineList = isOnlineTab
+        && !noOnlineSources
         && homeViewTab !== 'explore'
         && activeAccountView !== 'accountless'
         && activeAccountView !== 'resolving'
@@ -210,8 +219,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [isCompactSearchOpen, setIsCompactSearchOpen] = useState(false);
     /** 紧凑档把页签收成了一颗菜单按钮：点开展开页签列表，再点（或选一个页签、点外面）收起。 */
     const [isCompactTabsOpen, setIsCompactTabsOpen] = useState(false);
-    /** 紧凑档页头正中的标题：当前页签的名字；万一对不上任何页签，退回 Folia。 */
-    const compactTabTitle = homeTabs.find(tab => tab.key === homeViewTab)?.label ?? 'Folia';
+    /** 紧凑档页头正中的标题：当前一级页签（组）的名字，二级页签在下面的小胶囊里看得到；万一对不上任何组，退回 Folia。 */
+    const compactTabTitle = homeGroups.find(group => group.active)?.label ?? 'Folia';
 
     // Reset focused index when switching tabs.
     useEffect(() => {
@@ -288,10 +297,11 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     // 首页模型交给 core 的首页 surface 句柄：页签条，以及在线页签的列表（本地与 Navidrome 由各自的视图注册）。
     useLibraryHomeTabsRegistration({
-        getState: () => ({ active: homeViewTab, tabs: homeTabs }),
+        getState: () => ({ active: homeViewTab, tabs: homeTabs, groups: homeGroups }),
         setTab: tab => {
             const target = homeTabs.find(candidate => candidate.key === tab);
-            if (!target || target.disabledReason) return false;
+            // 不可用的页不让选，除非它是某个组的落点（在线组一页都不可用时仍要进得去，见 resolveHomeGroups）。
+            if (!target || (target.disabledReason && !homeGroups.some(group => group.target === tab))) return false;
             props.onNativeTabSelected?.();
             setHomeViewTab(tab);
             return true;
@@ -347,9 +357,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     // Background style mappings
     const mainBg = isDaylight ? 'bg-white/40' : 'bg-black/20';
     const inputBg = isDaylight ? 'bg-black/5 focus:bg-black/10' : 'bg-white/5 focus:bg-white/10';
-    const navPillBg = isDaylight ? 'bg-black/5' : 'bg-white/10';
+    /** 紧凑档页签菜单里未选中的项（桌面档的胶囊在 Grid3DHomeTabs 里自带同样的配色）。 */
     const navPillInactiveText = isDaylight ? 'text-black/60 hover:text-black' : 'text-white/60 hover:text-white';
-    const activeTabBg = isDaylight ? 'text-black font-bold' : 'text-black';
 
     const bottomPadding = currentTrack ? 'pb-28 md:pb-32' : '';
 
@@ -371,6 +380,20 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         } })),
         ...(props.extraTabs ?? []).map(tab => ({ ...tab, enabled: true })),
     ];
+    // 一级那一排：点一个组去它记住的那一页（在线组是上次停的那一页）。
+    const selectHomeTab = (tab: LibraryHomeTabKey) => {
+        setHomeViewTab(tab);
+        focusActiveSlider();
+    };
+    const selectHomeGroup = (group: LibraryHomeGroupView) => {
+        if (group.target) selectHomeTab(group.target);
+    };
+    // 「设置 → 音源」只在桌面版有。
+    const openSourceSettings = window.electron ? () => openSettings('options', 'sources', null, 'sourceList') : undefined;
+    // 一个音源都没启用时没有二级页签可言（页都是空的），只留「去启用音源」那块提示。
+    const onlineTabs = noOnlineSources ? [] : buildOnlineGridTabs(onlineGroup, homeViewTab, selectHomeTab);
+    const onlineTabsLabel = t('home.onlineTabsLabel', { source: onlineGroup?.label ?? '' });
+
     useGrid3DTabKeys({
         isActive: isInteractive,
         onCycleTab: delta => {
@@ -440,31 +463,29 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                             data-testid="home-tabs-menu"
                                             className="absolute left-0 top-full z-40 mt-2 max-h-[calc(100vh-6rem)] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border p-1.5 shadow-xl backdrop-blur-2xl theme-glass-panel"
                                         >
-                                            {homeTabs.map(tab => {
-                                                const isActive = homeViewTab === tab.key;
-                                                return (
-                                                    <button
-                                                        key={tab.key}
-                                                        type="button"
-                                                        disabled={Boolean(tab.disabledReason)}
-                                                        title={tab.disabledReason || tab.label}
-                                                        aria-label={tab.disabledReason || tab.label}
-                                                        onClick={() => {
-                                                            setHomeViewTab(tab.key);
-                                                            focusActiveSlider();
-                                                            setIsCompactTabsOpen(false);
-                                                        }}
-                                                        className={`flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${isActive
-                                                            ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/15 text-white')
-                                                            : navPillInactiveText}`}
-                                                    >
-                                                        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
-                                                        {isActive && (
-                                                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDaylight ? 'bg-black/70' : 'bg-white/80'}`} />
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
+                                            {/* 菜单里是一级页签（组），和桌面档的胶囊一致；点一个组去它记住的那一页。 */}
+                                            {homeGroups.map(group => (
+                                                <button
+                                                    key={group.key}
+                                                    type="button"
+                                                    disabled={group.target === null}
+                                                    title={group.disabledReason || group.label}
+                                                    aria-label={group.disabledReason || group.label}
+                                                    aria-current={group.active ? 'page' : undefined}
+                                                    onClick={() => {
+                                                        selectHomeGroup(group);
+                                                        setIsCompactTabsOpen(false);
+                                                    }}
+                                                    className={`flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${group.active
+                                                        ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/15 text-white')
+                                                        : navPillInactiveText}`}
+                                                >
+                                                    <span className="min-w-0 flex-1 truncate">{group.label}</span>
+                                                    {group.active && (
+                                                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDaylight ? 'bg-black/70' : 'bg-white/80'}`} />
+                                                    )}
+                                                </button>
+                                            ))}
                                             {props.extraTabs?.map(tab => (
                                                 <button
                                                     key={tab.id}
@@ -585,9 +606,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         )}
                     </div>
 
-                    {/* Center Tab Switcher：桌面档是横排胶囊；紧凑档页签收进左侧的菜单按钮，这里改放当前页签的名字，
-                        照样落在页面正中——收起菜单也看得出自己在哪一页。胶囊的宽度永远是它自身的内容宽度（shrink-0）：
-                        窗口再窄也不压它，先让两侧让位。页签名太长（译文）时截断，不把两侧挤没。 */}
+                    {/* Center Tab Switcher：桌面档是首页两级页签的一级那一排（Grid3DHomeTabs）；紧凑档页签收进左侧的菜单按钮，
+                        这里改放当前一级页签（组）的名字，照样落在页面正中——收起菜单也看得出自己在哪一组；二级页签仍在下面的小胶囊里。
+                        胶囊的宽度永远是它自身的内容宽度（shrink-0）：窗口再窄也不压它，先让两侧让位。页签名太长（译文）时截断，不把两侧挤没。 */}
                     <div className="flex shrink-0 justify-center">
                         {isCompact ? (
                             <h1
@@ -610,77 +631,16 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                 </AnimatePresence>
                             </h1>
                         ) : (
-                        <div className={`relative shrink-0 ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
-                            <div className="inline-flex items-center gap-0">
-                                {homeTabs.map((tab) => {
-                                    const isActive = homeViewTab === tab.key;
-                                    return (
-                                        <span
-                                            key={tab.key}
-                                            title={tab.disabledReason || tab.label}
-                                            className="inline-flex"
-                                        >
-                                            <button
-                                                disabled={Boolean(tab.disabledReason)}
-                                                aria-label={tab.disabledReason || tab.label}
-                                                onClick={() => {
-                                                    setHomeViewTab(tab.key);
-                                                    focusActiveSlider();
-                                                }}
-                                                className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${isActive ? activeTabBg : navPillInactiveText}`}
-                                            >
-                                                {isActive && (
-                                                    <motion.span
-                                                        layoutId="home-active-tab-pill-desktop"
-                                                        className="absolute inset-0 rounded-full bg-white shadow-sm"
-                                                        transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.9 }}
-                                                    />
-                                                )}
-                                                <span className="relative z-10">{tab.label}</span>
-                                            </button>
-                                        </span>
-                                    );
-                                })}
-                                {props.extraTabs?.map(tab => (
-                                    <button key={tab.id} type="button" onClick={tab.select}
-                                        className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${navPillInactiveText}`}>
-                                        {tab.label}
-                                    </button>
-                                ))}
-                                {stageEnabled && (
-                                    <button
-                                        onClick={() => onOpenStagePlayer?.()}
-                                        data-stage-active={stageIsActive ? 'true' : 'false'}
-                                        className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
-                                    >
-                                        <span className="relative z-10">{t('home.stage')}</span>
-                                    </button>
-                                )}
-                                {/* 播放队列的海报视图和 Stage 一样属于「去哪儿」，所以它在这一排，
-                                    而不是标题旁的工具图标。没有在播歌曲时队列也是空的，直接不出现。
-                                    平时只占一个图标的宽度，指针悬停或键盘聚焦时才展开文字——这一排
-                                    已经有五个内容 tab，多一个常驻文字就把胶囊撑得太长。点击始终直达。
-                                    在「探索」页签上它打开的是同一面墙，铺的是探索页的条目（探索拼贴）：
-                                    探索页有条目可铺时出现，不看有没有在播歌曲。 */}
-                                {onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack) && (
-                                    <button
-                                        onClick={() => onOpenLattice(opensExploreWall ? 'explore' : 'queue')}
-                                        data-testid="home-lattice-pill"
-                                        title={t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}
-                                        aria-label={t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}
-                                        className={`group relative inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
-                                    >
-                                        <PanelsTopLeft size={14} className="relative z-10 shrink-0" />
-                                        <span
-                                            aria-hidden="true"
-                                            className="relative z-10 max-w-0 overflow-hidden opacity-0 transition-all duration-300 ease-out group-hover:ml-1.5 group-hover:max-w-28 group-hover:opacity-100 group-focus-visible:ml-1.5 group-focus-visible:max-w-28 group-focus-visible:opacity-100"
-                                        >
-                                            {t(opensExploreWall ? 'home.latticeExplore' : 'home.latticeLabel')}
-                                        </span>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                            <Grid3DHomeTabs
+                                groups={homeGroups}
+                                onSelectGroup={selectHomeGroup}
+                                extraTabs={props.extraTabs}
+                                isDaylight={isDaylight}
+                                stage={{ enabled: stageEnabled, active: stageIsActive, open: onOpenStagePlayer }}
+                                lattice={onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack)
+                                    ? { explore: opensExploreWall, open: () => onOpenLattice(opensExploreWall ? 'explore' : 'queue') }
+                                    : null}
+                            />
                         )}
                     </div>
 
@@ -866,7 +826,38 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
             {/* Desktop Canvas Surface */}
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative">
-                {isOnlineTab && activeAccountView === 'accountless' ? (
+                {/* 没有卡片列表的在线页（探索、未登录、无账户、没有音源）：二级页签单独画在同一个位置。 */}
+                {isOnlineTab && !showOnlineList && (
+                    <OnlineGridTabsRow tabs={onlineTabs} isDaylight={isDaylight} label={onlineTabsLabel} />
+                )}
+                {homeViewTab === 'folia' ? (
+                    // Folia 组：聚合歌单的卡片（不设二级页签）；新建、排序、导入、打开速记簿在右上角。
+                    <div className="w-full h-full flex-1" data-testid="home-folia">
+                        <FoliaGrid3DView
+                            playlists={localPlaylists}
+                            localSongs={localSongs}
+                            focusedIndex={localMusicState.focusedPlaylistIndex}
+                            setFocusedIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedPlaylistIndex: index }))}
+                            homeActions={homeActions}
+                            directoryKey={directoryKey}
+                            theme={theme}
+                            isDaylight={isDaylight}
+                            isInteractive={isInteractive}
+                            hasFloatingPlayer={Boolean(currentTrack)}
+                            onOpenGridView={onOpenGridView}
+                            declaredHomeActions={declaredActions}
+                        />
+                    </div>
+                ) : isOnlineTab && noOnlineSources ? (
+                    <HomeNoticePanel
+                        testId="home-no-sources"
+                        icon={Cable}
+                        title={t('home.noSourcesTitle')}
+                        body={t('home.noSourcesBody')}
+                        isDaylight={isDaylight}
+                        action={openSourceSettings ? { label: t('home.noSourcesAction'), icon: Cable, run: openSourceSettings } : undefined}
+                    />
+                ) : isOnlineTab && activeAccountView === 'accountless' ? (
                     <OnlineProviderAccountlessPanel
                         providerLabel={activeProviderLabel}
                         isDaylight={isDaylight}
@@ -917,12 +908,13 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         playlistVisibilityScope={hiddenScope}
                         directoryKey={directoryKey}
                         declaredHomeActions={declaredActions}
+                        tabs={onlineTabs}
+                        tabsLabel={onlineTabsLabel}
                     />
                 ) : homeViewTab === 'local' ? (
                     <div className="w-full h-full flex-1">
                         <LocalGrid3DView
                             localSongs={localSongs}
-                            localPlaylists={localPlaylists}
                             localLibraryCatalog={localLibraryCatalog}
                             activeRow={localMusicState.activeRow}
                             setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
@@ -932,8 +924,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
                             focusedArtistIndex={localMusicState.focusedArtistIndex}
                             setFocusedArtistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedArtistIndex: index }))}
-                            focusedPlaylistIndex={localMusicState.focusedPlaylistIndex}
-                            setFocusedPlaylistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedPlaylistIndex: index }))}
                             homeActions={homeActions}
                             directoryTreesResource={homeResources.localDirectoryTrees}
                             directoryKey={directoryKey}

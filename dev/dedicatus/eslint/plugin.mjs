@@ -169,6 +169,8 @@ const credentialWriteSites = {
                 objects: { type: 'object' },
                 objectFactories: { type: 'object' },
                 storageKeyCalls: { type: 'array', items: { type: 'string' } },
+                // 返回同步页面存储的调用（folium.sources.pageStore(id)）：它的 `.set(键, 值)` 也是写会话值
+                pageStoreCalls: { type: 'array', items: { type: 'string' } },
                 writers: { type: 'object' },
             },
             additionalProperties: false,
@@ -178,7 +180,7 @@ const credentialWriteSites = {
         },
     },
     create(context) {
-        const { keys = [], calls = [], objects = {}, objectFactories = {}, storageKeyCalls = [], writers = {} } = context.options[0] ?? {};
+        const { keys = [], calls = [], objects = {}, objectFactories = {}, storageKeyCalls = [], pageStoreCalls = [], writers = {} } = context.options[0] ?? {};
         const credentialKeys = new Set(keys.map(key => key.toLowerCase()));
         const relative = repoPath(context);
         const allowed = writers[relative] ?? {};
@@ -201,6 +203,10 @@ const credentialWriteSites = {
         /** 是不是会话对象：登记的名字、它的别名，或者直接是 `ensureCookies()` 的返回值。 */
         const isCredentialObject = node => (node.type === 'Identifier' && objectNames.has(node.name))
             || (node.type === 'CallExpression' && factories.includes(calleeName(node.callee) ?? ''));
+        // 同步页面存储：`folium.sources.pageStore(id)` 的返回值，和存着它的变量（`const store = …pageStore(id)`）。
+        const pageStoreNames = new Set();
+        const isPageStore = node => (node.type === 'Identifier' && pageStoreNames.has(node.name))
+            || (node.type === 'CallExpression' && pageStoreCalls.includes(calleeName(node.callee) ?? ''));
 
         return {
             ImportSpecifier(node) {
@@ -209,12 +215,18 @@ const credentialWriteSites = {
             },
             VariableDeclarator(node) {
                 if (node.id.type === 'Identifier' && node.init && isCredentialObject(node.init)) objectNames.add(node.id.name);
+                if (node.id.type === 'Identifier' && node.init && isPageStore(node.init)) pageStoreNames.add(node.id.name);
             },
             CallExpression(node) {
                 const name = calleeName(node.callee);
                 if (!name) return;
                 if (callNames.has(name)) {
                     check(node, literalString(node.arguments[1]) ?? '*');
+                    return;
+                }
+                // 音源模组的会话值：`folium.sources.pageStore(id).set(键, 值)`、`store.set(键, 值)`（Folium 2.0 S5）
+                if (name === 'set' && node.callee.type === 'MemberExpression' && isPageStore(node.callee.object)) {
+                    check(node, literalString(node.arguments[0]) ?? '*');
                     return;
                 }
                 // `localStorage.setItem(getProviderSessionKey(平台, 键), 值)`：绕过 writeProviderSessionValue 直接写

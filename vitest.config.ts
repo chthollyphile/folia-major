@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { defineConfig } from 'vitest/config';
 import { commandPinyinPlugin } from './dev/pinyin/commandPinyinPlugin.mjs';
 import { traditionalLocalePlugin } from './dev/i18n/traditionalLocalePlugin.mjs';
+import { webSourcePlugin } from './dev/sources/webSourcePlugin.mjs';
 import { icuFoliaDataPlugin } from './dev/icuFolia/icuFoliaDataPlugin.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,7 +12,7 @@ export default defineConfig({
   // 命令面板的检索索引在单测里也要读到构建期生成的拼音字典。
   // 繁中 locale 由 zh-CN 在构建期转换生成，同样只以虚拟模块存在。
   // icu-folia 的 jieba 词典和 HMM 表同样以虚拟模块提供，单测走的是和正式构建同一条加载路径。
-  plugins: [commandPinyinPlugin(), traditionalLocalePlugin(), icuFoliaDataPlugin()],
+  plugins: [commandPinyinPlugin(), traditionalLocalePlugin(), webSourcePlugin(), icuFoliaDataPlugin()],
   // 单测默认按官方构建跑（vite.config 构建期注入的值）；非官方分支由各自的用例显式传入构建环境。
   define: {
     __BUILD_KIND__: JSON.stringify('official'),
@@ -19,7 +20,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
+      '@': path.resolve(__dirname, './src'),
+      // 音源模组共用的纯函数（packages/folium-source-kit），宿主和 sources/ 都从包的入口取。
+      '@folia/folium-source-kit': path.resolve(__dirname, './packages/folium-source-kit/src/index.ts'),
     }
   },
   test: {
@@ -29,6 +32,7 @@ export default defineConfig({
     env: { VITE_LIBRARY_TUI: 'true', VITE_LIBRARY_INITIAL_SUITE: 'grid' },
     include: ['test/unit/**/*.test.ts', 'packages/*/test/**/*.test.mjs'],
     // Node 25 起自带的 localStorage 占位会盖住 jsdom 的那份：jsdom 用例在这里统一补内存实现，node 用例删掉占位。
-    setupFiles: ['test/unit/jsdomLocalStorage.ts']
+    // 仓库里的音源模组（sources/<id>/）在每个测试文件开始前经适配层注册；还没有音源时它什么都不做（helpers/builtinSources.ts）。
+    setupFiles: ['test/unit/jsdomLocalStorage.ts', 'test/unit/helpers/builtinSources.ts']
   }
 });

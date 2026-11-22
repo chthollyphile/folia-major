@@ -1,0 +1,46 @@
+{
+    "name": {
+        "full": "LX Music Source",
+        "short": "LX"
+    },
+    "availability": {
+        "noScript": "Chưa nhập tập lệnh nguồn tùy chỉnh nào. Chạy “LX Music Source: Nhập tập lệnh nguồn tùy chỉnh…” từ bảng lệnh."
+    },
+    "platform": {
+        "kw": "Kuwo",
+        "kg": "Kugou",
+        "tx": "QQ Music",
+        "wy": "NetEase",
+        "other": "nền tảng hiện tại"
+    },
+    "explore": {
+        "charts": {
+            "kw": "Bảng xếp hạng Kuwo",
+            "kg": "Bảng xếp hạng Kugou",
+            "tx": "Bảng xếp hạng QQ Music",
+            "wy": "Bảng xếp hạng NetEase",
+            "other": "Bảng xếp hạng"
+        }
+    },
+    "import": {
+        "cancelled": "Chưa chọn tệp nào",
+        "done": "Đã nhập “{{name}}” và đặt làm tập lệnh hiện tại",
+        "failed": {
+            "too-large": "Tệp quá lớn: mỗi tập lệnh tối đa 2 MB",
+            "not-a-script": "Đây không phải tập lệnh nguồn tùy chỉnh của LX Music",
+            "no-platform": "Tập lệnh không khai báo hỗ trợ Kuwo, Kugou, QQ Music hay NetEase",
+            "too-many": "Quá nhiều tập lệnh: hãy xóa bớt một tập lệnh trước khi nhập",
+            "load-failed": "Tập lệnh không khởi chạy được (không báo cáo nền tảng mà nó hỗ trợ)",
+            "unreadable": "Không đọc được tệp"
+        }
+    },
+    "select": {
+        "done": "Đang dùng “{{name}}”"
+    },
+    "remove": {
+        "done": "Đã xóa “{{name}}”"
+    },
+    "platformSwitch": {
+        "done": "Đang tìm trên {{platform}}"
+    }
+}

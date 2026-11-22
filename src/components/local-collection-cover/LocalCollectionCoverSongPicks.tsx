@@ -1,25 +1,25 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LocalSong } from '../../types';
-import { buildLocalSongCoverPicks } from '../../library/core/collection/cover/localCollectionCover';
-import { getLocalCoverAssetUrl } from '../../services/localCoverAssetUrl';
+import { buildCoverPicks, type CollectionCoverSong } from '../../library/core/collection/cover/localCollectionCover';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
 
 // src/components/local-collection-cover/LocalCollectionCoverSongPicks.tsx
 // 集合封面对话框里「用一首歌的封面」的列表：集合里每张不同的歌曲封面一行（同一张封面的歌合成一行，记着几首），
-// 点一行就用那首歌的封面。没有封面的歌不列。
+// 点一行就用那首歌的封面。没有封面的歌不列。候选歌由对话框给（本地集合是曲库的歌，Folia 聚合歌单还带着别的来源的条目）。
 
-const THUMBNAIL_SIZE = 256;
+/** 列表里缩略图的边长（对话框准备本地歌的候选时也用它）。 */
+export const COVER_PICK_THUMBNAIL_SIZE = 256;
+const THUMBNAIL_SIZE = COVER_PICK_THUMBNAIL_SIZE;
 
 type LocalCollectionCoverSongPicksProps = {
-    songs: LocalSong[];
+    songs: readonly CollectionCoverSong[];
     disabled: boolean;
-    onPick: (song: LocalSong) => void;
+    onPick: (song: CollectionCoverSong) => void;
 };
 
 const LocalCollectionCoverSongPicks: React.FC<LocalCollectionCoverSongPicksProps> = ({ songs, disabled, onPick }) => {
     const { t } = useTranslation();
-    const picks = useMemo(() => buildLocalSongCoverPicks(songs, getLocalCoverAssetUrl, THUMBNAIL_SIZE), [songs]);
+    const picks = useMemo(() => buildCoverPicks(songs), [songs]);
     const songsById = useMemo(() => new Map(songs.map(song => [song.id, song])), [songs]);
 
     return (

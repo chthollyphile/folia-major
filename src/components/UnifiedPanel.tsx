@@ -23,7 +23,7 @@ import type { OnlineLyricsState } from '../types';
 import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
-import { canSaveQueueAsLocalPlaylist } from '../utils/queueReorder';
+import { canSaveQueueAsPlaylist } from '../utils/queueReorder';
 import { canDislikeCurrentSong, resolveLikeAvailability } from '../utils/playerLikeAvailability';
 import { usePlayerPanelTabShortcut } from '../hooks/usePlayerPanelTabShortcut';
 import { FOLIUM_PANEL_TAB_PREFIX, FoliumPanelTabBody, useFoliumPanelTabs } from '../mods/folium/registries/playerPanelTabs';
@@ -441,8 +441,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                             openScratchpadQueueCanvas();
                             onToggle();
                         }}
-                        // TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
-                        canSaveLocalPlaylist={canSaveQueueAsLocalPlaylist(currentSong, playQueue)}
+                        canSavePlaylist={canSaveQueueAsPlaylist(currentSong, playQueue)}
                         onSaveCurrentQueueAsPlaylist={onSaveCurrentQueueAsPlaylist}
                         isDaylight={isDaylight}
                     />

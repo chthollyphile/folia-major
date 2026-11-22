@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import { sameArtwork, standInHandoverKind } from '@/library/suites/grid/transitions/standInHandover';
 

@@ -167,6 +167,13 @@ describe('folium.lyrics helpers', () => {
         expect(FOLIUM_LYRICS_HELPERS.getRecentCompletedLine(lines, -1, 3.9)).toBe(lines[1]);
     });
 
+    // Folium 2: a source marks its lyrics instrumental by the host's own rule (Bodian's lyrics@1).
+    it('tells the instrumental notice by the host’s rule', () => {
+        expect(FOLIUM_LYRICS_HELPERS.isPureMusicText('[00:00.000]纯音乐，请欣赏')).toBe(true);
+        expect(FOLIUM_LYRICS_HELPERS.isPureMusicText('[00:01.00]歌里唱到纯音乐，请欣赏也没关系\n[00:02.00]第二句')).toBe(false);
+        expect(FOLIUM_LYRICS_HELPERS.isPureMusicText(null)).toBe(false);
+    });
+
     it('segments words with the saved split first', () => {
         expect(FOLIUM_LYRICS_HELPERS.segmentWords({ fullText: '你好世界', wordSegments: ['你好', '世界'] }).map((part) => part.segment))
             .toEqual(['你好', '世界']);

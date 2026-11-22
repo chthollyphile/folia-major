@@ -7,7 +7,27 @@ import type { CollectionMorphPlan } from '../../src/library/suites/grid/transiti
 import { probeCentredCard } from '../../src/library/suites/grid/transitions/morphProbes';
 import { picturesLookAlike } from '../../src/library/suites/grid/transitions/samePicture';
 import { handOverStandIn } from '../../src/library/suites/grid/transitions/standInHandover';
+import { registerOnlineMusicProvider } from '../../src/services/onlineMusic/providerRegistry';
+import { registerCoverUrlRule } from '../../src/utils/coverUrl';
+import type { UnifiedSong } from '../../src/types';
+import type { OnlineMusicProvider } from '../../src/types/onlineMusic';
 import type { ProbeDefinition } from './definition';
+
+// 封面地址怎么按尺寸要，现在由各音源模组登记（covers@1）；探针页里没有音源，网易的图就没有规则，同一张图的两个
+// 尺寸认不成一张（standInHandover 的「two addresses of one artwork」）。这里照网易云模组那一条登记一份
+// （sources/netease/core/neteaseCovers.ts）：126.net 下的图在 `param=<宽>y<高>` 里要尺寸。
+const isProbeNeteasePicture = (url: URL): boolean => url.hostname.endsWith('.126.net');
+registerCoverUrlRule({
+    provider: 'netease',
+    sized: (url, size) => (isProbeNeteasePicture(url) ? `${url.origin}${url.pathname}?param=${size}y${size}` : null),
+    identity: url => (/^p\d+\.music\.126\.net$/i.test(url.hostname) ? `netease:${url.pathname}` : null),
+    original: (url) => {
+        if (!isProbeNeteasePicture(url) || !url.searchParams.has('param')) return null;
+        url.searchParams.delete('param');
+        return url.toString();
+    },
+    requestedSize: url => (isProbeNeteasePicture(url) ? Number((url.searchParams.get('param') ?? '').split(/[xy]/i)[0]) || null : undefined),
+});
 // dev/probes/gridEntrancePerf.probe.tsx
 
 /**
@@ -49,6 +69,18 @@ const makeTrack = (index: number, picture?: string) => ({
     duration: 180000,
     coverUrl: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#2f9e44"/><text x="32" y="40" font-size="20" text-anchor="middle" fill="#fff">${index % 10}</text></svg>`)}`,
 }) as never;
+
+// 探针里的歌没写来源，按老形状算在 PLAYLIST.providerId 名下。卡片会看「这首歌的来源此刻在不在」（不在的置灰），
+// 探针不装模组，这里登记一个只有名字的音源，让这些歌和真实页面里一样算作来源在。
+const probeProvider: OnlineMusicProvider = {
+    id: 'netease', displayName: 'Perf probe',
+    capabilities: {
+        search: false, playback: false, lyrics: false, auth: false, userLibrary: false, playlists: true, albums: false,
+        artists: false, recommendations: false, mutations: false, wordByWordLyrics: false, explore: false,
+    },
+    normalizeSong: raw => raw as UnifiedSong,
+};
+registerOnlineMusicProvider(probeProvider);
 
 const THEME = { primaryColor: '#4f8cf7', secondaryColor: '#4f8cf7', accentColor: '#4f8cf7' } as never;
 const ENTRANCE_PLAN = { kind: 'cascade' } as const;

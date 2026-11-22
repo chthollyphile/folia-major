@@ -43,13 +43,15 @@ export const listSeamControls = (seam: HTMLElement | null, { controlsOnly = fals
 );
 
 /**
- * 缝里一个控件的身份（页签 key、缝的动作名、过滤位）：缝换形态（折叠 ↔ 展开、翻牌）会重挂节点，按身份才找得回「上次停过的那个」。
+ * 缝里一个控件的身份（页签 key、二级页 key、缝的动作名、过滤位）：缝换形态（折叠 ↔ 展开、翻牌）会重挂节点，按身份才找得回「上次停过的那个」。
  * 没有身份的控件返回 null（只能按节点本身认）。
  */
 const seamControlSelector = (element: Element): string | null => {
     if (!(element instanceof HTMLElement)) return null;
-    const { bravaisTab, bravaisSeamAction } = element.dataset;
+    const { bravaisTab, bravaisSection, bravaisSeamAction } = element.dataset;
     if (bravaisTab) return `[data-bravais-tab="${CSS.escape(bravaisTab)}"]`;
+    // 首页两级页签的二级页（在线组的歌单 / 电台 / 专辑，本地组的三页）。
+    if (bravaisSection) return `[data-bravais-section="${CSS.escape(bravaisSection)}"]`;
     if (bravaisSeamAction) return `[data-bravais-seam-action="${CSS.escape(bravaisSeamAction)}"]`;
     if (element.hasAttribute('data-bravais-filter-input')) return '[data-bravais-filter-input]';
     return null;

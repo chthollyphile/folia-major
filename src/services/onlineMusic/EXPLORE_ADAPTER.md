@@ -5,7 +5,7 @@
 ## 要做的事
 
 1. 写一个 `OnlineExploreProvider`（定义和契约注释在 `src/types/onlineMusic.ts`），放在平台自己的 adapter 里。
-   现成的三个：`spotify/spotifyExplore.ts`、`ytm/ytmExplore.ts`、`netease/neteaseExplore.ts`。
+   现成的三个：`sources/spotify/client/spotifyExplore.ts`、`sources/ytm/client/ytmExplore.ts`（音源模组）、`sources/netease/core/neteaseExplore.ts`。
 2. 挂到 provider 上：`explore` 成员，加 `capabilities.explore: true`，两样一起加。首页的“探索”页签只看 `capabilities.explore`（`src/components/Grid3D.tsx` 的 `canUseOnlineExplore`）和用户的设置（顶部胶囊入口里的“探索”，`showHomeTabExplore`；开关没开的平台那一项是暗的）：只开开关、没有成员，页签会出现但页面是空的。`omni.supportsExplore` 两样都看，但界面没有用它。
 3. 界面（`src/components/app/home/explore/`）、页面数据（`src/stores/useExploreFeedStore.ts`）和队列拼贴的探索墙（`src/components/app/lattice/exploreWall.ts`）不认平台，不用改，`explore*` 文案也不用加。
    界面显示不了平台需要的东西时，停下来说明，不要为一个平台改各平台共用的规则。
@@ -41,7 +41,7 @@ getSectionItems?(cursor)     // → { items, moreCursor? }      一栏的后续�
 ## 规则
 
 1. **栏目 id**：同一栏在每次读取里 id 相同（页面先按 id 认栏目，认不上再按标题）。每次读都换标题、换内容的栏（按种子现做的）用新 id，并标 `changesWithRead`。
-2. **“换一批”默认不重读页面**：页面先向每一栏要后续条目，所有栏都换不出新条目时才从头重读。所以能翻页或能重取的栏都要给 `moreCursor`；很长的列表要限制一次读取里交出的批数，否则页面永远不会重读，下一次从头读再接着上次停的地方。只要有一栏还能从自己的游标换出新条目，这一次“换一批”就不重读，只有重读才换得了的栏（平台每读一次重新挑、连标题一起换的栏，条目只有一批的种子栏）这一次就不变。平台的页面上这种栏多时，在从头读的那一页上声明 `refreshReadsAnew: true`（网易云这样做）：每次“换一批”都直接从头重读，页面不向任何一栏要后续条目；每栏一次读取交一批，由 adapter 记住上次交到哪里（记在哪里见规则 10）。声明之后各栏照样给 `moreCursor`，它只给“更多”用：把这一栏接着展开，不换内容。“更多”展开过的条目要算作这次读取交过的，下一次重读从没展开到的接着给（见 `README.md` 的 `netease/neteaseExplore.ts` 条目）。
+2. **“换一批”默认不重读页面**：页面先向每一栏要后续条目，所有栏都换不出新条目时才从头重读。所以能翻页或能重取的栏都要给 `moreCursor`；很长的列表要限制一次读取里交出的批数，否则页面永远不会重读，下一次从头读再接着上次停的地方。只要有一栏还能从自己的游标换出新条目，这一次“换一批”就不重读，只有重读才换得了的栏（平台每读一次重新挑、连标题一起换的栏，条目只有一批的种子栏）这一次就不变。平台的页面上这种栏多时，在从头读的那一页上声明 `refreshReadsAnew: true`（网易云这样做）：每次“换一批”都直接从头重读，页面不向任何一栏要后续条目；每栏一次读取交一批，由 adapter 记住上次交到哪里（记在哪里见规则 10）。声明之后各栏照样给 `moreCursor`，它只给“更多”用：把这一栏接着展开，不换内容。“更多”展开过的条目要算作这次读取交过的，下一次重读从没展开到的接着给（见 `README.md` 的 `sources/netease/core/neteaseExplore.ts` 条目）。
 3. **游标只在下一次从头读之前有效**：上一次读取的游标一律答空，不发请求，更不能答成“那个位置现在的内容”。靠在游标前面写上读取的序号来认的，用同目录 `exploreReads.ts` 的 `stampCursor` 写、`cursorWords` 读（网易云和 YouTube Music 这样做），不要自己再写一份；序号后面写什么仍由 adapter 自己定。
 4. **收听记录栏去掉**：平台页面里账号自己的收听记录不属于这一页。“最近播放”“再听一次”由应用自己的播放记录给出，各平台一样。
 5. **`listened`**：从头读时交来的、听者在应用里听过的本平台歌曲，常听的在前。可以拿来做“与某首歌相似”的栏；一次从头读做几栏、发几个请求要有上限。

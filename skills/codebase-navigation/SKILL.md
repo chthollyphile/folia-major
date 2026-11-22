@@ -96,8 +96,8 @@ node dev/mcp/ts-code-map/cli.mjs doctor    # 环境自检
   由宿主创建后传入）；stores / services / utils / types 不 import suites 与 app；suites 之外只有 registry
   引用 suite（宿主、首页外壳都经 registry 解析）；不建 barrel。
   反方向是允许的：suite 属于 UI 层，可以 import `src/components/`（例如共享 wall 引擎）、`src/hooks/`、
-  `src/stores/` 里的 app 级 store（播放、视图、动效设置、透光偏好等）与 `utils`；但不读账户与网易后端 store
-  （`useOnlineProviderAccountStore`、`useNeteaseApiStatusStore`，数据来自账户 controller），也不直连 Omni 的扫码 / 登出；登录一律调 `openLoginWindow` 打开 App 挂的那一个登录窗口（`src/components/login/`）。
+  `src/stores/` 里的 app 级 store（播放、视图、动效设置、透光偏好等）与 `utils`；但不读账户 store
+  （`useOnlineProviderAccountStore`，数据来自账户 controller），也不直连 Omni 的扫码 / 登出；登录一律调 `openLoginWindow` 打开 App 挂的那一个登录窗口（`src/components/login/`）。
   设置 UI（`components/modal/settings`）反过来不能 import suite，所以 suite 专属的偏好要放 app 层 store
   （例如 bravais 的透光 `useLibraryWallLookStore`），由 suite 读它。
   这些规则同时写在 `dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES` 和 `test/unit/library/layerBoundaries.test.ts` 里，两者的分层判断都读 `libraryLayers.mjs`。
@@ -139,6 +139,9 @@ LSP 会老老实实找到死文件和历史命名，这几个需要人工标注�
   `test/unit/onlineMusic/omniArchitecture.test.ts` 确认它们不会回来。
   本地库和 Navidrome 的首页面现在是 `LocalGrid3DView` 和 `NavidromeGrid3DView`，首页入口在 `components/app/home/*`。
 - `components/app/views/*`、`SearchResultsOverlay` —— 已不存在；搜索在 `SearchWorkspace`（`components/app/search/`）。
+- `src/services/onlineMusic/<平台>/`、`electron/<平台>/`（`neteaseProvider`、`kugouTransport`、`bodianApiBridge` 这类文件的旧位置）——
+  Folium 2 起九家都搬进了各自的音源模组 `sources/<id>/`（`core/`、`client/`、`main/`），宿主不再 import 它们；
+  旧目录可能还以未追踪的空目录留在工作树里。
 - `useSettingsUiStore` —— 已不存在，而且**不是简单改名**。设置弹窗的 UI 状态（当前 tab/子页）
   在 `useSettingsModalStore`；具体设置值被拆到了各领域 store（`useAudioSettingsStore`、
   `useLyricSettingsStore`、`useThemeSettingsStore`、`useTypographySettingsStore` 等）。

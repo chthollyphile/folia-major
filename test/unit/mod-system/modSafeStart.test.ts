@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { FROM_MAIN_WINDOW, MAIN_WINDOW } from './mainWindowFake';
 
 // test/unit/mod-system/modSafeStart.test.ts
 // Safe start, in the main process. What the user cannot see by using the app:
@@ -118,7 +119,7 @@ const create = (): ModSystem => {
             isPackaged: true,
         },
         BrowserWindow: { getAllWindows: () => [] },
-        getMainWindow: () => null,
+        getMainWindow: () => MAIN_WINDOW,
         getLocaleKey: () => 'en',
         isFeatureEnabled: () => true,
     }) as ModSystem;
@@ -126,7 +127,7 @@ const create = (): ModSystem => {
     return system;
 };
 
-const invoke = <T>(channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args) as Promise<T>;
+const invoke = <T>(channel: string, ...args: unknown[]) => handlers.get(channel)!(FROM_MAIN_WINDOW, ...args) as Promise<T>;
 const turn = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /* The next run of the app: a new mod system over the same folders, started. */

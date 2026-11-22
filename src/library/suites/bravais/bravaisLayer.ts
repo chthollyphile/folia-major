@@ -21,6 +21,8 @@ export type BravaisItem = {
     kind: BravaisItemKind;
     title: string;
     subtitle: string;
+    /** 副标题的悬停说明（换过来源的行）；没有就不给。 */
+    subtitleHint?: string;
     coverUrl?: string;
     /** 专辑墙（has-album-wall）上这首的封面画法；没有就照常画整张封面。 */
     coverArt?: BravaisCoverArt;
@@ -66,6 +68,8 @@ export type BravaisSeamTab = {
     label: string;
     active: boolean;
     disabled: boolean;
+    /** 页签的 title（不可用的原因）；不给就是 label。 */
+    title?: string;
 };
 
 /** 缝里画什么（设计稿 §5「内容」）。文案都是已翻译的。 */

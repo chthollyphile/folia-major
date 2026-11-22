@@ -98,6 +98,11 @@ export interface FoliumRequestGateOptions {
     readonly signal: AbortSignal;
     /** Whether a source id is a source built into Folia or a mod's; the caller knows how mods' sources are named. */
     readonly originOf: (providerId: string) => FoliumSourceOrigin;
+    /**
+     * Folium 2.0 (plan §5.2, `requestQuota.ts` in §5.4): whether the calling mod is that source's own source mod.
+     * The allowance is for mods that call sources: a source asking itself is not counted, and waits for nothing.
+     */
+    readonly ownsSource?: (providerId: string) => boolean;
 }
 
 // Per mod id and per source id, for as long as the page lives: two activations of one mod (a reload,
@@ -296,9 +301,9 @@ export const runFoliumRequest = <T>(request: FoliumQuotaRequest, work: () => Pro
  * the source's, with the host's time limits. Build one per call, with that call's signal.
  */
 export const createFoliumRequestGate = (options: FoliumRequestGateOptions): FoliumRequestGate => {
-    const { modId, what, signal, originOf } = options;
+    const { modId, what, signal, originOf, ownsSource } = options;
     return Object.freeze({
-        run: <T>(providerId: string, work: () => Promise<T>): Promise<T> => runFoliumRequest({
+        run: <T>(providerId: string, work: () => Promise<T>): Promise<T> => (ownsSource?.(providerId) ? work() : runFoliumRequest({
             modId,
             providerId,
             origin: originOf(providerId),
@@ -306,7 +311,7 @@ export const createFoliumRequestGate = (options: FoliumRequestGateOptions): Foli
             signal,
             answerWithinMs: ANSWER_WITHIN_MS,
             what: `${what} ${providerId}`,
-        }, work),
+        }, work)),
     });
 };
 

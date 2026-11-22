@@ -1,14 +1,21 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { requestKugou } from '@/services/onlineMusic/kugou/kugouTransport';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
+import { requestQq, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { failureNoteKey } from '@/components/login/window/loginView';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { answerQqBackend } from '../helpers/qqSource';
+import { answerNeteaseBackend, type NeteaseBackendStatusAnswer } from '../helpers/neteaseSource';
+import { noteNeteaseBackendStatus } from '../../../sources/netease/core';
+import { sourcesRegistry } from '@/mods/folium/registries/sources';
+import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
+import { registerWebSource as registerQqWebSource } from '@/services/onlineMusic/web/qq';
 
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts
 // Which case each platform's own failure sorts to, through the real facade, adapter and
@@ -22,10 +29,10 @@ vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAcco
 
 const require = createRequire(import.meta.url);
 const { createWire } = require('../../helpers/bodianWire.cjs');
-const { createKugouApiBridge, normalizeBridgeError } = require('../../../electron/kugou/kugouApiBridge.cjs');
-const { BrowserSignInError } = require('../../../electron/ytm/browserSignIn.cjs');
-const { toErrorResult: ytmErrorResult } = require('../../../electron/ytm/errors.cjs');
-const { createLoginQrCheck } = require('../../../electron/netease/neteaseApiStartup.cjs');
+const { createKugouApiBridge, normalizeBridgeError } = require('../../../sources/kugou/main/kugouApiBridge.cjs');
+const { BrowserSignInError } = require('../../../sources/ytm/main/browserSignIn.cjs');
+const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
+const { createLoginQrCheck } = require('../../../sources/netease/main/neteaseApiStartup.cjs');
 const neteaseQrKey = require('@neteasecloudmusicapienhanced/api/module/login_qr_key.js');
 const createNeteaseOption = require('@neteasecloudmusicapienhanced/api/util/option.js');
 
@@ -77,11 +84,24 @@ afterEach(() => {
     vi.unstubAllEnvs();
 });
 
+// NetEase's local service is the API in its source mod's main entry: the rpc `status` / `restart` answer for it here. A
+// running one's port is kept by the source until it is told of a change: each case forgets it.
+let neteaseBackendOff: (() => void) | null = null;
+const neteaseBackend = (answer: NeteaseBackendStatusAnswer = {}) => {
+    neteaseBackendOff?.();
+    const made = answerNeteaseBackend(answer);
+    neteaseBackendOff = made.off;
+    return made;
+};
+afterEach(() => {
+    neteaseBackendOff?.();
+    neteaseBackendOff = null;
+    noteNeteaseBackendStatus(null);
+});
+
 describe('NetEase', () => {
     // The desktop app: the local service's port, or none while it is down.
-    const desktop = (port: number | null) => vi.stubGlobal('window', {
-        electron: { getNeteasePort: async () => port, getNeteaseApiStatus: async () => ({ status: port ? 'running' : 'error' }) },
-    });
+    const desktop = (port: number | null) => neteaseBackend({ port });
 
     it('local-service-stopped: the local service is not listening', async () => {
         desktop(null);
@@ -90,7 +110,7 @@ describe('NetEase', () => {
 
     it('unreachable: the local service could not start for want of the network, and is still down when asked again', async () => {
         const down = { status: 'error', port: null, error: 'getaddrinfo ENOTFOUND interface.music.163.com', offline: true, updatedAt: 1 };
-        vi.stubGlobal('window', { electron: { getNeteasePort: async () => null, getNeteaseApiStatus: async () => down, restartNeteaseApi: async () => down } });
+        neteaseBackend(down);
         expect((await thrown('start', () => omni.startLogin('netease'))).id).toBe('unreachable');
     });
 
@@ -170,9 +190,9 @@ describe('NetEase', () => {
         vi.useFakeTimers();
         // The local service takes 30 s to start, and then answers at once.
         const readyAt = Date.now() + 30_000;
-        vi.stubGlobal('window', {
-            electron: { getNeteasePort: async () => (Date.now() >= readyAt ? 35001 : null), getNeteaseApiStatus: async () => ({ status: 'starting' }) },
-        });
+        neteaseBackend().status.mockImplementation(() => (Date.now() >= readyAt
+            ? { status: 'running', port: 35001, error: null, updatedAt: 2 }
+            : { status: 'starting', port: null, error: null, updatedAt: 1 }));
         vi.stubGlobal('fetch', answers({ data: { unikey: 'qr-key', qrimg: 'qr.png' } }));
         const started = omni.startLogin('netease');
         await vi.advanceTimersByTimeAsync(31_000);
@@ -190,10 +210,34 @@ describe('NetEase', () => {
     });
 });
 
+// qq-music-api 3.3.3 qrService.ts: the mobile QQ code exchanged over MQTT fails with 50006 and the fallback check
+// after it with 1000 when the QQ Music app scanned it.
+const QQ_WRONG_SCAN_APP = {
+    code: 800, message: 'QR login failed', failureStage: 'credential-validation', upstreamCode: 1000,
+    primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 50006 }, fallbackAttempted: true,
+    failureHint: { key: 'login.wrong-scan-app', message: 'If you scanned with the QQ Music app, choose QQ Music app login instead.' },
+};
+
+// The shapes qq-music-api gives for a full device list, by channel and by how the code was read.
+const QQ_DEVICE_LIMIT_HINT = { key: 'login.device-limit', message: 'This account has reached its login device limit.' };
+const QQ_DEVICE_LIMITS: Array<[string, Record<string, unknown>]> = [
+    // WeChat: the exchange itself answers 20279 (every deployment).
+    ['wechat', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit', failureHint: QQ_DEVICE_LIMIT_HINT }],
+    // Mobile QQ and the QQ Music app over MQTT (desktop, Docker, Node, Cloudflare with a Durable
+    // Object): the fallback check answers last, the exchange's 20279 is in primaryFailure.
+    ['qq over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: QQ_DEVICE_LIMIT_HINT }],
+    ['qqmusic over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: QQ_DEVICE_LIMIT_HINT }],
+    // Mobile QQ by the web sign-in (Vercel, Cloudflare without one): 20279 on top, no error key.
+    ['qq by the web sign-in', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, failureHint: QQ_DEVICE_LIMIT_HINT, retryAfterMs: 15000 }],
+    // A hint alone is enough.
+    ['the hint alone', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureHint: QQ_DEVICE_LIMIT_HINT, retryAfterMs: 15000 }],
+];
+
 describe('QQ Music', () => {
+    // The source mod's main entry answers `status` with the embedded backend's port (none: it is not running).
     const desktop = (port: number | null) => {
         resetQqTransportRuntimeCache();
-        vi.stubGlobal('window', { electron: { getQqPort: async () => port } });
+        answerQqBackend({ port });
     };
 
     it('local-service-unavailable: the embedded backend has no port', async () => {
@@ -280,17 +324,18 @@ describe('QQ Music', () => {
     it('refused: 800 whose hint names a problem with the account itself, said in Folia\'s words', async () => {
         desktop(3300);
         const NOTES: Record<string, string> = {
-            'login.account-banned': 'home.loginCaseQqAccountBanned',
-            'login.account-restricted': 'home.loginCaseQqAccountRestricted',
-            'login.account-binding': 'home.loginCaseQqAccountBinding',
+            'login.account-banned': 'login.case.accountBanned',
+            'login.account-restricted': 'login.case.accountRestricted',
+            'login.account-binding': 'login.case.accountBinding',
         };
-        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+        // The words are the source mod's own (sources/qq/locales), under its namespace.
+        const locales = await Promise.all(['en', 'in', 'vi', 'zh-CN'].map(name => import(`../../../sources/qq/locales/${name}.json`)));
         for (const [key, note] of Object.entries(NOTES)) {
             vi.stubGlobal('fetch', answers({ code: 800, message: 'QR login failed', upstreamCode: 1000, failureHint: { key, message: `words for ${key}` }, retryAfterMs: 30000 }));
             const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
             expect(failed, key).toMatchObject({ id: 'refused', code: '800', message: 'QR login failed', upstreamCode: '1000' });
-            expect(failureNoteKey({ case: loginCaseOf(failed), facts: failed, at: 0 }, omni.getLoginTexts('qq')?.caseNotes), key).toBe(note);
-            for (const locale of locales) expect(locale.default.home[note.split('.')[1]], note).toEqual(expect.any(String));
+            expect(failureNoteKey({ case: loginCaseOf(failed), facts: failed, at: 0 }, omni.getLoginTexts('qq')?.caseNotes), key).toBe(`folium-mod/qq:${note}`);
+            for (const locale of locales) expect(locale.default.login.case[note.split('.')[2]], note).toEqual(expect.any(String));
         }
         // A new code clears it: a refusal at another step does not carry the account's words.
         vi.stubGlobal('fetch', answers({ code: 200, data: { unikey: 'next-key', qrimg: 'data:image/png;base64,fixture' } }));
@@ -298,32 +343,18 @@ describe('QQ Music', () => {
         expect(omni.getLoginTexts('qq')?.caseNotes?.refused).toBeUndefined();
     });
 
-    // Where Folia reaches the backend: the desktop app's embedded one, a same-origin serverless entry
-    // (Vercel, Cloudflare) and a backend at an address of its own (Docker, Node). The window reads
-    // the same answer the same way on each.
+    // Where Folia reaches the backend: here the desktop app's embedded one; a same-origin serverless entry (Vercel,
+    // Cloudflare) and a backend at an address of its own (Docker, Node) are the web build's, in 'QQ Music on the web'
+    // at the end of this file. The window reads the same answer the same way on each.
     const DEPLOYMENTS: Array<[string, () => void]> = [
         ['the desktop app', () => desktop(3300)],
-        ['a serverless entry', () => {
-            resetQqTransportRuntimeCache();
-            vi.stubGlobal('window', {});
-            vi.stubEnv('VITE_QQ_API_BASE', '/api/qq');
-        }],
-        ['a backend of its own', () => {
-            resetQqTransportRuntimeCache();
-            vi.stubGlobal('window', {});
-            vi.stubEnv('VITE_QQ_API_BASE', 'https://qq-api.example.test');
-        }],
     ];
 
     // qq-music-api 3.3.3 qrService.ts: the mobile QQ code exchanged over MQTT fails with 50006 and the
     // fallback check after it with 1000 when the QQ Music app scanned it.
     it.each(DEPLOYMENTS)('wrong-scan-app: the code of mobile QQ was scanned with the QQ Music app, on %s', async (_where, reach) => {
         reach();
-        vi.stubGlobal('fetch', answers({
-            code: 800, message: 'QR login failed', failureStage: 'credential-validation', upstreamCode: 1000,
-            primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 50006 }, fallbackAttempted: true,
-            failureHint: { key: 'login.wrong-scan-app', message: 'If you scanned with the QQ Music app, choose QQ Music app login instead.' },
-        }));
+        vi.stubGlobal('fetch', answers(QQ_WRONG_SCAN_APP));
         const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
         // The window says what to do (QQ's caseNotes); the quote stays the backend's own sentence.
         expect(failed).toMatchObject({ id: 'wrong-scan-app', code: '800', message: 'QR login failed', upstreamCode: '1000' });
@@ -350,24 +381,9 @@ describe('QQ Music', () => {
         expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id).toBe('wrong-scan-app');
     });
 
-    // The shapes qq-music-api gives for a full device list, by channel and by how the code was read.
-    const hint = { key: 'login.device-limit', message: 'This account has reached its login device limit.' };
-    const DEVICE_LIMITS: Array<[string, Record<string, unknown>]> = [
-        // WeChat: the exchange itself answers 20279 (every deployment).
-        ['wechat', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit', failureHint: hint }],
-        // Mobile QQ and the QQ Music app over MQTT (desktop, Docker, Node, Cloudflare with a Durable
-        // Object): the fallback check answers last, the exchange's 20279 is in primaryFailure.
-        ['qq over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: hint }],
-        ['qqmusic over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: hint }],
-        // Mobile QQ by the web sign-in (Vercel, Cloudflare without one): 20279 on top, no error key.
-        ['qq by the web sign-in', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, failureHint: hint, retryAfterMs: 15000 }],
-        // A hint alone is enough.
-        ['the hint alone', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureHint: hint, retryAfterMs: 15000 }],
-    ];
-
     it.each(DEPLOYMENTS)('device-limit: for every channel, on %s', async (_where, reach) => {
         reach();
-        for (const [channel, shape] of DEVICE_LIMITS) {
+        for (const [channel, shape] of QQ_DEVICE_LIMITS) {
             vi.stubGlobal('fetch', answers(shape));
             expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id, channel).toBe('device-limit');
         }
@@ -446,15 +462,19 @@ describe('QQ Music', () => {
 });
 
 describe('KuGou', () => {
-    // What the desktop app's request rejects with: the bridge's one line, behind Electron's prefix.
-    const rejection = (operation: string, answer: unknown) => new Error(
-        `Error invoking remote method 'kugou-api-request': KuGouApiError: ${normalizeBridgeError(operation, answer).message}`,
-    );
-    const desktop = (kugouRequest: (...args: unknown[]) => unknown) => vi.stubGlobal('window', { electron: { kugouRequest } });
-    const web = () => {
-        vi.stubGlobal('window', undefined);
-        vi.stubEnv('VITE_KUGOU_API_BASE', 'https://kugou.example.test');
-    };
+    // What the desktop app's request is answered with: the source mod's main entry hands back the bridge's one line
+    // (sources/kugou/main/index.ts), which is what `rejection` is.
+    const rejection = (operation: string, answer: unknown) => normalizeBridgeError(operation, answer) as Error;
+    // The main entry's `request`, as main/index.ts answers it: what `kugouRequest` resolves to, or the line it throws.
+    const desktop = (kugouRequest: (operation: string, params?: unknown) => unknown) => setBuiltinSourceRpc('kugou', {
+        request: async (operation, params) => {
+            try {
+                return { ok: true, data: await kugouRequest(operation as string, params) };
+            } catch (error) {
+                return { ok: false, message: error instanceof Error ? error.message : String(error) };
+            }
+        },
+    });
 
     it('local-service-unavailable: the desktop side could not load KuGouMusicApi', async () => {
         // The real bridge, with a package that does not load; no OS encryption, so the session stays in memory.
@@ -465,21 +485,18 @@ describe('KuGou', () => {
             warn: () => { },
             apiLoader: () => { throw new Error("Cannot find module 'kugoumusicapi'"); },
         });
-        // Electron carries only the error's sentence across, behind its prefix.
-        desktop(vi.fn((operation: unknown) => bridge.request(operation, {}).catch((error: Error) => {
-            throw new Error(`Error invoking remote method 'kugou-api-request': KuGouApiError: ${error.message}`);
-        })));
+        desktop(operation => bridge.request(operation, {}));
         expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('local-service-unavailable');
     });
 
-    it('unreachable: KuGouMusicApi fails with no error code of KuGou\'s (desktop), the request does not get through or is answered 502 (web)', async () => {
+    it('local-service-unavailable: the main entry is not running', async () => {
+        setBuiltinSourceRpc('kugou', {});
+        expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('local-service-unavailable');
+    });
+
+    it('unreachable: KuGouMusicApi fails with no error code of KuGou\'s (desktop)', async () => {
         desktop(vi.fn().mockRejectedValue(rejection('login_qr_key', { status: 502, body: { msg: 'connect ETIMEDOUT' } })));
         expect(await thrown('start', () => omni.startLogin('kugou'))).toMatchObject({ id: 'unreachable', httpStatus: 502, errorCode: 'network' });
-        web();
-        vi.stubGlobal('fetch', offline());
-        expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('unreachable');
-        vi.stubGlobal('fetch', answers({}, 502));
-        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'unreachable', httpStatus: 502 });
     });
 
     it('refused: KuGou answers with an error code of its own (desktop), or the check answers a status that is none of 0 to 4', async () => {
@@ -492,12 +509,9 @@ describe('KuGou', () => {
         expect(await answered(() => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'refused', code: '9', message: '二维码状态异常' });
     });
 
-    it('refused: KuGouMusicApi answers a 4xx without an error code (desktop and web)', async () => {
+    it('refused: KuGouMusicApi answers a 4xx without an error code (desktop)', async () => {
         desktop(vi.fn().mockRejectedValue(rejection('login_qr_key', { status: 400, body: { msg: 'bad request' } })));
         expect(await thrown('start', () => omni.startLogin('kugou'))).toMatchObject({ id: 'refused', httpStatus: 400, message: 'bad request' });
-        web();
-        vi.stubGlobal('fetch', answers({}, 400));
-        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'refused', httpStatus: 400 });
     });
 
     it('unknown: the desktop side fails before KuGou is asked, and a check that answers no status', async () => {
@@ -521,29 +535,15 @@ describe('KuGou', () => {
         expect(waitedOut()).toBe('code-expired');
     });
 
-    it('no-answer: a sign-in request that is not answered in 20 s (web: the key, the picture; desktop: the check); no other request is timed', async () => {
+    it('no-answer: a desktop check that is not answered in 20 s; no other request is timed', async () => {
         vi.useFakeTimers();
-        web();
-        const asked = silent();
-        vi.stubGlobal('fetch', asked);
-        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
-        asked.mockImplementationOnce(async () => Response.json({ data: { qrcode: 'qr-key' } }));
-        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
-        expect(String(asked.mock.calls.at(-1)![0])).toContain('/login/qr/create');
-
-        asked.mockClear();
-        void requestKugou('user_detail').catch(() => { });
-        await vi.advanceTimersByTimeAsync(0);
-        expect(asked).toHaveBeenCalledTimes(1);
-        expect(asked.mock.calls[0][1]?.signal).toBeUndefined();
-        expect(vi.getTimerCount()).toBe(0);
-
-        // The desktop app: the request goes to the desktop side, which cannot be told to stop.
-        const kugouRequest = vi.fn(() => new Promise(() => { }));
+        // The request goes to the main entry, which cannot be told to stop.
+        const kugouRequest = vi.fn<(operation: string) => Promise<never>>(() => new Promise(() => { }));
         desktop(kugouRequest);
         expect((await unanswered('check', () => omni.checkLogin('kugou', 'qr-key'))).id).toBe('no-answer');
-        void requestKugou('user_detail').catch(() => { });
-        expect(kugouRequest).toHaveBeenLastCalledWith('user_detail', {});
+        void getOnlineMusicProvider('kugou')!.catalog!.getArtistDetail!('1').catch(() => { });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(kugouRequest.mock.calls.at(-1)?.[0]).toBe('artist_detail');
         expect(vi.getTimerCount()).toBe(0);
     });
 });
@@ -552,7 +552,8 @@ describe('Bodian', () => {
     // The real package, as the desktop side runs it, over a stand-in for the network.
     const desktop = (respond: () => unknown) => {
         const api = createBodianApi({ deviceId: 'a'.repeat(32), requestFactory: createWire(respond).factory });
-        vi.stubGlobal('window', { electron: { bodianRequest: api.request } });
+        // Folium 2.0 S5: the source mod's main entry runs the package; its client reaches it over the rpc.
+        setBuiltinSourceRpc('bodian', { request: (operation, params) => api.request(operation as never, params as never) });
     };
 
     it('unreachable: the request fails, or is answered 502', async () => {
@@ -571,9 +572,9 @@ describe('Bodian', () => {
 });
 
 describe('YouTube Music', () => {
-    // The desktop side's answers, by operation.
-    const desktop = (byOperation: Record<string, unknown>) => vi.stubGlobal('window', {
-        electron: { ytmRequest: async (operation: string) => byOperation[operation] ?? { ok: true, data: {} } },
+    // The desktop side's answers, by operation: the source mod's main entry, through its rpc `request`.
+    const desktop = (byOperation: Record<string, unknown>) => setBuiltinSourceRpc('ytm', {
+        request: async (operation: unknown) => byOperation[operation as string] ?? { ok: true, data: {} },
     });
     // The case a check ends in once the sign-in has begun and the desktop side answers `state`.
     const checked = async (state: unknown) => {
@@ -583,7 +584,7 @@ describe('YouTube Music', () => {
         byOperation.web_login_check = { ok: true, data: state };
         return answered(() => omni.checkLogin('ytm', key), true);
     };
-    // An error state as the desktop side answers it for a failure (electron/ytm/webSignIn.cjs).
+    // An error state as the desktop side answers it for a failure (sources/ytm/main/webSignIn.cjs).
     const failed = (error: unknown) => ({ state: 'error', ...ytmErrorResult(error).error });
 
     it('no-browser: none of the browsers it opens is installed', async () => {
@@ -618,7 +619,7 @@ describe('YouTube Music', () => {
 
     it('unreachable: YouTube Music could not be reached after the browser closed, or the desktop side did not answer', async () => {
         expect((await checked(failed(new Error('fetch failed')))).id).toBe('unreachable');
-        vi.stubGlobal('window', { electron: { ytmRequest: async () => { throw new Error('ipc'); } } });
+        setBuiltinSourceRpc('ytm', { request: async () => { throw new Error('ipc'); } });
         expect(await thrown('start', () => omni.startLogin('ytm'), true)).toMatchObject({ id: 'unreachable' });
     });
 
@@ -651,5 +652,81 @@ describe('every platform', () => {
 
     it('account-not-read: the sign-in was confirmed and the account then not read', () => {
         expect(loginCaseOf(loginFailureFacts({ step: 'account', inBrowser: false, scanned: true })).id).toBe('account-not-read');
+    });
+});
+
+// The web build's kugou (src/services/onlineMusic/web/kugou.ts): the same core with the web transport, registered in
+// place of the desktop's for the rest of this file (the last describes, so nothing after them sees the swap).
+describe('KuGou on the web', () => {
+    beforeAll(() => {
+        vi.stubEnv('VITE_KUGOU_API_BASE', 'https://kugou.example.test');
+        sourcesRegistry.unregisterAll('kugou');
+        registerKugouWebSource();
+        vi.unstubAllEnvs();
+    });
+
+    it('unreachable: the request does not get through or is answered 502', async () => {
+        vi.stubGlobal('fetch', offline());
+        expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('unreachable');
+        vi.stubGlobal('fetch', answers({}, 502));
+        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'unreachable', httpStatus: 502 });
+    });
+
+    it('refused: KuGouMusicApi answers a 4xx without an error code', async () => {
+        vi.stubGlobal('fetch', answers({}, 400));
+        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'refused', httpStatus: 400 });
+    });
+
+    it('no-answer: a sign-in request that is not answered in 20 s (the key, the picture); no other request is timed', async () => {
+        vi.useFakeTimers();
+        const asked = silent();
+        vi.stubGlobal('fetch', asked);
+        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
+        asked.mockImplementationOnce(async () => Response.json({ data: { qrcode: 'qr-key' } }));
+        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
+        expect(String(asked.mock.calls.at(-1)![0])).toContain('/login/qr/create');
+
+        asked.mockClear();
+        void getOnlineMusicProvider('kugou')!.catalog!.getArtistDetail!('1').catch(() => { });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(asked).toHaveBeenCalledTimes(1);
+        expect(asked.mock.calls[0][1]?.signal).toBeUndefined();
+        expect(vi.getTimerCount()).toBe(0);
+    });
+});
+
+// The web build's QQ (src/services/onlineMusic/web/qq.ts) at the two kinds of address it is given: a same-origin
+// serverless entry (Vercel, Cloudflare) and a backend at an address of its own (Docker, Node). It reads the address when
+// it registers, so each one registers it again in place of the one before (the desktop's first).
+describe('QQ Music on the web', () => {
+    beforeAll(() => {
+        sourcesRegistry.unregisterAll('qq');
+    });
+
+    const onTheWeb = (apiBase: string) => () => {
+        resetQqTransportRuntimeCache();
+        vi.stubGlobal('window', {});
+        vi.stubEnv('VITE_QQ_API_BASE', apiBase);
+        registerQqWebSource();
+    };
+    const DEPLOYMENTS: Array<[string, () => void]> = [
+        ['a serverless entry', onTheWeb('/api/qq')],
+        ['a backend of its own', onTheWeb('https://qq-api.example.test')],
+    ];
+
+    it.each(DEPLOYMENTS)('wrong-scan-app: the code of mobile QQ was scanned with the QQ Music app, on %s', async (_where, reach) => {
+        reach();
+        vi.stubGlobal('fetch', answers(QQ_WRONG_SCAN_APP));
+        const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
+        expect(failed).toMatchObject({ id: 'wrong-scan-app', code: '800', message: 'QR login failed', upstreamCode: '1000' });
+        expect(loginCaseOf(failed)).toMatchObject({ kind: 'C', action: 'refresh-code' });
+    });
+
+    it.each(DEPLOYMENTS)('device-limit: for every channel, on %s', async (_where, reach) => {
+        reach();
+        for (const [channel, shape] of QQ_DEVICE_LIMITS) {
+            vi.stubGlobal('fetch', answers(shape));
+            expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id, channel).toBe('device-limit');
+        }
     });
 });

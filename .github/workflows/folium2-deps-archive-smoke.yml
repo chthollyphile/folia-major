@@ -1,0 +1,78 @@
+name: Folium 2 Deps Archive Smoke
+
+# Folium 2.0 方案 §10「剩余阶段的顺序」第 2 步：网易云、酷狗、QQ 三个上游库的生产依赖闭包各打成 deps.<指纹>.asar，
+# 在安装版的布局里（宿主入口在 resources/app.asar，样例模组在 resources/builtin-mods/）从归档加载并起后端。
+# Windows 在维护者本机实测；这里在三个系统上至少跑到「归档加载成功、后端起来」。请求一步要连国内的服务，
+# CI 的网络连不连得上不算失败，结果照样打在日志和报告里。
+#
+# 独立的 workflow：只在动到样例、构建脚本或它自己时跑（加 workflow_dispatch），不碰发版用的那几个 workflow，
+# 也不影响它们的触发条件。不打安装包，只复制一份 Electron 的发行目录摆出同样的布局（test/manual/folium2DepsArchiveSmoke.mjs）。
+on:
+  pull_request:
+    paths:
+      # 根 package.json / 锁文件：升级三家上游的 PR 也要跑（样例钉的版本由 depsArchiveSamples.test.ts 核对）
+      - package.json
+      - package-lock.json
+      - dev/sources/**
+      - packages/folium-source-kit/**
+      - electron/modSystem/zipInstall.cjs
+      - test/fixtures/folium-sources/deps-archive/**
+      - test/manual/folium2DepsArchiveSmoke.mjs
+      - test/manual/folium2DepsArchiveSmokeMain.cjs
+      - .github/workflows/folium2-deps-archive-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: folium2-deps-archive-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Deps archive smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      # 不跑安装脚本（原生依赖的编译、模型下载这里都用不到）；Electron 的二进制另外装。
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Electron binary
+        run: node node_modules/electron/install.js
+
+      # Linux 的 Electron 起来要一个显示器，即使不开窗口。
+      - name: Install Xvfb
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run smoke (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum node test/manual/folium2DepsArchiveSmoke.mjs --out "${{ runner.temp }}/deps-smoke" --report "${{ runner.temp }}/deps-smoke-report.json"
+
+      - name: Run smoke
+        if: runner.os != 'Linux'
+        run: node test/manual/folium2DepsArchiveSmoke.mjs --out "${{ runner.temp }}/deps-smoke" --report "${{ runner.temp }}/deps-smoke-report.json"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: deps-archive-smoke-${{ matrix.os }}
+          path: ${{ runner.temp }}/deps-smoke-report.json
+          if-no-files-found: warn

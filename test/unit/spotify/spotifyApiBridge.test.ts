@@ -7,9 +7,9 @@ import { describe, expect, it, vi } from 'vitest';
 // renderer may ask for, and what never leaves the process.
 
 const require = createRequire(import.meta.url);
-const { createSpotifyApiBridge, CHANGES, QUERIES, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
-const { createSpotifySignIn, REDIRECT_URI } = require('../../../electron/spotify/signIn.cjs');
-const { createSpotifySessionRepository, publicAccountId, SESSION_KEY } = require('../../../electron/spotify/session.cjs');
+const { createSpotifyApiBridge, CHANGES, QUERIES, SPOTIFY_OPERATIONS } = require('../../../sources/spotify/main/spotifyApiBridge.cjs');
+const { createSpotifySignIn, REDIRECT_URI } = require('../../../sources/spotify/main/signIn.cjs');
+const { createSpotifySessionRepository, publicAccountId, SESSION_KEY } = require('../../../sources/spotify/main/session.cjs');
 
 const createStore = () => {
     const values = new Map<string, unknown>();
@@ -136,6 +136,56 @@ describe('Spotify quitting', () => {
         renewed({ access_token: 'access-renewed', refresh_token: 'refresh-private', expires_at: 5_000_000 });
         await quit;
         expect(stored(store).credentials.access_token).toBe('access-renewed');
+    });
+
+    // The source mod's main entry holds a quit by this (sources/spotify/main/index.ts), not only on shutdown.
+    it('tells of a token renewal under way, with a promise settled once its answer is stored', async () => {
+        const store = createStore();
+        seal(store, 1_000_000);
+        let renewed!: (credentials: unknown) => void;
+        const signIn = { renew: vi.fn(() => new Promise(resolve => { renewed = resolve; })), cancel: vi.fn() };
+        const onRenewing = vi.fn<(done: Promise<void>) => void>();
+        const bridge = createSpotifyApiBridge({ store, safeStorage: cipher(), fetch: vi.fn(async () => json({})), openExternal: vi.fn(),
+            now: () => 1_000_000, log: vi.fn(), warn: vi.fn(), signIn, onRenewing });
+        const asking = bridge.request('login_status');
+        await vi.waitFor(() => expect(onRenewing).toHaveBeenCalledTimes(1));
+        let settled = false;
+        void onRenewing.mock.calls[0][0].then(() => { settled = true; });
+        await new Promise(resolve => { setImmediate(resolve); });
+        expect(settled).toBe(false);
+        renewed({ access_token: 'access-renewed', refresh_token: 'refresh-private', expires_at: 5_000_000 });
+        await asking;
+        await vi.waitFor(() => expect(settled).toBe(true));
+        expect(stored(store).credentials.access_token).toBe('access-renewed');
+    });
+});
+
+describe('Spotify turned off', () => {
+    it("closes the sign-in's loopback port and the playback component's connection", async () => {
+        const head = Buffer.alloc(0xa7 + 4);
+        head.write('OggS', 0xa7, 'latin1');
+        const sealed = crypto.createCipheriv('aes-128-ctr', Buffer.alloc(16), Buffer.from('72e067fbddcbcf77ebe8bc643f630d93', 'hex')).update(head);
+        const close = vi.fn(async () => {});
+        const openSession = vi.fn(async () => ({
+            resolveAudioFileAsync: async () => ({ cdnUrl: 'https://cdn.test/file', keyHex: '00'.repeat(16), format: 'OGG_VORBIS_160' }), close,
+        }));
+        const { bridge, store, server } = setup((url, init) => {
+            if (url.includes('product_state')) return json({ catalogue: 'premium', product: 'premium' });
+            if (url.startsWith('https://cdn.test/')) return new Response(new Uint8Array(sealed), { status: 206, headers: { 'Content-Range': `bytes 0-${sealed.length - 1}/5000` } });
+            return JSON.parse(init.body).operationName === 'profileAttributes' ? json(profile) : json({ data: {} });
+        }, { openSession });
+        seal(store, 9_000_000);
+        const played = await bridge.request('audio', { id: '4cOdK2wGLETKBW3PvgPWqT', quality: 'standard' });
+        expect(played.ok).toBe(true);
+        const started = await bridge.request('login_start');
+        expect(server.listening).toEqual([5588, '127.0.0.1']);
+        expect(server.closed).toBe(0);
+
+        bridge.dispose();
+        expect(server.closed).toBe(1);
+        await vi.waitFor(() => expect(close).toHaveBeenCalled());
+        expect((await bridge.request('login_check', { key: started.data.key })).data?.state).not.toBe('waiting');
+        expect((await bridge.serveAudio({ trackId: '4cOdK2wGLETKBW3PvgPWqT', key: new URL(played.data.url).searchParams.get('once'), range: null })).status).toBe(503);
     });
 });
 
@@ -555,13 +605,14 @@ describe('Spotify requests as the account', () => {
 
         clock += 31_000;
         const played = await ask();
-        expect(played.data.url).toMatch(/^folia-spotify:\/\/audio\/4cOdK2wGLETKBW3PvgPWqT\?k=/);
+        expect(played.data.url).toMatch(/^folia-mod:\/\/spotify\/_media\/audio\/4cOdK2wGLETKBW3PvgPWqT\?once=/);
         expect(openSession).toHaveBeenCalledWith({ accessToken: 'access-private', deviceId: expect.stringMatching(/^[0-9a-f]{40}$/) });
         expect(resolveAudioFileAsync).toHaveBeenCalledWith({ uri: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT', bitrate: 160 });
         expect(stored(store).user.premium).toBe(true);
         // Signing out ends the address.
         await bridge.request('logout');
-        expect((await bridge.handleAudioRequest(new Request(played.data.url))).status).toBe(503);
+        const address = new URL(played.data.url);
+        expect((await bridge.serveAudio({ trackId: address.pathname.split('/').pop() ?? '', key: address.searchParams.get('once') ?? '' })).status).toBe(503);
     });
 
     it('lets every track wait for a plan read under way, and asks for the track when the plan cannot be read', async () => {

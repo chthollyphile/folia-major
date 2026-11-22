@@ -51,4 +51,14 @@ describe('search sources', () => {
         expect(sources).not.toContain('qq');
         expect(sources).not.toContain('spotify');
     });
+
+    // A Folium 2 source without search@1 (S4 desktop test: its tab opened on no results): not listed, not even as the
+    // current platform.
+    it('leaves out a platform that has no search, the current one too', () => {
+        const canSearch = (providerId: string) => providerId !== 'folium.mod.source' && providerId !== 'qq';
+        expect(resolveSearchSources({ providers, activeProviderId: 'netease', hasLocalSongs: true, navidromeReady: false, canSearch }))
+            .toEqual(['netease', 'kugou', 'local']);
+        expect(resolveSearchSources({ providers, activeProviderId: 'qq', hasLocalSongs: false, navidromeReady: false, canSearch }))
+            .toEqual(['netease', 'kugou']);
+    });
 });

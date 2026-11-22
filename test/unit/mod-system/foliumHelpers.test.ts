@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Stores read localStorage at import time, and Node's own experimental storage
 // shadows jsdom's here, so an in-memory Storage goes in before any import runs.
@@ -439,6 +439,15 @@ const lateCommand = (id: string) => ({ id, label: { en: id }, run: () => {} });
 const commandIds = () => commandsRegistry.list().map((entry) => entry.id);
 
 describe('helpers on the folium object', () => {
+    // The last test here opts into the experimental surfaces, whose module (src/mods/folium/experimental and what it
+    // pulls in) the client loader imports the first time a mod asks for one (clientLoader.ts loadExperimental). On an
+    // idle machine that import took 1.9 s of the test's 1.9 s (measured 2026-11-14; the checks themselves take a few
+    // milliseconds), so under the full suite's load it ran past the 5 s test timeout. Imported once here, with a
+    // time limit of its own, the test times only what it checks; the loader's own import then finds it loaded.
+    beforeAll(async () => {
+        await import('@/mods/folium/experimental');
+    }, 30_000);
+
     it('stops the timer and runs the disposers when the mod is torn down', async () => {
         await reconcileFoliumClients([mod('helpers-client', TIMER_CLIENT)], 'main');
         const probe = (globalThis as { __foliumHelpersTimer?: ClientProbe }).__foliumHelpersTimer!;

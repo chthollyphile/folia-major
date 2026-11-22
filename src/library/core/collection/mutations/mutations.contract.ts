@@ -37,6 +37,8 @@ export type CollectionMutationBranches = {
     isLocalFolderCollection: boolean;
     isLocalAllSongsCollection: boolean;
     isLocalPlaylistCollection: boolean;
+    /** Folia 的「我喜欢的音乐」（isVirtual 的歌单）：能移除、能重排，不能改名、不能删。 */
+    isFoliaFavoritesCollection: boolean;
     isLocalEntityCollection: boolean;
     isNavidromePlaylistCollection: boolean;
     isCloudDrive: boolean;
@@ -63,6 +65,10 @@ export type CollectionMutationCapabilities = {
     resyncAllFolders: LibraryCapability;
     reorderPlaylist: LibraryCapability;
     exportPlaylist: LibraryCapability;
+    /** 把这张平台歌单 / 专辑（在线音源或 Navidrome 的）存成 Folia 歌单：打开宿主的对话框。 */
+    saveToFolia: LibraryCapability;
+    /** 转存来的 Folia 歌单从原歌单更新：打开宿主的对话框。 */
+    refreshFromOrigin: LibraryCapability;
     addToPlaylist: LibraryCapability;
     createPlaylist: LibraryCapability;
     editEntity: LibraryCapability;
@@ -143,6 +149,10 @@ export interface CollectionMutationController {
     resyncAllFolders(): Promise<LibraryMutationResult>;
     reorderPlaylist(): Promise<LibraryMutationResult>;
     exportPlaylist(): Promise<LibraryMutationResult>;
+    /** 打开宿主的「存成 Folia 歌单」对话框；结果（存了几首、换了几首）由对话框自己报。 */
+    saveToFolia(): Promise<LibraryMutationResult>;
+    /** 打开宿主的「从原歌单更新」对话框。 */
+    refreshFromOrigin(): Promise<LibraryMutationResult>;
     /** tracks 由 renderer 给（网格给的是可播放曲目）。 */
     addToPlaylist(playlistId: string | number, tracks: SongResult[]): Promise<LibraryMutationResult>;
     createPlaylist(name: string, tracks: SongResult[]): Promise<LibraryMutationResult>;

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { ListPlus, NotebookPen, Star, Trash2, X } from 'lucide-react';
 import type { SongResult } from '../../../types';
-import { collectToScratchpad, groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadTab } from '../../../stores/useScratchpadStore';
+import { collectToScratchpad, groupScratchpadEntries, useScratchpadStore, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
@@ -209,7 +209,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
 
     // —— 选中后的动作 ——
     const songs = selectedEntries.map(entry => entry.song);
-    const sameSource = new Set(songs.map(scratchpadGroupKey)).size === 1;
+    // 选中的全是速记簿里的歌时，这一批算「速记簿存成歌单」（成功提示里带清空速记簿）。
+    const fromNotesOnly = selectedEntries.length > 0 && selectedEntries.every(entry => entry.tab === 'notes');
     const fromQueue = selectedEntries.some(entry => entry.tab === 'queue');
     const collectable = selectedEntries.filter(entry => entry.tab !== 'notes');
     const remove = () => {
@@ -354,9 +355,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
                     <button
                         type="button"
                         className="scratchpad-menu-button"
-                        title={sameSource ? undefined : t('scratchpad.mixedSourcesHint')}
-                        disabled={!sameSource || !songs.every(canOpenPlaylistPickerFor)}
-                        onClick={() => openAddSongsToPlaylist(songs)}
+                        disabled={!songs.every(canOpenPlaylistPickerFor)}
+                        onClick={() => openAddSongsToPlaylist(songs, fromNotesOnly ? 'scratchpad' : undefined)}
                     >
                         <Star aria-hidden="true" /><span>{t('scratchpad.addToPlaylist')}</span>
                     </button>

@@ -8,6 +8,7 @@ import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAcc
 import { selectActiveStation, selectStationCatalog, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
 import { usePlaybackStore } from '../../stores/usePlaybackStore';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
+import { likesGoToFolia } from '../../utils/foliaHeart';
 import { Tooltip } from '../modal/settings/kit';
 import { IconSwap } from './shell/IconSwap';
 import { LikeButton } from './shell/LikeButton';
@@ -59,6 +60,7 @@ const FmTab: React.FC<FmTabProps> = ({
     // out it could never be pressed. Any other reason to grey the heart out passes, and it stays.
     const hasLike = usePlaybackStore(state => !state.currentSong
         || getPlaybackSourceRef(state.currentSong).kind !== 'online'
+        || likesGoToFolia(state.currentSong)
         || omni.canLikeSong(state.currentSong));
     // The button opens the picker of what FM plays, so its hint names the same thing: the extra radio on air
     // by its own name, the Personal FM otherwise.

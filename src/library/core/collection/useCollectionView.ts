@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { SongResult } from '../../../types';
-import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
+import { isTrackShownUnplayable, readTrackSourcesVersion, subscribeTrackSources } from '../../../services/foliaPlaylist/trackSourceState';
 import {
     buildDuplicateOccurrences,
     entryKeyAt,
@@ -49,7 +49,11 @@ export const useCollectionView = ({
         () => deriveDisplayTracks(tracks, hiddenKeys, localSort),
         [hiddenKeys, localSort, tracks],
     );
-    const playableTracks = useMemo(() => derivePlayableTracks(displayTracks, isSongUnavailable), [displayTracks]);
+    // 播不了的行：平台说下架的，以及来源此刻不在的（Folia 聚合歌单里音源被停用、卸载的那几行）。来源的状态会变，
+    // 跟着音源登记表重算。
+    const sourcesVersion = useSyncExternalStore(subscribeTrackSources, readTrackSourcesVersion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sourcesVersion 是 isTrackShownUnplayable 读的状态
+    const playableTracks = useMemo(() => derivePlayableTracks(displayTracks, isTrackShownUnplayable), [displayTracks, sourcesVersion]);
 
     const occurrenceCacheRef = useRef<DuplicateOccurrenceCache | null>(null);
     const occurrences = useMemo(() => {
@@ -62,7 +66,7 @@ export const useCollectionView = ({
     const contextTracks = useMemo(() => resolveContextTracks(
         matchIndexes ? matchIndexes.map(index => displayTracks[index]) : null,
         playableTracks,
-        isSongUnavailable,
+        isTrackShownUnplayable,
     ), [displayTracks, matchIndexes, playableTracks]);
 
     const entryKeyAtIndex = useCallback((index: number) => entryKeyAt(displayTracks, occurrences, index), [displayTracks, occurrences]);

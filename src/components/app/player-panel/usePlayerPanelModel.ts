@@ -25,7 +25,7 @@ import { buildPlayerPanelModel, type PlayerPanelDeps, type PlayerPanelViewModel 
 /** What the ambient half still needs from App.tsx to be derived here rather than there. */
 type PlayerPanelModelInputs = PlayerPanelDeps & {
     /** Liked-state sources: local files answer from disk, the rest from the provider's set. */
-    isLocalSongLiked: (song: SongResult) => boolean;
+    isFoliaSongLiked: (song: SongResult) => boolean;
     /** Chrome flag computed by buildPlayerViewFlags; combined with the runtime hidden state here. */
     shouldHidePlayerRightPanelButton: boolean;
     localSongs: LocalSong[];
@@ -44,7 +44,7 @@ type PlayerPanelModelInputs = PlayerPanelDeps & {
  * createPlayerPanelCollectionEntries.ts.
  */
 export const usePlayerPanelModel = ({
-    isLocalSongLiked,
+    isFoliaSongLiked,
     shouldHidePlayerRightPanelButton,
     localSongs,
     localLibraryCatalog,
@@ -86,11 +86,11 @@ export const usePlayerPanelModel = ({
         currentSongProviderId ? state.accounts[currentSongProviderId]?.wantedLikes : undefined
     ));
 
-    // Recomputed every render, never memoised. `isLocalSongLiked` arrives through
+    // Recomputed every render, never memoised. `isFoliaSongLiked` arrives through
     // useStableActionSurface, so its identity is permanent (see the warning in
     // useStableCallbacks.ts) and a memo keyed on it answers with the first render's value forever:
     // favouriting a local song left this heart dark while the bottom bar's inline copy updated.
-    const isLiked = resolveSongLiked(currentSong, { isLocalSongLiked, starredNavidromeSongIds });
+    const isLiked = resolveSongLiked(currentSong, { isFoliaSongLiked, starredNavidromeSongIds });
 
     const collectionEntries = useMemo(() => createPlayerPanelCollectionEntries({
         currentSong,

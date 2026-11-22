@@ -7,11 +7,14 @@
 'use strict';
 
 const crypto = require('crypto');
-const fs = require('fs');
+// original-fs: a .asar file in a mod directory is a file here, not a directory (rawFs.cjs).
+const { rawFs: fs } = require('./rawFs.cjs');
 const path = require('path');
 const { unzipSync } = require('fflate');
 
 const { validateManifest } = require('./manifest.cjs');
+const { verifyModSignature } = require('./modSignature.cjs');
+const { isAllowedWithoutCommunity } = require('./communityMods.cjs');
 
 // Staged installs and their rollback copies live under this directory inside
 // the user mods folder; discovery skips it (and every other dot-directory).
@@ -21,22 +24,25 @@ const STAGING_DIRECTORY = '.staging';
  * Install guards. A .zip is untrusted input: it is size-checked before it is
  * read, entry-checked against its declared uncompressed sizes before anything
  * is inflated, and checked again against the real inflated bytes. The caps
- * match modDigest's, so anything installable is also verifiable.
+ * match modDigest's, so anything installable is also verifiable. One file and
+ * the total are Folium 2.0's (plan §6.2): a source mod's dependency archive is
+ * one file (the largest about 49 MiB) and the mod about as large.
  */
 const INSTALL_LIMITS = {
-    maxArchiveBytes: 64 * 1024 * 1024,
+    maxArchiveBytes: 96 * 1024 * 1024,
     maxEntries: 2000,
-    maxTotalBytes: 64 * 1024 * 1024,
-    maxFileBytes: 32 * 1024 * 1024,
+    maxTotalBytes: 96 * 1024 * 1024,
+    maxFileBytes: 64 * 1024 * 1024,
 };
 
 /*
  * `app` is Electron's (where the user's data lives). The rest is the loader's:
  * `isModSystemEnabled` (nothing is installed while mods are switched off),
+ * `isCommunityModsEnabled` (while community mods are off, only an official source mod is installed; absent: any),
  * `loadAll` (run once the new files are in place), `emitLog`, and
  * `serializeError` (a failure as the text the mods page shows).
  */
-const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serializeError }) => {
+const createZipInstall = ({ app, isModSystemEnabled, isCommunityModsEnabled = () => true, loadAll, emitLog, serializeError }) => {
     // The per-user writable mod directory (the packaged app's own tree is read-only).
     const getUserModsDirectory = () => path.join(app.getPath('userData'), 'mods');
 
@@ -236,6 +242,15 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
             if (validation.value.client && !fs.existsSync(path.join(stagingDir, validation.value.client))) {
                 throw new Error('install-client-missing');
             }
+            // Folium 2.0, community mods off: the staged files must be an official source mod (communityMods.cjs).
+            // Checked on the staged tree, the files that would run, before anything replaces a working install.
+            if (!isCommunityModsEnabled() && !isAllowedWithoutCommunity({
+                tier: 'user',
+                manifest: validation.value,
+                signature: verifyModSignature(stagingDir, validation.value),
+            })) {
+                throw new Error('install-community-off');
+            }
 
             // Atomic-ish swap: move the old copy aside, move the new one in, and
             // put the old one back if the second rename fails.
@@ -255,7 +270,7 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
             removeQuietly(backupDir);
             backupTaken = false;
 
-            const modsAfterInstall = loadAll();
+            const modsAfterInstall = await loadAll();
             emitLog(modId, 'info', `installed mod ${modId} from zip`);
             return { ok: true, id: modId, mods: modsAfterInstall };
         } catch (error) {

@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import { LocalLibraryGroup, LocalSong } from '../../../types';
 import { sortLocalAlbumSongs, sortLocalFolderSongs } from '../../../utils/localSongSorting';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../types/localLibrary';
 import { getActiveEntities } from '../../../utils/localLibraryIndex';
@@ -10,7 +10,7 @@ import { isHomeImportBusy } from './homeSources';
 // src/library/core/home/localHomeModel.ts
 // Builds local-library overview groups for the desktop Grid3D surface.
 // P3.3 起放在 core（原 suites/grid/home/localGrid3DModel.ts）：本地页签的分组（文件夹含虚拟「全部歌曲」、专辑、
-// 歌手、歌单）、四个 section 的定义、卡片视图模型、批量 section、右上角三个导入动作——任何 suite 的首页共用。
+// 歌手）、三个 section 的定义、卡片视图模型、批量 section、右上角三个导入动作——任何 suite 的首页共用。
 // 本地封面的 URL 由调用方注入（解析封面资源要看运行环境，属于 service），这里保持纯函数。
 
 /** 本地封面资源 id → URL（services/localCoverAssetUrl 的 getLocalCoverAssetUrl）。 */
@@ -44,10 +44,9 @@ const sortByName = <T extends { name: string }>(items: T[]) => (
     items.sort((a, b) => a.name.localeCompare(b.name))
 );
 
-/** 本地页签的四组条目。catalog（曲库实体）读好之前按歌曲的原始标签分专辑 / 歌手。 */
+/** 本地页签的三组条目（歌单已并进 Folia 聚合歌单，在首页的 Folia 组里，见 foliaHomeModel）。catalog（曲库实体）读好之前按歌曲的原始标签分专辑 / 歌手。 */
 export const buildLocalHomeGroups = (
     localSongs: LocalSong[],
-    localPlaylists: LocalPlaylist[],
     t: TFunction,
     catalog: { entities: LocalLibraryEntity[]; assignments: LocalLibraryAssignment[]; } | undefined,
     coverAssetUrl: LocalCoverAssetUrlResolver,
@@ -204,37 +203,21 @@ export const buildLocalHomeGroups = (
     const albumList = sortByName(entityAlbumList);
     const artistList = sortByName(entityArtistList);
 
-    const playlistList: LocalLibraryGroup[] = localPlaylists.map(playlist => {
-        const playlistSongs = playlist.songIds
-            .map(songId => songsById.get(songId))
-            .filter((song): song is LocalSong => Boolean(song));
-
-        return {
-            type: 'playlist' as const,
-            name: playlist.name,
-            songs: playlistSongs,
-            coverUrl: getLocalCoverUrlOf(playlistSongs),
-            id: `playlist-${playlist.id}`,
-            playlistId: playlist.id,
-            trackCount: playlistSongs.length,
-            description: playlist.isFavorite ? t('localMusic.favoritePlaylist') : t('home.playlists'),
-            isVirtual: playlist.isFavorite,
-        };
-    });
-
     return {
         folders: folderList,
         albums: albumList,
         artists: artistList,
-        playlists: playlistList,
     };
 };
 
 export type LocalHomeGroups = ReturnType<typeof buildLocalHomeGroups>;
 
-/** 本地页签的 section（顺序即 activeRow 0–3）。 */
-export type LocalHomeSectionKey = 'folders' | 'albums' | 'artists' | 'playlists';
-export type LocalHomeRow = 0 | 1 | 2 | 3;
+/**
+ * 本地页签的 section（顺序即 activeRow 0–2）。以前还有第 3 行「歌单」：本地歌单并进 Folia 聚合歌单之后没有了，
+ * 存着 3 的旧存档落回文件夹（localHomeSectionOfRow 越界回 folders，useAppNavigation 读的时候也收到 0）。
+ */
+export type LocalHomeSectionKey = 'folders' | 'albums' | 'artists';
+export type LocalHomeRow = 0 | 1 | 2;
 
 export type LocalHomeSectionDefinition = {
     key: LocalHomeSectionKey;
@@ -249,7 +232,6 @@ export const LOCAL_HOME_SECTIONS: readonly LocalHomeSectionDefinition[] = [
     { key: 'folders', row: 0, labelKey: 'localMusic.foldersAndPlaylists', emptyKey: 'localMusic.noFoldersFound' },
     { key: 'albums', row: 1, labelKey: 'localMusic.albums', emptyKey: 'localMusic.noAlbumsFound' },
     { key: 'artists', row: 2, labelKey: 'localMusic.artists', emptyKey: 'localMusic.noArtistsFound' },
-    { key: 'playlists', row: 3, labelKey: 'localMusic.customPlaylists', fallbackLabelKey: 'home.playlists', emptyKey: 'localMusic.noPlaylistsFound' },
 ];
 
 /** activeRow 对应的 section（越界时回到 folders）。 */
@@ -270,12 +252,10 @@ export const buildLocalHomeCards = (groups: readonly LocalLibraryGroup[]): Libra
     raw: group,
 }));
 
-/** 支持批量的本地 section（文件夹、专辑、歌手）；歌单没有批量。 */
-export const localBatchSelectionType = (section: LocalHomeSectionKey): LibraryDirectorySelectionType | null => (
-    section === 'folders' || section === 'albums' || section === 'artists' ? section : null
-);
+/** 本地 section 的批量类型（文件夹、专辑、歌手都支持）。 */
+export const localBatchSelectionType = (section: LocalHomeSectionKey): LibraryDirectorySelectionType | null => section;
 
-/** 本地页签右上角的三个导入动作：文案随进行中的动作变，任何一个在进行或扫描中时都禁用。 */
+/** 本地页签右上角的两个导入动作（导入歌单文件搬去了 Folia 页）：文案随进行中的动作变，任何一个在进行或扫描中时都禁用。 */
 export const resolveLocalHomeActions = (snapshot: LibraryHomeActionsSnapshot): LibraryHomeListAction[] => {
     const busy = isHomeImportBusy(snapshot);
     const scanning = Boolean(snapshot.scan?.active) || snapshot.refreshingFolders;
@@ -293,13 +273,6 @@ export const resolveLocalHomeActions = (snapshot: LibraryHomeActionsSnapshot): L
             titleKey: 'options.refresh',
             pending: scanning,
             disabled: busy,
-        },
-        {
-            id: 'import-playlist',
-            labelKey: snapshot.importingPlaylist ? 'localMusic.importingPlaylist' : 'localMusic.importPlaylist',
-            titleKey: 'localMusic.importPlaylist',
-            pending: snapshot.importingPlaylist,
-            disabled: busy || snapshot.importingPlaylist,
         },
     ];
 };

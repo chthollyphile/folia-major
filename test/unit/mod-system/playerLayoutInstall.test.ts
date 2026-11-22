@@ -4,6 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { zipSync } from 'fflate';
+import { FROM_MAIN_WINDOW, MAIN_WINDOW } from './mainWindowFake';
 
 // test/unit/mod-system/playerLayoutInstall.test.ts
 // Exercise the shipped example through the main-process ZIP installation gate,
@@ -28,8 +29,9 @@ const stubModule = (name: string, exports: unknown) => {
 };
 stubModule('electron', {
     dialog: {
-        showMessageBox: async (options: { detail: string }) => {
-            confirmations.push(options.detail);
+        // With a window it is (window, options): the options are the last argument either way.
+        showMessageBox: async (...args: unknown[]) => {
+            confirmations.push((args[args.length - 1] as { detail: string }).detail);
             return { response: 1 };
         },
     },
@@ -59,7 +61,7 @@ beforeEach(() => {
             isPackaged: true,
         },
         BrowserWindow: { getAllWindows: () => [] },
-        getMainWindow: () => null,
+        getMainWindow: () => MAIN_WINDOW,
         getLocaleKey: () => 'en',
         isFeatureEnabled: () => true,
     });
@@ -72,7 +74,7 @@ afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
 });
 
-const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(null, ...args);
+const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(FROM_MAIN_WINDOW, ...args);
 
 const writeSampleZip = (unknownFeature = false) => {
     const entries = Object.fromEntries(fs.readdirSync(sampleDirectory).map((file) => [

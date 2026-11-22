@@ -2,6 +2,7 @@ import {
     CREDENTIAL_KEYS,
     CREDENTIAL_OBJECT_FACTORIES,
     CREDENTIAL_OBJECTS,
+    CREDENTIAL_PAGE_STORE_CALLS,
     CREDENTIAL_STORAGE_KEY_CALLS,
     CREDENTIAL_WRITE_CALLS,
     CREDENTIAL_WRITERS,
@@ -18,7 +19,11 @@ import { comments, globals, js, reactHooks, stylistic, tseslint } from './dev/de
 // 现有违规记在 eslint-suppressions.json，只减不增；输出由 dev/dedicatus 换成 D 代码（规则到代码的对应在 dev/dedicatus/codes.mjs）。
 
 /** 带类型信息检查的 TypeScript：用根 tsconfig（api-ts 用它自己的）。 */
-const TYPED = ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx,mts}', 'dev/**/*.{ts,tsx}', 'api-ts/**/*.ts', 'worker/**/*.ts', '*.ts'];
+/** 音源模组（sources/）、它们的共用包和测试夹具各有自己的 tsconfig（只对着 mods/folium.d.ts 与 kit），projectService 按最近的那份取。 */
+const TYPED = [
+    'src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx,mts}', 'dev/**/*.{ts,tsx}', 'api-ts/**/*.ts', 'worker/**/*.ts', '*.ts',
+    'sources/**/*.{ts,tsx}', 'packages/folium-source-kit/**/*.ts',
+];
 /** 测试文件：类型感知的严格规则不管（见下面测试那一段）。 */
 const TESTS = ['test/**/*.{ts,tsx,mts}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'];
 /** 测试里也留着的类型感知规则：漏写 await、await 了不是 Promise 的东西、对数组用 delete / for-in，都是真 bug。 */
@@ -30,7 +35,7 @@ const rulesOf = configs => Object.assign({}, ...configs.map(config => config.rul
 /** strictTypeChecked 比 strict 多出来的规则：要类型信息的那些（以及被它们替下来的基础规则）。 */
 const TYPE_AWARE_RULES = Object.keys(rulesOf(tseslint.configs.strictTypeChecked)).filter(rule => !(rule in rulesOf(tseslint.configs.strict)));
 /** 应用自己的代码：日志规则（AGENTS.md 的“日志”一节）只管这里，测试、开发脚本和 CLI 的输出不算日志。 */
-const APP_CODE = ['src/**/*.{ts,tsx,js,mjs,cjs}', 'electron/**/*.{ts,js,mjs,cjs}'];
+const APP_CODE = ['src/**/*.{ts,tsx,js,mjs,cjs}', 'electron/**/*.{ts,js,mjs,cjs}', 'sources/**/*.{ts,tsx,js,mjs,cjs}', 'packages/folium-source-kit/**/*.ts'];
 const SCRIPTS = ['**/*.{js,cjs,mjs}'];
 
 export default tseslint.config(
@@ -86,6 +91,7 @@ export default tseslint.config(
                 objects: CREDENTIAL_OBJECTS,
                 objectFactories: CREDENTIAL_OBJECT_FACTORIES,
                 storageKeyCalls: CREDENTIAL_STORAGE_KEY_CALLS,
+                pageStoreCalls: CREDENTIAL_PAGE_STORE_CALLS,
                 writers: CREDENTIAL_WRITERS,
             }],
         },

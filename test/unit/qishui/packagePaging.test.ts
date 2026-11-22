@@ -1,16 +1,22 @@
 import { createRequire } from 'node:module';
 import { generateKeyPairSync } from 'node:crypto';
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { qishuiCatalog } from '@/services/onlineMusic/qishui/qishuiCatalog';
-import { qishuiLibrary } from '@/services/onlineMusic/qishui/qishuiCatalog';
-import { qishuiMutations } from '@/services/onlineMusic/qishui/qishuiMutations';
-import { normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
-import { qishuiRecommendations } from '@/services/onlineMusic/qishui/qishuiRecommendations';
 import type { QishuiApiOptions } from 'qishui-music-api';
+import type { ProviderCollection } from '@/types/onlineMusic';
+import { answerQishuiRequests, hostQishuiSong, lazyQishui } from '../helpers/qishuiSource';
 import { track } from './fixtures';
 
-// Run the actual npm package through the host bridge and renderer adapter; replace only HTTP responses.
-const { createQishuiApiBridge } = createRequire(import.meta.url)('../../../electron/qishui/qishuiApiBridge.cjs');
+// Run the actual npm package through the main entry's bridge and the registered source mod; replace only HTTP responses.
+const qishuiCatalog = lazyQishui(provider => provider.catalog);
+const qishuiLibrary = lazyQishui(provider => provider.library);
+const qishuiMutations = lazyQishui(provider => provider.mutations);
+const qishuiRecommendations = lazyQishui(provider => provider.recommendations);
+let off = () => {};
+const answerWith = (bridge: { request: (operation: string, params?: Record<string, unknown>) => unknown }) => {
+    off = answerQishuiRequests((operation, params) => bridge.request(operation, params)).off;
+};
+const { createQishuiApiBridge } = createRequire(import.meta.url)('../../../sources/qishui/main/qishuiApiBridge.cjs');
 const { createQishuiApi } = createRequire(import.meta.url)('qishui-music-api');
 
 // Only generated fixture credentials enter the real package; every HTTP request is intercepted.
@@ -25,7 +31,7 @@ function accountBridge(fetch: typeof globalThis.fetch) {
         return createQishuiApi(options);
     } });
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { off(); vi.unstubAllGlobals(); });
 describe('Qishui package-to-adapter paging', () => {
     it('keeps unread recent tracks on the final package page and reads complete hearts', async () => {
         const bridge = accountBridge(vi.fn(async (raw: RequestInfo | URL) => {
@@ -36,7 +42,7 @@ describe('Qishui package-to-adapter paging', () => {
             expect(path.endsWith('/me/recent-played/')).toBe(true);
             return Response.json({ data: { media: ['1', '2', '3'].map(id => ({ media: { track_entity: track(id) } })), has_more: false } });
         }));
-        vi.stubGlobal('window', { electron: { qishuiRequest: bridge.request } });
+        answerWith(bridge);
         const first = await qishuiCatalog.getPlaylistTracks!('recent-played', 1, 0);
         expect(first).toMatchObject({ items: [{ id: '1' }], hasMore: true, nextOffset: 1 });
         const last = await qishuiCatalog.getPlaylistTracks!('recent-played', 2, first.nextOffset);
@@ -51,9 +57,9 @@ describe('Qishui package-to-adapter paging', () => {
             paths.push(path.slice(path.indexOf('/platform/') + 9));
             return Response.json({ err_no: 0 });
         }));
-        vi.stubGlobal('window', { electron: { qishuiRequest: bridge.request } });
-        const song = normalizeQishuiSong(track('1'));
-        const playlist = { providerId: 'qishui', id: '99', name: 'List', type: 'playlist', isOwned: true };
+        answerWith(bridge);
+        const song = hostQishuiSong(track('1'));
+        const playlist: ProviderCollection = { providerId: 'qishui', id: '99', name: 'List', type: 'playlist', isOwned: true };
         await qishuiMutations.likeSong!(song, true);
         await qishuiMutations.likeSong!(song, false);
         await qishuiMutations.updatePlaylistTracks!('add', playlist, [song]);
@@ -76,7 +82,7 @@ describe('Qishui package-to-adapter paging', () => {
                 : { media_entities: [4, 5].map(id => ({ track_entity: track(String(id)) })), has_more: false } });
         });
         const bridge = createQishuiApiBridge({ store, fetch });
-        vi.stubGlobal('window', { electron: { qishuiRequest: bridge.request } });
+        answerWith(bridge);
         const page = await qishuiCatalog.getPlaylistTracks!('99', 3, 2);
         expect(page.items.map(song => String(song.id))).toEqual(['3', '4', '5']);
         expect(page).toMatchObject({ hasMore: false, nextOffset: 5 });

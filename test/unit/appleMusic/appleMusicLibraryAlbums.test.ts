@@ -1,16 +1,17 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeAppleMusicLibraryAlbum } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
+import { normalizeAppleMusicLibraryAlbum } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { freshAppleMusicProvider } from '../helpers/appleMusicSource';
 
 // Library album identifiers must remain library identities through the private page bridge.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 describe('Apple Music library albums', () => {
     it('normalizes the library identity and enables the library album capability', () => {
         expect(normalizeAppleMusicLibraryAlbum({ id: 'l.example', type: 'library-albums', attributes: { name: 'Album', trackCount: 8 } }))
-            .toMatchObject({ id: 'l.example', type: 'album', trackCount: 8, providerData: { resourceType: 'library-albums' } });
-        expect(createAppleMusicProvider(() => ({ configured: true })).capabilities.userAlbums).toBe(true);
+            .toMatchObject({ id: 'l.example', type: 'album', trackCount: 8, data: { resourceType: 'library-albums' } });
+        expect(freshAppleMusicProvider().capabilities.userAlbums).toBe(true);
         expect(() => normalizeAppleMusicLibraryAlbum({ id: '../bad', type: 'library-albums' })).toThrow();
     });
     it('requests only fixed library paths and retains the song catalog relationship', async () => {

@@ -425,6 +425,11 @@ export type LibraryAccountStorePort = {
     getProviderLabel(providerId: OnlineProviderId): string;
     /** store 里存的当前平台（未经回落）。 */
     getStoredActiveProviderId(): OnlineProviderId;
+    /**
+     * 用的人自己选的平台（存储里的那个，'' 表示还没选过）。它不在时生效的是回落的平台；没有这一项的端口按
+     * getStoredActiveProviderId 处理。
+     */
+    getChosenProviderId?(): OnlineProviderId;
     setActiveProviderId(providerId: OnlineProviderId): void;
     /** 写新的当前平台之前作废上一个平台的在途请求（omni.invalidateActiveRequests）。 */
     invalidateActiveRequests(): void;

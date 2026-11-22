@@ -23,7 +23,11 @@ export const FormLogin: React.FC<{
     const [errorKey, setErrorKey] = useState<string | null>(null);
     // 提交是异步的：提交期间换了平台、关了窗，组件卸载，晚到的回调不再执行（否则会关掉别人的窗口）。
     const mounted = useRef(true);
-    useEffect(() => () => { mounted.current = false; }, []);
+    // 挂上时置回 true：开发版的 StrictMode 会先卸一次再挂，只在卸载时置 false 的话会永远是 false，按钮卡在提交中。
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; };
+    }, []);
 
     if (!form) return null;
 

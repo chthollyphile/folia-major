@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqLists.test.ts
 // 当成集合打开的排行榜、电台与音乐云盘。回应形状取自 qq-music-api 3.3.3 的使用文档（「歌单分类、分类歌单与新歌速递」
@@ -7,14 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-import i18n from '@/i18n/config';
 import {
     getQqCloudCollection,
     getQqCloudTracks,
@@ -22,13 +21,20 @@ import {
     qqListKindOf,
     qqRadioCollection,
     qqToplistCollection,
-} from '@/services/onlineMusic/qq/qqLists';
-import { normalizeQqCollection } from '@/services/onlineMusic/qq/qqNormalize';
-import { qqProvider } from '@/services/onlineMusic/qq/qqProvider';
+} from '../../../sources/qq/core/qqLists';
+import { normalizeQqCollection } from '../../../sources/qq/core/qqNormalize';
+import type { FoliumSourceDef } from '@/mods/folium/sources/contract';
+import { createQqCore } from '../helpers/qqSource';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 const track = (mid: string, id: number) => ({ mid, id, name: `歌 ${mid}`, singer: [{ mid: 'singer-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' } });
 const emptyAnswer = () => new OnlineProviderError('network', 'QQMusicApi request failed: 422', 'qq', { errorKey: 'resource.not-found' }, 422);
+
+// createSource 给 core 装上 env（请求、文字）；打开卡片要的 catalog 从它交回的定义里取。
+let def: FoliumSourceDef;
+beforeAll(async () => {
+    def = (await createQqCore()).def as FoliumSourceDef;
+});
 
 describe('QQ charts and radio stations as collections', () => {
     beforeEach(() => {
@@ -40,8 +46,8 @@ describe('QQ charts and radio stations as collections', () => {
         const chart = qqToplistCollection({ id: 26, title: '示例榜', period: '2026_41', total: 100, cover: 'https://img.example.test/chart.jpg' });
 
         expect(chart).toMatchObject({
-            providerId: 'qq', id: 'toplist-26', name: '示例榜', type: 'playlist', trackCount: 100, coverUrl: 'https://img.example.test/chart.jpg',
-            providerData: { list: 'toplist', listId: 26, period: '2026_41' },
+            id: 'toplist-26', name: '示例榜', type: 'playlist', trackCount: 100, coverUrl: 'https://img.example.test/chart.jpg',
+            data: { list: 'toplist', listId: 26, period: '2026_41' },
         });
         expect(qqListKindOf(chart!)).toBe('toplist');
         // 缓存回填时照样认得出它是榜。
@@ -56,7 +62,7 @@ describe('QQ charts and radio stations as collections', () => {
         const page = await getQqListTracks(chart, 2, 0);
 
         expect(requestMock).toHaveBeenCalledWith('recommend_toplist', { id: 26, period: '2026_41', offset: 0, limit: 2 });
-        expect(page.items.map(song => song.qqMid)).toEqual(['mid-a', 'mid-b']);
+        expect(page.items.map(song => song.id)).toEqual(['mid-a', 'mid-b']);
         expect(page).toMatchObject({ total: 100, hasMore: true, nextOffset: 2 });
     });
 
@@ -66,7 +72,7 @@ describe('QQ charts and radio stations as collections', () => {
 
         const page = await getQqListTracks(chart, 3, 0);
 
-        expect(page.items.map(song => song.qqMid)).toEqual(['mid-a', 'mid-c']);
+        expect(page.items.map(song => song.id)).toEqual(['mid-a', 'mid-c']);
         // 下一页从第 4 条起，不和这一页的第 3 条重叠。
         expect(page).toMatchObject({ hasMore: true, nextOffset: 3 });
     });
@@ -89,14 +95,14 @@ describe('QQ charts and radio stations as collections', () => {
         expect(requestMock).toHaveBeenCalledTimes(1);
     });
 
-    // 打开卡片走的是 provider 已有的 catalog：歌单那一条认出卡片，改走榜的路由；详情照原样交回。
-    it('is read through the provider\'s playlist tracks and detail', async () => {
+    // 打开卡片走的是 模组已有的 catalog：歌单那一条认出卡片，改走榜的路由；详情照原样交回。
+    it('is read through the source\'s playlist tracks and detail', async () => {
         const chart = qqToplistCollection({ id: 26, title: '示例榜' })!;
         requestMock.mockResolvedValueOnce({ code: 200, songs: [track('mid-a', 1)], total: 1, more: false });
 
-        await expect(qqProvider.catalog!.getPlaylistTracks!(chart.id, 50, 0, chart)).resolves.toMatchObject({ total: 1, hasMore: false });
+        await expect(def.capabilities['catalog@1']!.getPlaylistTracks!(chart.id, 50, 0, chart)).resolves.toMatchObject({ total: 1, hasMore: false });
         expect(requestMock.mock.calls.map(call => call[0])).toEqual(['recommend_toplist']);
-        await expect(qqProvider.catalog!.getPlaylistDetail!(chart.id, chart)).resolves.toBe(chart);
+        await expect(def.capabilities['catalog@1']!.getPlaylistDetail!(chart.id, chart)).resolves.toBe(chart);
         expect(requestMock).toHaveBeenCalledTimes(1);
     });
 });
@@ -114,11 +120,10 @@ describe('QQ cloud drive', () => {
 
         const cloud = await getQqCloudCollection({ id: '10001', nickname: '示例用户' });
         expect(requestMock).toHaveBeenCalledWith('user_cloud', { offset: 0, limit: 1 });
-        expect(cloud).toMatchObject({ providerId: 'qq', type: 'cloud', name: i18n.t('navidrome.cloudDrive'), trackCount: 12, isOwned: true });
+        expect(cloud).toMatchObject({ type: 'cloud', name: 'cloud.name', trackCount: 12, isOwned: true });
         expect(cloud?.coverUrl).toBeTruthy();
-        // 描述写的是这个平台自己的网盘，不借别家云盘的那一句。
-        expect(cloud?.description).toBe(i18n.t('navidrome.qqCloudDriveDesc'));
-        expect(cloud?.description).not.toBe(i18n.t('navidrome.cloudDriveDesc'));
+        // 描述写的是这个平台自己的网盘（模组自己的那一句），不借别家云盘的。测试的 env 里文字就是键名。
+        expect(cloud?.description).toBe('cloud.description');
 
         await expect(getQqCloudCollection()).resolves.toBeNull();
     });
@@ -140,7 +145,7 @@ describe('QQ cloud drive', () => {
         const page = await getQqCloudTracks(4, 0);
 
         expect(requestMock).toHaveBeenCalledWith('user_cloud', { offset: 0, limit: 4 });
-        expect(page.items.map(song => song.qqMid)).toEqual(['mid-a', 'mid-d']);
+        expect(page.items.map(song => song.id)).toEqual(['mid-a', 'mid-d']);
         expect(page).toMatchObject({ total: 9, hasMore: true, nextOffset: 4 });
     });
 

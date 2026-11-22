@@ -165,13 +165,15 @@ const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
  */
 const createModApi = (context) => {
     const declaredPermissions = Array.isArray(context.manifest?.permissions) ? context.manifest.permissions : [];
+    // Folium 2.0 (plan §5.2): a source mod's storage needs no `filesystem.data`. Every other gate stays.
+    const exempt = new Set(context.sourceApi ? [STORAGE_PERMISSION] : []);
 
     /*
      * The one permission gate of the main entry, fail-closed. Throws the same
      * `permission-denied:<id>` shape everywhere, so a mod sees one consistent error.
      */
     const requirePermission = (permission) => {
-        if (!declaredPermissions.includes(permission)) {
+        if (!exempt.has(permission) && !declaredPermissions.includes(permission)) {
             throw permissionDenied(permission);
         }
     };
@@ -215,11 +217,32 @@ const createModApi = (context) => {
         cache: { get: () => modDirectory(context.cacheDir), enumerable: false },
     });
 
+    /*
+     * The user's folders are asked for when read: Electron throws for a folder
+     * the system does not have, and that must not keep the mod from starting.
+     * A source mod also has `legacy(name)`: the userData folder its row or claims name (sourceApi.cjs).
+     */
+    const userFolders = {
+        get documents() { return context.getUserFolder('documents'); },
+        get downloads() { return context.getUserFolder('downloads'); },
+        get music() { return context.getUserFolder('music'); },
+        get videos() { return context.getUserFolder('videos'); },
+    };
+    if (context.sourceApi) {
+        userFolders.legacy = context.sourceApi.legacyPath;
+    }
+
+    // A source mod reads the host's language as it is at the call (`api.host.locale`).
+    const hostInfo = cloneJson(context.hostInfo);
+    if (context.sourceApi) {
+        Object.defineProperty(hostInfo, 'locale', { get: () => context.getLocale(), enumerable: true });
+    }
+
     // Folium 1.6 only: the members Folium 2 removed, added back (deprecated.cjs).
-    return addOldMainNames({
+    const api = addOldMainNames({
         // Frozen manifest so mods cannot rewrite their own contract at runtime.
         manifest: Object.freeze(cloneJson(context.manifest)),
-        host: Object.freeze(cloneJson(context.hostInfo)),
+        host: Object.freeze(hostInfo),
         log,
         storage: {
             get: guardedAsync(STORAGE_PERMISSION, context.dataStore.get),
@@ -241,16 +264,7 @@ const createModApi = (context) => {
             set: (key, value) => context.secrets.set(key, value),
             subscribe: (listener) => context.secrets.subscribe(listener),
         }),
-        /*
-         * The user's folders are asked for when read: Electron throws for a folder
-         * the system does not have, and that must not keep the mod from starting.
-         */
-        paths: Object.freeze({
-            get documents() { return context.getUserFolder('documents'); },
-            get downloads() { return context.getUserFolder('downloads'); },
-            get music() { return context.getUserFolder('music'); },
-            get videos() { return context.getUserFolder('videos'); },
-        }),
+        paths: Object.freeze(userFolders),
         /*
          * Cleanup hook. Anything a mod starts in activate() — timers, watchers,
          * listeners, child processes — should be released here; the loader runs
@@ -300,6 +314,8 @@ const createModApi = (context) => {
             exportVideo: guardedAsync(EXPORT_PERMISSION, (spec) => context.requestExport(spec)),
         },
     }, context.manifest);
+    // Folium 2.0 (plan §5.5): the members only source mods have. An ordinary mod's api has none of them.
+    return context.sourceApi ? Object.assign(api, context.sourceApi.members) : api;
 };
 
 module.exports = {

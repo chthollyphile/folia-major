@@ -8,7 +8,7 @@ import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { currentTime } from '../../../../stores/motionSignals';
 import { markProgrammaticPause, playbackFade, type PlaybackFadeSettleReason } from '../../../../services/playbackFade';
-import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
+import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appPlaybackGuards';
 import type { OnlineRecovery, OnlineRecoveryOptions } from '../restore/createOnlineRecoveryController';
 import type { OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { onlineFailureToast } from '../source/onlineFailureToast';
@@ -87,6 +87,15 @@ export function usePlaybackTransportController({
 
     const resumePlayback = useCallback(async () => {
         if (isNowPlayingStageActive) {
+            return;
+        }
+        // A song of a source switched to "used only for matching" or off does not play (Folium 2.0 plan §5.3), not
+        // even from the address or the player it had loaded before the switch: it plays again once it is enabled.
+        const heldSong = usePlaybackStore.getState().currentSong;
+        const heldSource = heldSong ? getPlaybackSourceRef(heldSong) : null;
+        if (heldSource?.kind === 'online' && !omni.isSourceSwitchedOn(heldSource.providerId)) {
+            console.info(`[Playback] not resumed: the source ${heldSource.providerId} is not enabled`);
+            setStatusMsg({ type: 'info', text: t('status.songSourceNotEnabled') });
             return;
         }
         const revision = ++transportRevision.current;

@@ -1,5 +1,5 @@
 import type { SongResult } from '../../../../types';
-import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
+import { isTrackShownUnplayable } from '../../../../services/foliaPlaylist/trackSourceState';
 import { resolveContextTracks } from '../../../core/collection/collectionView';
 
 // src/library/suites/grid/collection/gridViewContextActions.ts
@@ -17,5 +17,5 @@ export const resolveGridViewContextTracks = (
 ): SongResult[] => resolveContextTracks(
     isFilterActive ? visibleItems.flatMap(item => (item.rawTrack ? [item.rawTrack] : [])) : null,
     allPlayableTracks,
-    isSongUnavailable,
+    isTrackShownUnplayable,
 );

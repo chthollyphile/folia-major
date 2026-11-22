@@ -75,7 +75,7 @@ const homeAnchors = {
     },
     homeSeam: region('page', bravaisSeamRect('home'), label('homeSeam')),
     tabs: region('homeSeam', H.tabs, label('tabs')),
-    tabLocal: region('homeSeam', H.tab[3], label('tabLocal')),
+    tabLocal: region('homeSeam', H.tab[2], label('tabLocal')),
     sections: region('homeSeam', H.sections, label('sections')),
     shortcuts: region('homeSeam', H.shortcuts, label('shortcuts')),
     account: region('homeSeam', D.account, label('account')),

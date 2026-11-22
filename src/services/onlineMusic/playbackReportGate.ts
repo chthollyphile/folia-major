@@ -44,14 +44,14 @@ export const resetPlaybackReportGate = (): void => {
 type Accounts = ReturnType<typeof useOnlineProviderAccountStore.getState>['accounts'];
 
 /** The providers that take a listening report: registered, declaring the capability, configured on this build. */
-const reportingProviderIds = (): OmniProviderId[] => omni.getProviderSummaries()
+export const getPlaybackReportProviderIds = (): OmniProviderId[] => omni.getProviderSummaries()
     .filter(provider => provider.availability.configured && omni.getProviderCapabilities(provider.providerId).playbackReports)
     .map(provider => provider.providerId);
 
 // With a song, only the song's own provider is asked.
 const isReadyIn = (accounts: Accounts, song?: SongResult): boolean => {
     const source = song ? getPlaybackSourceRef(song) : null;
-    return reportingProviderIds().some(providerId => (
+    return getPlaybackReportProviderIds().some(providerId => (
         (!source || (source.kind === 'online' && source.providerId === providerId))
         && accounts[providerId]?.status === 'authenticated'
     ));
@@ -126,4 +126,15 @@ export const sendPlaybackReport = async (
         clearTimeout(deadline);
         inFlight = false;
     }
+};
+
+/**
+ * The source the one listening report setting on offer stands for: the first that takes reports and is signed
+ * in, else the first that takes reports. The settings row and the palette toggle act on it (Folium 2.0 S1: the
+ * setting is stored per source, the page still shows one row).
+ */
+export const getPlaybackReportSettingProviderId = (): OmniProviderId | null => {
+    const accounts: Partial<Accounts> = useOnlineProviderAccountStore.getState().accounts;
+    const ids = getPlaybackReportProviderIds();
+    return ids.find(providerId => accounts[providerId]?.status === 'authenticated') ?? ids.at(0) ?? null;
 };

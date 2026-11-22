@@ -1,20 +1,27 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqMutations.test.ts
 // 写入路由的入参与回应取自 qq-music-api 3.3.1 的使用文档（「普通歌单增删歌曲」「收藏与查询收藏状态」「红心写入」「专辑收藏写入」）。
+// 只测 core：createQqCore 给模组装上 env（文字、错），写入直接拿模组的歌与集合（DTO）。
 
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<object>(),
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-import { canEditQqPlaylistTracks, getQqSubscriptionStatus, qqMutations } from '@/services/onlineMusic/qq/qqMutations';
-import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
-import { OnlineProviderError, type ProviderCollection } from '@/types/onlineMusic';
+import { canEditQqPlaylistTracks, getQqSubscriptionStatus, qqMutations } from '../../../sources/qq/core/qqMutations';
+import { normalizeQqCollection, normalizeQqSong } from '../../../sources/qq/core/qqNormalize';
+import { OnlineProviderError } from '@/types/onlineMusic';
+import { createQqCore } from '../helpers/qqSource';
+
+beforeAll(async () => {
+    await createQqCore();
+});
 
 // GetPlaylistByUin 的自建条目带 dirName（据此判为自建）；收藏条目是另一套字段。
 const owned = (dirId: number, extra: Record<string, unknown> = {}) => normalizeQqCollection({ tid: 70001, dirId, dirName: '自建', songNum: 3, ...extra });
@@ -38,7 +45,6 @@ describe('QQ playlist mutations', () => {
         expect(canEditQqPlaylistTracks(favourite)).toBe(false);
         // 没有 tid 的自建条目 id 会退成 dirId，不能拿它当 tid 去写。
         expect(canEditQqPlaylistTracks(normalizeQqCollection({ dirId: 5, dirName: '没有 tid' }))).toBe(false);
-        expect(canEditQqPlaylistTracks({ ...owned(5), providerId: 'netease' })).toBe(false);
         // 缓存回灌后仍认得出来。
         expect(canEditQqPlaylistTracks(normalizeQqCollection(owned(5)))).toBe(true);
     });
@@ -128,7 +134,7 @@ describe('QQ playlist mutations', () => {
     });
 
     it('subscribes and unsubscribes a playlist by tid and checks the confirmation', async () => {
-        const recommended: ProviderCollection = normalizeQqCollection({ tid: 90001, title: '推荐' });
+        const recommended = normalizeQqCollection({ tid: 90001, title: '推荐' });
         requestMock.mockResolvedValueOnce({ code: 200, subscribed: true }).mockResolvedValueOnce({ code: 200 });
 
         await qqMutations.subscribePlaylist!(recommended, true);
@@ -184,7 +190,7 @@ describe('QQ song like', () => {
     });
 
     it('refuses a song without a songmid before issuing any request', async () => {
-        await expect(qqMutations.likeSong!(101, true)).rejects.toMatchObject({ code: 'invalid-response' });
+        await expect(qqMutations.likeSong!('101', true)).rejects.toMatchObject({ code: 'invalid-response' });
         // 没有 mid 的条目 mediaId 会退成数字 id，不能拿它当 songmid。
         await expect(qqMutations.likeSong!(song('', 101), true)).rejects.toMatchObject({ code: 'invalid-response' });
         expect(requestMock).not.toHaveBeenCalled();
@@ -228,7 +234,7 @@ describe('QQ subscription status', () => {
             .mockResolvedValueOnce({ code: 200, type: 'playlist', items: [{ id: '90001', status: 'subscribed' }] })
             .mockResolvedValueOnce({ code: 200, type: 'album', items: [{ id: 'album-mid', status: 'not-subscribed' }] });
 
-        await expect(getQqSubscriptionStatus('playlist', 90001)).resolves.toBe(true);
+        await expect(getQqSubscriptionStatus('playlist', '90001')).resolves.toBe(true);
         await expect(getQqSubscriptionStatus('album', 'album-mid')).resolves.toBe(false);
         expect(requestMock).toHaveBeenNthCalledWith(1, 'user_subscription_status', { type: 'playlist', ids: '90001' });
     });
@@ -236,12 +242,12 @@ describe('QQ subscription status', () => {
     // unknown 是「查不出来」，不给结论：收藏按钮状态留空，不把它说成任何一边。
     it('fails instead of guessing when the backend cannot tell', async () => {
         requestMock.mockResolvedValueOnce({ code: 200, type: 'playlist', items: [{ id: '90001', status: 'unknown' }] });
-        await expect(getQqSubscriptionStatus('playlist', 90001)).rejects.toMatchObject({ code: 'invalid-response' });
+        await expect(getQqSubscriptionStatus('playlist', '90001')).rejects.toMatchObject({ code: 'invalid-response' });
     });
 
     it('answers not subscribed without asking when signed out or the id is not a playlist id', async () => {
         transportState.hasSession = false;
-        await expect(getQqSubscriptionStatus('playlist', 90001)).resolves.toBe(false);
+        await expect(getQqSubscriptionStatus('playlist', '90001')).resolves.toBe(false);
         transportState.hasSession = true;
         await expect(getQqSubscriptionStatus('playlist', 'not-a-tid')).resolves.toBe(false);
         expect(requestMock).not.toHaveBeenCalled();
@@ -261,7 +267,7 @@ describe('QQ playlist creation and what may be saved', () => {
         const created = await qqMutations.createPlaylist!('新歌单');
 
         expect(requestMock).toHaveBeenCalledWith('user_playlist_create', {}, { name: '新歌单' });
-        expect(created).toMatchObject({ providerId: 'qq', id: 70009, name: '新歌单', type: 'playlist', isOwned: true, trackCount: 0 });
+        expect(created).toMatchObject({ id: '70009', name: '新歌单', type: 'playlist', isOwned: true, trackCount: 0 });
         // 和读账号时的自建条目同一个形状：能直接往里加歌。
         expect(canEditQqPlaylistTracks(created)).toBe(true);
     });
@@ -274,8 +280,8 @@ describe('QQ playlist creation and what may be saved', () => {
     });
 
     it('offers no saving of a chart or a radio station', () => {
-        const chart = normalizeQqCollection({ id: 'toplist-26', title: '示例榜', providerData: { list: 'toplist', listId: 26 } });
-        const radio = normalizeQqCollection({ id: 'radio-101', title: '示例电台', providerData: { list: 'radio', listId: 101 } });
+        const chart = normalizeQqCollection({ id: 'toplist-26', title: '示例榜', data: { list: 'toplist', listId: 26 } });
+        const radio = normalizeQqCollection({ id: 'radio-101', title: '示例电台', data: { list: 'radio', listId: 101 } });
 
         expect(qqMutations.canSubscribe!(chart)).toBe(false);
         expect(qqMutations.canSubscribe!(radio)).toBe(false);

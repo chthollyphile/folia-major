@@ -27,6 +27,7 @@ export const STORAGE_KEYS = [
     'main:MAIN_WINDOW_ALWAYS_ON_TOP',
     'main:MINIMIZE_TO_TRAY',
     'main:MODELS_DIRECTORY',
+    'main:MOD_COMMUNITY_ENABLED',
     'main:MOD_SYSTEM_ENABLED',
     'main:OBS_BROWSER_SOURCE_ENABLED',
     'main:OBS_BROWSER_SOURCE_PORT',
@@ -83,6 +84,8 @@ export const STORAGE_KEYS = [
     'provider:netease:cookie',
     'provider:qq:cookie',
     'web:active_online_provider_id',
+    'web:add_to_playlist_last_folia_playlist',
+    'web:add_to_playlist_last_pane',
     'web:always_show_main_window_titlebar',
     'web:always_show_player_back_button',
     'web:always_show_track_switch_buttons',
@@ -193,6 +196,7 @@ export const STORAGE_KEYS = [
     'web:i18nextLng',
     'web:last_app_view',
     'web:last_applied_theme_pointer',
+    'web:last_home_online_tab',
     'web:last_home_view_tab',
     'web:lattice_auto_focus_on_song_change',
     'web:lattice_badge_current_only',
@@ -280,6 +284,7 @@ export const STORAGE_KEYS = [
     'web:show_harmony_subtitle',
     'web:show_home_tab_albums',
     'web:show_home_tab_explore',
+    'web:show_home_tab_folia',
     'web:show_home_tab_local',
     'web:show_home_tab_playlist',
     'web:show_home_tab_radio',
@@ -332,6 +337,23 @@ export const STORAGE_KEYS = [
     'web:wallpaper_mode',
     'web:web_obs_theme_mode',
     'web:window_titlebar_side',
+    // Folium 2.0 S2（2026-11-14）：各音源的状态（启用 / 只用于匹配 / 停用）和合规预案里被接管的短 id 归谁，都在主进程的 mod-system store 里。
+    'main:mods.sourceStates',
+    'main:mods.sourceClaims',
+    // 音源模组用过的自己的分区（persist:folium.<模组 id>.<名>），给“清除数据”用（Electron 列不出分区）。
+    'main:mods.sourcePartitions',
+    // 确认过覆盖副本的内置模组（内置 id → 覆盖它的模组 id）：建窗口前不先起它，免得起来又被换掉。
+    'main:mods.overriddenBuiltins',
+    // Folium 2.0 S8（2026-11-20）：全新 profile 欠开箱引导的「你用哪些平台听歌」一页（'pending'），答过记 'done'；升级来的 profile 没有这条。
+    'main:mods.sourcesOnboarding',
+    // Folium 2.0 S1 的听歌上报设置，每个音源一个键 `folia_playback_report:<音源 id>`（网易云沿用 folia_netease_scrobble）；S2 补登记。
+    'web:folia_playback_report:*',
+    // Folium 2.0（2026-11-20）：每个音源上次在本窗口加载时声明的能否只用于匹配（音源 id → 布尔），停用的音源靠它在设置与命令面板里仍给三态。
+    'web:folia.sources.matchOnly',
     'web:folia_perf_check_offered',
     'web:visualizer_picker_keep_open',
+    // 网易云更早的版本存登录 cookie / 匿名 cookie 的旧名（之后放在 online_provider:netease: 下）：宿主的页面存储在建网易云的
+    // 那一份时搬一次（src/mods/folium/registries/sourcePageStore.ts）；迁成模组之前由宿主的 provider 当旧键读。
+    'web:netease_anonymous_cookie',
+    'web:netease_cookie',
 ];

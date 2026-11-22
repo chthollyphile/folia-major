@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
 import { currentTime } from '@/stores/motionSignals';
@@ -7,7 +8,8 @@ import { seekExternalSongIfNotLoaded, startExternalSong } from '@/components/app
 
 // test/unit/appleMusic/externalSongStart.test.ts
 // The play button and a seek on a restored external song: it starts where the screen shows it, or
-// over again from the start when it was left at its end.
+// over again from the start when it was left at its end. The Apple Music source mod is registered (its
+// playback.external@1 makes the song an external one).
 
 const song: SongResult = {
     id: 'apple-song',

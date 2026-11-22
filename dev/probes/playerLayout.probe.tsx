@@ -15,6 +15,8 @@ import { PlayerState } from '../../src/types';
 import activateLayoutDemo from '../folium/player-layout-demo/client.mjs';
 import type { ProbeDefinition } from './definition';
 import { createFoliumClientApi } from '../../src/mods/folium/api';
+import { addOldClientNames } from '../../src/mods/folium/deprecated';
+import type { ModRuntimeInfo } from '../../src/mods/types';
 import { PlayerBottomBarLayoutContext } from '../../src/components/floating-player/PlayerBottomBarLayoutContext';
 
 // dev/probes/playerLayout.probe.tsx
@@ -28,16 +30,26 @@ const noCommand = async () => false;
 // No commands are registered: this probe exercises only the real palette's overlay event boundary.
 const commandContext = { scope: {} } as CommandPaletteContext;
 
+// What the client loader hands a mod (src/mods/runtime/clientLoader.ts): the manifest as the main process
+// reports it, where the old permission id `ui.stage` already reads `stageLayers`, and the `folium` object with
+// the Folium 1.5 names kept working (`ctx.subscribe`), which the example mod is still written against.
+const DEMO_MOD: ModRuntimeInfo = {
+    id: 'player-layout-demo', name: 'Player layout example', version: '2.1.0', author: null, description: null,
+    permissions: ['stageLayers'], experimental: ['player.layout'], embedOrigins: [],
+    status: 'loaded', error: null, enabled: true, trustStale: false, devSource: false,
+    signature: { status: 'unsigned', reason: null, keyId: null, keyLabel: null, signedAt: null },
+    folia: null, hasMain: false, clientUrl: null,
+};
+
 const DemoLayer: React.FC = () => {
     useEffect(() => {
-        activateLayoutDemo(createFoliumClientApi({
-            id: 'player-layout-demo', name: 'Player layout example', version: '2.1.0', author: null, description: null,
-            permissions: ['ui.stage'], experimental: ['player.layout'], embedOrigins: [],
-            status: 'loaded', error: null, enabled: true, trustStale: false, devSource: false,
-            signature: { status: 'unsigned', reason: null, keyId: null, keyLabel: null, signedAt: null },
-            folia: null, hasMain: false, clientUrl: null,
-        }, { context: 'main', experimental: {}, onRelease: () => {}, stopped: () => false }));
+        let cancelled = false;
+        const api = createFoliumClientApi(DEMO_MOD, { context: 'main', experimental: {}, onRelease: () => {}, stopped: () => cancelled });
+        void addOldClientNames(api, DEMO_MOD, 'main').then((folium) => {
+            if (!cancelled) activateLayoutDemo(folium);
+        });
         return () => {
+            cancelled = true;
             stageLayersRegistry.unregisterAll('player-layout-demo');
         };
     }, []);

@@ -4,7 +4,7 @@ import type {
     LibraryDirectoryNodeSelection,
     LibraryDirectoryVisibilityMode,
 } from '../../core/directory/directory.contract';
-import type { LibraryHomeCard, LibraryHomeTabView } from '../../core/home/homeModel.contract';
+import type { LibraryHomeCard, LibraryHomeGroupView, LibraryHomeTabView } from '../../core/home/homeModel.contract';
 import { homeCardToDirectoryItem } from '../../core/directory/directoryItems';
 import { isDirectoryItemHidden, isHideableDirectoryItem } from '../../core/directory/directoryVisibility';
 import {
@@ -285,21 +285,21 @@ export const cycleHomeTab = (
 };
 
 /**
- * 缝里的一级页签：原生页签，后面接宿主交来的扩展页签（模组的首页页面；id 带模组前缀 `modid:name`，不会与原生的
- * key 撞上）。选中态以宿主为准：扩展页签开着时原生页签都不算选中，aria-selected 与高亮跟着走。
+ * 首页两级页签的一级那一排：组（Folia、当前在线音源、本地、Navidrome）在前，扩展页签在后；key 是组的 key。
+ * 有扩展页签开着时组都不算选中。
  */
-export const projectHomeSeamTabs = (
-    tabs: readonly LibraryHomeTabView[],
-    active: string,
+export const projectHomeSeamGroups = (
+    groups: readonly LibraryHomeGroupView[],
     extraTabs: readonly Pick<LibraryHomeExtraTab, 'id' | 'label' | 'active'>[] = [],
 ): BravaisSeamTab[] => {
     const extraActive = extraTabs.some(tab => tab.active);
     return [
-        ...tabs.map(candidate => ({
-            key: candidate.key,
-            label: candidate.label,
-            active: !extraActive && candidate.key === active,
-            disabled: Boolean(candidate.disabledReason),
+        ...groups.map(group => ({
+            key: group.key,
+            label: group.label,
+            active: !extraActive && group.active,
+            disabled: group.target === null,
+            ...(group.disabledReason ? { title: group.disabledReason } : {}),
         })),
         ...extraTabs.map(entry => ({ key: entry.id, label: entry.label, active: entry.active, disabled: false })),
     ];
