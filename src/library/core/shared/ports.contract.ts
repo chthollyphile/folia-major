@@ -49,7 +49,8 @@ export type LibraryPlaylistOption = { id: string | number; name: string; descrip
 
 /** 本地曲库的来源动作；编辑对话框由宿主挂载。 */
 export interface LibraryLocalMutationPort {
-    removePlaylistSongs?: (playlistId: string, songIds: string[]) => Promise<void> | void;
+    /** 从 Folia 聚合歌单里移除条目，按条目的 key（foliaPlaylistEntryKeyOf）。 */
+    removePlaylistSongs?: (playlistId: string, entryKeys: string[]) => Promise<void> | void;
     /** 重新读取本地曲库（歌单、歌曲）。 */
     refresh?: () => Promise<void> | void;
     renamePlaylist?: (playlistId: string, name: string) => Promise<void> | void;

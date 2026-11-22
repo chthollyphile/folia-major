@@ -61,7 +61,7 @@ type WallToolsQueueIslandHeaderProps = {
     host: WallToolsHost;
     count: number;
     readOnly: boolean;
-    /** 当前队列能不能存成本地歌单（utils/queueReorder 的 canSaveQueueAsLocalPlaylist）。 */
+    /** 当前队列能不能存成歌单（utils/queueReorder 的 canSaveQueueAsPlaylist）。 */
     canSave: boolean;
     /** 经浮岛的 aria-live 播报一句。 */
     announce: (text: string) => void;

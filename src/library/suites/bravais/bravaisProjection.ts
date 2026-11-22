@@ -66,6 +66,8 @@ export type TrackDescription = {
     durationMs: number;
     playbackKey: string;
     unavailable: boolean;
+    /** 副标题后面接的一句（混合来源的歌单里这首来自哪里、来源不在时的原因）；没有就不接。 */
+    note?: string;
 };
 
 export const formatDuration = (durationMs: number) => {
@@ -98,7 +100,8 @@ export const projectCollectionTracks = (
         if (!key) return;
         const description = describeTrack(track);
         const listenCount = (track as UnifiedSong).listenCount;
-        const who = description.artists.join(', ') || description.album || unknownArtist;
+        const named = description.artists.join(', ') || description.album || unknownArtist;
+        const who = description.note ? `${named} · ${description.note}` : named;
         items.push({
             key,
             kind: 'track',

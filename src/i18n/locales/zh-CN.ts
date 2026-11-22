@@ -137,6 +137,7 @@ export default {
     "offerLater": "以后再说"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "整本存成歌单…",
     "title": "速记簿",
     "count_one": "{{count}} 首",
     "count_other": "{{count}} 首",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "已选 {{count}} 首",
     "removeSelected": "移出速记簿",
     "clearSelection": "取消选择",
-    "mixedSourcesHint": "选中的歌来源不同，一个歌单只能放同一来源的歌",
     "queue": "播放队列",
     "queueHint": "正在播的这份队列。点一首就播它；展开后能多选、拖动排序。",
     "queueEmpty": "播放队列是空的。",
@@ -405,8 +405,8 @@ export default {
     "queueCount_other": "播放队列 · {{count}} 首",
     "queueClear": "清空队列",
     "queueClearConfirm": "再点一次清空",
-    "queueSave": "存为本地歌单",
-    "queueSaved": "已存为本地歌单「{{name}}」",
+    "queueSave": "存为歌单",
+    "queueSaved": "已存为歌单「{{name}}」",
     "queueSaveFailed": "歌单没能保存",
     "queueDragHandle": "拖动排序",
     "queueMoved": "已移到第 {{position}} 首",
@@ -1109,8 +1109,8 @@ export default {
       "grid-resync-folder": { "title": "重新导入此文件夹", "description": "重新扫描这个本地文件夹并刷新其中的歌曲" },
       "grid-resync-all-folders": { "title": "重新导入全部文件夹", "description": "重新扫描所有本地文件夹并刷新曲库" },
       "grid-organize-song-info": { "title": "整理歌曲信息", "description": "整理这个文件夹里歌曲的标题、艺人和专辑" },
-      "grid-reorder-playlist": { "title": "调整歌曲顺序", "description": "编辑当前本地歌单的歌曲顺序" },
-      "grid-export-playlist": { "title": "导出此歌单", "description": "把这个本地歌单保存为 m3u8 文件" },
+      "grid-reorder-playlist": { "title": "调整歌曲顺序", "description": "编辑当前 Folia 歌单的歌曲顺序" },
+      "grid-export-playlist": { "title": "导出此歌单", "description": "把这个 Folia 歌单保存为 m3u8 文件" },
       "grid-edit-entity": { "title": "编辑此专辑或艺人", "description": "为这个合集打开本地曲库的实体编辑面板" },
       "grid-set-cover": { "title": "设置合集封面", "description": "为这个本地文件夹、专辑或歌单选一张固定的封面" },
       "grid-toggle-edit-mode": { "title": "切换编辑模式", "description": "进入或退出可以从这个合集里移除歌曲的模式" },
@@ -1120,7 +1120,7 @@ export default {
       "grid-shuffle-play-filtered": { "title": "随机播放当前范围", "description": "把这个集合（筛选时只算筛出的歌）打乱顺序后作为播放队列，从随机的一首开始播" },
       "directory-play-selection": { "title": "播放选中的卡片", "description": "按卡片顺序播放地图上选中卡片的歌曲" },
       "directory-enqueue-selection": { "title": "选中的卡片加入队列", "description": "把地图上选中卡片的歌曲加入播放队列" },
-      "directory-create-playlist": { "title": "用选中的卡片新建歌单", "description": "用选中卡片的歌曲新建一个本地歌单" },
+      "directory-create-playlist": { "title": "用选中的卡片新建歌单", "description": "用选中卡片的歌曲新建一个 Folia 歌单" },
       "directory-remove-selection": { "title": "从曲库删除选中的", "description": "确认后把选中的文件夹及其歌曲从本地曲库删除" },
       "directory-select-all": { "title": "全选筛选出的卡片", "description": "打开批量面板，选中筛选结果里的每一张卡片" },
       "directory-clear-selection": { "title": "清空选择", "description": "取消地图上所有卡片的选中" },
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "VIP 专属"
   },
   "playlist": {
+    "lastUsed": "上次用的",
     "play": "播放",
     "viewTracks": "查看曲目",
     "locatePlaying": "在这一页定位正在播放的歌",
@@ -2011,6 +2012,9 @@ export default {
     "openSetup": "播放设置"
   },
   "home": {
+    "foliaEmpty": "还没有歌单。新建一张，或者在任何来源的歌上用「加入歌单」。",
+    "foliaReorderPlaylists": "调整歌单顺序",
+    "foliaPlaylist": "Folia 歌单",
     "welcome": "欢迎使用 Folia",
     "lattice": "队列拼贴",
     "latticeLabel": "队列拼贴",
@@ -5053,6 +5057,36 @@ export default {
     "coverCacheFailed": "元数据已保存，但封面缓存失败；在线地址可用时仍会继续显示封面。",
     "lyricsNotAppliedOtherSaved": "歌词未应用，其他选择已保存。"
   },
+  "foliaPlaylist": {
+    "rejectedNote": "有 {{count}} 首没能放进去",
+    "clearScratchpad": "清空速记簿",
+    "noneAdded": "这些歌都放不进歌单",
+    "allDuplicates": "这 {{duplicates}} 首都已在「{{name}}」里",
+    "addedSome": "加了 {{added}} 首到「{{name}}」，{{duplicates}} 首已在歌单里",
+    "added": "加了 {{added}} 首到「{{name}}」",
+    "created": "已新建「{{name}}」",
+    "navidromeUnconfigured": "未配置 Navidrome",
+    "localMissing": "曲库里没有这个文件",
+    "sourceMissing": "音源未安装",
+    "sourceOff": "音源已停用",
+  },
+  "foliaPlaylistOrder": {
+    "changed": "歌单有增减，请重新打开编辑器以载入最新顺序。",
+    "sortNotice": "将全部 {{count}} 张歌单（含暂存区）按名称从 A 到 Z 排列吗？保存后无法撤销",
+    "sortTitle": "按名称排序全部歌单？",
+    "sort": "按名称排序",
+    "selectedCount": "已选 {{count}} 张",
+    "finishStaging": "暂存区里还有歌单，插回列表后才能保存。",
+    "listEmpty": "歌单都在暂存区里，把它们插回来。",
+    "stageHint": "选中歌单后放进这里，再整组插回想要的位置。",
+    "insertHint": "拖动整组到两张歌单之间，或点列表行尾的插入键。",
+    "insertBefore": "将暂存的歌单插在「{{title}}」前",
+    "dragCount": "移动 {{count}} 张",
+    "dragSong": "拖动这张歌单或已选歌单",
+    "songCount": "{{count}} 张",
+    "list": "歌单顺序",
+    "edit": "调整歌单顺序",
+  },
   "localPlaylistOrder": {
     "edit": "调整歌曲顺序",
     "list": "歌曲顺序",
@@ -6422,7 +6456,7 @@ export default {
       "localFolderActionsDelete": "红色那颗会删东西",
       "localMetadataMatchReveal": "三重条件才出现的一颗铅笔",
       "localTrackSortingFields": "只有本地文件夹能排序",
-      "localGridControlsSources": "文件夹、专辑、艺术家与本地歌单",
+      "localGridControlsSources": "文件夹、专辑与艺术家",
       "localGridControlsMaintenance": "导入与刷新本地曲库",
       "onlineCollectionActionsCommon": "在线集合共用的操作",
       "onlineCollectionActionsProvider": "操作取决于当前来源",
@@ -6862,7 +6896,7 @@ export default {
         "onlinePlaylist": "在线的自有歌单走的是另一条路：它是就地编辑，改一下算一下，没有「退出时提交」这个步骤。同一颗按钮，两种来源两种行为。"
       },
       "localFolderActions": {
-        "conditional": "操作栏随本地集合类型变化：文件夹可重扫和整理歌曲信息，本地歌单可导出，本地专辑或艺术家可编辑实体。",
+        "conditional": "操作栏随本地集合类型变化：文件夹可重扫和整理歌曲信息，Folia 歌单可导出，本地专辑或艺术家可编辑实体。",
         "playAll": "最上面两颗任何集合都有：全部播放和加入队列。页面上开着筛选时，它们作用于筛出来的那些，按钮文字会写出条数。",
         "reimport": "重新导入会增量扫描文件夹：新增、更新和移除分别处理，不会重建已有记录。",
         "organize": "「整理歌曲信息」打开的是这个文件夹的批量改 tag 面板 —— 一次处理整个文件夹，不是一首一首改。",
@@ -6870,9 +6904,9 @@ export default {
         "confirm": "删除前会确认；根文件夹和子文件夹的影响范围不同，确认框会说明。"
       },
       "localGridControls": {
-        "sources": "这一排在本地曲库内部切换文件夹、专辑、艺术家和本地歌单。它换的是 Grid3D 轨道里的集合类型，不是切换在线音乐来源。",
-        "foldersAndPlaylists": "「文件夹」保留导入时的目录结构；「歌单」是 Folia 保存在本地的歌单，和在线歌单、Navidrome 歌单彼此独立。",
-        "imports": "「导入文件夹」从目录加入音乐；「导入歌单」读取 M3U/M3U8，并用 Folia 能解析到的曲目建立本地歌单。",
+        "sources": "这一排在本地曲库内部切换文件夹、专辑和艺术家。它换的是 Grid3D 轨道里的集合类型，不是切换在线音乐来源。",
+        "foldersAndPlaylists": "「文件夹」保留导入时的目录结构。歌单不在这里：它们在首页的 Folia 页签，本地歌和各个来源的歌可以放进同一张。",
+        "imports": "「导入文件夹」从目录加入音乐。导入 M3U/M3U8 歌单的入口在首页的 Folia 页签。",
         "refresh": "「刷新」重新扫描已经导入的根目录，找出新增、变化和丢失的文件；它不会再复制一份曲库。"
       },
       "onlineCollectionActions": {
@@ -6881,10 +6915,10 @@ export default {
         "destructive": "只有当前来源支持修改且这个集合允许操作时，才会显示删除或移除。它修改的是远端或服务器集合，不会删除本地音频文件。"
       },
       "localGridMap": {
-        "page": "这是本地曲库的 GridMap。它把当前分类里的文件夹、专辑、艺术家或本地歌单铺成一张蜂窝地图，而不是只看 Grid3D 的单条轨道。",
+        "page": "这是本地曲库的 GridMap。它把当前分类里的文件夹、专辑或艺术家铺成一张蜂窝地图，而不是只看 Grid3D 的单条轨道。",
         "cards": "拖动或滚轮可在地图上移动。点一张卡会回到 Grid3D 并聚焦它；激活卡片则直接进入该集合。",
-        "openPanel": "文件夹、专辑和艺术家地图可点击中央标题打开批量选择：文件夹显示目录树，专辑和艺术家显示扁平列表；本地歌单地图只提供浏览。",
-        "batchActions": "面板会把选中的集合换算成曲目。可以播放、加入队列、建立本地歌单；在文件夹地图里还可移除选中的曲库记录。",
+        "openPanel": "点击中央标题可以打开批量选择：文件夹显示目录树，专辑和艺术家显示扁平列表。",
+        "batchActions": "面板会把选中的集合换算成曲目。可以播放、加入队列、建立 Folia 歌单；在文件夹地图里还可移除选中的曲库记录。",
         "filter": "{{mod}} + F 或直接输入可筛选地图。批量选择与目录树会跟随筛选后的卡片，所以操作只作用于当前可见的选择。",
         "back": "返回会关闭 GridMap，回到进入前的本地 Grid3D 分类和焦点位置。"
       },

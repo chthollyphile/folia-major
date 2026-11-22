@@ -11,12 +11,13 @@ import { setBravaisSearchOpen } from './bravaisHomeUiStore';
 import { useBravaisHomeChrome } from './useBravaisHomeChrome';
 import { BravaisHomeLocal, BravaisHomeNavidrome, BravaisHomeOnline } from './BravaisHomeSources';
 import BravaisHomeExplore from './BravaisHomeExplore';
-import { BravaisHomeFolia, BravaisHomeNoSources } from './BravaisHomeNotice';
+import { BravaisHomeNoSources } from './BravaisHomeNotice';
+import BravaisHomeFolia from './BravaisHomeFolia';
 
 // src/library/suites/bravais/BravaisHome.tsx
 // 首页 surface（B9，设计稿 §10.5）：两级页签——缝里一级是组（Folia、当前在线音源、本地、Navidrome），二级是组里的页
-// （在线组的歌单 / 电台 / 专辑 / 探索，本地四行，Navidrome 的 section）。各页（歌单 / 电台 / 专辑 / 探索 / 本地 / Navidrome）都铺墙；
-// Folia 组先是一面空墙加打开速记簿的入口（BravaisHomeNotice），聚合歌单的墙之后接在那里。探索按网格探索拼贴的
+// （在线组的歌单 / 电台 / 专辑 / 探索，本地三行，Navidrome 的 section）。各页（歌单 / 电台 / 专辑 / 探索 / 本地 / Navidrome）都铺墙；
+// Folia 组是聚合歌单的墙（BravaisHomeFolia）。探索按网格探索拼贴的
 // 排法铺（BravaisHomeExplore）。与 TUI、网格用同一套首页
 // 绑定（来源与页签、在线列表、首页资源与动作都来自 core，换 suite 不重新请求），按当前来源挂一个来源组件
 // （BravaisHomeSources），它把当前页签 / section 的卡片投影成首页层推进 stage store；这里自己只渲染一个不可见的锚点。
@@ -101,7 +102,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
             className="pointer-events-none absolute inset-0"
         >
             {tab === 'folia' ? (
-                <BravaisHomeFolia chrome={chrome} isInteractive={isInteractive} />
+                <BravaisHomeFolia {...common} meta={tabLabel('folia')} playlists={props.localPlaylists} localSongs={props.localSongs} />
             ) : isOnlineHomeTab(tab) && chrome.noSources ? (
                 <BravaisHomeNoSources chrome={chrome} isInteractive={isInteractive} meta={groups.find(group => group.key === 'online')?.label ?? ''} layerKey={`home:${tab}`} />
             ) : tab === 'explore' ? (
@@ -122,7 +123,6 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
                     {...common}
                     meta={tabLabel('local')}
                     localSongs={props.localSongs}
-                    localPlaylists={props.localPlaylists}
                     catalog={props.localLibraryCatalog}
                     activeRow={localMusicState.activeRow}
                     setActiveRow={row => setLocalMusicState(previous => ({ ...previous, activeRow: row }))}

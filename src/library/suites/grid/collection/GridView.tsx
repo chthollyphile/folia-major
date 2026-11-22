@@ -1,11 +1,11 @@
 import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
 import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Shuffle, Loader2, Heart, ListOrdered, ListPlus, NotebookPen, Pencil, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../../../../types';
-import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
+import { getTrackSourceKey, getTrackSourceLabel, getTrackUnplayableLabel, isTrackShownUnplayable, readTrackSourcesVersion, subscribeTrackSources, trackSourceHue } from '../../../../services/foliaPlaylist/trackSourceState';
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -522,6 +522,10 @@ export const GridView: React.FC<GridViewProps> = ({
 
     const collectionSource = collection?.source as string | undefined;
     const isLocalCollection = collectionSource === 'local';
+    // Folia 聚合歌单（本地集合里带 playlistId 的那种）混着各个来源的歌：每行标出来源。
+    // 卡片记着上一次的属性不重画：来源的状态变了，靠这个版本号让它们跟上。
+    const sourcesVersion = useSyncExternalStore(subscribeTrackSources, readTrackSourcesVersion);
+    const showTrackSource = isLocalCollection && Boolean((collection as { playlistId?: string } | null)?.playlistId);
     const isNavidromeCollection = collectionSource === 'navidrome';
     const isAlbumCollection = collection?.type === 'album';
     const isDailyRecommendationsCollection = collectionSource === 'online' && collection?.type === 'daily_recommendations';
@@ -1205,6 +1209,9 @@ export const GridView: React.FC<GridViewProps> = ({
                                 cardWidth={layoutConfig.cardWidth}
                                 cardHeight={layoutConfig.cardHeight}
                                 fullBleedCover={fullBleedCover}
+                                sourceLabel={showTrackSource && item.rawTrack ? getTrackSourceLabel(item.rawTrack, t) : undefined}
+                                sourceHue={showTrackSource && item.rawTrack ? trackSourceHue(getTrackSourceKey(item.rawTrack)) : undefined}
+                                sourcesVersion={sourcesVersion}
                                 isEditMode={isEditMode}
                                 onRemoveTrack={isRemovingTrack ? undefined : () => {
                                     if (item.rawTrack) void handleRemoveTrack(item.rawTrack, trackKey);
@@ -2302,7 +2309,9 @@ export const GridView: React.FC<GridViewProps> = ({
                             track={track}
                             index={index}
                             style={style}
-                            isUnavailable={isSongUnavailable(track)}
+                            isUnavailable={isTrackShownUnplayable(track)}
+                            sourceLabel={showTrackSource ? getTrackSourceLabel(track, t) : undefined}
+                            unavailableLabel={getTrackUnplayableLabel(track, t, t('status.songUnavailableTag'))}
                             isActive={index === listFocusedIndex}
                             albumTrackLabel={getAlbumTrackLabel(track)}
                             onPlay={() => {

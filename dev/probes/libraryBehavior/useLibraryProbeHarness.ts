@@ -11,6 +11,7 @@ import {
     type GridViewCollectionDescriptor,
 } from '../../../src/components/app/home/gridViewCollectionAdapters';
 import { buildLocalHomeGroups } from '../../../src/library/core/home/localHomeModel';
+import { buildFoliaHomeGroups } from '../../../src/library/core/home/foliaHomeModel';
 import { getLocalCoverAssetUrl } from '../../../src/services/localCoverAssetUrl';
 import { getFoliaPlaylists } from '../../../src/services/foliaPlaylist/foliaPlaylistService';
 import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../src/hooks/useLocalLibraryCatalog';
@@ -275,13 +276,13 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
                 editable: true,
             } as Parameters<typeof createNavidromeGridViewCollection>[0], 'playlist');
         }
-        const groups = buildLocalHomeGroups(localSongs, localPlaylists, t, localLibraryCatalog.ready ? localLibraryCatalog : undefined, getLocalCoverAssetUrl);
+        const groups = buildLocalHomeGroups(localSongs, t, localLibraryCatalog.ready ? localLibraryCatalog : undefined, getLocalCoverAssetUrl);
         const group = fixtureId === 'local-all'
             ? groups.folders.find(candidate => candidate.isVirtual)
             : fixtureId === 'local-folder'
                 ? groups.folders.find(candidate => candidate.id === 'folder-Folder A')
                 : fixtureId === 'local-playlist'
-                    ? groups.playlists.find(candidate => candidate.name === LOCAL_PLAYLIST_NAME)
+                    ? buildFoliaHomeGroups(localPlaylists, localSongs, t, getLocalCoverAssetUrl).find(candidate => candidate.name === LOCAL_PLAYLIST_NAME)
                     : groups.albums.find(candidate => candidate.name === 'Alpha Album' && candidate.entityId);
         return group ? createLocalGridViewCollection(group) : null;
     }, [localLibraryCatalog, localPlaylists, localSongs, t]);
@@ -313,12 +314,12 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
     // 直接写导航 store，与真实界面里点歌手名之后宿主做的压栈是同一个动作（只是没有转场）。
     const pushArtist = useCallback((): boolean => {
         if (!sandbox) return false;
-        const groups = buildLocalHomeGroups(localSongs, localPlaylists, t, localLibraryCatalog.ready ? localLibraryCatalog : undefined, getLocalCoverAssetUrl);
+        const groups = buildLocalHomeGroups(localSongs, t, localLibraryCatalog.ready ? localLibraryCatalog : undefined, getLocalCoverAssetUrl);
         const artist = groups.artists.find(candidate => candidate.entityId) ?? groups.artists[0];
         if (!artist || !useCollectionNavigationStore.getState().snapshot) return false;
         onPushCollection(createLocalGridViewCollection(artist));
         return true;
-    }, [localLibraryCatalog, localPlaylists, localSongs, onPushCollection, sandbox, t]);
+    }, [localLibraryCatalog, localSongs, onPushCollection, sandbox, t]);
 
     // 以根层打开一个歌手页。在线用搜索结果同款的描述（createSearchArtistCollection 解析出的形状），
     // Navidrome 与本地用首页同款（本地走 Grid3D 的歌手分组）。
@@ -334,12 +335,12 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
             onOpenCollection({ source: 'navidrome', id: artist.id, name: artist.name, type: 'artist' });
             return true;
         }
-        const groups = buildLocalHomeGroups(localSongs, localPlaylists, t, localLibraryCatalog.ready ? localLibraryCatalog : undefined, getLocalCoverAssetUrl);
+        const groups = buildLocalHomeGroups(localSongs, t, localLibraryCatalog.ready ? localLibraryCatalog : undefined, getLocalCoverAssetUrl);
         const artist = groups.artists.find(candidate => candidate.entityId);
         if (!artist) return false;
         onOpenCollection(createLocalGridViewCollection(artist));
         return true;
-    }, [localLibraryCatalog, localPlaylists, localSongs, onOpenCollection, sandbox, t]);
+    }, [localLibraryCatalog, localSongs, onOpenCollection, sandbox, t]);
 
     const latestRef = useRef({ open, ready, push, pushArtist, openArtist, refreshLocal });
     latestRef.current = { open, ready, push, pushArtist, openArtist, refreshLocal };

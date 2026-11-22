@@ -137,6 +137,7 @@ export default {
     "offerLater": "Để sau"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "Lưu cả sổ ghi nhanh thành danh sách phát…",
     "title": "Sổ ghi nhanh",
     "count_one": "{{count}} bài",
     "count_other": "{{count}} bài",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "Đã chọn {{count}} bài",
     "removeSelected": "Bỏ ra",
     "clearSelection": "Bỏ chọn",
-    "mixedSourcesHint": "Các bài đã chọn đến từ nhiều nguồn; một danh sách phát chỉ nhận một nguồn",
     "queue": "Hàng đợi",
     "queueHint": "Hàng đợi đang phát. Bấm một bài để phát; mở rộng để chọn nhiều và kéo để sắp xếp.",
     "queueEmpty": "Hàng đợi đang trống.",
@@ -405,8 +405,8 @@ export default {
     "queueCount_other": "Hàng đợi phát · {{count}} bài",
     "queueClear": "Xóa hàng đợi",
     "queueClearConfirm": "Nhấn lần nữa để xóa hàng đợi",
-    "queueSave": "Lưu thành danh sách phát nội bộ",
-    "queueSaved": "Đã lưu thành danh sách phát nội bộ “{{name}}”",
+    "queueSave": "Lưu thành danh sách phát",
+    "queueSaved": "Đã lưu thành danh sách phát “{{name}}”",
     "queueSaveFailed": "Không thể lưu danh sách phát",
     "queueDragHandle": "Kéo để sắp xếp lại",
     "queueMoved": "Đã chuyển đến vị trí {{position}}",
@@ -1109,8 +1109,8 @@ export default {
       "grid-resync-folder": { "title": "Nhập lại thư mục này", "description": "Quét lại thư mục nội bộ này và làm mới các bài hát" },
       "grid-resync-all-folders": { "title": "Nhập lại tất cả thư mục", "description": "Quét lại mọi thư mục nội bộ và làm mới thư viện" },
       "grid-organize-song-info": { "title": "Sắp xếp thông tin bài hát", "description": "Dọn dẹp tiêu đề, nghệ sĩ và album của thư mục này" },
-      "grid-reorder-playlist": { "title": "Sắp xếp lại bài hát", "description": "Chỉnh sửa thứ tự bài hát trong danh sách phát cục bộ này" },
-      "grid-export-playlist": { "title": "Xuất danh sách phát này", "description": "Lưu danh sách phát nội bộ này thành tệp m3u8" },
+      "grid-reorder-playlist": { "title": "Sắp xếp lại bài hát", "description": "Chỉnh sửa thứ tự bài hát trong danh sách phát Folia này" },
+      "grid-export-playlist": { "title": "Xuất danh sách phát này", "description": "Lưu danh sách phát Folia này thành tệp m3u8" },
       "grid-edit-entity": { "title": "Chỉnh sửa album hoặc nghệ sĩ này", "description": "Mở trình chỉnh sửa thực thể thư viện nội bộ cho bộ sưu tập này" },
       "grid-set-cover": { "title": "Đặt ảnh bìa bộ sưu tập", "description": "Chọn ảnh bìa cố định cho thư mục, album hoặc danh sách phát cục bộ này" },
       "grid-toggle-edit-mode": { "title": "Bật/tắt chế độ chỉnh sửa", "description": "Vào hoặc thoát chế độ cho phép xóa bài hát khỏi bộ sưu tập này" },
@@ -1120,7 +1120,7 @@ export default {
       "grid-shuffle-play-filtered": { "title": "Phát ngẫu nhiên các bài này", "description": "Đặt bộ sưu tập này (chỉ các bài đã lọc khi đang lọc) làm hàng đợi theo thứ tự trộn và bắt đầu từ một bài ngẫu nhiên" },
       "directory-play-selection": { "title": "Phát các thẻ đã chọn", "description": "Phát bài hát của các thẻ được chọn trên bản đồ theo thứ tự thẻ" },
       "directory-enqueue-selection": { "title": "Thêm các thẻ đã chọn vào hàng đợi", "description": "Thêm bài hát của các thẻ được chọn trên bản đồ vào hàng đợi" },
-      "directory-create-playlist": { "title": "Tạo danh sách phát từ mục đã chọn", "description": "Tạo danh sách phát nội bộ từ bài hát của các thẻ đã chọn" },
+      "directory-create-playlist": { "title": "Tạo danh sách phát từ mục đã chọn", "description": "Tạo danh sách phát Folia từ bài hát của các thẻ đã chọn" },
       "directory-remove-selection": { "title": "Xóa mục đã chọn khỏi thư viện", "description": "Xác nhận xóa các thư mục đã chọn cùng bài hát khỏi thư viện nội bộ" },
       "directory-select-all": { "title": "Chọn tất cả thẻ đã lọc", "description": "Mở bảng thao tác hàng loạt và chọn tất cả thẻ xuất hiện trong bộ lọc" },
       "directory-clear-selection": { "title": "Bỏ chọn tất cả", "description": "Bỏ chọn mọi thẻ trên bản đồ" },
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "Chỉ VIP"
   },
   "playlist": {
+    "lastUsed": "Dùng gần nhất",
     "play": "Phát",
     "viewTracks": "Xem bài hát",
     "locatePlaying": "Định vị bài hát đang phát trên trang này",
@@ -2011,6 +2012,9 @@ export default {
     "openSetup": "Thiết lập phát nhạc"
   },
   "home": {
+    "foliaEmpty": "Chưa có danh sách phát. Hãy tạo mới, hoặc thêm bài hát từ bất kỳ nguồn nào bằng “Thêm vào danh sách phát”.",
+    "foliaReorderPlaylists": "Sắp xếp danh sách phát",
+    "foliaPlaylist": "Danh sách phát Folia",
     "welcome": "Chào mừng đến với Folia",
     "lattice": "Lattice",
     "latticeLabel": "Lattice",
@@ -5054,6 +5058,36 @@ export default {
     "coverCacheFailed": "Đã lưu siêu dữ liệu nhưng không thể lưu đệm ảnh bìa. URL trực tuyến vẫn sẽ được dùng khi khả dụng.",
     "lyricsNotAppliedOtherSaved": "Chưa áp dụng lời bài hát; các lựa chọn khác đã được lưu.",
   },
+  "foliaPlaylist": {
+    "rejectedNote": "{{count}} bài không thêm được",
+    "clearScratchpad": "Xóa sổ ghi nhanh",
+    "noneAdded": "Không bài nào có thể đưa vào danh sách phát",
+    "allDuplicates": "Đã có trong “{{name}}” ({{duplicates}})",
+    "addedSome": "Đã thêm {{added}} bài vào “{{name}}”; {{duplicates}} bài đã có sẵn",
+    "added": "Đã thêm {{added}} bài vào “{{name}}”",
+    "created": "Đã tạo “{{name}}”",
+    "navidromeUnconfigured": "Chưa thiết lập Navidrome",
+    "localMissing": "Tệp không có trong thư viện",
+    "sourceMissing": "Nguồn chưa được cài",
+    "sourceOff": "Nguồn đã tắt",
+  },
+  "foliaPlaylistOrder": {
+    "changed": "Các danh sách đã thay đổi. Hãy mở lại trình chỉnh sửa để tải thứ tự mới nhất.",
+    "sortNotice": "Xếp tất cả {{count}} danh sách (kể cả đang giữ) theo tên từ A đến Z? Không thể hoàn tác sau khi lưu.",
+    "sortTitle": "Sắp xếp mọi danh sách theo tên?",
+    "sort": "Sắp xếp theo tên",
+    "selectedCount": "Đã chọn {{count}}",
+    "finishStaging": "Hãy chèn lại các danh sách đang giữ trước khi lưu.",
+    "listEmpty": "Mọi danh sách đang được giữ. Hãy chèn lại.",
+    "stageHint": "Đặt các danh sách đã chọn vào đây, rồi chèn lại theo nhóm.",
+    "insertHint": "Kéo cả nhóm vào giữa hai danh sách, hoặc dùng nút chèn ở cuối hàng.",
+    "insertBefore": "Chèn các danh sách đang giữ trước “{{title}}”",
+    "dragCount": "Di chuyển {{count}} danh sách",
+    "dragSong": "Kéo danh sách này hoặc các danh sách đã chọn",
+    "songCount": "{{count}} danh sách",
+    "list": "Thứ tự danh sách phát",
+    "edit": "Sắp xếp danh sách phát",
+  },
   "localPlaylistOrder": {
     "edit": "Sắp xếp lại bài hát",
     "list": "Thứ tự bài hát",
@@ -6424,7 +6458,7 @@ export default {
       "localFolderActionsDelete": "Nút màu đỏ dùng để xóa",
       "localMetadataMatchReveal": "Biểu tượng bút chì và 3 điều kiện",
       "localTrackSortingFields": "Chỉ sắp xếp được thư mục nội bộ",
-      "localGridControlsSources": "Thư mục, album, nghệ sĩ và danh sách phát nội bộ",
+      "localGridControlsSources": "Thư mục, album và nghệ sĩ",
       "localGridControlsMaintenance": "Nhập và làm mới thư viện nội bộ",
       "onlineCollectionActionsCommon": "Thao tác chung cho bộ sưu tập trực tuyến",
       "onlineCollectionActionsProvider": "Thao tác phụ thuộc nguồn hiện tại",
@@ -6872,9 +6906,9 @@ export default {
         "confirm": "Hệ thống sẽ xác nhận trước với hai mức: gỡ thư mục gốc khác với gỡ thư mục con, hộp thoại sẽ nêu rõ phạm vi tác động. Nên đọc kỹ trước khi bấm."
       },
       "localGridControls": {
-        "sources": "Hàng này chuyển đổi thư viện nội bộ giữa thư mục, album, nghệ sĩ và danh sách phát nội bộ. Nó đổi nội dung trên thanh Grid3D, không chuyển sang nguồn trực tuyến.",
-        "foldersAndPlaylists": "Thư mục giữ nguyên cấu trúc khi nhập. Danh sách phát nội bộ do Folia lưu trữ, độc lập với danh sách phát trực tuyến và Navidrome.",
-        "imports": "Nhập thư mục thêm nhạc từ một đường dẫn. Nhập danh sách phát đọc tệp M3U hoặc M3U8 và tạo danh sách phát nội bộ từ các bản nhạc Folia nhận diện được.",
+        "sources": "Hàng này chuyển thư viện cục bộ giữa thư mục, album và nghệ sĩ. Nó thay đổi nội dung của dải Grid3D, không chuyển sang nguồn trực tuyến.",
+        "foldersAndPlaylists": "Thư mục giữ nguyên cấu trúc khi nhập. Danh sách phát không nằm ở đây: chúng ở thẻ Folia trên trang chủ, nơi bài hát cục bộ và bài hát từ mọi nguồn có thể nằm chung một danh sách.",
+        "imports": "Nhập thư mục thêm nhạc từ một đường dẫn. Nhập danh sách phát M3U hoặc M3U8 nằm ở thẻ Folia trên trang chủ.",
         "refresh": "Làm mới sẽ quét lại các thư mục gốc đã nhập để tìm tệp mới, thay đổi hoặc bị thiếu. Thao tác không tạo thêm bản sao thư viện."
       },
       "onlineCollectionActions": {
@@ -6883,10 +6917,10 @@ export default {
         "destructive": "Nút xóa hoặc gỡ bỏ chỉ xuất hiện khi nguồn hỗ trợ và bộ sưu tập cho phép chỉnh sửa. Thao tác tác động lên bộ sưu tập từ xa hoặc máy chủ, không ảnh hưởng tệp âm thanh nội bộ."
       },
       "localGridMap": {
-        "page": "Đây là GridMap của thư viện nội bộ. Bản đồ trải các thư mục, album, nghệ sĩ hoặc danh sách phát hiện tại thành dạng tổ ong thay vì một thanh Grid3D duy nhất.",
+        "page": "Đây là GridMap của thư viện cục bộ. Nó xếp các thư mục, album hoặc nghệ sĩ hiện tại thành một tổ ong thay vì một dải Grid3D.",
         "cards": "Kéo hoặc cuộn chuột để di chuyển trên bản đồ. Nhấp vào thẻ sẽ quay lại Grid3D và tiêu điểm vào bộ sưu tập đó; kích hoạt thẻ để mở trực tiếp.",
-        "openPanel": "Bản đồ thư mục, album và nghệ sĩ có thể mở chọn hàng loạt từ tiêu đề: thư mục hiển thị cây thư mục, album và nghệ sĩ hiển thị danh sách phẳng. Bản đồ danh sách phát chỉ hỗ trợ duyệt.",
-        "batchActions": "Bảng điều khiển chuyển các mục đã chọn thành bài hát. Bạn có thể phát, thêm vào hàng đợi, tạo danh sách phát nội bộ và (ở bản đồ thư mục) xóa các bản ghi thư viện đã chọn.",
+        "openPanel": "Bản đồ có thể mở chọn hàng loạt từ tiêu đề: thư mục hiển thị cây thư mục, còn album và nghệ sĩ hiển thị danh sách phẳng.",
+        "batchActions": "Bảng chuyển các bộ sưu tập đã chọn thành bài hát. Bạn có thể phát, thêm vào hàng chờ, tạo danh sách phát Folia và—trên bản đồ thư mục—xóa các bản ghi thư viện đã chọn.",
         "filter": "{{mod}} + F hoặc gõ phím để lọc bản đồ. Chọn hàng loạt và cây thư mục sẽ bám theo các thẻ đã lọc, nên thao tác chỉ ảnh hưởng đến phần đang hiển thị.",
         "back": "Quay lại đóng GridMap và đưa bạn về danh mục cùng vị trí tiêu điểm Grid3D nội bộ trước đó."
       },

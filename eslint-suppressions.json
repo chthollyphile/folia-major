@@ -2852,7 +2852,7 @@
       "count": 1
     },
     "react-hooks/exhaustive-deps": {
-      "count": 26
+      "count": 25
     }
   },
   "src/components/app/playback/start/usePlaybackQueueController.ts": {
@@ -8605,14 +8605,11 @@
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 3
     },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 7
     },
     "@typescript-eslint/no-unsafe-call": {
-      "count": 10
+      "count": 9
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2

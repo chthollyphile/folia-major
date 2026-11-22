@@ -37,6 +37,8 @@ export type CollectionMutationBranches = {
     isLocalFolderCollection: boolean;
     isLocalAllSongsCollection: boolean;
     isLocalPlaylistCollection: boolean;
+    /** Folia 的「我喜欢的音乐」（isVirtual 的歌单）：能移除、能重排，不能改名、不能删。 */
+    isFoliaFavoritesCollection: boolean;
     isLocalEntityCollection: boolean;
     isNavidromePlaylistCollection: boolean;
     isCloudDrive: boolean;

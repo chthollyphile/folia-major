@@ -1,10 +1,10 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { ArrowDownToLine, ArrowUpToLine, Check, CornerDownRight, GripVertical, Layers, Minus, Music } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { List, type RowComponentProps } from 'react-window';
 import { Tooltip } from '../modal/settings/kit';
 import { SheetButton } from '../shared/Sheet';
 import { orderSongTitle, type OrderDraft, type OrderSong } from './playlistOrderDraft';
+import { useOrderText } from './orderText';
 
 // The draggable staging card and the virtualized song list share the same insertion gaps.
 // Every row stays on one line: cover, title, artist and album, duration.
@@ -58,7 +58,7 @@ type RowProps = Pick<ListsProps, 'draft' | 'selected' | 'onToggle' | 'onInsert'>
 };
 
 const SongRow = ({ index, style, ariaAttributes, draft, selected, onToggle, onInsert, gap, dragging, startDrag }: RowComponentProps<RowProps>) => {
-    const { t } = useTranslation();
+    const ot = useOrderText();
     const song = draft.list[index];
     const title = orderSongTitle(song);
     const meta = songMeta(song);
@@ -81,7 +81,7 @@ const SongRow = ({ index, style, ariaAttributes, draft, selected, onToggle, onIn
                 }}
                 className={`st-focus-inside st-t-fast group flex h-full cursor-pointer items-center gap-2.5 rounded-lg pl-1 pr-2 outline-none transition-[background-color,opacity] ${checked ? SELECTED_ROW : 'hover:bg-[var(--st-fill)]'} ${dragging?.has(song.id) ? 'opacity-35' : ''}`}
             >
-                <Tooltip text={t('localPlaylistOrder.dragSong')} className="inline-flex">
+                <Tooltip text={ot('dragSong')} className="inline-flex">
                     <span
                         draggable
                         onDragStart={event => startDrag(event, checked ? selected : new Set([song.id]), checked ? selected.size : 1)}
@@ -100,14 +100,14 @@ const SongRow = ({ index, style, ariaAttributes, draft, selected, onToggle, onIn
                 </span>
                 <span className="w-10 shrink-0 text-right text-xs tabular-nums text-[color:var(--st-t3)]">{formatDuration(song.durationMs)}</span>
                 {draft.staged.length > 0 && (
-                    <Tooltip text={t('localPlaylistOrder.insertBefore', { title })} className="inline-flex">
+                    <Tooltip text={ot('insertBefore', { title })} className="inline-flex">
                         <button
                             type="button"
                             onClick={event => {
                                 event.stopPropagation();
                                 onInsert(index);
                             }}
-                            aria-label={t('localPlaylistOrder.insertBefore', { title })}
+                            aria-label={ot('insertBefore', { title })}
                             className={`${ICON_BUTTON} text-[color:var(--st-t3)] hover:bg-[var(--st-fill2)] hover:text-[color:var(--st-accent)]`}
                         >
                             <CornerDownRight size={15} />
@@ -149,7 +149,7 @@ const listGapAtPointer = (event: DragEvent, length: number): number => {
 };
 
 export default function PlaylistOrderLists({ draft, selected, onToggle, onMove, onInsert }: ListsProps) {
-    const { t } = useTranslation();
+    const ot = useOrderText();
     const source = useRef<DragSource | null>(null);
     const ghost = useRef<HTMLDivElement>(null);
     const [dragging, setDragging] = useState<ReadonlySet<string> | null>(null);
@@ -165,7 +165,7 @@ export default function PlaylistOrderLists({ draft, selected, onToggle, onMove, 
         source.current = picked;
         // The browser's own picture would only be the grip; the ghost names how many songs move.
         if (ghost.current) {
-            ghost.current.textContent = t('localPlaylistOrder.dragCount', { count });
+            ghost.current.textContent = ot('dragCount', { count });
             event.dataTransfer.setDragImage(ghost.current, 14, 14);
         }
         setDragging(picked === 'staged' ? null : picked);
@@ -206,12 +206,12 @@ export default function PlaylistOrderLists({ draft, selected, onToggle, onMove, 
                 onDrop={event => accept(event, listGapAtPointer(event, draft.list.length), true)}
             >
                 {draft.list.length > 0 ? (
-                    <List aria-label={t('localPlaylistOrder.list')} style={{ height: '100%', width: '100%' }} className="st-scroll min-h-0 flex-1 py-1.5"
+                    <List aria-label={ot('list')} style={{ height: '100%', width: '100%' }} className="st-scroll min-h-0 flex-1 py-1.5"
                         rowCount={draft.list.length} rowHeight={ROW_HEIGHT} rowComponent={SongRow}
                         rowProps={{ draft, selected, onToggle, onInsert, gap: typeof target === 'number' ? target : null, dragging, startDrag }} />
                 ) : (
                     <div className={`m-3 grid flex-1 place-items-center rounded-lg border border-dashed text-center text-xs text-[color:var(--st-t3)] ${target === 0 ? 'border-[var(--st-accent)]' : 'border-[var(--st-line2)]'}`}>
-                        {t('localPlaylistOrder.listEmpty')}
+                        {ot('listEmpty')}
                     </div>
                 )}
             </div>
@@ -227,22 +227,22 @@ export default function PlaylistOrderLists({ draft, selected, onToggle, onMove, 
                     className={`flex shrink-0 items-center gap-2 px-3.5 pb-2 pt-3 ${hasStaged ? 'cursor-grab active:cursor-grabbing' : ''}`}
                 >
                     <Layers size={15} className="text-[color:var(--st-t2)]" />
-                    <span className="text-[13px] font-semibold">{t('localPlaylistOrder.stageTitle')}</span>
+                    <span className="text-[13px] font-semibold">{ot('stageTitle')}</span>
                     <span className="rounded-full bg-[var(--st-fill)] px-1.5 text-[11px] leading-[18px] tabular-nums text-[color:var(--st-t2)]">{draft.staged.length}</span>
                     {hasStaged && (
-                        <Tooltip text={t('localPlaylistOrder.dragGroup')} className="ml-auto inline-flex">
+                        <Tooltip text={ot('dragGroup')} className="ml-auto inline-flex">
                             <span className="grid h-6 w-5 place-items-center text-[color:var(--st-t3)]"><GripVertical size={15} /></span>
                         </Tooltip>
                     )}
                 </div>
                 {hasStaged ? (
                     <>
-                        <p className="shrink-0 px-3.5 pb-2 text-[11px] leading-4 text-[color:var(--st-t3)]">{t('localPlaylistOrder.insertHint')}</p>
+                        <p className="shrink-0 px-3.5 pb-2 text-[11px] leading-4 text-[color:var(--st-t3)]">{ot('insertHint')}</p>
                         <List style={{ height: '100%', width: '100%' }} className="st-scroll min-h-0 flex-1"
                             rowCount={draft.staged.length} rowHeight={STAGED_ROW_HEIGHT} rowComponent={StagedRow} rowProps={{ songs: draft.staged }} />
                         <div className="flex shrink-0 gap-2 border-t border-[var(--st-line)] p-2.5">
-                            <div className="flex-1 [&>button]:w-full"><SheetButton onClick={() => onInsert(0)}><ArrowUpToLine size={14} />{t('localPlaylistOrder.insertStart')}</SheetButton></div>
-                            <div className="flex-1 [&>button]:w-full"><SheetButton onClick={() => onInsert(draft.list.length)}><ArrowDownToLine size={14} />{t('localPlaylistOrder.insertEnd')}</SheetButton></div>
+                            <div className="flex-1 [&>button]:w-full"><SheetButton onClick={() => onInsert(0)}><ArrowUpToLine size={14} />{ot('insertStart')}</SheetButton></div>
+                            <div className="flex-1 [&>button]:w-full"><SheetButton onClick={() => onInsert(draft.list.length)}><ArrowDownToLine size={14} />{ot('insertEnd')}</SheetButton></div>
                         </div>
                     </>
                 ) : (
@@ -251,7 +251,7 @@ export default function PlaylistOrderLists({ draft, selected, onToggle, onMove, 
                         : 'border-[var(--st-line2)]'}`}
                     >
                         <Layers size={20} className="text-[color:var(--st-t3)]" />
-                        <p className="text-xs leading-[18px] text-[color:var(--st-t3)]">{t('localPlaylistOrder.stageHint')}</p>
+                        <p className="text-xs leading-[18px] text-[color:var(--st-t3)]">{ot('stageHint')}</p>
                     </div>
                 )}
             </div>

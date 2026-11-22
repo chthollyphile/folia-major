@@ -16,6 +16,7 @@ import {
     type OrderDraft,
     type OrderSong,
 } from './playlistOrderDraft';
+import { OrderNounContext, useOrderText, type OrderNoun } from './orderText';
 
 // Each opening edits its own snapshot. Only Save hands the finished order back to the playlist.
 // Every edit is a step of the history: the header's undo and redo, and Ctrl+Z / Ctrl+Shift+Z, walk it.
@@ -25,6 +26,8 @@ interface Props {
     isDaylight: boolean;
     onClose: () => void;
     onSave: (songIds: string[]) => Promise<boolean>;
+    /** 排的是什么（缺省是歌）：排歌单本身时文案里的「歌」换成「歌单」。 */
+    noun?: OrderNoun;
 }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -40,18 +43,27 @@ const HeaderIconButton = ({ label, disabled, onClick, children }: { label: strin
     </Tooltip>
 );
 
-export default function LocalPlaylistOrderDialog({ name, songs, isDaylight, onClose, onSave }: Props) {
+export default function FoliaPlaylistOrderDialog(props: Props) {
+    return (
+        <OrderNounContext.Provider value={props.noun ?? 'songs'}>
+            <OrderDialogBody {...props} />
+        </OrderNounContext.Provider>
+    );
+}
+
+function OrderDialogBody({ name, songs, isDaylight, onClose, onSave }: Props) {
     const { t, i18n } = useTranslation();
+    const ot = useOrderText();
     const [history, setHistory] = useState(() => startOrderHistory({ list: songs, staged: [] }));
     const draft = history.present;
     const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
     const anchor = useRef<number | null>(null);
     const [confirmSort, setConfirmSort] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<'localPlaylistOrder.changed' | 'localPlaylistOrder.failed' | null>(null);
+    const [error, setError] = useState<'changed' | 'failed' | null>(null);
     const changed = draft.staged.length > 0 || draft.list.some((song, i) => song.id !== songs[i]?.id);
     // After a conflict this snapshot can never be saved again; the editor has to be reopened.
-    const canSave = error !== 'localPlaylistOrder.changed' && draft.staged.length === 0 && changed;
+    const canSave = error !== 'changed' && draft.staged.length === 0 && changed;
     const allSelected = selected.size > 0 && selected.size === draft.list.length;
     const canUndo = history.past.length > 0 && !saving;
     const canRedo = history.future.length > 0 && !saving;
@@ -119,32 +131,32 @@ export default function LocalPlaylistOrderDialog({ name, songs, isDaylight, onCl
         setError(null);
         try {
             if (await onSave(draft.list.map(song => song.id))) onClose();
-            else setError('localPlaylistOrder.changed');
+            else setError('changed');
         } catch (saveError) {
-            console.warn('[LocalPlaylistOrder] Failed to save playlist order', saveError);
-            setError('localPlaylistOrder.failed');
+            console.warn('[FoliaPlaylistOrder] Failed to save playlist order', saveError);
+            setError('failed');
         } finally {
             setSaving(false);
         }
     };
 
     const footerNote = error
-        ? <span role="alert" className="text-[color:var(--st-err)]">{t(error)}</span>
+        ? <span role="alert" className="text-[color:var(--st-err)]">{ot(error)}</span>
         : draft.staged.length > 0
-            ? t('localPlaylistOrder.finishStaging')
-            : changed ? t('localPlaylistOrder.unsaved') : undefined;
+            ? ot('finishStaging')
+            : changed ? ot('unsaved') : undefined;
 
     return (
         <>
             <Sheet isOpen isDaylight={isDaylight} onClose={onClose} size="l" body="fill"
-                title={t('localPlaylistOrder.edit')}
-                subtitle={<span className="select-none">{name} · {t('localPlaylistOrder.songCount', { count: songs.length })}</span>}
+                title={ot('edit')}
+                subtitle={<span className="select-none">{name} · {ot('songCount', { count: songs.length })}</span>}
                 closeDisabled={saving}
                 headerActions={<>
-                    <HeaderIconButton label={`${t('localPlaylistOrder.undo')}  ${MOD}Z`} disabled={!canUndo} onClick={() => walk(undoOrderDraft)}>
+                    <HeaderIconButton label={`${ot('undo')}  ${MOD}Z`} disabled={!canUndo} onClick={() => walk(undoOrderDraft)}>
                         <Undo2 size={16} />
                     </HeaderIconButton>
-                    <HeaderIconButton label={`${t('localPlaylistOrder.redo')}  ${MOD}${isMac ? '⇧Z' : 'Shift+Z'}`} disabled={!canRedo} onClick={() => walk(redoOrderDraft)}>
+                    <HeaderIconButton label={`${ot('redo')}  ${MOD}${isMac ? '⇧Z' : 'Shift+Z'}`} disabled={!canRedo} onClick={() => walk(redoOrderDraft)}>
                         <Redo2 size={16} />
                     </HeaderIconButton>
                     <span aria-hidden className="mx-1 h-4 w-px bg-[var(--st-line2)]" />
@@ -169,14 +181,14 @@ export default function LocalPlaylistOrderDialog({ name, songs, isDaylight, onCl
                         >
                             <OrderCheck checked={allSelected} mixed={selected.size > 0 && !allSelected} />
                             {selected.size > 0
-                                ? <span>{t('localPlaylistOrder.selectedCount', { count: selected.size })}</span>
-                                : <span className="text-[color:var(--st-t2)]">{t('localPlaylistOrder.selectAll')}</span>}
+                                ? <span>{ot('selectedCount', { count: selected.size })}</span>
+                                : <span className="text-[color:var(--st-t2)]">{ot('selectAll')}</span>}
                         </button>
                         <SheetButton disabled={selected.size === 0} onClick={() => commit(current => moveOrderSongs(current, selected, 'stage'))}>
-                            <Layers size={14} />{t('localPlaylistOrder.stageSelected')}
+                            <Layers size={14} />{ot('stageSelected')}
                         </SheetButton>
                         <SheetButton disabled={songs.length < 2} onClick={() => setConfirmSort(true)}>
-                            <ArrowDownAZ size={15} />{t('localPlaylistOrder.sort')}
+                            <ArrowDownAZ size={15} />{ot('sort')}
                         </SheetButton>
                     </div>
                     <PlaylistOrderLists draft={draft} selected={selected} onToggle={toggle}
@@ -185,8 +197,8 @@ export default function LocalPlaylistOrderDialog({ name, songs, isDaylight, onCl
                 </div>
             </Sheet>
             <ConfirmDialog isOpen={confirmSort} isDaylight={isDaylight}
-                title={t('localPlaylistOrder.sortTitle')} description={t('localPlaylistOrder.sortNotice', { count: songs.length })}
-                confirmText={t('localPlaylistOrder.sort')} onConfirm={sort} onClose={() => setConfirmSort(false)} />
+                title={ot('sortTitle')} description={ot('sortNotice', { count: songs.length })}
+                confirmText={ot('sort')} onConfirm={sort} onClose={() => setConfirmSort(false)} />
         </>
     );
 }

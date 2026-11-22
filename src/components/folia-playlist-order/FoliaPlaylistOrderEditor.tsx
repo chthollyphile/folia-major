@@ -4,7 +4,7 @@ import type { FoliaPlaylist } from '../../types/foliaPlaylist';
 import { reorderFoliaPlaylistEntries } from '../../services/foliaPlaylist/foliaPlaylistService';
 import { getFoliaEntryLocalSongId } from '../../utils/foliaPlaylistEntries';
 import { buildLocalQueue, LIST_ROW_COVER_SIZE, type LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
-import LocalPlaylistOrderDialog from './LocalPlaylistOrderDialog';
+import FoliaPlaylistOrderDialog from './FoliaPlaylistOrderDialog';
 import type { OrderSong } from './playlistOrderDraft';
 
 // Keeps the playlist snapshot used to start a draft until the editor is closed.
@@ -56,7 +56,7 @@ const buildOrderSongs = (playlist: FoliaPlaylist, localSongs: readonly LocalSong
     });
 };
 
-export default function LocalPlaylistOrderEditor({ playlist, localSongs, catalog, isDaylight, onClose, onRefresh }: Props) {
+export default function FoliaPlaylistOrderEditor({ playlist, localSongs, catalog, isDaylight, onClose, onRefresh }: Props) {
     const [songs] = useState(() => buildOrderSongs(playlist, localSongs, catalog));
 
     const save = async (songIds: string[]) => {
@@ -65,13 +65,13 @@ export default function LocalPlaylistOrderEditor({ playlist, localSongs, catalog
         try {
             await onRefresh();
         } catch (error) {
-            console.warn('[LocalPlaylistOrder] Could not refresh the library after saving the order', error);
+            console.warn('[FoliaPlaylistOrder] Could not refresh the library after saving the order', error);
         }
         return updated !== null;
     };
 
     return (
-        <LocalPlaylistOrderDialog
+        <FoliaPlaylistOrderDialog
             name={playlist.name}
             songs={songs}
             isDaylight={isDaylight}

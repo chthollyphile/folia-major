@@ -38,7 +38,7 @@ interface QueueTabProps {
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
-    canSaveLocalPlaylist?: boolean;
+    canSavePlaylist?: boolean;
     /** Opens the same queue as a poster wall; absent when the host has no wall to show. */
     onOpenLattice?: () => void;
     /** 在速记簿里展开队列（打开速记簿的播放队列页、展开成画布）。 */
@@ -138,7 +138,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     onRemoveSong,
     onMoveSongToEnd,
     onMoveSongToNext,
-    canSaveLocalPlaylist = false,
+    canSavePlaylist = false,
     onOpenLattice,
     onOpenScratchpadQueue,
     onSaveCurrentQueueAsPlaylist,
@@ -250,7 +250,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         {t('queue.title')}
                         <span className="ml-1.5 font-normal text-[color:var(--st-t3)]">{playQueue.length}</span>
                     </span>
-                    {canSaveLocalPlaylist && (
+                    {canSavePlaylist && (
                         <Button variant="quiet" onClick={handleSavePlaylist}>
                             {t('localMusic.saveQueueAsPlaylist')}
                         </Button>

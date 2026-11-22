@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Check, History, ListPlus, Music2, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { forgetPlays, type RecentPlay } from '../home/explore/recentPlays';
-import { collectToScratchpad, scratchpadGroupKey, useScratchpadStore } from '../../../stores/useScratchpadStore';
+import { collectToScratchpad, useScratchpadStore } from '../../../stores/useScratchpadStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { scratchpadCoverUrl } from './scratchpadCover';
@@ -177,17 +177,16 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
     const selectionActions = useCallback((selected: CanvasEntry[]): ScratchpadAction[] => {
         const { playback: port, t: translate } = latest.current;
         const songs = selected.map(entry => entry.song);
-        const sameSource = new Set(songs.map(scratchpadGroupKey)).size === 1;
         return [
             { id: 'enqueue', label: translate('scratchpad.enqueue'), icon: ListPlus, run: () => port.enqueueAll(songs) },
             { id: 'collect', label: translate('scratchpad.collect'), icon: NotebookPen, run: () => collect(songs) },
             {
                 id: 'save-to-playlist',
                 label: translate('scratchpad.addToPlaylist'),
-                title: sameSource ? undefined : translate('scratchpad.mixedSourcesHint'),
                 icon: Star,
                 run: () => openAddSongsToPlaylist(songs),
-                disabled: !sameSource || !songs.every(canOpenPlaylistPickerFor),
+                // 选中的歌来源不同也行：收藏框的 Folia 栏收任何来源。
+                disabled: !songs.every(canOpenPlaylistPickerFor),
             },
             { id: 'delete-from-history', label: translate('scratchpad.deleteFromHistory'), icon: Trash2, run: () => forget(selected) },
         ];

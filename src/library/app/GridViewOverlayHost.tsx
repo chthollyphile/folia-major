@@ -19,6 +19,7 @@ import {
     isLocalGridViewCollection,
     isNavidromeGridViewCollection,
     refreshLocalGridViewCollection,
+    resolveFoliaPlaylistTracks,
     resolveLocalAlbumArtistDisplay,
     resolveLocalGridViewTracks,
 } from '../../components/app/home/gridViewCollectionAdapters';
@@ -33,12 +34,14 @@ import { LocalFolderSongInfoPanel } from '../../components/modal/LocalFolderSong
 import { LocalSongMetadataMatchDialog } from '../../components/modal/LocalSongMetadataMatchDialog';
 import { useScratchpadStore } from '../../stores/useScratchpadStore';
 import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
-import LocalPlaylistOrderEditor from '../../components/local-playlist-order/LocalPlaylistOrderEditor';
+import FoliaPlaylistOrderEditor from '../../components/folia-playlist-order/FoliaPlaylistOrderEditor';
+import FoliaPlaylistDialogsHost from '../../components/folia-playlists/FoliaPlaylistDialogsHost';
 import { resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
 import { useLocalCollectionCoverUrls } from '../core/collection/cover/useLocalCollectionCoverUrls';
 import { followEntityRedirect } from '../../utils/localLibraryIndex';
 import { buildLocalCatalogIndex, resolveLocalCatalogLink } from '../core/shared/localCatalogLinks';
 import { resolveSongCatalogRef } from '../../services/onlineMusic/catalogRefs';
+import { getSongCoverUrl } from '../../services/onlineMusic/songMetadata';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { useAppViewStore } from '../../stores/useAppViewStore';
@@ -139,7 +142,8 @@ const resolveLocalCollectionCoverUrlFromTracks = (
     });
 
     if (!preferredSong) {
-        return undefined;
+        // 没有带封面的本地歌（Folia 聚合歌单里全是别的来源的歌时）：用第一首带封面的条目的那张。
+        return tracks.flatMap(track => (track.localRef ? [] : getSongCoverUrl(track) || []))[0];
     }
 
     if (preferredSong.useOnlineCover && preferredSong.onlineMetadata?.coverUrl) {
@@ -170,14 +174,16 @@ const resolveLiveLocalCollection = (
         return null;
     }
 
+    // songIds 只是歌单里的本地歌（自定义封面对话框、自动封面用）；歌单本身混着各个来源，首数按全部条目算。
     const validSongIds = new Set(surfaceProps.localSongs.map(song => song.id));
-    const songIds = getFoliaPlaylistLocalSongIds(playlist).filter(songId => validSongIds.has(songId));
+    const localSongIds = getFoliaPlaylistLocalSongIds(playlist);
+    const songIds = localSongIds.filter(songId => validSongIds.has(songId));
 
     return {
         ...collection,
         name: playlist.name,
         songIds,
-        trackCount: songIds.length,
+        trackCount: playlist.entries.length - (localSongIds.length - songIds.length),
         isVirtual: playlist.isFavorite,
     };
 };
@@ -295,11 +301,16 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     }, [liveSelectedCollection, localCollectionCoverUrls, resolvedLocalCollectionCoverUrl]);
 
     // 本地集合的曲目在渲染期算好：放在 effect 里的话，新打开的网格第一帧会带着上一个集合的曲目。
-    const localTracks = useMemo(() => (
-        liveSelectedCollection && isLocalGridViewCollection(liveSelectedCollection)
-            ? resolveLocalGridViewTracks(liveSelectedCollection, surfaceProps.localSongs, localLibraryCatalog) as UnifiedSong[]
-            : undefined
-    ), [liveSelectedCollection, localLibraryCatalog, surfaceProps.localSongs]);
+    // Folia 聚合歌单（描述带 playlistId）的曲目是歌单的全部条目，混着各个来源；别的本地集合按 songIds 从曲库里取。
+    const localTracks = useMemo(() => {
+        if (!liveSelectedCollection || !isLocalGridViewCollection(liveSelectedCollection)) return undefined;
+        const playlist = liveSelectedCollection.playlistId
+            ? surfaceProps.localPlaylists.find(item => item.id === liveSelectedCollection.playlistId)
+            : undefined;
+        return (playlist
+            ? resolveFoliaPlaylistTracks(playlist, surfaceProps.localSongs, localLibraryCatalog)
+            : resolveLocalGridViewTracks(liveSelectedCollection, surfaceProps.localSongs, localLibraryCatalog)) as UnifiedSong[];
+    }, [liveSelectedCollection, localLibraryCatalog, surfaceProps.localPlaylists, surfaceProps.localSongs]);
     // 宿主持有集合资源，网格（以及别的 renderer）只订阅它：切换 renderer 不会重新请求。
     // 宿主自己不订阅快照，所以分页到达不会让首页这棵大树重渲染。歌手页同理，见下面的 artistResource。
     const collectionResource = useCollectionResource({
@@ -833,7 +844,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 />
             )}
             {orderingPlaylist && (
-                <LocalPlaylistOrderEditor
+                <FoliaPlaylistOrderEditor
                     key={orderingPlaylist.id}
                     playlist={orderingPlaylist}
                     localSongs={surfaceProps.localSongs}
@@ -843,6 +854,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     onRefresh={surfaceProps.onRefreshLocalPlaylists}
                 />
             )}
+            <FoliaPlaylistDialogsHost playlists={surfaceProps.localPlaylists} localSongs={surfaceProps.localSongs} isDaylight={isDaylight} />
             {matchingSong && (
                 <LocalSongMetadataMatchDialog
                     song={matchingSong}

@@ -1,19 +1,16 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Cable, NotebookPen } from 'lucide-react';
+import { Cable } from 'lucide-react';
 import type { BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeEntry, BravaisHomeTool } from './bravaisHomeModels';
 import type { BravaisWallHint } from './bravaisSeamModels';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
-import { useScratchpadStore } from '../../../stores/useScratchpadStore';
 
 // src/library/suites/bravais/BravaisHomeNotice.tsx
-// 首页里没有卡片可铺、只说一件事的两面墙：
-// - Folia 组（BravaisHomeFolia）：聚合歌单的页面还没做，先是一面空墙，墙面上写它将来放什么，缝里一个「打开速记簿」
-//   的入口。聚合歌单的墙做出来时替换这个组件（层的 key 仍是 `home:folia`）。
-// - 在线组一个音源都没启用（BravaisHomeNoSources）：墙面上说去「设置 → 音源」启用，缝里给那个入口（只桌面版有）。
-// 两面墙都是首页层（一级页签、搜索、app 入口照常在缝里），墙上的说明是 BravaisWallHint 那种背景字。
+// 首页里没有卡片可铺、只说一件事的墙：在线组一个音源都没启用（BravaisHomeNoSources）——墙面上说去「设置 → 音源」
+// 启用，缝里给那个入口（只桌面版有）。它仍是首页层（一级页签、搜索、app 入口照常在缝里），墙上的说明是
+// BravaisWallHint 那种背景字。
 
 const NO_ITEMS: BravaisLayer['items'] = [];
 const NO_KEYS: ReadonlySet<string> = new Set();
@@ -72,15 +69,6 @@ const NoticeLayer: React.FC<{
     }), [home, isInteractive, layerKey, seam, wall]);
     useBravaisLayerRegistration('home', layer);
     return null;
-};
-
-const openScratchpad = () => useScratchpadStore.getState().setOpen(true);
-
-export const BravaisHomeFolia: React.FC<{ chrome: BravaisHomeChrome; isInteractive: boolean }> = ({ chrome, isInteractive }) => {
-    const { t } = useTranslation();
-    const hint = useMemo<BravaisWallHint>(() => ({ title: t('home.foliaTitle'), body: t('home.foliaBody') }), [t]);
-    const entries = useMemo<BravaisHomeEntry[]>(() => [{ id: 'open-scratchpad', label: t('scratchpad.open'), icon: NotebookPen, run: openScratchpad }], [t]);
-    return <NoticeLayer chrome={chrome} isInteractive={isInteractive} layerKey="home:folia" meta={t('home.foliaTab')} hint={hint} entries={entries} />;
 };
 
 export const BravaisHomeNoSources: React.FC<{

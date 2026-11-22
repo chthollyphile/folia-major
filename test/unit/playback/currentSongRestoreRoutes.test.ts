@@ -427,7 +427,7 @@ describe('restoring the last session and the current song', () => {
             persistLastPlaybackCache: vi.fn(async () => undefined),
             clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
             loadLocalSongs: vi.fn(async () => undefined),
-            loadLocalPlaylists: vi.fn(async () => undefined),
+            loadFoliaPlaylists: vi.fn(async () => undefined),
             shouldAutoPlayRef: refs.shouldAutoPlay,
         } as never);
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -1173,7 +1173,7 @@ describe('a whole-queue write while the last session is read', () => {
             persistLastPlaybackCache,
             clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
             loadLocalSongs: vi.fn(async () => undefined),
-            loadLocalPlaylists: vi.fn(async () => undefined),
+            loadFoliaPlaylists: vi.fn(async () => undefined),
             shouldAutoPlayRef: refs.shouldAutoPlay,
         } as never);
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -1239,7 +1239,7 @@ describe('a whole-queue write while the last session is read', () => {
             persistLastPlaybackCache: vi.fn(async () => undefined),
             clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
             loadLocalSongs: vi.fn(async () => undefined),
-            loadLocalPlaylists: vi.fn(async () => undefined),
+            loadFoliaPlaylists: vi.fn(async () => undefined),
             shouldAutoPlayRef: refs.shouldAutoPlay,
         } as never);
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -1268,7 +1268,7 @@ describe('a whole-queue write while the last session is read', () => {
             persistLastPlaybackCache: vi.fn(async () => undefined),
             clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
             loadLocalSongs: vi.fn(async () => undefined),
-            loadLocalPlaylists: vi.fn(async () => undefined),
+            loadFoliaPlaylists: vi.fn(async () => undefined),
             shouldAutoPlayRef: refs.shouldAutoPlay,
         } as never);
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -1309,7 +1309,7 @@ describe('a sign-out of a platform while the last session is restored', () => {
             persistLastPlaybackCache,
             clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
             loadLocalSongs: vi.fn(async () => undefined),
-            loadLocalPlaylists: vi.fn(async () => undefined),
+            loadFoliaPlaylists: vi.fn(async () => undefined),
             shouldAutoPlayRef: refs.shouldAutoPlay,
         } as never);
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -1644,7 +1644,7 @@ describe('a new window with nothing to restore stops what an earlier window left
                 persistLastPlaybackCache: vi.fn(async () => undefined),
                 clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
                 loadLocalSongs: vi.fn(async () => undefined),
-                loadLocalPlaylists: vi.fn(async () => undefined),
+                loadFoliaPlaylists: vi.fn(async () => undefined),
                 shouldAutoPlayRef: refs.shouldAutoPlay,
             } as never);
             vi.spyOn(console, 'log').mockImplementation(() => {});

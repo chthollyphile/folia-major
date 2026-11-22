@@ -4,16 +4,18 @@ import { HOME_FM_COUNT, HOME_FM_PREFIX, onlinePlaybackKey, onlineSongId, PROBE_P
 import { HOME_ALL_SONGS_ID, HOME_LOCAL_SONGS, homeLocalSongId } from '../../dev/probes/homeBehavior/homeFixtureRules';
 import { buildServiceStubModule, LOCAL_MUSIC_SERVICE_ROUTE } from '../../dev/probes/homeBehavior/serviceStubModule';
 import '../../dev/probes/homeBehavior/probeApi';
+import { selectHomePage, type BravaisHomeGroup, type BravaisOnlinePage } from './bravaisHomeNav';
 
 // test/component/bravaisSpecialCards.spec.ts
-// bravais 首页的特殊集合（我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
+// bravais 首页的特殊集合（我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、Folia 的「我喜欢」、Navidrome 随机 / 收藏）：
 // - 墙上那张卡左上角的类型标签换一身（is-special + data-bravais-special：强调色底、带小图标），普通卡片不变；
 // - 缝里中段底部的直达入口（fb11：竖排文字，显示种类的短名，并排成列；贴在账户入口 / 工具格上方）：只在那张集合此刻真有时出现（在线看当前页签的卡；provider 没有、未登录都不出现），
 //   点它与点墙上那张卡同一条打开路径——墙上（屏内）找得到那张卡就以它为起点磁贴，找不到（别的 section）就以缝为中心，
 //   不拿键盘焦点所在的那张不相干的磁贴当起点；私人 FM 直接播放；键盘可达（Tab 进缝、方向键、Enter）；
 // - 放不下时入口先于二级切换让位，挪进「⋯」菜单。
-// fixture：probe-a 的 public 在首页歌单列表上标成 isLiked（HOME_LIKED_PLAYLIST），只有 probe-a 有云盘；本地的「我喜欢」
-// 是曲库自带的；Navidrome 的随机 / 收藏是概览里的虚拟歌单。
+// fixture：probe-a 的 public 在首页歌单列表上标成 isLiked（HOME_LIKED_PLAYLIST），只有 probe-a 有云盘；「我喜欢」
+// 是自带的聚合歌单（本地歌单并进 Folia 之后在 Folia 页签里，本地页签只剩「全部歌曲」）；Navidrome 的随机 / 收藏是概览里的虚拟歌单。
+// 首页是两级页签：歌单 / 电台 / 专辑是在线组里的二级切换（selectHomePage 先确保在在线组再点二级），Folia / 本地 / Navidrome 是一级。
 
 const stage = (page: Page) => page.locator('[data-library-stage="bravais"]');
 const seam = (page: Page) => page.locator('[data-bravais-seam]');
@@ -38,16 +40,19 @@ const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page)
     await settled(page);
 };
 
-const showTab = async (page: Page, tab: string) => {
-    await seam(page).locator(`[data-bravais-tab="${tab}"]`).click();
+const showTab = async (page: Page, tab: BravaisOnlinePage | Exclude<BravaisHomeGroup, 'online'>) => {
+    await selectHomePage(page, tab);
     await expect(stage(page)).toHaveAttribute('data-bravais-layer', `home:${tab}`);
     await settled(page);
 };
 
-/** 焦点所在的缝里控件（动作名 / 页签 key）。 */
+/** 焦点所在的缝里控件（动作名 / 一级页签 key / 二级切换 key）。 */
 const focusedAction = (page: Page) => page.evaluate(() => {
     const active = document.activeElement as HTMLElement | null;
-    return active?.dataset.bravaisSeamAction ?? (active?.dataset.bravaisTab ? `tab:${active.dataset.bravaisTab}` : active?.tagName ?? null);
+    if (active?.dataset.bravaisSeamAction) return active.dataset.bravaisSeamAction;
+    if (active?.dataset.bravaisTab) return `tab:${active.dataset.bravaisTab}`;
+    if (active?.dataset.bravaisSection) return `section:${active.dataset.bravaisSection}`;
+    return active?.tagName ?? null;
 });
 
 const section = (page: Page, name: string) => seam(page).locator('[data-bravais-home-body]').getByRole('tab', { name, exact: true });
@@ -226,13 +231,12 @@ test.describe('[bravais-only] special collections', () => {
 
     test('local and Navidrome jump-ins reach their collections from any section, centred on the seam when the card is not on the wall', async ({ page }) => {
         await showTab(page, 'local');
+        // 本地歌单并进 Folia 之后，本地页签的入口只剩「全部歌曲」；「我喜欢」的入口在 Folia 页签（本用例末尾）。
         expect((await shortcutKinds(page)).map(([kind, name]) => [kind, name])).toEqual([
             ['all-songs', 'All Songs'],
-            ['local-favorites', 'Liked Songs'],
         ]);
         // 二级切换与入口之间一道分隔线；入口排在二级切换下面（fb11：贴在中段底部，二级切换仍在上面居中）。
         await expect(shortcut(page, 'all-songs')).toHaveText('All Songs');
-        await expect(shortcut(page, 'local-favorites')).toHaveText('Favorites');
         // 与激活的二级切换区分：字号小一级、字重轻、颜色不是强调色。
         const activeLabel = await seam(page).locator('[data-bravais-home-body] .bravais-seam-section.is-active .is-label').evaluate(node => {
             const style = getComputedStyle(node);
@@ -290,23 +294,40 @@ test.describe('[bravais-only] special collections', () => {
         await expect.poll(async () => (await shortcutKinds(page)).map(([kind]) => kind)).toEqual(['navidrome-random', 'navidrome-favorites']);
         await shortcut(page, 'navidrome-random').click();
         await expect.poll(async () => (await lastOpened(page))?.key).toBe('navidrome:random:__navi_random__');
+        await seam(page).locator('[data-bravais-seam-action="back"]').first().click();
+        await expect.poll(() => stack(page)).toEqual([]);
+        await settled(page);
+
+        // Folia 页签：「我喜欢」（自带的聚合歌单，原先是本地页签的入口）——墙上那张卡是特殊卡，缝里有它的直达入口；
+        // Folia 组没有二级切换，所以入口上面没有分隔线。点入口打开的就是那张歌单。
+        await showTab(page, 'folia');
+        expect((await shortcutKinds(page)).map(([kind, name]) => [kind, name])).toEqual([
+            ['local-favorites', 'Liked Songs'],
+        ]);
+        await expect(shortcut(page, 'local-favorites')).toHaveText('Favorites');
+        await expect(seam(page).locator('[data-bravais-home-jumps] .bravais-seam-shortcuts-rule')).toHaveCount(0);
+        const favoriteCard = page.locator('.bravais-tile[data-bravais-special="local-favorites"]').first();
+        await expect(favoriteCard).toBeAttached();
+        const favoriteKey = (await favoriteCard.getAttribute('data-library-card'))!;
+        expect(favoriteKey).toMatch(/^card:playlist:playlist-/);
+        await shortcut(page, 'local-favorites').click();
+        await expect.poll(async () => (await lastOpened(page))?.key).toBe(`local:playlist:${favoriteKey.slice('card:playlist:'.length)}`);
+        expect(await lastOpened(page)).toMatchObject({ source: 'local', type: 'playlist', isVirtual: true });
     });
 
     test('the jump-ins are reachable from the keyboard: Tab into the strip, arrows down past the tabs, Enter opens', async ({ page }) => {
-        const focusedName = () => page.evaluate(() => {
-            const active = document.activeElement as HTMLElement | null;
-            return active?.dataset.bravaisSeamAction ?? (active?.dataset.bravaisTab ? `tab:${active.dataset.bravaisTab}` : active?.tagName ?? null);
-        });
+        const focusedName = () => focusedAction(page);
         await page.keyboard.press('Tab');
-        expect(await focusedName()).toBe('tab:playlist');
+        // 进缝落在选中的一级页签（在线组）上。
+        expect(await focusedName()).toBe('tab:online');
         const seen: (string | null)[] = [];
         for (let press = 0; press < 12 && (await focusedName()) !== 'shortcut-liked'; press += 1) {
             await page.keyboard.press('ArrowDown');
             seen.push(await focusedName());
         }
         expect(await focusedName()).toBe('shortcut-liked');
-        // 方向键序列：页签之后紧接着是入口（DOM 顺序），下一个是云盘。
-        expect(seen.slice(0, 4)).toEqual(['tab:radio', 'tab:albums', 'tab:local', 'tab:navidrome']);
+        // 方向键序列（DOM 顺序）：一级页签走完是在线组的二级切换（歌单 / 电台 / 专辑），紧接着是入口，下一个是云盘。
+        expect(seen).toEqual(['tab:local', 'tab:navidrome', 'section:playlist', 'section:radio', 'section:albums', 'shortcut-liked']);
         await page.keyboard.press('ArrowDown');
         expect(await focusedName()).toBe('shortcut-cloud');
         await page.keyboard.press('ArrowUp');
@@ -342,7 +363,7 @@ test.describe('[bravais-only] special collections', () => {
         const items = await menu.locator(':scope > *').evaluateAll(elements => elements.map(
             element => (element as HTMLElement).dataset.bravaisSeamAction ?? (element.getAttribute('role') === 'separator' ? 'rule' : '?'),
         ));
-        expect(items.slice(0, 3)).toEqual(['shortcut-all-songs', 'shortcut-local-favorites', 'rule']);
+        expect(items.slice(0, 2)).toEqual(['shortcut-all-songs', 'rule']);
         await expect(menu.locator('[data-bravais-seam-action="shortcut-all-songs"]')).toHaveText('All Songs');
         await menu.locator('[data-bravais-seam-action="shortcut-all-songs"]').click();
         await expect.poll(async () => (await lastOpened(page))?.key).toBe(`local:folder:${HOME_ALL_SONGS_ID}`);

@@ -7,7 +7,7 @@ import { selectDisplaySong, usePlaybackStore } from '../../stores/usePlaybackSto
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { isTextEntryTarget } from '../../utils/keyboardTargets';
-import { canSaveQueueAsLocalPlaylist } from '../../utils/queueReorder';
+import { canSaveQueueAsPlaylist } from '../../utils/queueReorder';
 import { buildQueueSearchIndex } from '../command-palette/queueSearchIndex';
 import { normalizeSearchText, splitWords } from '../command-palette/search/normalize';
 import { QUEUE_ISLAND_ROW_HEIGHT } from './queueDragGeometry';
@@ -81,7 +81,7 @@ export function WallToolsQueueIsland({ id, host, trailsPanel = false, onClosePan
         [currentSongKey, playQueue],
     );
     const canSave = useMemo(
-        () => !readOnly && canSaveQueueAsLocalPlaylist(currentSong, playQueue),
+        () => !readOnly && canSaveQueueAsPlaylist(currentSong, playQueue),
         [currentSong, playQueue, readOnly],
     );
 

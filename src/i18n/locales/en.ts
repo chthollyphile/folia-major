@@ -137,6 +137,7 @@ export default {
     "offerLater": "Not now"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "Save the whole scratchpad as a playlist…",
     "title": "Scratchpad",
     "count_one": "{{count}} song",
     "count_other": "{{count}} songs",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "{{count}} selected",
     "removeSelected": "Take out",
     "clearSelection": "Clear selection",
-    "mixedSourcesHint": "These songs come from different sources; a playlist takes one source only",
     "queue": "Queue",
     "queueHint": "The queue that is playing now. Click a song to play it; expand to select several and drag to reorder.",
     "queueEmpty": "The queue is empty.",
@@ -405,8 +405,8 @@ export default {
     "queueCount_other": "Play queue · {{count}} songs",
     "queueClear": "Clear the queue",
     "queueClearConfirm": "Click again to clear the queue",
-    "queueSave": "Save as local playlist",
-    "queueSaved": "Saved as the local playlist “{{name}}”",
+    "queueSave": "Save as playlist",
+    "queueSaved": "Saved as the playlist “{{name}}”",
     "queueSaveFailed": "Couldn’t save the playlist",
     "queueDragHandle": "Drag to reorder",
     "queueMoved": "Moved to position {{position}}",
@@ -1109,8 +1109,8 @@ export default {
       "grid-resync-folder": { "title": "Reimport this folder", "description": "Scan this local folder again and refresh its songs" },
       "grid-resync-all-folders": { "title": "Reimport every folder", "description": "Scan every local folder again and refresh the library" },
       "grid-organize-song-info": { "title": "Organize song info", "description": "Clean up the titles, artists and albums of this folder" },
-      "grid-reorder-playlist": { "title": "Reorder playlist songs", "description": "Edit the order of songs in this local playlist" },
-      "grid-export-playlist": { "title": "Export this playlist", "description": "Save this local playlist as an m3u8 file" },
+      "grid-reorder-playlist": { "title": "Reorder playlist songs", "description": "Edit the order of songs in this Folia playlist" },
+      "grid-export-playlist": { "title": "Export this playlist", "description": "Save this Folia playlist as an m3u8 file" },
       "grid-edit-entity": { "title": "Edit this album or artist", "description": "Open the local library entity editor for this collection" },
       "grid-set-cover": { "title": "Set collection cover", "description": "Choose a fixed cover for this local folder, album or playlist" },
       "grid-toggle-edit-mode": { "title": "Toggle edit mode", "description": "Enter or leave the mode that lets you remove songs from this collection" },
@@ -1120,7 +1120,7 @@ export default {
       "grid-shuffle-play-filtered": { "title": "Shuffle play these songs", "description": "Make this collection (only the filtered songs while filtering) the play queue in shuffled order and start from a random song" },
       "directory-play-selection": { "title": "Play selected cards", "description": "Play the songs of the cards selected on the map, in card order" },
       "directory-enqueue-selection": { "title": "Queue selected cards", "description": "Add the songs of the cards selected on the map to the queue" },
-      "directory-create-playlist": { "title": "New playlist from selection", "description": "Create a local playlist with the songs of the selected cards" },
+      "directory-create-playlist": { "title": "New playlist from selection", "description": "Create a Folia playlist with the songs of the selected cards" },
       "directory-remove-selection": { "title": "Remove selected from library", "description": "Ask to remove the selected folders and their songs from the local library" },
       "directory-select-all": { "title": "Select all filtered cards", "description": "Open the batch panel and select every card the filter shows" },
       "directory-clear-selection": { "title": "Clear selection", "description": "Deselect every card on the map" },
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "VIP Only"
   },
   "playlist": {
+    "lastUsed": "Last used",
     "play": "Play",
     "viewTracks": "View tracks",
     "locatePlaying": "Locate the playing song on this page",
@@ -2011,6 +2012,9 @@ export default {
     "openSetup": "Playback setup"
   },
   "home": {
+    "foliaEmpty": "No playlists yet. Create one, or add songs from any source with “Add to playlist”.",
+    "foliaReorderPlaylists": "Reorder playlists",
+    "foliaPlaylist": "Folia playlist",
     "welcome": "Welcome to Folia",
     "lattice": "Queue collage",
     "latticeLabel": "Queue collage",
@@ -5054,6 +5058,36 @@ export default {
     "coverCacheFailed": "Metadata was saved, but the cover could not be cached. The online URL will still be used when available.",
     "lyricsNotAppliedOtherSaved": "Lyrics were not applied; the other selections were saved.",
   },
+  "foliaPlaylist": {
+    "rejectedNote": "{{count}} could not be added",
+    "clearScratchpad": "Clear scratchpad",
+    "noneAdded": "None of these songs can go into a playlist",
+    "allDuplicates": "Already in “{{name}}” ({{duplicates}})",
+    "addedSome": "Added {{added}} to “{{name}}”; {{duplicates}} already in it",
+    "added": "Added {{added}} to “{{name}}”",
+    "created": "Created “{{name}}”",
+    "navidromeUnconfigured": "Navidrome not set up",
+    "localMissing": "File not in the library",
+    "sourceMissing": "Source not installed",
+    "sourceOff": "Source turned off",
+  },
+  "foliaPlaylistOrder": {
+    "changed": "The playlists changed. Reopen the editor to load the latest order.",
+    "sortNotice": "Arrange all {{count}} playlists (including staged ones) by name from A to Z? This cannot be undone after saving.",
+    "sortTitle": "Sort all playlists by name?",
+    "sort": "Sort by name",
+    "selectedCount": "{{count}} selected",
+    "finishStaging": "Insert the staged playlists back before saving.",
+    "listEmpty": "Every playlist is staged. Insert them back.",
+    "stageHint": "Put selected playlists here, then insert them back as a group.",
+    "insertHint": "Drag the group between two playlists, or use the insert button at the end of a row.",
+    "insertBefore": "Insert the staged playlists before “{{title}}”",
+    "dragCount": "Move {{count}} playlists",
+    "dragSong": "Drag this playlist or the selected ones",
+    "songCount": "{{count}} playlists",
+    "list": "Playlist order",
+    "edit": "Reorder playlists",
+  },
   "localPlaylistOrder": {
     "edit": "Reorder playlist songs",
     "list": "Song order",
@@ -6424,7 +6458,7 @@ export default {
       "localFolderActionsDelete": "The red one deletes things",
       "localMetadataMatchReveal": "A pencil behind three conditions",
       "localTrackSortingFields": "Only local folders can be sorted",
-      "localGridControlsSources": "Folders, albums, artists and local playlists",
+      "localGridControlsSources": "Folders, albums and artists",
       "localGridControlsMaintenance": "Importing and refreshing the local library",
       "onlineCollectionActionsCommon": "Actions shared by online collections",
       "onlineCollectionActionsProvider": "Actions depend on the current source",
@@ -6872,9 +6906,9 @@ export default {
         "confirm": "So it asks first, and it asks in two different ways: removing a root folder and removing a subfolder under it do not reach the same distance, and the confirmation spells out which one you are about to do. Worth a read before you press."
       },
       "localGridControls": {
-        "sources": "This row switches the local library between folders, albums, artists and your local playlists. It changes what the Grid3D rail contains; it does not switch to an online provider.",
-        "foldersAndPlaylists": "Folders preserve the imported directory structure. Local playlists are stored by Folia and are separate from online and Navidrome playlists.",
-        "imports": "Import folder adds music from a directory. Import playlist reads an M3U or M3U8 file and creates a local playlist from tracks Folia can resolve.",
+        "sources": "This row switches the local library between folders, albums and artists. It changes what the Grid3D rail contains; it does not switch to an online provider.",
+        "foldersAndPlaylists": "Folders preserve the imported directory structure. Playlists are not here: they live on the Folia tab of the home page, where local songs and songs from any source can share one playlist.",
+        "imports": "Import folder adds music from a directory. Importing an M3U or M3U8 playlist is on the Folia tab of the home page.",
         "refresh": "Refresh rescans imported roots for added, changed and missing files. It does not create another copy of the library."
       },
       "onlineCollectionActions": {
@@ -6883,10 +6917,10 @@ export default {
         "destructive": "A delete or remove button appears only when that source exposes the operation and the collection can be changed. Its effect is on the remote or server collection, not on local audio files."
       },
       "localGridMap": {
-        "page": "This is the local-library GridMap. It lays the current folders, albums, artists, or local playlists into one honeycomb instead of the single Grid3D rail.",
+        "page": "This is the local-library GridMap. It lays the current folders, albums, or artists into one honeycomb instead of the single Grid3D rail.",
         "cards": "Drag or scroll to move across the map. Clicking a card returns to Grid3D with that collection focused; activating it opens the collection itself.",
-        "openPanel": "Folder, album, and artist maps can open batch selection from the title: folders show a directory tree, while albums and artists show a flat list. A local-playlist map is browse-only.",
-        "batchActions": "The panel resolves selected collections into tracks. You can play them, add them to the queue, create a local playlist, and—on the folder map—remove selected library records.",
+        "openPanel": "The map can open batch selection from the title: folders show a directory tree, while albums and artists show a flat list.",
+        "batchActions": "The panel resolves selected collections into tracks. You can play them, add them to the queue, create a Folia playlist, and—on the folder map—remove selected library records.",
         "filter": "{{mod}} + F or typing filters the map. Batch selection and the folder tree follow the filtered cards, so actions affect the visible selection.",
         "back": "Back closes GridMap and returns to the local Grid3D category and focus you came from."
       },

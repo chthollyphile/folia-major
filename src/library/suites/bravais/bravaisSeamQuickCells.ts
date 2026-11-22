@@ -81,6 +81,10 @@ const QUICK_ORDER: Readonly<Record<string, number>> = {
     'refresh-navidrome': 2,
     'refresh-explore': 2,
     'home-import-playlist': 3,
+    'home-folia-new-playlist': 1,
+    'home-folia-reorder-playlists': 2,
+    'home-folia-import-playlist': 3,
+    'home-folia-open-scratchpad': 4,
 };
 
 /** 一项在动作格里的优先级（不在表里的返回 undefined：只在「⋯」里）。 */

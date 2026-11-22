@@ -1,4 +1,5 @@
 import { getPlaybackSourceRef } from './appPlaybackGuards';
+import { likesGoToFolia } from './foliaHeart';
 import { omni } from '../services/onlineMusic/omni';
 import type { SongResult } from '../types';
 
@@ -31,7 +32,8 @@ export const resolveLikeAvailability = (
     }
 
     const sourceRef = getPlaybackSourceRef(currentSong);
-    if (sourceRef.kind === 'online' && !omni.canLikeSong(currentSong)) {
+    // 没有账号收藏能力的音源：红心进 Folia 的「我喜欢的音乐」，可用。
+    if (sourceRef.kind === 'online' && !likesGoToFolia(currentSong) && !omni.canLikeSong(currentSong)) {
         return {
             disabled: true,
             reason: {
