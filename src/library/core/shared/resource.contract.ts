@@ -50,6 +50,11 @@ export interface CollectionResourceSnapshot {
     /** 已取得的曲目；每次变化都是新数组，从不原地修改。 */
     readonly tracks: SongResult[];
     readonly error: CollectionLoadError | null;
+    /**
+     * 只在 error 不为空时有意义：这次失败的是「同一版本的集合从头重读」，而手上的曲目是上一次整张读完的那份——
+     * 列表仍然是全的（定位正在播放的歌可以答「不在这里」）。集合版本变了之后的重读失败不算：手上的那份已知过期。
+     */
+    readonly tracksWhole?: boolean;
     readonly sync: CollectionSyncState;
     /** 集合的详情（封面、简介、总数等；Navidrome 只有专辑有），没有时为 null。 */
     readonly detail: CollectionDetail | null;

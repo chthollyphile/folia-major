@@ -274,7 +274,7 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
     const cardsStillArriving = snapshot
         ? snapshot.status === 'idle' || snapshot.status === 'loading' || snapshot.sync.status === 'syncing'
         : false;
-    const hasReadFailed = Boolean(snapshot?.error || snapshot?.sync.status === 'interrupted');
+    const hasReadFailed = (snapshot?.error != null && !snapshot.tracksWhole) || snapshot?.sync.status === 'interrupted';
     const locate = useMemo<BravaisLayerLocate>(() => ({
         pageKey: locatePageKey,
         isFiltered,

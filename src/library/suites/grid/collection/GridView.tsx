@@ -1523,7 +1523,8 @@ export const GridView: React.FC<GridViewProps> = ({
     // the background; a read that failed (the first page, a page of the background fill, or a
     // Navidrome read) brings nothing more and leaves the list short of what it did not reach. The
     // snapshot says both in one update with the tracks they speak of.
-    const hasReadFailed = Boolean(loadError || backgroundLoadError);
+    // 重读失败但手上还是上次整张读完的那份（resource 的 tracksWhole）：列表是全的，不算「没读全」。
+    const hasReadFailed = Boolean((loadError && !resourceSnapshot?.tracksWhole) || backgroundLoadError);
     const cardsStillArriving = isLoading || loading || backgroundLoading;
     const pageKey = navigationKey ?? collectionKey(collection);
     const isLocateAsked = locateRequest !== null && mode === 'tracks' && locateRequest.collectionKey === pageKey;
