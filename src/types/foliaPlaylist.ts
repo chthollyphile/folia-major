@@ -13,6 +13,13 @@ export type FoliaPlaylistOrigin = {
     playVia?: string;
     /** 上一次从原歌单刷新的时间；没刷新过就没有。 */
     refreshedAt?: number;
+    /** 原来那张是歌单还是专辑（刷新时按它去读）；没写的是歌单。 */
+    collectionType?: 'playlist' | 'album';
+    /**
+     * 原来那张歌单在音源那边的附带数据（集合描述上的 providerData：有的音源读歌单的歌时要它，光有 id 不够）。
+     * 刷新时原样交回给那个音源。只是那张歌单公开的标识，没有账号与凭据；没有就不写。
+     */
+    collectionData?: unknown;
 };
 
 export type FoliaPlaylistEntry = {
@@ -52,9 +59,11 @@ export type FoliaSaveCollectionInput = {
     /** 原歌单的歌，按原歌单的顺序；由调用方读好传进来。 */
     songs: readonly SongResult[];
     /** 原歌单是哪个音源的哪一张、叫什么。 */
-    origin: Pick<FoliaPlaylistOrigin, 'sourceId' | 'collectionId' | 'name'>;
+    origin: Pick<FoliaPlaylistOrigin, 'sourceId' | 'collectionId' | 'name' | 'collectionType' | 'collectionData'>;
     /** 「改由某个音源播放」：目标音源的 id。不给就原样存。 */
     playVia?: string;
+    /** 用户取消了：问完音源、动笔之前看一眼，已经取消就什么都不写（抛 AbortError）。 */
+    signal?: AbortSignal;
 };
 
 export type FoliaSaveCollectionResult = {

@@ -242,3 +242,52 @@ describe('stored marks', () => {
         expect(later?.origin).toMatchObject({ later: 'kept' });
     });
 });
+
+describe('what the interface adds: the kind of the original, and cancelling', () => {
+    beforeEach(async () => {
+        await appDatabase.delete();
+        await appDatabase.open();
+    });
+
+    it('keeps the kind of the original and the data its source reads it with, through a refresh', async () => {
+        const { playlist } = await saveCollectionAsFoliaPlaylist({
+            name: 'Album copy',
+            songs,
+            origin: { ...origin, collectionType: 'album', collectionData: { mid: 'abc' } },
+        }, noTarget);
+        expect(playlist.origin).toMatchObject({ collectionType: 'album', collectionData: { mid: 'abc' } });
+
+        const seen: unknown[] = [];
+        const refreshed = await refreshFoliaPlaylistFromOrigin(playlist.id, async stored => {
+            seen.push(stored);
+            return [...songs, online('netease', '4')];
+        }, noTarget);
+        expect(seen[0]).toMatchObject({ collectionType: 'album', collectionData: { mid: 'abc' } });
+        expect(refreshed?.playlist.origin).toMatchObject({ collectionType: 'album', collectionData: { mid: 'abc' } });
+        expect((await getFoliaPlaylist(playlist.id))?.origin).toMatchObject({ collectionType: 'album', collectionData: { mid: 'abc' } });
+    });
+
+    it('writes nothing when saving was cancelled while the target was being asked', async () => {
+        const controller = new AbortController();
+        const deps = depsOf(vi.fn<FoliaCounterpartResolver>(async (_target, asked) => {
+            controller.abort();
+            return { songs: asked.map(() => null) };
+        }));
+        const before = (await getFoliaPlaylists()).length;
+        await expect(saveCollectionAsFoliaPlaylist({ name: 'Cancelled', songs, origin, playVia: 'lx', signal: controller.signal }, deps))
+            .rejects.toMatchObject({ name: 'AbortError' });
+        expect((await getFoliaPlaylists()).length).toBe(before);
+    });
+
+    it('leaves the playlist as it was when a refresh was cancelled while the original was being read', async () => {
+        const { playlist } = await saveCollectionAsFoliaPlaylist({ name: 'Saved', songs, origin }, noTarget);
+        const controller = new AbortController();
+        await expect(refreshFoliaPlaylistFromOrigin(playlist.id, async () => {
+            controller.abort();
+            return [...songs, online('netease', '4')];
+        }, noTarget, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+        const stored = await getFoliaPlaylist(playlist.id);
+        expect(keysOf(stored)).toEqual(keysOf(playlist));
+        expect(stored?.origin).not.toHaveProperty('refreshedAt');
+    });
+});

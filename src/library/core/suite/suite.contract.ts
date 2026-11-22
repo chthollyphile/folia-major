@@ -52,6 +52,8 @@ export type LibrarySuiteId = string;
  * | resync-all-folders | .resyncAllFolders | resync-all-folders |
  * | reorder-playlist | .reorderPlaylist | reorder-playlist |
  * | export-playlist | .exportPlaylist | export-playlist |
+ * | save-to-folia | .saveToFolia（平台歌单 / 专辑存成 Folia 歌单） | save-to-folia |
+ * | refresh-from-origin | .refreshFromOrigin（转存来的 Folia 歌单从原歌单更新） | refresh-from-origin |
  * | edit-entity | .editEntity | edit-entity |
  * | set-cover | .setCover | set-cover |
  * | organize-song-info | .organizeSongInfo | organize-song-info |
@@ -85,6 +87,8 @@ export type LibraryActionId =
     | 'resync-all-folders'
     | 'reorder-playlist'
     | 'export-playlist'
+    | 'save-to-folia'
+    | 'refresh-from-origin'
     | 'edit-entity'
     | 'set-cover'
     | 'organize-song-info'

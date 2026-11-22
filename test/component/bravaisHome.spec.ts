@@ -759,11 +759,10 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.fit).toBe('short');
         expect(layout.title.state).toBe('hidden');
         expect(layout.tabs.map(tab => [tab.text, tab.name, tab.title])).toEqual([
-            // 一级是组。首字撞了的（Folia / Folder）各取两个字——英文下两个都缩成「Fo」，仍然分不开
-            // （abbreviateSeamTabLabels 的现状，全名在 aria-label / title 里）。
-            ['Fo', 'Folia', 'Folia'],
+            // 一级是组。首字撞了的（Folia / Folder）各取两个字：首字加第一个分得开的字（前三个字母相同 → Fi / Fd）。
+            ['Fi', 'Folia', 'Folia'],
             ['P', PROBE_PROVIDER_A, PROBE_PROVIDER_A],
-            ['Fo', 'Folder', 'Folder'],
+            ['Fd', 'Folder', 'Folder'],
             ['N', 'Navi', 'Navi'],
         ]);
         // 本地页签：二级切换在中段，激活项的文字与页签同级退让（short 时也是一个字）。

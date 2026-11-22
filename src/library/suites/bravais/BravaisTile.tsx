@@ -381,7 +381,7 @@ function BravaisTile({
                         <BravaisTileBadge item={display} current={false} />
                         <span className="lattice-poster-copy">
                             {display.title && <WallTitle title={display.title} expanded={false} targetPosterWidth={rect.width} maxLines={2} />}
-                            {display.subtitle && <small>{display.subtitle}</small>}
+                            {display.subtitle && <small title={display.subtitleHint}>{display.subtitle}</small>}
                         </span>
                     </>
                 )}
@@ -442,7 +442,7 @@ function BravaisTile({
                                     targetPosterWidth={rect.width}
                                     variant={isPortrait ? form : undefined}
                                 />
-                                {display.subtitle && <small>{display.subtitle}</small>}
+                                {display.subtitle && <small title={display.subtitleHint}>{display.subtitle}</small>}
                             </span>
                             </>
                         )}

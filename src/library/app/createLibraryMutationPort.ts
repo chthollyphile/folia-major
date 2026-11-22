@@ -13,6 +13,7 @@ import { FAVORITE_ALBUMS_CHANGED_EVENT } from './useLibraryHomeResources';
 import { useExploreFeedStore } from '../../stores/useExploreFeedStore';
 import { localCollectionCoverKey } from '../core/collection/cover/localCollectionCover';
 import { localCollectionCovers } from '../core/collection/cover/localCollectionCovers.service';
+import { openFoliaTransferDialog } from '../../components/folia-playlists/foliaPlaylistDialogStore';
 
 // src/library/app/createLibraryMutationPort.ts
 // 把首页 surface 上的来源动作装配成 Library Core 的变更端口：本地曲库与 Navidrome 的读写、
@@ -113,6 +114,12 @@ export const createLibraryMutationPort = ({
         removePlaylistSongs: async (playlistId, entryKeys) => {
             await removeFoliaPlaylistEntries(playlistId, entryKeys);
         },
+    },
+    // 转存与从原歌单更新：只是打开宿主的对话框（FoliaTransferDialog），读原歌单、问音源、写歌单都在那里。
+    folia: {
+        saveCollection: collection => openFoliaTransferDialog({ mode: 'save', collection }),
+        refreshFromOrigin: playlistId => openFoliaTransferDialog({ mode: 'refresh', playlistId }),
+        hasOrigin: playlistId => Boolean(surface.localPlaylists.find(item => item.id === playlistId)?.origin),
     },
     navidrome: {
         availablePlaylists: navidromePlaylists,

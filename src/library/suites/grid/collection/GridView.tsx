@@ -5,7 +5,7 @@ import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Shuffle,
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../../../../types';
-import { getTrackSourceKey, getTrackSourceLabel, getTrackUnplayableLabel, isTrackShownUnplayable, readTrackSourcesVersion, subscribeTrackSources, trackSourceHue } from '../../../../services/foliaPlaylist/trackSourceState';
+import { getTrackSourceKey, getTrackSourceLabel, getTrackSwappedFromLabel, getTrackUnplayableLabel, TRACK_SWAPPED_MARK, isTrackShownUnplayable, readTrackSourcesVersion, subscribeTrackSources, trackSourceHue } from '../../../../services/foliaPlaylist/trackSourceState';
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -1210,6 +1210,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                 cardHeight={layoutConfig.cardHeight}
                                 fullBleedCover={fullBleedCover}
                                 sourceLabel={showTrackSource && item.rawTrack ? getTrackSourceLabel(item.rawTrack, t) : undefined}
+                                swappedFromLabel={showTrackSource && item.rawTrack ? getTrackSwappedFromLabel(item.rawTrack, t) || undefined : undefined}
                                 sourceHue={showTrackSource && item.rawTrack ? trackSourceHue(getTrackSourceKey(item.rawTrack)) : undefined}
                                 sourcesVersion={sourcesVersion}
                                 isEditMode={isEditMode}
@@ -2081,6 +2082,26 @@ export const GridView: React.FC<GridViewProps> = ({
                                             : t('scratchpad.collectScope')}
                                     </button>
                                 )}
+                                {mutationCapabilities.saveToFolia.supported && (
+                                    <button
+                                        onClick={() => void mutations?.saveToFolia()}
+                                        data-grid-action="save-to-folia"
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <ListPlus size={14} />
+                                        {t('foliaTransfer.saveAction')}
+                                    </button>
+                                )}
+                                {mutationCapabilities.refreshFromOrigin.supported && (
+                                    <button
+                                        onClick={() => void mutations?.refreshFromOrigin()}
+                                        data-grid-action="refresh-from-origin"
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <RefreshCw size={14} />
+                                        {t('foliaTransfer.refreshAction')}
+                                    </button>
+                                )}
                                 {canAddNavidromeToPlaylist && (
                                     <button
                                         onClick={() => setIsPlaylistPickerOpen(true)}
@@ -2310,7 +2331,8 @@ export const GridView: React.FC<GridViewProps> = ({
                             index={index}
                             style={style}
                             isUnavailable={isTrackShownUnplayable(track)}
-                            sourceLabel={showTrackSource ? getTrackSourceLabel(track, t) : undefined}
+                            // 列表里一行只有一串字：换过来源的在来源后面带同一个记号（悬停说明在卡片上）。
+                            sourceLabel={showTrackSource ? `${getTrackSourceLabel(track, t)}${getTrackSwappedFromLabel(track, t) ? ` ${TRACK_SWAPPED_MARK}` : ''}` : undefined}
                             unavailableLabel={getTrackUnplayableLabel(track, t, t('status.songUnavailableTag'))}
                             isActive={index === listFocusedIndex}
                             albumTrackLabel={getAlbumTrackLabel(track)}

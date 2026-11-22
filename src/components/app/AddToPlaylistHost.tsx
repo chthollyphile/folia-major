@@ -55,6 +55,8 @@ type AddToPlaylistHostProps = {
     onCreateOnlinePlaylistWithSongs: (name: string, songs: SongResult[]) => Promise<void>;
     onAddSongsToNavidromePlaylist: (playlistId: string, songs: SongResult[]) => Promise<void>;
     onCreateNavidromePlaylistWithSongs: (name: string, songs: SongResult[]) => Promise<void>;
+    /** 这首歌在不在 Folia 的「我喜欢的音乐」里，和播放页红心同一份判断（重复导入的本地歌按 canonical 的那条算）。 */
+    isFoliaSongLiked: (song: SongResult | null) => boolean;
 };
 
 type PlaylistEntry = PlaylistSelectionDialogItem;
@@ -92,6 +94,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     onCreateOnlinePlaylistWithSongs,
     onAddSongsToNavidromePlaylist,
     onCreateNavidromePlaylistWithSongs,
+    isFoliaSongLiked,
 }) => {
     const { t } = useTranslation();
     // The song as the listener sees it, so a blend shows the track that is on screen. It is what
@@ -192,20 +195,18 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
 
         if (inFolia) {
             // Folia 的「我喜欢的音乐」就是收藏歌单本身（isFavorite）：画成红心那一行，排在最前；其后是聚合歌单。
-            const targetKeys = targetSongs.map(foliaPlaylistEntryKeyOf);
+            // 「已喜欢」和播放页的红心同一个口径：正在放的是重复导入的副本时，歌单里留的是 canonical 的那条。
+            const allInFavorites = targetSongs.length > 0 && targetSongs.every(isFoliaSongLiked);
             const favorites = foliaPlaylists.filter(playlist => playlist.isFavorite);
             const others = foliaPlaylists.filter(playlist => !playlist.isFavorite);
             return [...favorites, ...others].map((playlist: FoliaPlaylist): PlaylistEntry => {
-                const keys = playlist.isFavorite ? new Set(playlist.entries.map(entry => entry.key)) : null;
                 return {
                     id: playlist.id,
                     name: playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name,
                     description: trackCount(playlist.entries.length),
                     coverUrl: playlist.entries.find(entry => entry.song.album.coverUrl)?.song.album.coverUrl,
                     kind: playlist.isFavorite ? 'liked' : undefined,
-                    note: keys && targetKeys.length > 0 && targetKeys.every(key => keys.has(key))
-                        ? t('playlist.alreadyLiked')
-                        : undefined,
+                    note: playlist.isFavorite && allInFavorites ? t('playlist.alreadyLiked') : undefined,
                     recent: !playlist.isFavorite && playlist.id === lastFoliaPlaylistId,
                 };
             });
@@ -231,7 +232,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         }
 
         return [];
-    }, [canLike, foliaPlaylists, inFolia, isOnline, isNavidrome, lastFoliaPlaylistId, navidromePlaylists, songPlaylists, starredNavidromeSongIds, t, targetSongs]);
+    }, [canLike, foliaPlaylists, inFolia, isFoliaSongLiked, isOnline, isNavidrome, lastFoliaPlaylistId, navidromePlaylists, songPlaylists, starredNavidromeSongIds, t, targetSongs]);
 
     // 对话框顶上的「要放进去的歌」：一首写歌名与歌手 · 来源，一组写首数、前几首的名字与来源，封面最多叠三张。
     const subject = useMemo<PlaylistSelectionSubject | undefined>(() => {

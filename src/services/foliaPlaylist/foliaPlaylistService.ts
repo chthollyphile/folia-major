@@ -377,6 +377,11 @@ export interface FoliaTransferDeps {
     resolveCounterparts: FoliaCounterpartResolver;
 }
 
+/** 用户在读原歌单、问音源的那段时间里取消了：还没动笔，什么都不写。 */
+const throwIfTransferAborted = (signal: AbortSignal | undefined): void => {
+    if (signal?.aborted) throw new DOMException('The transfer was cancelled', 'AbortError');
+};
+
 // 问不成（抛错）不挡住转存或刷新：当成一首都没有。
 const askCounterparts = async (
     playVia: string | undefined,
@@ -410,6 +415,7 @@ export const saveCollectionAsFoliaPlaylist = async (
     if (!input.origin.sourceId || !input.origin.collectionId) throw new Error('Playlist origin is incomplete');
     const playVia = input.playVia && input.playVia !== input.origin.sourceId ? input.playVia : undefined;
     const { counterparts, unavailable } = await askCounterparts(playVia, input.songs, deps);
+    throwIfTransferAborted(input.signal);
     return withPlaylistTransaction(async state => {
         const now = Date.now();
         const { entries, counts } = buildFoliaTransferEntries(input.songs, counterparts, now);
@@ -424,6 +430,8 @@ export const saveCollectionAsFoliaPlaylist = async (
                 name: input.origin.name,
                 savedAt: now,
                 ...(playVia ? { playVia } : {}),
+                ...(input.origin.collectionType ? { collectionType: input.origin.collectionType } : {}),
+                ...(input.origin.collectionData !== undefined ? { collectionData: input.origin.collectionData } : {}),
             },
             entries,
         };
@@ -443,7 +451,7 @@ export const refreshFoliaPlaylistFromOrigin = async (
     playlistId: string,
     fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
     deps: FoliaTransferDeps,
-    options: { playVia?: string | null } = {},
+    options: { playVia?: string | null; signal?: AbortSignal } = {},
 ): Promise<{ playlist: FoliaPlaylist; result: FoliaRefreshFromOriginResult } | null> => {
     const before = await getFoliaPlaylist(playlistId);
     const origin = before?.origin;
@@ -455,6 +463,7 @@ export const refreshFoliaPlaylistFromOrigin = async (
         return { playlist: before, result: { added: 0, swapped: 0, detached: 0, duplicates: 0, rejected: 0, originEmpty: true } };
     }
     const { counterparts, unavailable } = await askCounterparts(playVia, originSongs, deps);
+    throwIfTransferAborted(options.signal);
 
     let result: FoliaRefreshFromOriginResult | null = null;
     const updated = await updatePlaylist(playlistId, playlist => {

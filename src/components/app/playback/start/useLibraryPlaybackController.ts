@@ -1764,9 +1764,8 @@ export function useLibraryPlaybackController({
         }
     }, [
         currentSong,
-        isFoliaSongLiked,
+        resolveLocalSongRecord,
         starredNavidromeSongIds,
-        loadFoliaPlaylists,
         setStarredNavidromeSongIds,
         setStatusMsg,
         t,

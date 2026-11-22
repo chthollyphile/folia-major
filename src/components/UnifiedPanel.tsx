@@ -441,7 +441,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                             openScratchpadQueueCanvas();
                             onToggle();
                         }}
-                        // TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
                         canSavePlaylist={canSaveQueueAsPlaylist(currentSong, playQueue)}
                         onSaveCurrentQueueAsPlaylist={onSaveCurrentQueueAsPlaylist}
                         isDaylight={isDaylight}

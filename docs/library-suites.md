@@ -279,6 +279,8 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `delete-collection` | 删除歌单 / 文件夹 | 可选，需要确认 | `mutations.deleteCollection` |
 | `resync-folder` / `resync-all-folders` | 重新扫描文件夹 | 可选 | `mutations.resyncFolder` / `resyncAllFolders` |
 | `export-playlist` | 导出本地歌单 | 可选 | `mutations.exportPlaylist` |
+| `save-to-folia` | 把平台歌单 / 专辑（在线音源或 Navidrome）存成 Folia 歌单（打开宿主的对话框） | 可选 | `mutations.saveToFolia` |
+| `refresh-from-origin` | 转存来的 Folia 歌单从原歌单更新（打开宿主的对话框） | 可选 | `mutations.refreshFromOrigin` |
 | `edit-entity` / `organize-song-info` / `match-song` | 打开宿主的编辑 / 整理 / 匹配对话框 | 可选，几乎零成本（对话框由宿主提供） | `mutations.editEntity` / `organizeSongInfo` / `matchSong` |
 | `set-cover` | 打开宿主的集合封面对话框（本地文件夹 / 专辑 / 歌单的自定义封面：poster.png、上传、选一首歌的封面，或恢复默认） | 可选，几乎零成本（对话框由宿主提供） | `mutations.setCover`；能力 `capabilities.setCover`。封面本身由 core 解析好（首页分组、集合描述的 `coverUrl`、本地歌手页的专辑），suite 不必自己查；画曲目本身时用描述的 `automaticCoverUrl` |
 | `daily-date` | 切换每日推荐的历史日期 | 可选 | `mutations.setDailyDate` |
