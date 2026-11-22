@@ -2924,6 +2924,7 @@ export default function App() {
                 onCreateOnlinePlaylistWithSongs={createOnlinePlaylistWithSongs}
                 onAddSongsToNavidromePlaylist={addPickedSongsToNavidromePlaylist}
                 onCreateNavidromePlaylistWithSongs={createNavidromePlaylistWithSongs}
+                isFoliaSongLiked={isFoliaSongLiked}
             />
 
             {/* 速记簿：左缘的把手与滑出的抽屉，非模态，三个视图里都在；播放页隐藏 UI 时把手跟着藏起来。 */}
