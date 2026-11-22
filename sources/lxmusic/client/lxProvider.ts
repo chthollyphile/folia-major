@@ -1,6 +1,7 @@
 import type {
     FoliumSourceAudio, FoliumSourceCollection, FoliumSourceDef, FoliumSourcePage, FoliumSourceSong, FoliumText,
 } from '@folia/folium';
+import { counterpartSourcesOf, counterpartsOf, LX_PLATFORM_OF_SOURCE } from './lxCounterparts';
 import type { LxTransport } from './lxTransport';
 
 // sources/lxmusic/client/lxProvider.ts
@@ -22,6 +23,8 @@ export interface LxSourceEnv {
     isConfigured(): boolean;
     /** 当前搜的平台键（榜单区块的标题里要它的名字）。 */
     platform(): string | null;
+    /** 当前脚本支持的平台键；没有脚本时是空的。「对应歌曲」只答这些平台的。 */
+    platforms(): readonly string[];
 }
 
 const songPage = (transport: LxTransport, operation: string, params: Record<string, unknown>) => (
@@ -51,6 +54,13 @@ export const createLxSource = (env: LxSourceEnv): FoliumSourceDef => {
             },
             'songs@1': {
                 getSong: id => transport.request<FoliumSourceSong | null>('catalog', 'song', { id }),
+                // 「对应歌曲」：网易云、QQ、酷狗的歌只凭 id 换成洛雪的歌（lxCounterparts.ts），不发请求。
+                // 能答哪几家跟着当前脚本支持的平台变，所以是 getter；脚本换了由 index.ts 调 handle.changed()。
+                // 还没导入脚本时三家都报：宿主看到「没配好」不会来问，界面上能提示去导入脚本。
+                get counterpartSources() {
+                    return env.isConfigured() ? counterpartSourcesOf(env.platforms()) : Object.keys(LX_PLATFORM_OF_SOURCE);
+                },
+                getCounterparts: songs => Promise.resolve(counterpartsOf(songs, env.platforms())),
             },
             'playback.audio@1': {
                 // 洛雪的四档：128k、320k、flac、flac24bit。脚本没有的档由 main 入口落到最近的一档，答里写明实际的档。

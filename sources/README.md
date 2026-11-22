@@ -19,4 +19,8 @@ Folia 的内置音源模组（Folium 2.0，方案 `dev/folium/folium-2-plan.md` 
 - 安装包可以不带某几家（`FOLIA_BUNDLED_SOURCES`）；不带的那家用 `npm run sources:pack -- <id>` 打成 zip，经「从 zip 安装」接管它的
   短 id 和旧数据（`claims`）。声明了原生件的（spotify 的 librespot、appleMusic 的 Windows 伴侣程序）按系统把那一份带进包里的
   `native/<名字>/<系统>/`，接管副本经 `api.native` 用它；macOS 的伴侣程序不带。见 `dev/sources/README.md` 的「打成 zip」。
+- 一个音源能只凭 id 说出别家的歌在自己这边是哪一首的，在 `songs@1` 里写 `counterpartSources` 和 `getCounterparts`
+  （「对应歌曲」，`docs/folium/sources.md` 第 3 节）：只做精确对应、只读、不联网，拿到的只有那首歌公开的 id 和元数据。
+  现在只有 `lxmusic` 实现了（替网易云、QQ、酷狗的歌回答）。别家要被问到，靠的是歌的 `id` / `publicId` 是平台公开的稳定标识：
+  改这两个字段的含义前先看谁在按它换算（`sources/lxmusic/client/lxCounterparts.ts`）。
 - 桌面上拿不到真账号时，`test/manual/fakeSourceNetwork/` 给一家写张路由表就能把它的网络换成假应答（验证管道，不验证真实接口）。

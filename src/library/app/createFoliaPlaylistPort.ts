@@ -4,20 +4,29 @@ import {
     addSongsToFoliaPlaylist,
     createFoliaPlaylist,
     deleteFoliaPlaylist,
+    refreshFoliaPlaylistFromOrigin,
     removeFoliaPlaylistEntries,
     renameFoliaPlaylist,
     reorderFoliaPlaylistEntries,
     reorderFoliaPlaylists,
+    saveCollectionAsFoliaPlaylist,
     setFoliaSongFavorite,
     setLocalSongFavorite,
+    type FoliaTransferDeps,
 } from '../../services/foliaPlaylist/foliaPlaylistService';
 import { getNavidromeConfig } from '../../services/navidromeService';
 import { omni } from '../../services/onlineMusic/omni';
+import { listSongCounterpartTargets, resolveSongCounterparts } from '../../services/onlineMusic/songCounterparts';
 import { isLocalPlaybackSong } from '../../utils/appPlaybackGuards';
 
 // src/library/app/createFoliaPlaylistPort.ts
 // Folia 聚合歌单的宿主装配：把 core 的端口接到存储服务上，把「来源还在不在」接到 omni、Navidrome 配置和本地曲库上。
 // 歌单的内容不经这里读：界面用 useFoliaPlaylistsStore（写完会自己重读）。
+
+// 「对应歌曲」接到音源上：只问得到公开的 id 和公开的元数据，批量与时限都在 songCounterparts.ts。
+const transferDeps: FoliaTransferDeps = {
+    resolveCounterparts: (targetSourceId, songs) => resolveSongCounterparts(targetSourceId, songs),
+};
 
 export const createFoliaPlaylistPort = (): FoliaPlaylistPort => ({
     create: (name, songs, options) => createFoliaPlaylist(name, songs, options),
@@ -32,6 +41,11 @@ export const createFoliaPlaylistPort = (): FoliaPlaylistPort => ({
         const localSong = isLocalPlaybackSong(song) ? await getLocalSong(song.localRef.songId) : undefined;
         return localSong ? setLocalSongFavorite(localSong, shouldFavorite) : setFoliaSongFavorite(song, shouldFavorite);
     },
+    getPlayViaTargets: originSourceId => listSongCounterpartTargets(originSourceId),
+    saveCollection: input => saveCollectionAsFoliaPlaylist(input, transferDeps),
+    refreshFromOrigin: (playlistId, fetchOriginSongs, options) => (
+        refreshFoliaPlaylistFromOrigin(playlistId, fetchOriginSongs, transferDeps, options)
+    ),
 });
 
 /**

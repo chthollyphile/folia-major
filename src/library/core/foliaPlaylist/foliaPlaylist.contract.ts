@@ -1,12 +1,37 @@
 import type { SongResult } from '../../../types';
-import type { FoliaPlaylist, FoliaPlaylistAddResult, FoliaPlaylistEntry, FoliaPlaylistOrigin } from '../../../types/foliaPlaylist';
+import type {
+    FoliaPlayViaUnavailable,
+    FoliaPlaylist,
+    FoliaPlaylistAddResult,
+    FoliaPlaylistEntry,
+    FoliaPlaylistOrigin,
+    FoliaRefreshFromOriginResult,
+    FoliaSaveCollectionInput,
+    FoliaSaveCollectionResult,
+} from '../../../types/foliaPlaylist';
 
 // src/library/core/foliaPlaylist/foliaPlaylist.contract.ts
 // Folia 聚合歌单给界面用的契约：读写的端口，以及一条条目现在能不能播。
 // 歌单的内容界面从 useFoliaPlaylistsStore 读（写完会自己重读）；这里的端口是写操作，由宿主装配
 // （src/library/app/createFoliaPlaylistPort.ts），suite 不直接碰 src/services/foliaPlaylist。
 
-export type { FoliaPlaylist, FoliaPlaylistAddResult, FoliaPlaylistEntry, FoliaPlaylistOrigin };
+export type {
+    FoliaPlayViaUnavailable,
+    FoliaPlaylist,
+    FoliaPlaylistAddResult,
+    FoliaPlaylistEntry,
+    FoliaPlaylistOrigin,
+    FoliaRefreshFromOriginResult,
+    FoliaSaveCollectionInput,
+    FoliaSaveCollectionResult,
+};
+
+/** 一个能把别家的歌「改由它来播」的音源，以及它现在能不能问。 */
+export type FoliaPlayViaTarget = {
+    sourceId: string;
+    /** 现在问不了的原因（没配好之类）；能问就没有。停用、只用于匹配的音源不会列出来。 */
+    unavailable?: FoliaPlayViaUnavailable;
+};
 
 export interface FoliaPlaylistPort {
     /** 建一张歌单，可以带上第一批歌（任何来源，一批里可以有多个来源）。名字是空的会 reject。 */
@@ -25,6 +50,26 @@ export interface FoliaPlaylistPort {
     reorderPlaylists(orderedIds: readonly string[]): Promise<boolean>;
     /** 把一首歌放进或移出「我喜欢的音乐」（任何来源；本地歌会换算到重复导入组里 canonical 的那条）。 */
     setFavorite(song: SongResult, shouldFavorite: boolean): Promise<FoliaPlaylist | null>;
+    /**
+     * 「改由某个音源播放」能选哪些音源：声明了能替 originSourceId 的歌答「对应歌曲」的那些（只凭 id 精确对应，
+     * 不按歌名歌手找）。同步读此刻的状态；音源增减、开关、配置变了要重读。
+     */
+    getPlayViaTargets(originSourceId: string): FoliaPlayViaTarget[];
+    /**
+     * 把一张平台歌单转存成 Folia 歌单：歌由调用方读好传进来。选了 playVia 的，能精确对应的歌换成那个音源的并记下
+     * 原来是哪首，其余照原样存；结果里有换了几首、没换几首。名字是空的会 reject。
+     */
+    saveCollection(input: FoliaSaveCollectionInput): Promise<{ playlist: FoliaPlaylist; result: FoliaSaveCollectionResult }>;
+    /**
+     * 从原歌单刷新一张转存来的歌单：原歌单现在的歌由 fetchOriginSongs 去读（读不到就抛错，什么都不写）。
+     * 只加不删：原歌单里新的歌加进来（按上次选的目标音源换），已经没有的歌和用户自己加的条目都留着。
+     * options.playVia 给了就改用它并记下来（null：从此不换）。歌单不存在、不是转存来的：null。
+     */
+    refreshFromOrigin(
+        playlistId: string,
+        fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
+        options?: { playVia?: string | null },
+    ): Promise<{ playlist: FoliaPlaylist; result: FoliaRefreshFromOriginResult } | null>;
 }
 
 /**
