@@ -119,6 +119,7 @@
         "fRpcMessage": "folia-mods:rpc-message",
         "fSecretChanged": "folia-mods:secret-changed",
         "fSourceStatesChanged": "folia-mods:source-states-changed",
+        "fCommunityChanged": "folia-mods:community-changed",
         "fSourcesStopping": "folia-mods:sources-stopping"
     }
 }

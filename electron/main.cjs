@@ -6381,6 +6381,8 @@ app.whenReady().then(async () => {
       // Community mods (communityMods.cjs): read here, written by the mod system after its own confirmation.
       isCommunityEnabled: () => readStoredBoolean(COMMUNITY_MODS_SETTING_KEY, false),
       writeCommunityEnabled: (enabled) => store.set(COMMUNITY_MODS_SETTING_KEY, Boolean(enabled)),
+      // The windows that run the app with the preload: each shows the community mods switch by itself.
+      getFirstPartyWindows: () => [mainWindow, remoteControlWindow],
       hostStore: store,
       freshProfile: isFreshProfile,
       diagnostics: loginDiagnostics,

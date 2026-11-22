@@ -164,6 +164,9 @@ const createModSystem = ({
     // passes both; without them (tests, tools) mods from the folders run as they did before Folium 2.0.
     isCommunityEnabled = null,
     writeCommunityEnabled = null,
+    // The windows that run the app with the preload (main.cjs: the main window and the remote-control window), for
+    // the few notices every one of them shows. Without it only the main window is told.
+    getFirstPartyWindows = null,
     // Whether the main config store was empty when main.cjs made it (nothing had written it yet): a fresh profile,
     // which owes the start prompt's sources page (plan §5.3). An upgraded profile never does.
     freshProfile = false,
@@ -258,6 +261,25 @@ const createModSystem = ({
         if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
             win.webContents.send(channel, payload);
         }
+    };
+
+    // To every window that runs the app (not only the main one): what each of them draws by itself.
+    const sendToFirstPartyWindows = (channel, payload) => {
+        let windows = null;
+        try {
+            windows = typeof getFirstPartyWindows === 'function' ? getFirstPartyWindows() : null;
+        } catch {
+            windows = null;
+        }
+        if (!Array.isArray(windows)) {
+            sendToRenderer(channel, payload);
+            return;
+        }
+        windows.forEach((win) => {
+            if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
+                win.webContents.send(channel, payload);
+            }
+        });
     };
 
     const emitLog = (modId, level, message, details) => {
@@ -1582,7 +1604,8 @@ ${partition}`;
 
     /*
      * Turns community mods on (after the native confirmation) or off (at once), then reloads: on, the mods the
-     * user already confirmed run; off, every community mod stops. The answer carries the switch as it is now.
+     * user already confirmed run; off, every community mod stops. The answer carries the switch as it is now, and
+     * every window that runs the app is told (folia-mods:community-changed).
      */
     const setCommunityMods = async (enabled) => {
         const wanted = Boolean(enabled);
@@ -1597,6 +1620,9 @@ ${partition}`;
         }
         writeCommunityEnabled(wanted);
         console.info(`[Mods] community mods switched ${wanted ? 'on' : 'off'}`);
+        // The window that asked reads the answer; any other open one (the remote-control window) still shows the
+        // switch as it was. The main process already judges by the new value: this is for what they draw.
+        sendToFirstPartyWindows(IPC.fCommunityChanged, { enabled: wanted });
         return { ok: true, enabled: wanted, mods: await reloadChanged({ differential: false }) };
     };
 

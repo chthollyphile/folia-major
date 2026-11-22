@@ -68,6 +68,7 @@ describe('the copies of what foliumShared.json holds', () => {
         onModRpcMessage: 'fRpcMessage',
         onModSecretChanged: 'fSecretChanged',
         onSourceStatesChanged: 'fSourceStatesChanged',
+        onCommunityModsChanged: 'fCommunityChanged',
         onSourcesStopping: 'fSourcesStopping',
     };
 

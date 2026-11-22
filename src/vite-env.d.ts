@@ -1057,6 +1057,7 @@ declare global {
         assignSourceClaim?: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
         reportSourcesRegistered?: (modId: string, registered: string[], clientUrl: string) => Promise<{ ok: boolean; error?: string; revoked?: boolean }>;
         onSourceStatesChanged?: (callback: (payload: ModSourceStatesPayload) => void) => () => void;
+        onCommunityModsChanged?: (callback: (payload: { enabled: boolean }) => void) => () => void;
         onSourcesStopping?: (callback: (payload: { sourceIds: string[] }) => void) => () => void;
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;

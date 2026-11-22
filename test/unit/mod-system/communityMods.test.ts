@@ -6,7 +6,7 @@ import path from 'path';
 import { zipSync } from 'fflate';
 import {
     IPC, cleanHarness, clearModRecords, confirmMod, dialogAnswer, dialogs, harness, invoke, launch, modRecord, resetHarness,
-    sourceManifest, stateOf, writeMod,
+    sentToWindow, sourceManifest, stateOf, writeMod,
 } from './loaderHarness';
 
 // test/unit/mod-system/communityMods.test.ts
@@ -137,6 +137,49 @@ describe('the loader with community mods off', () => {
         expect(await invoke(IPC.setCommunity, true)).toMatchObject({ ok: false, error: 'community-declined', enabled: false });
         expect(written).toEqual([]);
         expect(community.on).toBe(false);
+    });
+
+    it('tells every window that runs the app when the switch changed, and nobody when it did not', async () => {
+        const told = (name: string, log: Array<[string, unknown]>) => ({
+            isDestroyed: () => false,
+            webContents: { isDestroyed: () => false, send: (channel: string, payload: unknown) => { log.push([`${name}:${channel}`, payload]); } },
+        });
+        const log: Array<[string, unknown]> = [];
+        const closed = { isDestroyed: () => true, webContents: { isDestroyed: () => true, send: () => { throw new Error('a closed window was written to'); } } };
+        launch({
+            extra: {
+                isCommunityEnabled: () => community.on,
+                writeCommunityEnabled: (value: boolean) => { community.on = value; },
+                // The main window, the remote-control window, one that is closed and one that never opened.
+                getFirstPartyWindows: () => [told('main', log), told('remote', log), closed, null],
+            },
+        });
+        const notices = () => log.filter(([channel]) => channel.endsWith(IPC.fCommunityChanged));
+        dialogAnswer.response = 0;
+        await invoke(IPC.setCommunity, true);
+        expect(notices()).toEqual([]);
+        dialogAnswer.response = 1;
+        await invoke(IPC.setCommunity, true);
+        expect(notices()).toEqual([
+            [`main:${IPC.fCommunityChanged}`, { enabled: true }],
+            [`remote:${IPC.fCommunityChanged}`, { enabled: true }],
+        ]);
+        // Already on: nothing changed, nothing is said.
+        await invoke(IPC.setCommunity, true);
+        expect(notices()).toHaveLength(2);
+        await invoke(IPC.setCommunity, false);
+        expect(notices().slice(2)).toEqual([
+            [`main:${IPC.fCommunityChanged}`, { enabled: false }],
+            [`remote:${IPC.fCommunityChanged}`, { enabled: false }],
+        ]);
+    });
+
+    it('tells the main window alone when the host names no other window', async () => {
+        sentToWindow.length = 0;
+        launchGated();
+        dialogAnswer.response = 1;
+        await invoke(IPC.setCommunity, true);
+        expect(sentToWindow.filter(([channel]) => channel === IPC.fCommunityChanged)).toEqual([[IPC.fCommunityChanged, { enabled: true }]]);
     });
 
     it('does not offer the enable dialog for a community mod', async () => {
