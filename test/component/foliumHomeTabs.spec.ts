@@ -9,6 +9,9 @@ import '../../dev/probes/homeBehavior/probeApi';
 // 页内 Tab 只在越过首尾时才绕回。
 // 再有：页面开着时显式打开集合会关掉页面、页面不从别的接管键盘的窗口里抢焦点、Bravais 的 F6 在页面里接着循环、
 // TUI 下命令面板重选当前页签也能关掉页面。
+// 首页两级页签之后：两级页签的 suite（网格、Bravais）里，模组页面的页头列的是一级的组（data-home-group：Folia、当前在线
+// 音源、本地、Navidrome），点一个组去它记住的那一页；Bravais 缝里一级那一排同样是组（data-bravais-tab）。Tab / F6 仍按
+// 「页」一个个轮，第一页是 Folia。
 
 type HomeTabWindow = Window & {
     __homeTabTest: { mounts: number; cleanups: number; unregister: () => void };
@@ -112,10 +115,15 @@ for (const suite of ['grid', 'bravais'] as const) {
         await expect(homePage.getByText('Owned message page')).toBeVisible();
         // 页头的原生页签走首页 surface 的页签句柄，而不是直接写 homeViewTab：Bravais 选页签时收起缝里的搜索框，
         // 这一步不能被绕过（直接写 homeViewTab 时搜索框会一直开着）。
+        // 两级页签的首页，页头列的是一级的组：四个组都在，点「本地」去它那一页。
+        await expect(homePage.getByRole('navigation').locator('[data-home-group]')).toHaveCount(4);
+        expect(await homePage.getByRole('navigation').locator('[data-home-group]').evaluateAll(
+            buttons => buttons.map(button => (button as HTMLElement).dataset.homeGroup),
+        )).toEqual(['folia', 'online', 'local', 'navidrome']);
         if (suite === 'bravais') expect(await bravaisSearchOpen(page, true)).toBe(true);
-        await homePage.getByRole('button', { name: 'Albums', exact: true }).click();
+        await homePage.locator('[data-home-group="local"]').click();
         await expect(homePage).toHaveCount(0);
-        expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('albums');
+        expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('local');
         if (suite === 'bravais') expect(await bravaisSearchOpen(page)).toBe(false);
         expect(await page.evaluate(() => {
             const state = (window as unknown as HomeTabWindow).__homeTabTest;
@@ -130,7 +138,9 @@ test('Grid Tab and Shift+Tab reach contributed pages and then leave native cycli
     await expect.poll(() => page.evaluate(() => window.__homeProbe?.ready() ?? false)).toBe(true);
     await registerPage(page);
     const nativeRoot = page.locator('[data-ponder-page-scope="grid-page"]');
-    await nativeRoot.getByRole('button', { name: 'Playlists', exact: true }).click();
+    // 歌单是在线组的二级页签（顶部胶囊正下方的小胶囊里，role=tab）；点它只是把焦点放进原生首页。
+    await nativeRoot.getByRole('tab', { name: 'Playlists', exact: true }).click();
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('playlist');
     const homePage = page.locator('[data-folium-home-page="home-test:messages"]');
     for (let step = 0; step < 8 && await homePage.count() === 0; step++) await page.keyboard.press('Tab');
     await expect(homePage.getByRole('button', { name: 'Home Messages', exact: true })).toBeFocused();
@@ -138,11 +148,13 @@ test('Grid Tab and Shift+Tab reach contributed pages and then leave native cycli
     await page.keyboard.press('Tab');
     await expect(homePage.getByRole('textbox', { name: 'Message draft' })).toBeFocused();
     expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe(nativeTab);
-    await homePage.getByRole('button', { name: 'Playlists', exact: true }).click();
+    // 页头列的是一级的组。回到第一页（Folia），Shift+Tab 从第一页绕到排在最后的模组页面。
+    await homePage.locator('[data-home-group="folia"]').click();
     await expect(homePage).toHaveCount(0);
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('folia');
     await page.keyboard.press('Shift+Tab');
     await expect(homePage.getByRole('button', { name: 'Home Messages', exact: true })).toBeFocused();
-    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('playlist');
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('folia');
 });
 
 test('page focus wraps inside the page through the ShadowRoot and returns to the opener on close', async ({ mount, page }) => {
@@ -243,18 +255,25 @@ test('bravais: F6 includes contributed pages and aria-selected follows the open 
     const entry = seam.locator('[data-bravais-tab="home-test:messages"]');
     const selected = seam.locator('[data-bravais-tab][aria-selected="true"]');
     await expect(entry).toHaveAttribute('aria-selected', 'false');
-    await expect(seam.locator('[data-bravais-tab="playlist"]')).toHaveAttribute('aria-selected', 'true');
+    // 一级那一排是组：歌单页在在线组里。
+    await expect(seam.locator('[data-bravais-tab="online"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(selected).toHaveCount(1);
+    // F6 按页轮，第一页是 Folia：先到 Folia。
+    await seam.locator('[data-bravais-tab="folia"]').click();
+    await expect(stage).toHaveAttribute('data-bravais-layer', 'home:folia');
+    await settled();
+    await expect(seam.locator('[data-bravais-tab="folia"]')).toHaveAttribute('aria-selected', 'true');
     // Shift+F6 from the first native tab wraps to the contributed page at the end of the row.
     await page.keyboard.press('Shift+F6');
     const homePage = page.locator('[data-folium-home-page="home-test:messages"]');
     await expect(homePage.getByText('Owned message page')).toBeVisible();
     await expect(entry).toHaveAttribute('aria-selected', 'true');
     await expect(selected).toHaveCount(1);
-    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('playlist');
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('folia');
     await homePage.getByRole('button', { name: 'Back to library' }).click();
     await expect(homePage).toHaveCount(0);
     await expect(entry).toHaveAttribute('aria-selected', 'false');
-    await expect(seam.locator('[data-bravais-tab="playlist"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(seam.locator('[data-bravais-tab="folia"]')).toHaveAttribute('aria-selected', 'true');
     await expect(selected).toHaveCount(1);
     // F6 from the last native tab continues into the contributed page as well.
     await seam.locator('[data-bravais-tab="navidrome"]').click();
@@ -278,12 +297,12 @@ test('bravais: F6 includes contributed pages and aria-selected follows the open 
     await expect(notesPage.getByText('Owned notes page')).toBeVisible();
     await expect(notesPage.getByRole('button', { name: 'Home Notes', exact: true })).toBeFocused();
     await expect(seam.locator('[data-bravais-tab="home-test:notes"]')).toHaveAttribute('aria-selected', 'true');
-    // 最后一个模组页面再按 F6：绕回第一个原生页签，页面关掉。
+    // 最后一个模组页面再按 F6：绕回第一个原生页签（Folia），页面关掉。
     await page.keyboard.press('F6');
     await expect(page.locator('[data-folium-home-page]')).toHaveCount(0);
-    await expect(seam.locator('[data-bravais-tab="playlist"]')).toHaveAttribute('aria-selected', 'true');
-    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('playlist');
-    await expect(stage).toHaveAttribute('data-bravais-layer', 'home:playlist');
+    await expect(seam.locator('[data-bravais-tab="folia"]')).toHaveAttribute('aria-selected', 'true');
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('folia');
+    await expect(stage).toHaveAttribute('data-bravais-layer', 'home:folia');
     await settled();
     // Shift+F6 反方向：从第一个原生页签绕到最后一个模组页面，再往前是前一个模组页面，再往前回到最后一个原生页签。
     await page.keyboard.press('Shift+F6');

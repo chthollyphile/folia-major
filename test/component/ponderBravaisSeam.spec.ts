@@ -88,7 +88,9 @@ test('首页：换到本地页签之后多出二级切换，直达入口换成�
     const local = stage.locator('[data-ponder-surface-state="home-local"]');
     await seekUntilShown(page, local);
     await expect(local.locator('[data-ponder-bravais-sections]')).toBeVisible();
-    await expect(local.locator('[data-ponder-bravais-tab="3"][data-active]')).toBeVisible();
+    // 一级页签是组：Folia、当前在线音源、本地、Navidrome——本地是第 3 个（下标 2）。
+    await expect(local.locator('[data-ponder-bravais-tab="2"][data-active]')).toBeVisible();
+    await expect(local.locator('[data-ponder-bravais-tab][data-active]')).toHaveCount(1);
     await expect(stage.locator('[data-ponder-surface-state="base"] [data-ponder-bravais-sections]')).toHaveCount(0);
 });
 

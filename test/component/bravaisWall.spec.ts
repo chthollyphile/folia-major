@@ -3,6 +3,7 @@ import { expect, test } from './fixtures';
 import type { ProbeCallKind } from '../../dev/probes/libraryBehavior/probeLog';
 import { buildServiceStubModule, LOCAL_MUSIC_SERVICE_ROUTE } from '../../dev/probes/homeBehavior/serviceStubModule';
 import '../../dev/probes/homeBehavior/probeApi';
+import { homeGroupTab, onlinePageTab } from './bravaisHomeNav';
 
 // test/component/bravaisWall.spec.ts
 // bravais 骨架（B6）的组件用例：挂真实的 Home（homeBehavior 探针：GridViewOverlayHost → registry 解析出的首页与集合
@@ -76,7 +77,9 @@ test.describe('[bravais] skeleton wall', () => {
     test('draws the playlists tab as a wall behind the narrow home seam', async ({ page }) => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
         await expect(seam(page)).toHaveAttribute('data-bravais-seam-level', 'full');
-        await expect(seam(page).locator('[data-bravais-tab="playlist"]')).toHaveAttribute('aria-selected', 'true');
+        // 两级页签：一级在在线组，二级（缝里的二级切换）在歌单页。
+        await expect(homeGroupTab(page, 'online')).toHaveAttribute('aria-selected', 'true');
+        await expect(onlinePageTab(page, 'playlist')).toHaveAttribute('aria-selected', 'true');
         // 页面教程是墙（bravais-wall）：长按 Ctrl+G、触屏灯泡、命令面板「思索当前页面」都解析到它。
         await expect(page.locator('[data-library-surface="home"][data-ponder-page-scope="bravais-wall"]')).toHaveCount(1);
         expect(await pageTarget(page)).toBe('bravais-wall');

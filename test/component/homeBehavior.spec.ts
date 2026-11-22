@@ -49,11 +49,17 @@ import '../../dev/probes/homeBehavior/probeApi';
 //
 // 探针页开着 StrictMode：首页挂载时的请求会出现两次，分页断言看去重后的 offset 序列。
 // test.fixme 记录的是现状缺陷，注释里写明由哪一步转正。
+//
+// 首页两级页签之后：页的 key 多了 folia（聚合歌单；本地歌单并进了它，本地页签只剩文件夹 / 专辑 / 歌手三个 section）。
+// Folia 组只在两级页签的首页（网格、Bravais）里有，冻结的 TUI 没有这一页——原先在本地「歌单」section 上验证的行为
+// 改到 Folia 页上验证，只对 grid / bravais 跑（hasFolia）；TUI 上那几条只留下与页面无关的断言（存储里的歌单）。
 
 const SUITES = ['grid', 'tui', 'bravais'] as const;
 type Suite = (typeof SUITES)[number];
 const A = PROBE_PROVIDER_A;
 const B = PROBE_PROVIDER_B;
+/** 这套首页有没有 Folia 页（聚合歌单）：网格与 Bravais 有，TUI 没有。 */
+const hasFolia = (suite: Suite) => suite !== 'tui';
 
 const playlistIds = (providerId: string) => HOME_PLAYLIST_FIXTURES[providerId].map(id => ONLINE_FIXTURES[id].collectionId);
 const localKeys = (indexes: readonly number[]) => homeLocalSongIds(indexes).map(id => `local:${id}`);
@@ -217,7 +223,9 @@ test.describe(`[${suite}] online tabs`, () => {
         expect(await scope(page)).toBe(`online:${A}`);
         expect(await distinctPages(page, 'userPlaylists', `${A}:userPlaylists`)).toEqual(['0+50']);
         expect((await requests(page, 'cloudCollection', `${A}:cloud`)).length).toBeGreaterThan(0);
+        // 全部的页（各组的页按页签条的顺序排成一排）：Folia 在最前，只在有 Folia 组的首页里出现。
         expect(await page.evaluate(() => window.__homeProbe!.tabs().map(tab => [tab.key, tab.disabled]))).toEqual([
+            ...(hasFolia(suite) ? [['folia', false]] : []),
             ['playlist', false],
             ['radio', false],
             ['albums', false],
@@ -396,14 +404,13 @@ test.describe(`[${suite}] provider switch`, () => {
 });
 
 test.describe(`[${suite}] local tab`, () => {
-    test('the four sections list folders (with the virtual All Songs), albums, artists and playlists', async ({ mount, page }) => {
+    test('the three sections list folders (with the virtual All Songs), albums and artists', async ({ mount, page }) => {
         await mountHome(mount, page, suite);
         await showList(page, 'local');
         expect(await page.evaluate(() => window.__homeProbe!.sections())).toEqual([
             { id: 'folders', active: true },
             { id: 'albums', active: false },
             { id: 'artists', active: false },
-            { id: 'playlists', active: false },
         ]);
         expect(await scope(page)).toBe('local');
 
@@ -436,17 +443,8 @@ test.describe(`[${suite}] local tab`, () => {
         await showList(page, 'local', 'artists');
         expect((await items(page)).every(item => item.type === 'artist' && !item.hideable)).toBe(true);
         expect(grouped(await items(page))).toEqual(byField('artist'));
-
-        await showList(page, 'local', 'playlists');
-        const playlists = await items(page);
-        // 「我喜欢」是本地曲库自带的收藏歌单（读歌单时自动建出），排在自建歌单前面。
-        expect(playlists.map(item => [item.name, item.type, item.hideable])).toEqual([
-            ['Liked Songs', 'playlist', true],
-            [HOME_LOCAL_PLAYLIST.name, 'playlist', true],
-        ]);
-        expect(playlists.map(item => Boolean(item.isVirtual))).toEqual([true, false]);
-        expect(playlists[0].trackIds).toEqual([]);
-        expect(playlists[1].trackIds).toEqual(homeLocalSongIds(HOME_LOCAL_PLAYLIST.songs));
+        // 本地不再有「歌单」这一页（歌单在 Folia 页，见下面的 folia tab）。
+        expect(await setSection(page, 'playlists')).toBe(false);
     });
 
     test('opening local entries hands the host local descriptors (All Songs is virtual)', async ({ mount, page }) => {
@@ -472,15 +470,40 @@ test.describe(`[${suite}] local tab`, () => {
         expect(await open(page, album.id)).toBe(true);
         await expect.poll(async () => (await lastOpened(page))?.key).toBe(`local:album:${album.id}`);
         expect((await lastOpened(page))?.entityId).toBe(album.id);
-        await closeCollection(page);
+    });
+});
 
-        await showList(page, 'local', 'playlists');
+// 原先本地页签「歌单」section 上的两条（列出歌单、打开歌单）：本地歌单并进了 Folia 聚合歌单，改在 Folia 页上验证。
+if (hasFolia(suite)) {
+test.describe(`[${suite}] folia tab`, () => {
+    test('the Folia tab lists the aggregate playlists with Liked Songs first, without sections', async ({ mount, page }) => {
+        await mountHome(mount, page, suite);
+        await showList(page, 'folia');
+        expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('folia');
+        expect(await page.evaluate(() => window.__homeProbe!.sections())).toEqual([]);
+        // 歌单的隐藏沿用本地那一个作用域（从本地歌单迁来，卡片 id 没变）。
+        expect(await scope(page)).toBe('local');
+        const playlists = await items(page);
+        // 「我喜欢」是自带的收藏歌单（读歌单时自动建出），排在自建歌单前面。
+        expect(playlists.map(item => [item.name, item.type, item.hideable])).toEqual([
+            ['Liked Songs', 'playlist', true],
+            [HOME_LOCAL_PLAYLIST.name, 'playlist', true],
+        ]);
+        expect(playlists.map(item => Boolean(item.isVirtual))).toEqual([true, false]);
+        expect(playlists[0].trackIds).toEqual([]);
+        expect(playlists[1].trackIds).toEqual(homeLocalSongIds(HOME_LOCAL_PLAYLIST.songs));
+    });
+
+    test('opening a Folia playlist hands the host a local playlist descriptor', async ({ mount, page }) => {
+        await mountHome(mount, page, suite);
+        await showList(page, 'folia');
         const playlist = (await items(page)).find(item => item.name === HOME_LOCAL_PLAYLIST.name)!;
         expect(await open(page, playlist.id)).toBe(true);
         await expect.poll(async () => (await lastOpened(page))?.key).toBe(`local:playlist:${playlist.id}`);
         expect((await lastOpened(page))?.songIds).toEqual(homeLocalSongIds(HOME_LOCAL_PLAYLIST.songs));
     });
 });
+}
 
 test.describe(`[${suite}] navidrome tab`, () => {
     test('sections come from the overview requests, with virtual Random and Favorites playlists', async ({ mount, page }) => {
@@ -677,11 +700,14 @@ test.describe(`[${suite}] directory batch`, () => {
             .toEqual(homeLocalSongIds([...homeLocalSongsIn('Extra'), ...homeLocalSongsIn('Music/Beta')]));
 
         await hideMap(page);
-        await showList(page, 'local', 'playlists');
-        await expect.poll(async () => (await items(page)).map(item => item.name)).toContain('Batch Mix');
+        // 新建的歌单出现在 Folia 页（TUI 没有这一页：只看上面存储里的歌单）。
+        if (hasFolia(suite)) {
+            await showList(page, 'folia');
+            await expect.poll(async () => (await items(page)).map(item => item.name)).toContain('Batch Mix');
+        }
     });
 
-    test('albums and artists offer play, enqueue and create playlist only; playlists have no batch', async ({ mount, page }) => {
+    test('albums and artists offer play, enqueue and create playlist only; the Folia playlists have no batch', async ({ mount, page }) => {
         await mountHome(mount, page, suite);
         for (const section of ['albums', 'artists'] as const) {
             await showList(page, 'local', section);
@@ -690,8 +716,11 @@ test.describe(`[${suite}] directory batch`, () => {
             expect(await page.evaluate(() => window.__homeProbe!.directoryNodes())).toEqual([]);
             await hideMap(page);
         }
-        await showList(page, 'local', 'playlists');
-        expect(await page.evaluate(() => window.__homeProbe!.batchAvailable())).toBe(false);
+        // 歌单（Folia 页；TUI 没有这一页）没有批量。
+        if (hasFolia(suite)) {
+            await showList(page, 'folia');
+            expect(await page.evaluate(() => window.__homeProbe!.batchAvailable())).toBe(false);
+        }
         await showList(page, 'local', 'albums');
         await showBatch(page);
         const [first, second] = await mapIds(page);
@@ -832,10 +861,12 @@ test.describe(`[${suite}] directory commands`, () => {
         ]);
         await hideMap(page);
 
-        // 本地歌单：没有批量，可隐藏。
-        await showList(page, 'local', 'playlists');
-        await showMap(page);
-        await expect.poll(() => scopeCommands(page)).toEqual(['directory-manage-hidden']);
+        // 歌单（Folia 页；TUI 没有这一页）：没有批量，可隐藏。
+        if (hasFolia(suite)) {
+            await showList(page, 'folia');
+            await showMap(page);
+            await expect.poll(() => scopeCommands(page)).toEqual(['directory-manage-hidden']);
+        }
     });
 
     test('select-all from the palette opens the batch panel on the filtered cards; clear empties the selection', async ({ mount, page }) => {
@@ -951,13 +982,18 @@ test.describe(`[${suite}] hidden items`, () => {
         expect(await visibleIds(page)).toEqual(['same']);
         expect(await itemById(page, 'same')).toMatchObject({ hidden: false });
 
-        await showList(page, 'local', 'playlists');
-        const localPlaylists = await items(page);
-        const localPlaylistId = localPlaylists.find(item => item.name === HOME_LOCAL_PLAYLIST.name)!.id;
-        await showMap(page);
-        expect(await toggleHidden(page, localPlaylistId)).toBe(true);
-        await expect.poll(() => visibleIds(page)).toEqual(localPlaylists.filter(item => item.id !== localPlaylistId).map(item => item.id));
-        await hideMap(page);
+        // 本地这一个作用域里可隐藏的只有歌单，它们现在在 Folia 页（沿用 local 作用域）；TUI 没有这一页，这一段不走。
+        let localPlaylistId: string | null = null;
+        if (hasFolia(suite)) {
+            await showList(page, 'folia');
+            const foliaPlaylists = await items(page);
+            const playlistId = foliaPlaylists.find(item => item.name === HOME_LOCAL_PLAYLIST.name)!.id;
+            await showMap(page);
+            expect(await toggleHidden(page, playlistId)).toBe(true);
+            await expect.poll(() => visibleIds(page)).toEqual(foliaPlaylists.filter(item => item.id !== playlistId).map(item => item.id));
+            await hideMap(page);
+            localPlaylistId = playlistId;
+        }
 
         await showList(page, 'navidrome', 'playlists');
         await showMap(page);
@@ -967,7 +1003,7 @@ test.describe(`[${suite}] hidden items`, () => {
 
         expect(await storedHidden(page)).toEqual({
             [`online:${A}`]: ['same'],
-            local: [localPlaylistId],
+            ...(localPlaylistId ? { local: [localPlaylistId] } : {}),
             navidrome: ['__navi_random__'],
         });
 
@@ -1034,7 +1070,8 @@ test.describe(`[${suite}] imports`, () => {
 
     test('a playlist file import creates a playlist from matching paths and reports the result', async ({ mount, page }) => {
         await mountHome(mount, page, suite);
-        await showList(page, 'local', 'playlists');
+        // 导入歌单文件搬到了 Folia 页；TUI 没有这一页，它的本地列表仍接这个文件。
+        await showList(page, hasFolia(suite) ? 'folia' : 'local');
         await clearLog(page);
         const importFile = (name: string, lines: string[]) => page.evaluate(
             ([fileName, text]) => window.__homeProbe!.importPlaylistFile(fileName, text),
@@ -1047,7 +1084,7 @@ test.describe(`[${suite}] imports`, () => {
         expect(await calls(page, 'refreshLocalSongs')).toHaveLength(1);
         await expect.poll(async () => (await localPlaylists(page)).find(playlist => playlist.name === 'Road Trip')?.songIds)
             .toEqual(homeLocalSongIds([6, 1]));
-        await expect.poll(async () => (await items(page)).map(item => item.name)).toContain('Road Trip');
+        if (hasFolia(suite)) await expect.poll(async () => (await items(page)).map(item => item.name)).toContain('Road Trip');
         await clearLog(page);
 
         expect(await importFile('partial.m3u8', ['#PLAYLIST:Partial', localFilePath(2), 'Missing/nowhere.mp3'])).toBe(true);

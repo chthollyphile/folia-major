@@ -2,12 +2,13 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { buildServiceStubModule, LOCAL_MUSIC_SERVICE_ROUTE } from '../../dev/probes/homeBehavior/serviceStubModule';
 import '../../dev/probes/homeBehavior/probeApi';
+import { selectOnlinePage } from './bravaisHomeNav';
 
 // test/component/bravaisSeamMotion.spec.ts
 // 缝里的过渡（设计稿 §7「缝内的过渡」）：homeBehavior 探针 + setSuite('bravais')。
 // - 换层：整条缝的内容层翻牌（data-bravais-seam-flip 依次是 flip-out → flip-in，放完摘掉），换完内容是新的一层；
-// - 首页换页签：整条缝翻一次（2026-10-09 起与原型一致；之前只翻中段，在线页签的中段常常是空的，看上去是硬切），
-//   页签列还是原来那些节点（不重建），中段不再单独翻；
+// - 首页换页（两级页签：在线组的歌单 → 专辑是点缝里的二级切换，换的仍是首页层）：整条缝翻一次（2026-10-09 起与原型
+//   一致；之前只翻中段，看上去是硬切），一级页签列还是原来那些节点（不重建），中段不再单独翻；
 // - 「⋯」菜单：弹出时从缩小、透明开始，收起时放完动画才卸载，Esc 后焦点回到「⋯」；
 // - 降低动态效果（reduce_motion_lattice）：换层与中段都走 fade-out → fade-in，不出现翻转；菜单只淡入、不缩放。
 // 过渡很短，轮询抓不稳：在页面里用 MutationObserver 记下标记的每一次变化，再断言顺序。
@@ -81,25 +82,28 @@ test.describe('[bravais-only] seam motion', () => {
         await recordFlips(page, {
             content: '.bravais-seam-content',
             middle: '[data-bravais-home-body]',
-            tab: '[data-bravais-tab="albums"]',
+            tab: '[data-bravais-tab="online"]',
+            page: '[data-bravais-section="albums"]',
         });
         // 换页签：整条缝翻一次，里面不再各自翻；页签列是同一批节点（不重建）。
         await page.evaluate(() => {
-            (document.querySelector('[data-bravais-tab="playlist"]') as HTMLElement & { __kept?: boolean }).__kept = true;
+            (document.querySelector('[data-bravais-tab="online"]') as HTMLElement & { __kept?: boolean }).__kept = true;
         });
-        await seam(page).locator('[data-bravais-tab="albums"]').click();
+        await selectOnlinePage(page, 'albums');
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:albums');
         await seamStill(page);
         let log = await flipLog(page);
         expect(log.content).toEqual(['still', 'flip-out', 'flip-in', 'still']);
         expect(log.middle).toEqual(['still']);
         expect(log.tab).toEqual(['still']);
-        expect(await page.evaluate(() => (document.querySelector('[data-bravais-tab="playlist"]') as HTMLElement & { __kept?: boolean }).__kept)).toBe(true);
-        await expect(seam(page).locator('[data-bravais-tab="albums"]')).toHaveAttribute('aria-selected', 'true');
+        expect(log.page).toEqual(['still']);
+        expect(await page.evaluate(() => (document.querySelector('[data-bravais-tab="online"]') as HTMLElement & { __kept?: boolean }).__kept)).toBe(true);
+        await expect(seam(page).locator('[data-bravais-tab="online"]')).toHaveAttribute('aria-selected', 'true');
+        await expect(seam(page).locator('[data-bravais-section="albums"]')).toHaveAttribute('aria-selected', 'true');
         await settled(page);
 
         // 换回歌单页签再打开一张歌单：整条缝翻一次，翻完是集合层的完整信息条，内容回正。
-        await seam(page).locator('[data-bravais-tab="playlist"]').click();
+        await selectOnlinePage(page, 'playlist');
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:playlist');
         await settled(page);
         await seamStill(page);
@@ -135,14 +139,14 @@ test.describe('[bravais-only] seam motion', () => {
         await page.addInitScript(() => localStorage.setItem('reduce_motion_lattice', 'true'));
         await mountBravais(mount, page);
         await recordFlips(page, { content: '.bravais-seam-content', middle: '[data-bravais-home-body]' });
-        await seam(page).locator('[data-bravais-tab="albums"]').click();
+        await selectOnlinePage(page, 'albums');
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:albums');
         await seamStill(page);
         let log = await flipLog(page);
         expect(log.content).toEqual(['still', 'fade-out', 'fade-in', 'still']);
         expect(log.middle).toEqual(['still']);
         await settled(page);
-        await seam(page).locator('[data-bravais-tab="playlist"]').click();
+        await selectOnlinePage(page, 'playlist');
         await settled(page);
         await seamStill(page);
 
