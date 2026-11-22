@@ -5,7 +5,9 @@ import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { getQqRecommendationPreferences, saveQqRecommendationPreferences } from './qqPreferences';
 import { hasUsableQqSession, requestQq, type QqOperation } from './qqTransport';
-import { getQqGuessYouLikeBatch, getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, QQ_GUESS_YOU_LIKE_STATION } from './qqGuessYouLike';
+import { getQqGuessYouLikeBatch, getQqGuessYouLikeCatalog, QQ_GUESS_YOU_LIKE_STATION } from './qqGuessYouLike';
+
+import { getQqRecommendationPresentation } from './qqRecommendationPresentation';
 
 // src/services/onlineMusic/qq/qqRecommendations.ts
 // QQ 音乐的推荐：私人 FM、每日 30 首与它的历史、推荐歌单，以及歌曲不喜欢。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM、历史日推与不喜欢是 3.3.6，
@@ -50,7 +52,7 @@ const loadPersonalFmBatch = async (): Promise<UnifiedSong[]> => {
 /**
  * 私人 FM 一批（每批几首）；带着猜你喜欢电台（station）时是那个电台按所选模式的一批。私人 FM 没有模式，
  * 不看 mode。批内去重；跨批的重复交给续歌的地方按队列去掉（utils/fmQueue）。
- * 失败只记日志、回空：FM 续歌和首页电台卡都按「这次没有歌」处理，不让一次上游拒绝（22006）拖垮整页。
+ * 真实失败交给 Omni 和调用方隔离、重试；取消不当作成功的空结果缓存。
  */
 const getPersonalFm = async (options?: PersonalFmRequestOptions): Promise<UnifiedSong[]> => {
     try {
@@ -60,7 +62,7 @@ const getPersonalFm = async (options?: PersonalFmRequestOptions): Promise<Unifie
         return batch.filter((song, index) => batch.findIndex(other => other.qqMid === song.qqMid) === index);
     } catch (error) {
         console.warn('[QQProvider] personal-fm:failed', error);
-        return [];
+        throw error;
     }
 };
 
@@ -142,17 +144,8 @@ const getRecommendedPlaylists = async (limit: number): Promise<ProviderCollectio
     }
 };
 
-/** 电台页：猜你喜欢电台的卡片排在推荐歌单前面；它读不到不影响推荐歌单。 */
-const getRecommendedCollections = async (limit: number): Promise<ProviderCollection[]> => {
-    const [card, playlists] = await Promise.all([
-        getQqGuessYouLikeCard().catch(error => {
-            console.warn('[QQProvider] guess-you-like-card:failed', error);
-            return null;
-        }),
-        getRecommendedPlaylists(limit),
-    ]);
-    return card ? [card, ...playlists].slice(0, Math.max(1, Math.floor(limit) || 1)) : playlists;
-};
+// 猜你喜欢入口归探索页；电台页保留真正的私人 FM 和其余推荐歌单。
+const getRecommendedCollections = getRecommendedPlaylists;
 
 /**
  * 猜你喜欢电台的模式目录。私人 FM 没有模式（不宣告 personalFmModes），照旧给默认目录，和没有这个成员时一样；
@@ -165,6 +158,7 @@ const getPersonalFmCatalog = async (station?: string) => {
 };
 
 export const qqRecommendations: OnlineRecommendationProvider = {
+    getPresentation: getQqRecommendationPresentation,
     getPersonalFm,
     getPersonalFmCatalog,
     getDailySongs,

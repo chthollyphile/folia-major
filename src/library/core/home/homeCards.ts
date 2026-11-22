@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { ProviderCollection } from '../../../types/onlineMusic';
+import type { ProviderCollection, RecommendationPresentation } from '../../../types/onlineMusic';
 import type { LibraryHomeCard, LibraryHomeRadioFeed } from './homeModel.contract';
 
 // src/library/core/home/homeCards.ts
@@ -63,28 +63,34 @@ type RadioSource = {
 
 /**
  * 电台页签：私人 FM、每日推荐排在推荐歌单前面。私人 FM 卡的描述是当前的 FM 模式（provider 支持模式时），
- * 否则是「私人 FM」。provider 没给 FM 的歌时没有 FM 卡（放不出来的卡不摆出来）。feed 还没读到时为空。
+ * 否则是「私人 FM」。provider 没给 FM 的歌时没有 FM 卡（放不出来的卡不摆出来）。这两个入口归探索页的平台只放推荐歌单。
+ * feed 还没读到时为空。
  */
 export const buildOnlineRadioCards = (
     feed: LibraryHomeRadioFeed | null,
-    { t, personalFmModeLabel = '' }: { t: TFunction; personalFmModeLabel?: string },
+    { t, personalFmModeLabel = '', presentation = {} }: {
+        t: TFunction;
+        personalFmModeLabel?: string;
+        presentation?: RecommendationPresentation;
+    },
 ): LibraryHomeCard[] => {
     if (!feed) return [];
     const sources: RadioSource[] = [
-        ...(feed.hasPersonalFm === false ? [] : [{
+        ...((presentation.personalFmHomeTab ?? presentation.homeTab) === 'explore' || feed.hasPersonalFm === false ? [] : [{
             id: PERSONAL_FM_CARD_ID,
-            name: t('home.personalFm'),
+            name: presentation.personalFm?.name || t('home.personalFm'),
             coverUrl: feed.personalFmCoverUrl,
-            description: t('home.personalFm'),
+            description: presentation.personalFm?.description || t('home.personalFm'),
+            ...(presentation.personalFm?.summary ? { summary: presentation.personalFm.summary } : {}),
             isFm: true,
         }]),
-        ...(feed.supportsDailySongs === false ? [] : [{
+        ...(presentation.homeTab === 'explore' || feed.supportsDailySongs === false ? [] : [{
             id: DAILY_RECOMMENDATIONS_CARD_ID,
-            name: t('home.dailyRecommendations'),
+            name: presentation.dailySongs?.name || t('home.dailyRecommendations'),
             coverUrl: feed.dailyCoverUrl,
             trackCount: feed.dailyCount,
-            description: t('home.dailyRecommendationsDescription'),
-            summary: t('home.dailyRecommendationsSummary'),
+            description: presentation.dailySongs?.description || t('home.dailyRecommendationsDescription'),
+            summary: presentation.dailySongs?.summary || t('home.dailyRecommendationsSummary'),
             isDailyRecommendations: true,
         }]),
         ...feed.recommended.map(collection => {

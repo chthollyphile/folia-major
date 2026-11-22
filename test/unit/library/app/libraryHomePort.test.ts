@@ -26,8 +26,9 @@ const familiar = { mode: 'FAMILIAR' as const, scene: null };
 const selected = () => selectProviderPersonalFm(usePersonalFmModeStore.getState(), 'qishui');
 const deferred = <T>() => {
     let resolve!: (value: T) => void;
-    const promise = new Promise<T>(done => { resolve = done; });
-    return { promise, resolve };
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+    return { promise, resolve, reject };
 };
 const setup = () => {
     const play = vi.fn();
@@ -43,6 +44,136 @@ beforeEach(() => {
     api.getPersonalFm.mockResolvedValue(songs);
 });
 describe('home radio provider binding', () => {
+    it('only plays the latest FM click across independent home and Lattice ports', async () => {
+        const olderSongs = deferred<SongResult[]>();
+        const newerSongs = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(olderSongs.promise).mockReturnValueOnce(newerSongs.promise);
+        const lattice = setup();
+        const home = setup();
+        lattice.play.mockImplementation(() => noteQueueStart());
+        home.play.mockImplementation(() => noteQueueStart());
+        const earlier = lattice.actions.openOnlineCard({ id: 'station-radio', name: 'For you', type: 'radio',
+            raw: { personalFm: stationCard } }, 'qishui', vi.fn());
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        const latest = home.actions.playPersonalFm();
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(2));
+        olderSongs.resolve(songs);
+        await earlier;
+        const accepted = [{ id: 'latest' }] as SongResult[];
+        newerSongs.resolve(accepted);
+        await latest;
+        expect(lattice.play).not.toHaveBeenCalled();
+        expect(home.play).toHaveBeenCalledExactlyOnceWith(accepted[0], accepted, true);
+    });
+
+    it.each(['empty songs', 'rejected catalogue'] as const)('restores the original mode across ports after the latest %s', async outcome => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        const olderSongs = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(olderSongs.promise);
+        const lattice = setup();
+        const home = setup();
+        const earlier = lattice.port.getPersonalFm(selection, 'qishui');
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        expect(selected()).toEqual(selection);
+        if (outcome === 'rejected catalogue') {
+            api.getPersonalFmCatalog.mockRejectedValueOnce(new Error('latest catalogue failed'));
+            await expect(home.port.getPersonalFm(familiar, 'qishui')).rejects.toThrow('latest catalogue failed');
+        } else {
+            api.getPersonalFm.mockResolvedValueOnce([]);
+            expect(await home.port.getPersonalFm(familiar, 'qishui')).toEqual([]);
+        }
+        olderSongs.resolve(songs);
+        expect(await earlier).toEqual([]);
+        expect(selected()).toEqual(explore);
+    });
+
+    it('silences an earlier port rejection after a newer port owns the radio request', async () => {
+        const olderSongs = deferred<SongResult[]>();
+        const newerSongs = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(olderSongs.promise).mockReturnValueOnce(newerSongs.promise);
+        const lattice = setup();
+        const home = setup();
+        const earlier = lattice.port.getPersonalFm(stationCard, 'qishui');
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        const latest = home.port.getPersonalFm(undefined, 'qishui');
+        olderSongs.reject(new Error('old request failed'));
+        newerSongs.resolve(songs);
+        await expect(earlier).resolves.toEqual([]);
+        await expect(latest).resolves.toEqual(songs);
+    });
+
+    it.each(['queue', 'replacement', 'selection'] as const)('does not inherit an obsolete rollback mode across ports after a %s change', async change => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        const pending = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(pending.promise);
+        const earlier = setup().port.getPersonalFm(selection, 'qishui');
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        if (change === 'queue') noteQueueStart();
+        else if (change === 'replacement') noteWholeQueueWrite();
+        else usePersonalFmModeStore.getState().setProviderSelection('qishui', familiar);
+        const keptSelection = selected();
+        api.getPersonalFm.mockResolvedValueOnce([]);
+        expect(await setup().port.getPersonalFm({ mode: 'DEFAULT', scene: null }, 'qishui')).toEqual([]);
+        pending.resolve(songs);
+        expect(await earlier).toEqual([]);
+        expect(selected()).toEqual(keptSelection);
+    });
+
+    it('keeps a mode chosen while the newer port waits for its catalogue when that request is empty', async () => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        const olderSongs = deferred<SongResult[]>();
+        const newerCatalog = deferred<typeof catalog>();
+        api.getPersonalFm.mockReturnValueOnce(olderSongs.promise).mockResolvedValueOnce([]);
+        api.getPersonalFmCatalog.mockResolvedValueOnce(catalog).mockReturnValueOnce(newerCatalog.promise);
+        const earlier = setup().port.getPersonalFm(selection, 'qishui');
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        const latest = setup().port.getPersonalFm(familiar, 'qishui');
+        const chosenElsewhere = { mode: 'DEFAULT' as const, scene: null };
+        usePersonalFmModeStore.getState().setProviderSelection('qishui', chosenElsewhere);
+        newerCatalog.resolve(catalog);
+        expect(await latest).toEqual([]);
+        olderSongs.resolve(songs);
+        expect(await earlier).toEqual([]);
+        expect(selected()).toEqual(chosenElsewhere);
+    });
+
+    it('keeps the active port request when a stale card names another provider', async () => {
+        const pending = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(pending.promise);
+        const earlier = setup().port.getPersonalFm(undefined, 'qishui');
+        expect(await setup().port.getPersonalFm(selection, 'netease')).toEqual([]);
+        pending.resolve(songs);
+        expect(await earlier).toEqual(songs);
+        expect(api.getPersonalFm).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores the original mode when a newer port cannot obtain the station catalogue', async () => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        const pending = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(pending.promise);
+        const earlier = setup().port.getPersonalFm(selection, 'qishui');
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        api.getPersonalFmStationCatalog.mockResolvedValueOnce(null);
+        expect(await setup().port.getPersonalFm(stationCard, 'qishui')).toEqual([]);
+        pending.resolve(songs);
+        expect(await earlier).toEqual([]);
+        expect(selected()).toEqual(explore);
+    });
+
+    it('routes a displayed preview ticket through Omni on every explicit start, playing the preview first', async () => {
+        const { actions, play } = setup();
+        const open = vi.fn();
+        const card = { id: 'station-radio', name: 'For you', type: 'radio' as const,
+            raw: { personalFm: stationCard, songPreview: { playbackToken: 'displayed-batch' } } };
+        await actions.openOnlineCard(card, 'qishui', open);
+        await actions.openOnlineCard(card, 'qishui', open);
+        expect(api.getPersonalFm).toHaveBeenCalledTimes(2);
+        expect(api.getPersonalFm).toHaveBeenLastCalledWith({ mode: 'DEFAULT', submode: null, station: 'radio', previewToken: 'displayed-batch' });
+        expect(play).toHaveBeenCalledTimes(2);
+        expect(play).toHaveBeenLastCalledWith(songs[0], songs, true);
+        expect(open).not.toHaveBeenCalled();
+    });
+
     it('discards songs from an earlier card while the newer scene is still loading', async () => {
         const first = deferred<SongResult[]>();
         const second = deferred<SongResult[]>();
