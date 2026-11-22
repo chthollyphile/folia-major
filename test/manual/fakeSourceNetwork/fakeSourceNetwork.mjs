@@ -85,6 +85,11 @@ const main = async () => {
         console.log(`[fake] ${entry.method} ${host}${entry.path} → ${entry.status}${entry.token ? ' (token)' : ''}`);
         const payload = Buffer.isBuffer(result.body) ? result.body : Buffer.from(JSON.stringify(result.body ?? null));
         response.writeHead(entry.status, { 'content-type': 'application/json;charset=utf-8', ...(result.headers ?? {}), 'content-length': payload.length });
+        // `stallAfter`: send that many bytes of the body, then go silent with the connection open (a source that hangs).
+        if (typeof result.stallAfter === 'number' && result.stallAfter < payload.length) {
+            response.write(payload.subarray(0, result.stallAfter));
+            return;
+        }
         response.end(payload);
     };
     const tlsServer = https.createServer(tlsOptions, (request, response) => { void answer(request, response); });
