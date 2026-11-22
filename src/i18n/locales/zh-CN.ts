@@ -5135,6 +5135,8 @@ export default {
     "readingCount": "正在读原歌单… 已读 {{loaded}} 首",
     "asking": "正在向 {{source}} 询问对应的歌曲…（最多约一分钟）",
     "writing": "正在保存…",
+    "swappedFrom": "原来是 {{source}} 的歌，转存时换成了现在这个来源",
+    "swappedFromUnknown": "转存时换过来源",
   },
   "localPlaylistOrder": {
     "edit": "调整歌曲顺序",

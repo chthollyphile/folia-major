@@ -6,7 +6,8 @@ import { normalizePlaybackSongSource } from './appPlaybackGuards';
 
 /** 存下来的样子：补上 sourceRef；本地歌只留 songId 引用（blob、文件句柄都不跨启动）。 */
 export const toStoredSongSnapshot = (song: SongResult): SongResult => {
-    const unified = normalizePlaybackSongSource(song) as UnifiedSong & { localData?: { id?: string } };
+    // foliaOriginalKey 是歌单详情里那一行的记号（这一条换过来源），不跟着歌存到别处。
+    const { foliaOriginalKey: _rowMark, ...unified } = normalizePlaybackSongSource(song) as UnifiedSong & { localData?: { id?: string } };
     const localSongId = unified.localRef?.songId || unified.localData?.id;
     if (!localSongId) return unified;
     const { localData: _legacyLocalData, ...snapshot } = unified;

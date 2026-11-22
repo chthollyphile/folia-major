@@ -5136,6 +5136,8 @@ export default {
     "readingCount": "Đang đọc bản gốc… {{loaded}} bài",
     "asking": "Đang hỏi {{source}} về bài hát tương ứng… (tối đa khoảng một phút)",
     "writing": "Đang lưu…",
+    "swappedFrom": "Vốn là bài hát của {{source}}; nay phát từ nguồn khác",
+    "swappedFromUnknown": "Đã đổi từ nguồn khác khi lưu danh sách phát này",
   },
   "localPlaylistOrder": {
     "edit": "Sắp xếp lại bài hát",

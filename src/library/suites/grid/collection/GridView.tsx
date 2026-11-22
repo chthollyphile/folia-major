@@ -5,7 +5,7 @@ import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Shuffle,
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../../../../types';
-import { getTrackSourceKey, getTrackSourceLabel, getTrackUnplayableLabel, isTrackShownUnplayable, readTrackSourcesVersion, subscribeTrackSources, trackSourceHue } from '../../../../services/foliaPlaylist/trackSourceState';
+import { getTrackSourceKey, getTrackSourceLabel, getTrackSwappedFromLabel, getTrackUnplayableLabel, TRACK_SWAPPED_MARK, isTrackShownUnplayable, readTrackSourcesVersion, subscribeTrackSources, trackSourceHue } from '../../../../services/foliaPlaylist/trackSourceState';
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -1210,6 +1210,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                 cardHeight={layoutConfig.cardHeight}
                                 fullBleedCover={fullBleedCover}
                                 sourceLabel={showTrackSource && item.rawTrack ? getTrackSourceLabel(item.rawTrack, t) : undefined}
+                                swappedFromLabel={showTrackSource && item.rawTrack ? getTrackSwappedFromLabel(item.rawTrack, t) || undefined : undefined}
                                 sourceHue={showTrackSource && item.rawTrack ? trackSourceHue(getTrackSourceKey(item.rawTrack)) : undefined}
                                 sourcesVersion={sourcesVersion}
                                 isEditMode={isEditMode}
@@ -2330,7 +2331,8 @@ export const GridView: React.FC<GridViewProps> = ({
                             index={index}
                             style={style}
                             isUnavailable={isTrackShownUnplayable(track)}
-                            sourceLabel={showTrackSource ? getTrackSourceLabel(track, t) : undefined}
+                            // 列表里一行只有一串字：换过来源的在来源后面带同一个记号（悬停说明在卡片上）。
+                            sourceLabel={showTrackSource ? `${getTrackSourceLabel(track, t)}${getTrackSwappedFromLabel(track, t) ? ` ${TRACK_SWAPPED_MARK}` : ''}` : undefined}
                             unavailableLabel={getTrackUnplayableLabel(track, t, t('status.songUnavailableTag'))}
                             isActive={index === listFocusedIndex}
                             albumTrackLabel={getAlbumTrackLabel(track)}

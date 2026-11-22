@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { SongResult } from '../../types';
+import type { SongResult, UnifiedSong } from '../../types';
 import { getNavidromeConfig } from '../navidromeService';
 import { omni } from '../onlineMusic/omni';
 import { getSongUnavailableLabel, isSongUnavailable } from '../onlineMusic/songAvailability';
@@ -56,6 +56,23 @@ export const getTrackSourceLabel = (track: SongResult, t: TFunction): string => 
     if (source.kind === 'navidrome') return t('navidrome.title');
     return t('scratchpad.sourceLocal');
 };
+
+/**
+ * 这一行是不是换过来源（转存时「改由某个音源播放」换的），换过的话原来是哪个来源的歌：一句悬停说明；没换过是 ''。
+ * 原来那首的 key 是 `online:<音源>:<id>`、`navidrome:<id>`、`local:<id>`。
+ */
+export const getTrackSwappedFromLabel = (track: SongResult, t: TFunction): string => {
+    const originalKey = (track as UnifiedSong).foliaOriginalKey;
+    if (!originalKey) return '';
+    const [kind, sourceId] = originalKey.split(':');
+    const source = kind === 'online' && sourceId
+        ? omni.getProviderLabel(sourceId)
+        : kind === 'navidrome' ? t('navidrome.title') : kind === 'local' ? t('scratchpad.sourceLocal') : '';
+    return source ? t('foliaTransfer.swappedFrom', { source }) : t('foliaTransfer.swappedFromUnknown');
+};
+
+/** 换过来源的行上的小记号（只是一个字符，说明在悬停里）。 */
+export const TRACK_SWAPPED_MARK = '\u21C4';
 
 /** 来源的身份（给标签上色用，同一个来源同一种颜色）。 */
 export const getTrackSourceKey = (track: SongResult): string => {

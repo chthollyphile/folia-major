@@ -5135,6 +5135,8 @@ export default {
     "readingCount": "Membaca aslinya… {{loaded}} lagu",
     "asking": "Menanyakan lagu yang cocok ke {{source}}… (hingga sekitar satu menit)",
     "writing": "Menyimpan…",
+    "swappedFrom": "Aslinya lagu {{source}}; kini diputar dari sumber lain",
+    "swappedFromUnknown": "Ditukar dari sumber lain saat playlist ini disimpan",
   },
   "localPlaylistOrder": {
     "edit": "Atur urutan lagu",

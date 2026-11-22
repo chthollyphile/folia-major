@@ -5136,6 +5136,8 @@ export default {
     "readingCount": "Reading the original… {{loaded}} songs",
     "asking": "Asking {{source}} for matching songs… (up to about a minute)",
     "writing": "Saving…",
+    "swappedFrom": "Originally a {{source}} song; now played from another source",
+    "swappedFromUnknown": "Swapped from another source when this playlist was saved",
   },
   "localPlaylistOrder": {
     "edit": "Reorder playlist songs",

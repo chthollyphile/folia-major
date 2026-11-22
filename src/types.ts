@@ -1626,6 +1626,9 @@ export interface UnifiedSong extends SongResult {
   // How many times the account played it, as its platform's listening ranking counts, where the song
   // was read from that ranking. Like collectionRowId it belongs to the row, not to the song.
   listenCount?: number;
+  // In a Folia playlist saved from a platform playlist: the key of the song this row stood for before
+  // it was swapped for another source's copy (the entry's originalKey). Belongs to the row as well.
+  foliaOriginalKey?: string;
   isLocal?: boolean;
   localRef?: import('./types/localLibrary').LocalSongReference;
   isNavidrome?: boolean;
