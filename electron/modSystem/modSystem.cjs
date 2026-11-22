@@ -1275,15 +1275,25 @@ ${partition}`;
      * window clears what lives in its own storage (`pageStorePrefixes`) itself.
      */
     const describeSourceData = (sourceId) => {
-        let owner = null;
-        let entry = null;
+        /*
+         * Whose data it is: the mod that runs the source now, else the one that holds the id while it is stopped
+         * (through its table row, as a confirmed override, under its own third-party id, or as the takeover holder
+         * on record). A claimant that only waits for the takeover is described under the short id too (so its
+         * enable confirmation can say what it takes over), but it never ran as that source: its data folders are
+         * not the source's, and it is not the one to stop and restart.
+         */
+        const carrying = [];
         mods.forEach((runtime) => {
             const found = (runtime.source?.sources ?? []).find((source) => source.sourceId === sourceId);
-            if (found && !owner) {
-                owner = runtime;
-                entry = found;
-            }
+            if (found) carrying.push({ runtime, entry: found });
         });
+        const recordedHolder = readSourceClaims()[sourceId] ?? null;
+        const picked = carrying.find(({ runtime }) => runtime.status === 'loaded')
+            ?? carrying.find(({ entry: found }) => !found.takeover)
+            ?? carrying.find(({ runtime }) => runtime.manifest.id === recordedHolder)
+            ?? null;
+        const owner = picked?.runtime ?? null;
+        const entry = picked?.entry ?? null;
         if (!owner) {
             return { ok: false, error: bundledSources.ids.includes(sourceId) ? 'source-not-a-mod' : 'source-not-found' };
         }
