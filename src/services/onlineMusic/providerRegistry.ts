@@ -11,6 +11,7 @@ import { spotifyProvider } from './spotify/spotifyProvider';
 import { qishuiProvider } from './qishui/qishuiProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { fnmusicProvider } from './fnmusic/fnmusicProvider';
+import { installLxAudioRouting, lxmusicProvider } from './lxmusic/lxmusicProvider';
 
 // src/services/onlineMusic/providerRegistry.ts
 
@@ -125,3 +126,6 @@ registerOnlineMusicProvider(qishuiProvider);
 
 registerOnlineMusicProvider(appleMusicProvider);
 registerOnlineMusicProvider(fnmusicProvider);
+
+installLxAudioRouting();
+registerOnlineMusicProvider(lxmusicProvider);
