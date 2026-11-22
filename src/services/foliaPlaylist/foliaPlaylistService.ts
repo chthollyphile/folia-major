@@ -3,6 +3,7 @@ import type {
     FoliaPlayViaUnavailable,
     FoliaPlaylist,
     FoliaPlaylistAddResult,
+    FoliaPlaylistEntry,
     FoliaPlaylistOrigin,
     FoliaRefreshFromOriginResult,
     FoliaSaveCollectionInput,
@@ -244,6 +245,35 @@ export const createFoliaPlaylist = (
             updatedAt: now,
             ...(options.origin ? { origin: options.origin } : {}),
             entries: appendFoliaPlaylistEntries([], songs, now).entries,
+        };
+        state.playlists.push(playlist);
+        await writePlaylist(state, playlist);
+        await writeMeta(state);
+        return playlist;
+    });
+};
+
+/**
+ * 用现成的条目建一张歌单（从 JSON 文件读入时用：条目带着原来的加入时间、换过来源的记号、跟着原歌单的标记）。
+ * 条目由调用方校验好；这里只保证同一个 key 只留第一条。名字是空的会抛错。
+ */
+export const createFoliaPlaylistFromEntries = (
+    name: string,
+    entries: readonly FoliaPlaylistEntry[],
+    options: { origin?: FoliaPlaylistOrigin } = {},
+): Promise<FoliaPlaylist> => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return Promise.reject(new Error('Playlist name is empty'));
+    return withPlaylistTransaction(async state => {
+        const now = Date.now();
+        const seen = new Set<string>();
+        const playlist: FoliaPlaylist = {
+            id: createFoliaPlaylistId(),
+            name: trimmedName,
+            createdAt: now,
+            updatedAt: now,
+            ...(options.origin ? { origin: options.origin } : {}),
+            entries: entries.filter(entry => (seen.has(entry.key) ? false : Boolean(seen.add(entry.key)))),
         };
         state.playlists.push(playlist);
         await writePlaylist(state, playlist);

@@ -98,8 +98,8 @@ export const gridCommands: CommandPaletteCommand[] = [
     createGridSurfaceCommand(
         'grid-export-playlist',
         'Export this playlist',
-        'Save this Folia playlist as an m3u8 file',
-        ['m3u8', 'export', '导出'],
+        'Save this Folia playlist as a JSON or M3U8 file',
+        ['m3u8', 'json', 'export', '导出'],
         'export-playlist',
         Share,
     ),

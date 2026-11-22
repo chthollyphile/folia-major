@@ -102,7 +102,7 @@ export const BravaisHomeFolia: React.FC<{
             <input
                 ref={playlistFileInputRef}
                 type="file"
-                accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl"
+                accept=".m3u,.m3u8,.json,audio/x-mpegurl,application/vnd.apple.mpegurl,application/json"
                 hidden
                 data-bravais-playlist-file
                 onChange={(event) => {

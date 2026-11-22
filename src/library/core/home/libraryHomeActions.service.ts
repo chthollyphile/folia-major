@@ -114,6 +114,10 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
             patch({ importingPlaylist: true });
             try {
                 const result = await port.importPlaylistFile(file);
+                if (result.reported) {
+                    if (result.playlistName) await port.refreshLocalSongs();
+                    return result.playlistName ? OK : FAILED;
+                }
                 if (!result.playlistName) {
                     port.notify({ kind: 'status', type: 'error', message: { key: 'localMusic.playlistImportNoMatches' } });
                     return FAILED;

@@ -5,7 +5,6 @@ import type { LocalGridViewCollectionDescriptor } from '../core/collection/colle
 import type { LibraryMutationPort, LibraryPlaylistOption } from '../core/shared/ports.contract';
 import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../services/localMusicService';
 import { deleteFoliaPlaylist, removeFoliaPlaylistEntries, renameFoliaPlaylist } from '../../services/foliaPlaylist/foliaPlaylistService';
-import { downloadFoliaPlaylistM3u8 } from '../../services/foliaPlaylist/foliaPlaylistM3u';
 import { getNavidromeConfig, navidromeApi } from '../../services/navidromeService';
 import { isLocalGridViewCollection } from '../../components/app/home/gridViewCollectionAdapters';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
@@ -13,7 +12,7 @@ import { FAVORITE_ALBUMS_CHANGED_EVENT } from './useLibraryHomeResources';
 import { useExploreFeedStore } from '../../stores/useExploreFeedStore';
 import { localCollectionCoverKey } from '../core/collection/cover/localCollectionCover';
 import { localCollectionCovers } from '../core/collection/cover/localCollectionCovers.service';
-import { openFoliaTransferDialog } from '../../components/folia-playlists/foliaPlaylistDialogStore';
+import { openFoliaExportDialog, openFoliaTransferDialog } from '../../components/folia-playlists/foliaPlaylistDialogStore';
 
 // src/library/app/createLibraryMutationPort.ts
 // 把首页 surface 上的来源动作装配成 Library Core 的变更端口：本地曲库与 Navidrome 的读写、
@@ -39,7 +38,6 @@ export type LibraryMutationPortDialogs = {
 
 export const createLibraryMutationPort = ({
     surface,
-    t,
     dialogs,
     navidromePlaylists,
     refreshNavidromePlaylists,
@@ -98,18 +96,9 @@ export const createLibraryMutationPort = ({
             const playlist = surface.localPlaylists.find(item => item.id === playlistId);
             if (playlist) dialogs.reorderPlaylist(playlist);
         },
-        exportPlaylist: async (playlistId) => {
-            const playlist = surface.localPlaylists.find(item => item.id === playlistId);
-            if (!playlist) return;
-            // M3U 只装得下本地文件：别的来源的条目不导出，跳过了几首要说出来。
-            const exported = downloadFoliaPlaylistM3u8(playlist, surface.localSongs);
-            surface.onStatusMessage?.({
-                type: 'success',
-                text: t('localMusic.playlistExportSuccess', { name: playlist.name }),
-                note: exported.skippedCount > 0
-                    ? t('localMusic.playlistExportSkipped', { count: exported.skippedCount })
-                    : undefined,
-            });
+        // 只是打开宿主的导出对话框（选保存格式：JSON 是全的，M3U8 只装得下本地文件），下载与提示都在那里。
+        exportPlaylist: (playlistId) => {
+            if (surface.localPlaylists.some(item => item.id === playlistId)) openFoliaExportDialog(playlistId);
         },
         removePlaylistSongs: async (playlistId, entryKeys) => {
             await removeFoliaPlaylistEntries(playlistId, entryKeys);
