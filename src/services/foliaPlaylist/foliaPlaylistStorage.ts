@@ -2,6 +2,7 @@ import Dexie from 'dexie';
 import type { FoliaPlaylist, FoliaPlaylistEntry, FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import { getFoliaEntryLocalSongId } from '../../utils/foliaPlaylistEntries';
 import { appDatabase } from '../appDatabase';
+import { announceFoliaPlaylistsChange, listenFoliaPlaylistsBroadcast } from './foliaPlaylistBroadcast';
 import {
     FOLIA_PLAYLISTS_STATE_KEY,
     foliaPlaylistsDatabase as db,
@@ -48,18 +49,14 @@ export class FoliaPlaylistsNewerVersionError extends Error {
     }
 }
 
-/** 一次写改了什么：哪些歌单的条目或摘要变了；歌单的增删、先后变了（list）。 */
-export type FoliaPlaylistsChange = { playlistIds: readonly string[]; list: boolean };
+/**
+ * 一次写改了什么：哪些歌单的条目或摘要变了；歌单的增删、先后变了（list）。
+ * remote：是别的窗口写的（经 foliaPlaylistBroadcast.ts 传来，几次写可能并成了一次）。all：只知道有改动、
+ * 不知道是哪几张（话看不懂、点名太多），听的人把每张都当成变了。本窗口的写两样都没有。
+ */
+export type FoliaPlaylistsChange = { playlistIds: readonly string[]; list: boolean; remote?: true; all?: true };
 
 const listeners = new Set<(change: FoliaPlaylistsChange) => void>();
-
-/** 歌单被改了（本窗口里的写操作提交之后）就叫一声；返回取消订阅的函数。 */
-export const subscribeFoliaPlaylists = (listener: (change: FoliaPlaylistsChange) => void): (() => void) => {
-    listeners.add(listener);
-    return () => {
-        listeners.delete(listener);
-    };
-};
 
 const notifyChanged = (change: FoliaPlaylistsChange) => {
     listeners.forEach(listener => {
@@ -69,6 +66,29 @@ const notifyChanged = (change: FoliaPlaylistsChange) => {
             console.warn('[FoliaPlaylist] A change listener threw', error);
         }
     });
+};
+
+let listeningToOtherWindows = false;
+
+/**
+ * 歌单被改了就叫一声：本窗口的写操作提交之后，或者别的窗口说它写了（change.remote）。返回取消订阅的函数。
+ * 听的人只该去读；别的窗口传来的改动不会再往外传。
+ */
+export const subscribeFoliaPlaylists = (listener: (change: FoliaPlaylistsChange) => void): (() => void) => {
+    listeners.add(listener);
+    if (!listeningToOtherWindows) {
+        listeningToOtherWindows = true;
+        // 只转给本窗口的订阅者（notifyChanged），不经 writeFoliaPlaylists，所以不会再发回频道上。
+        listenFoliaPlaylistsBroadcast(change => notifyChanged({
+            playlistIds: change.playlistIds,
+            list: change.list,
+            remote: true,
+            ...(change.all ? { all: true as const } : {}),
+        }));
+    }
+    return () => {
+        listeners.delete(listener);
+    };
 };
 
 // ---- 行与对外形状之间 ----
@@ -308,7 +328,7 @@ export type FoliaWrite = {
     list: boolean;
 };
 
-/** 一个写操作：一个读写事务。事务提交之后才叫听的人（他们马上去读，读到的就是写完的样子）。 */
+/** 一个写操作：一个读写事务。事务提交之后才叫听的人（本窗口的，和经频道告诉别的窗口的；他们马上去读，读到的就是写完的样子）。 */
 export const writeFoliaPlaylists = async <T>(operation: (write: FoliaWrite) => Promise<T>): Promise<T> => {
     await ensureFoliaPlaylistStorage();
     if (readOnly) throw new FoliaPlaylistsNewerVersionError();
@@ -316,7 +336,12 @@ export const writeFoliaPlaylists = async <T>(operation: (write: FoliaWrite) => P
     // 作用域函数必须本身是 async 函数：Dexie 只在这种时候才跟着原生 await 把事务带下去。写成返回 promise 的普通函数，
     // operation 里隔了两层 async 的读写就落到事务外面去了（不再一个接一个，也不再一起成败）。
     const value = await db.transaction('rw', db.playlists, db.entries, db.meta, async () => operation(write));
-    if (write.touched.size > 0 || write.list) notifyChanged({ playlistIds: [...write.touched], list: write.list });
+    if (write.touched.size > 0 || write.list) {
+        const change = { playlistIds: [...write.touched], list: write.list };
+        notifyChanged(change);
+        // 别的窗口：只说哪几张变了，它们自己去读。
+        announceFoliaPlaylistsChange(change);
+    }
     return value;
 };
 

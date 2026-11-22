@@ -143,7 +143,8 @@ export const countImportableSongs = (reading: PlaylistFileReading): number => (
 
 /**
  * 把预览过的文件写成歌单。`mergeInto` 给了：并进那张已有的歌单（已在里面的不重复加，并进去的算用户自己加的，
- * 不带「跟着原歌单」的标记，也不改那张歌单的出处）；没给：新建一张，条目带着文件里的加入时间、换过来源的记号和出处。
+ * 不带「跟着原歌单」的标记，也不改那张歌单的出处）；没给：新建一张，条目带着文件里的加入时间、换过来源的记号和出处
+ * （出处由服务层标成「文件说的、还没确认」）。
  */
 export const importPlaylistFileReading = async (
     reading: Exclude<PlaylistFileReading, { format: 'error' }>,

@@ -2,6 +2,7 @@ import type { FoliaEntryAvailabilityDeps, FoliaPlaylistPort } from '../core/foli
 import { getLocalSong } from '../../services/db';
 import {
     addSongsToFoliaPlaylist,
+    confirmFoliaPlaylistOrigin,
     createFoliaPlaylist,
     deleteFoliaPlaylist,
     refreshFoliaPlaylistFromOrigin,
@@ -46,6 +47,7 @@ export const createFoliaPlaylistPort = (): FoliaPlaylistPort => ({
     refreshFromOrigin: (playlistId, fetchOriginSongs, options) => (
         refreshFoliaPlaylistFromOrigin(playlistId, fetchOriginSongs, transferDeps, options)
     ),
+    confirmOrigin: (playlistId, shown) => confirmFoliaPlaylistOrigin(playlistId, shown),
 });
 
 /**

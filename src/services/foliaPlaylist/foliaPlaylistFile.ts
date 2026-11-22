@@ -14,7 +14,8 @@ import { normalizeM3uPath } from './foliaPlaylistM3u';
 //
 // 文件是不可信的数据。读的时候：
 // - 先看大小、条目数的上限，再逐字段校验；歌的快照是照白名单重新拼出来的，文件里多出来的字段一律不要；
-// - 条目的 key 不信文件写的，从拼出来的歌重新算；
+// - 条目的 key 不信文件写的，从拼出来的歌重新算；在线歌的 id 和它的来源说的不是同一首的，这一条不收；
+// - 出处（原来是哪家的哪张歌单）是文件说的：读进来的出处带着 fromFile 记号，第一次「从原歌单更新」前要用户确认；
 // - 地址只认公开的 http / https 封面（查询串里像凭据的、指向本机或内网的不要）；别的地址、带凭据的东西既不写出去也不读进来；
 // - 本地歌只凭路径、文件名、大小、时长去曲库里找同一个文件，找不到就不导入（不按歌名歌手猜）。
 
@@ -45,8 +46,49 @@ const mediaIdOf = (value: unknown): string | number | undefined => {
     if (typeof value === 'string') return value.length > 0 && value.length <= 256 && !HAS_UNPRINTABLE.test(value) ? value : undefined;
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 };
-// 键名像凭据的：音源自己的数据里整项不要，封面地址的查询串里有它就不要这个地址。
-const CREDENTIAL_KEY = /token|cookie|secret|passw|credential|session|api[-_]?key|authori[sz]ation|^auth$|^sig(n|nature)?$/i;
+// 键名是凭据的：音源自己的数据里整项不要，封面地址的查询串里有它就不要这个地址。
+// 不按「键名里含某几个字母」猜（那样 designId、signal、author 这类也会中）：键名先按写法拆成词
+// （驼峰、下划线、连字符、点），再对着下面几张明确的表认。规则写在 docs/folia-playlist-file.md。
+// 十家内置音源的歌附带数据里实际用到的键逐个对过（test/unit/services/foliaPlaylist/foliaPlaylistFile.test.ts
+// 里有清单）：除了一家的 freeSign（上游发的签名，是不是跟账号绑定不清楚，按签名处理、不带），没有一个会被删。
+// 拆出来的词等于其中一个就算。
+const CREDENTIAL_WORDS = new Set([
+    'password', 'passwd', 'pwd', 'passphrase', 'passcode', 'credential', 'credentials', 'auth', 'authkey',
+    'authorization', 'authorisation', 'bearer', 'jwt', 'apikey', 'apikeys', 'csrf', 'xsrf', 'fsig', 'signature',
+]);
+// 词里含有其中一个就算（musictokenv2、usercookies、clientsecrets、PHPSESSID 这类连写的也认得出）。
+const CREDENTIAL_PARTS = ['token', 'cookie', 'secret', 'sessionid', 'sessid', 'password', 'passwd', 'credential', 'apikey', 'authorization', 'authorisation', 'signature'];
+// 相邻两个词合起来才算的（passWord、api_keys、privateKey、accessKey）。
+const CREDENTIAL_PAIRS: ReadonlyArray<[string, ReadonlySet<string>]> = [
+    ['pass', new Set(['word', 'phrase', 'code'])],
+    ['api', new Set(['key', 'keys'])],
+    ['private', new Set(['key', 'keys'])],
+    ['access', new Set(['key', 'keys'])],
+    ['secret', new Set(['key', 'keys'])],
+];
+// 以 session 开头或结尾的词算；这两个英文词只是碰巧以它结尾。
+const NOT_SESSION = new Set(['obsession', 'possession']);
+// sign、sig 只在是键名的最后一个词时算（freeSign、md5Sign、sign）：signIn、signUpDate、signType 不是签名。
+const SIGN_WORDS = new Set(['sign', 'sig']);
+const keyWords = (key: string): string[] => key
+    // OAuth 是一个词，不拆成 O + Auth。
+    .replace(/OAuth/g, 'Oauth')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map(word => word.toLowerCase());
+/** 这个键名（或查询串里的参数名）是不是凭据。 */
+export const isCredentialKeyName = (key: string): boolean => {
+    const words = keyWords(key);
+    return words.some((word, index) => (
+        CREDENTIAL_WORDS.has(word)
+        || CREDENTIAL_PARTS.some(part => word.includes(part))
+        || ((word.startsWith('session') || word.endsWith('session')) && !NOT_SESSION.has(word))
+        || (SIGN_WORDS.has(word) && index === words.length - 1)
+        || CREDENTIAL_PAIRS.some(([first, seconds]) => word === first && seconds.has(words[index + 1] ?? ''))
+    ));
+};
 const PRIVATE_HOST = /^(localhost|.*\.(local|lan|internal|home\.arpa)|127\..*|10\..*|192\.168\..*|172\.(1[6-9]|2\d|3[01])\..*|169\.254\..*|0\.0\.0\.0|\[.*\])$/i;
 /**
  * 能进文件、也能从文件里读进来的封面地址：http / https，主机不是本机或内网（读进来的地址界面会自动去取图），
@@ -59,7 +101,7 @@ const coverUrlOf = (value: unknown): string | undefined => {
         const url = new URL(text);
         if (url.username || url.password || PRIVATE_HOST.test(url.hostname)) return undefined;
         const keys = [...url.searchParams.keys()];
-        if (keys.some(key => CREDENTIAL_KEY.test(key))) return undefined;
+        if (keys.some(isCredentialKeyName)) return undefined;
         if (keys.includes('u') && (keys.includes('t') || keys.includes('p'))) return undefined;
         return text;
     } catch {
@@ -102,7 +144,7 @@ const cleanSourceData = (value: unknown, depth = 0): JsonValue | undefined => {
     if (!isRecord(value)) return undefined;
     const out: Record<string, JsonValue> = {};
     for (const [key, item] of Object.entries(value)) {
-        if (UNSAFE_KEYS.has(key) || key.length > 128 || CREDENTIAL_KEY.test(key)) continue;
+        if (UNSAFE_KEYS.has(key) || key.length > 128 || isCredentialKeyName(key)) continue;
         const cleaned = cleanSourceData(item, depth + 1);
         if (cleaned !== undefined) out[key] = cleaned;
     }
@@ -184,6 +226,24 @@ const onlineSongOf = (song: Json): UnifiedSong | null => {
             ...(providerData ? { providerData } : {}),
         },
     };
+};
+
+/**
+ * 读进来的在线歌，它的 id 和来源（sourceRef.mediaId）说的是不是同一首。歌单按 mediaId 认歌、去重、播放，宿主里别的
+ * 地方（给别的模组看的 id 等）用的是歌的 id：两样对不上的条目，显示的和实际拿去用的可以是两首歌。
+ * 对得上的只有两种：id 就是 mediaId；或者 id 是音源自己的数据（providerData 最外层）里写着的另一个 id——
+ * 有的音源给歌两个 id（公开契约的 publicId：播放用的那个作 mediaId，另一个留作歌的 id，并且也放在它自己的数据里）。
+ * 文件里没写 id、或 id 不成样子的，用 mediaId 当 id，不算对不上。
+ * 这挡的是 id 指向一首附带数据里根本没提的歌（手改出来的、别的工具拼错的）；附带数据本身也是文件写的，
+ * 有意连它一起改的文件这里分不出来，那要靠音源自己核对。
+ */
+const onlineIdAgrees = (rawId: unknown, song: UnifiedSong): boolean => {
+    const id = mediaIdOf(rawId);
+    const ref = song.sourceRef;
+    if (id === undefined || ref.kind !== 'online' || String(id) === ref.mediaId) return true;
+    return Object.values(ref.providerData ?? {}).some(value => (
+        (typeof value === 'string' || typeof value === 'number') && String(value) === String(id)
+    ));
 };
 
 /** Navidrome 的歌在文件里的样子：没有任何地址（它们带着账号的令牌），封面只留图的 id。 */
@@ -299,8 +359,8 @@ export const serializeFoliaPlaylistFile = (
         return [{ source: 'online', ...common, song: online }];
     });
     const origin = playlist.origin;
-    // 原歌单在音源那边的附带数据：有的音源读歌单要它；和歌的附带数据过同一道筛。
-    const collectionData = origin ? sourceDataOf(origin.collectionData) : undefined;
+    // 原歌单在音源那边的附带数据（origin.collectionData）不写：里面有只对导出者的账号有意义的目录号、主人 id，
+    // 而且音源读歌单时会按它选走哪条路——读的人确认的是「哪家的哪张歌单」，不该再被一份看不见的数据改道。
     const file = {
         format: FOLIA_PLAYLIST_FILE_FORMAT,
         version: FOLIA_PLAYLIST_FILE_VERSION,
@@ -318,7 +378,6 @@ export const serializeFoliaPlaylistFile = (
                     ...(origin.playVia ? { playVia: origin.playVia } : {}),
                     ...(origin.refreshedAt ? { refreshedAt: timestamp(origin.refreshedAt) } : {}),
                     ...(origin.collectionType === 'album' ? { collectionType: 'album' } : {}),
-                    ...(collectionData ? { collectionData } : {}),
                 },
             } : {}),
             entries,
@@ -340,8 +399,10 @@ export interface ParsedFoliaPlaylistFile {
     favorite: boolean;
     origin?: FoliaPlaylistOrigin;
     entries: FoliaPlaylistFileEntry[];
-    /** 文件里不成样子、被丢掉的条目数。 */
+    /** 文件里不成样子、被丢掉的条目数（不含下面那种）。 */
     invalidCount: number;
+    /** 在线歌的 id 和它的来源说的不是同一首、因此没收的条目数。 */
+    mismatchedIdCount: number;
 }
 
 export type FoliaPlaylistFileError =
@@ -368,7 +429,7 @@ const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
     if (!collectionId || collectionId !== value.collectionId) return undefined;
     const playVia = typeof value.playVia === 'string' && SOURCE_ID.test(value.playVia) ? value.playVia : undefined;
     const refreshedAt = timestamp(value.refreshedAt);
-    const collectionData = sourceDataOf(value.collectionData);
+    // 文件里的 collectionData 不读（见写出去那一侧的说明）：出处只有音源 id、歌单 id、是歌单还是专辑。
     return {
         sourceId: value.sourceId,
         collectionId,
@@ -377,7 +438,9 @@ const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
         ...(playVia ? { playVia } : {}),
         ...(refreshedAt ? { refreshedAt } : {}),
         ...(value.collectionType === 'album' ? { collectionType: 'album' as const } : {}),
-        ...(collectionData ? { collectionData } : {}),
+        // 这个出处是文件说的。记号在这里加、不从文件里读（文件里写了 fromFile、confirmedAt 也不认），
+        // 所以文件没法把自己说成「已经确认过」。
+        fromFile: true,
     };
 };
 
@@ -396,7 +459,7 @@ const localHintFrom = (value: unknown): FoliaFileLocalHint | null => {
     };
 };
 
-const entryOf = (value: unknown): FoliaPlaylistFileEntry | null => {
+const entryOf = (value: unknown): FoliaPlaylistFileEntry | 'mismatched-id' | null => {
     if (!isRecord(value) || !isRecord(value.song)) return null;
     const common = {
         addedAt: timestamp(value.addedAt),
@@ -405,7 +468,9 @@ const entryOf = (value: unknown): FoliaPlaylistFileEntry | null => {
     const originalKey = typeof value.originalKey === 'string' && ENTRY_KEY.test(value.originalKey) ? value.originalKey : undefined;
     if (value.source === 'online') {
         const song = onlineSongOf(value.song);
-        return song ? { source: 'online', song, ...common, ...(originalKey ? { originalKey } : {}) } : null;
+        if (!song) return null;
+        if (!onlineIdAgrees(value.song.id, song)) return 'mismatched-id';
+        return { source: 'online', song, ...common, ...(originalKey ? { originalKey } : {}) };
     }
     if (value.source === 'navidrome') {
         const data = isRecord(value.navidrome) ? value.navidrome : null;
@@ -448,9 +513,11 @@ export const parseFoliaPlaylistFile = (text: string): FoliaPlaylistFileParse => 
 
     const entries: FoliaPlaylistFileEntry[] = [];
     let invalidCount = 0;
+    let mismatchedIdCount = 0;
     for (const raw of playlist.entries as unknown[]) {
         const entry = entryOf(raw);
-        if (entry) entries.push(entry);
+        if (entry === 'mismatched-id') mismatchedIdCount += 1;
+        else if (entry) entries.push(entry);
         else invalidCount += 1;
     }
     const origin = originOf(playlist.origin);
@@ -462,6 +529,7 @@ export const parseFoliaPlaylistFile = (text: string): FoliaPlaylistFileParse => 
             ...(origin ? { origin } : {}),
             entries,
             invalidCount,
+            mismatchedIdCount,
         },
     };
 };
@@ -575,6 +643,8 @@ export interface FoliaPlaylistFilePreview {
     local: { matched: number; unmatched: number; /** 认不回来的那些，给界面列几个名字。 */ unmatchedTitles: string[] };
     /** 文件里不成样子、被丢掉的条目数。 */
     invalidCount: number;
+    /** 在线歌的 id 和它的来源说的不是同一首、因此没收的条目数（预览里要写明原因）。 */
+    mismatchedIdCount: number;
     /** 文件里重复的（同一首只留第一条）。 */
     duplicateCount: number;
     /** 会写进歌单的条目，文件里的顺序。 */
@@ -680,6 +750,7 @@ export const previewFoliaPlaylistFile = (
         unavailableCount,
         local,
         invalidCount: file.invalidCount,
+        mismatchedIdCount: file.mismatchedIdCount,
         duplicateCount,
         entries,
     };

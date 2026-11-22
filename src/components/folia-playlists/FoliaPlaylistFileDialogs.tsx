@@ -293,6 +293,7 @@ export const FoliaPlaylistImportDialog: React.FC<{
         }
         if (preview.duplicateCount > 0) notes.push(t('foliaPlaylistFile.duplicateNote', { count: preview.duplicateCount }));
         if (preview.invalidCount > 0) notes.push(t('foliaPlaylistFile.invalidNote', { count: preview.invalidCount }));
+        if (preview.mismatchedIdCount > 0) notes.push(t('foliaPlaylistFile.mismatchedIdNote', { count: preview.mismatchedIdCount }));
     } else if (reading?.format === 'm3u' && reading.skippedCount > 0) {
         notes.push(t('foliaPlaylistFile.m3uSkipped', { count: reading.skippedCount }));
     }
