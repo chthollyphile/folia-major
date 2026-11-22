@@ -375,10 +375,11 @@ test.describe('[bravais-only] tile kinds', () => {
         await expect.poll(async () => (await pseudo(seam(page), '::after')).opacity).toBe(0);
     });
 
-    test('in daylight the info strip dims toward white; in the clear look only its content fades', async ({ mount, page }) => {
+    // 日光主题下熄灯也是压暗（2026-11-18 起不再往白里褪）。
+    test('in daylight the info strip dims toward black too; in the clear look only its content fades', async ({ mount, page }) => {
         await mountKinds(mount, page, { theme: 'daylight', lights: 'off', current: 'none' });
         await expect.poll(async () => (await pseudo(seam(page), '::after')).opacity).toBeCloseTo(0.6, 2);
-        expect((await pseudo(seam(page), '::after')).background).toBe('rgb(255, 255, 255)');
+        expect((await pseudo(seam(page), '::after')).background).toBe('rgb(0, 0, 0)');
 
         await setWallLook(page, { look: 'clear' });
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'clear');

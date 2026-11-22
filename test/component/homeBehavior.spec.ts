@@ -1068,32 +1068,66 @@ test.describe(`[${suite}] imports`, () => {
         await expect.poll(() => calls(page, 'refreshLocalSongs')).toHaveLength(1);
     });
 
-    test('a playlist file import creates a playlist from matching paths and reports the result', async ({ mount, page }) => {
+    // 导入先开预览对话框（读文件、说出认回几首），点了「导入」才写歌单；结果由对话框自己在全局提示通道上报。
+    test('a playlist file import previews the file, then creates a playlist from matching paths and reports the result', async ({ mount, page }) => {
         await mountHome(mount, page, suite);
         // 导入歌单文件搬到了 Folia 页；TUI 没有这一页，它的本地列表仍接这个文件。
         await showList(page, hasFolia(suite) ? 'folia' : 'local');
         await clearLog(page);
-        const importFile = (name: string, lines: string[]) => page.evaluate(
-            ([fileName, text]) => window.__homeProbe!.importPlaylistFile(fileName, text),
-            [name, ['#EXTM3U', ...lines].join('\n')] as const,
-        );
+        const dialog = page.locator('[data-folia-file-dialog="import"]');
+        // 与在文件选择框里选中这个文件一样；对话框关掉之前这次导入不返回，所以不在这里等它。
+        const startImport = async (name: string, lines: string[]) => {
+            const done = page.evaluate(
+                ([fileName, text]) => window.__homeProbe!.importPlaylistFile(fileName, text),
+                [name, ['#EXTM3U', ...lines].join('\n')] as const,
+            );
+            await expect(dialog).toHaveAttribute('data-folia-file-state', 'm3u');
+            // 包一层：async 函数直接返回 Promise 会被一并等掉。
+            return { done };
+        };
+        const confirm = page.locator('[data-folia-file-action="confirm"]');
+        const toasts = async () => (await calls(page, 'toast')).map(call => ({ status: call.status, text: call.text }));
 
-        expect(await importFile('road.m3u8', ['#PLAYLIST:Road Trip', localFilePath(6), localFilePath(1)])).toBe(true);
-        expect((await calls(page, 'statusMessage')).map(call => call.status)).toEqual(['success']);
-        expect((await calls(page, 'statusMessage'))[0].text).toContain('Road Trip');
+        const road = await startImport('road.m3u8', ['#PLAYLIST:Road Trip', localFilePath(6), localFilePath(1)]);
+        await expect(dialog.getByRole('textbox')).toHaveValue('Road Trip');
+        await expect(dialog).toContainText('The file has 2 paths; 2 match a song in the library');
+        // 点确认之前什么都没写。
+        expect((await localPlaylists(page)).some(playlist => playlist.name === 'Road Trip')).toBe(false);
+        await confirm.click();
+        expect(await road.done).toBe(true);
+        await expect(dialog).toHaveCount(0);
+        expect(await toasts()).toEqual([{ status: 'success', text: 'Imported playlist "Road Trip": 2 in total' }]);
+        // 首页动作不再另发一条。
+        expect(await calls(page, 'statusMessage')).toEqual([]);
         expect(await calls(page, 'refreshLocalSongs')).toHaveLength(1);
         await expect.poll(async () => (await localPlaylists(page)).find(playlist => playlist.name === 'Road Trip')?.songIds)
             .toEqual(homeLocalSongIds([6, 1]));
         if (hasFolia(suite)) await expect.poll(async () => (await items(page)).map(item => item.name)).toContain('Road Trip');
         await clearLog(page);
 
-        expect(await importFile('partial.m3u8', ['#PLAYLIST:Partial', localFilePath(2), 'Missing/nowhere.mp3'])).toBe(true);
-        expect((await calls(page, 'statusMessage')).map(call => call.status)).toEqual(['info']);
+        // 只认回一部分：预览里说出几条认不回，导入的是认回的那几首。
+        const partial = await startImport('partial.m3u8', ['#PLAYLIST:Partial', localFilePath(2), 'Missing/nowhere.mp3']);
+        await expect(dialog).toContainText('The file has 2 paths; 1 match a song in the library');
+        await expect(dialog).toContainText('1 paths match nothing, or more than one song, and will not be imported.');
+        await confirm.click();
+        expect(await partial.done).toBe(true);
+        expect(await toasts()).toEqual([{ status: 'success', text: 'Imported playlist "Partial": 1 in total' }]);
+        await expect.poll(async () => (await localPlaylists(page)).find(playlist => playlist.name === 'Partial')?.songIds)
+            .toEqual(homeLocalSongIds([2]));
         await clearLog(page);
 
-        expect(await importFile('none.m3u8', ['Missing/nowhere.mp3'])).toBe(true);
-        expect((await calls(page, 'statusMessage')).map(call => call.status)).toEqual(['error']);
+        // 一首都认不回：预览照实说，不让导入；关掉之后什么都没写、也不报结果。
+        const none = await startImport('none.m3u8', ['Missing/nowhere.mp3']);
+        await expect(dialog).toContainText('There is nothing to import.');
+        await expect(confirm).toBeDisabled();
+        const before = (await localPlaylists(page)).length;
+        await page.locator('[data-folia-file-action="cancel"]').click();
+        expect(await none.done).toBe(true);
+        await expect(dialog).toHaveCount(0);
+        expect(await toasts()).toEqual([]);
+        expect(await calls(page, 'statusMessage')).toEqual([]);
         expect(await calls(page, 'refreshLocalSongs')).toHaveLength(0);
+        expect((await localPlaylists(page)).length).toBe(before);
     });
 });
 }

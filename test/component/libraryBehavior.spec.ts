@@ -282,7 +282,7 @@ test.describe(`[${renderer}] online paging and cache`, () => {
     test('a private playlist says so instead of showing an empty grid; an empty one shows no error', async ({ mount, page }) => {
         await mountProbe(mount, page, renderer);
         await open(page, 'online-private');
-        await expect(page.getByText('This playlist is not public, so the current music source cannot read its contents')).toBeVisible();
+        await expect(page.getByText('This playlist is not public')).toBeVisible();
         expect(await scopeCount(page)).toBe(0);
 
         await back(page);
@@ -1346,8 +1346,9 @@ test.describe('done clears every suite\'s layout records', () => {
 });
 
 // 浏览器后退（探针的 back() 就是 popstate 那条路：先通知「将要弹栈」，再改 store）与应用内返回一样跑网格的 beforeBack：
-// 嵌套返回时 hero 收回、卡片散开（退场层 data-folia-collection-morph="exit-backdrop"）。P4.5 之前 popstate 绕过宿主，
-// 这一层直接切走、没有转场。
+// 嵌套返回时封面从正在离开的那一页飞回上一页（载体 data-folia-collection-morph="cover"，方向 out）。P4.5 之前 popstate
+// 绕过宿主，这一层直接切走、没有转场。飞回去要量得到卡片上的封面图（morphProbes 的 measureCard），探针的固定数据默认
+// 不带封面，所以这一组用 ?covers 的数据（withCovers）。
 test.describe('suite backdrop', () => {
     test('the host follows grid motion settings and uses a neutral TUI backdrop', async ({ mount, page }) => {
         await mountProbe(mount, page);
@@ -1393,12 +1394,18 @@ test.describe('browser back and the suite transitions', () => {
         flag.__exitSeen = 0;
         let present = false;
         new MutationObserver(() => {
-            const now = Boolean(document.querySelector('[data-folia-collection-morph="exit-backdrop"]'));
+            const now = Boolean(document.querySelector('[data-folia-collection-morph="cover"][data-folia-collection-morph-direction="out"]'));
             if (now && !present) flag.__exitSeen = (flag.__exitSeen ?? 0) + 1;
             present = now;
         }).observe(document.body, { childList: true, subtree: true });
     });
     const exitLayersSeen = (page: Page) => page.evaluate(() => (window as unknown as { __exitSeen?: number }).__exitSeen ?? 0);
+    /** 探针按地址栏的 ?covers 给歌配封面（fakeProviders 的 PROBE_COVERS，模块加载时读），所以要在页面脚本之前改地址。 */
+    const withCovers = (page: Page) => page.addInitScript(() => {
+        if (!new URLSearchParams(window.location.search).has('covers')) {
+            window.history.replaceState(window.history.state, '', `${window.location.pathname}?covers=1${window.location.hash}`);
+        }
+    });
     const openNestedAlbum = async (page: Page) => {
         await open(page, 'online-public');
         await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
@@ -1411,25 +1418,27 @@ test.describe('browser back and the suite transitions', () => {
     };
 
     test('[grid] browser back from a nested album plays the reverse transition', async ({ mount, page }) => {
+        await withCovers(page);
         await mountProbe(mount, page);
         await openNestedAlbum(page);
         await watchExitLayer(page);
         await back(page);
         await expect.poll(() => stack(page)).toEqual(['Public Playlist']);
         await expect.poll(() => exitLayersSeen(page)).toBe(1);
-        await expect(page.locator('[data-folia-collection-morph="exit-backdrop"]')).toHaveCount(0, { timeout: 5_000 });
+        await expect(page.locator('[data-folia-collection-morph="cover"][data-folia-collection-morph-direction="out"]')).toHaveCount(0, { timeout: 5_000 });
         await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
     });
 
     // 应用内返回先跑 beforeBack 再弹栈；随后的弹栈通知认出这次弹栈、不再跑第二遍。
     test('[grid] Escape from a nested album still plays it', async ({ mount, page }) => {
+        await withCovers(page);
         await mountProbe(mount, page);
         await openNestedAlbum(page);
         await watchExitLayer(page);
         await pressOnGrid(page, 'Escape');
         await expect.poll(() => stack(page)).toEqual(['Public Playlist']);
         await expect.poll(() => exitLayersSeen(page)).toBe(1);
-        await expect(page.locator('[data-folia-collection-morph="exit-backdrop"]')).toHaveCount(0, { timeout: 5_000 });
+        await expect(page.locator('[data-folia-collection-morph="cover"][data-folia-collection-morph-direction="out"]')).toHaveCount(0, { timeout: 5_000 });
         await page.waitForTimeout(300);
         expect(await exitLayersSeen(page)).toBe(1);
     });
