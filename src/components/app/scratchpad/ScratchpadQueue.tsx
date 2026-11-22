@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { Check, ListEnd, ListMusic, ListStart, NotebookPen, Shuffle, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { collectToScratchpad, scratchpadGroupKey, useScratchpadStore } from '../../../stores/useScratchpadStore';
+import { collectToScratchpad, useScratchpadStore } from '../../../stores/useScratchpadStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
@@ -174,8 +174,8 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
     const selectionActions = useCallback((selected: CanvasEntry[]): ScratchpadAction[] => {
         const { readOnly: locked, t: translate } = latest.current;
         const songs = selected.map(row => row.song);
-        const sameSource = new Set(songs.map(scratchpadGroupKey)).size === 1;
-        const canSave = sameSource && songs.every(canOpenPlaylistPickerFor);
+        // 选中的歌来源不同也行：收藏框的 Folia 栏收任何来源。
+        const canSave = songs.every(canOpenPlaylistPickerFor);
         const actions: ScratchpadAction[] = [];
         if (!locked) {
             actions.push(
@@ -188,7 +188,6 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
             {
                 id: 'save-to-playlist',
                 label: translate('scratchpad.addToPlaylist'),
-                title: sameSource ? undefined : translate('scratchpad.mixedSourcesHint'),
                 icon: Star,
                 run: () => openAddSongsToPlaylist(songs),
                 disabled: !canSave,

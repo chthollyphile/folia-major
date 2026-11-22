@@ -361,6 +361,54 @@ export const setLocalSongFavorite = (song: LocalSong, shouldFavorite: boolean): 
     })
 );
 
+// ---- 界面这一侧：歌是界面上拿到的（播放用的形状），一批里可以混着各个来源 ----
+
+/**
+ * 界面上拿到的歌 → 歌单里存的那份：本地歌换成曲库记录的快照（重复导入的换成 canonical 那条，歌单里留的是它），
+ * 别的来源原样。曲库里已经找不到的本地歌不收，计进 missing。
+ */
+const prepareSongsForFoliaPlaylist = async (songs: readonly SongResult[]): Promise<{ prepared: SongResult[]; missing: number }> => {
+    const localIdOf = (song: SongResult) => (song as SongResult & { localRef?: { songId?: string } }).localRef?.songId;
+    if (!songs.some(localIdOf)) return { prepared: [...songs], missing: 0 };
+    const localSongs = await appDatabase.local_music.toArray();
+    const byId = new Map(localSongs.map(song => [song.id, song]));
+    const prepared: SongResult[] = [];
+    let missing = 0;
+    for (const song of songs) {
+        const localId = localIdOf(song);
+        if (!localId) {
+            prepared.push(song);
+            continue;
+        }
+        const record = byId.get(resolveCanonicalLocalSongId(localId, localSongs)) ?? byId.get(localId);
+        if (record) prepared.push(buildLocalEntrySong(record));
+        else missing += 1;
+    }
+    return { prepared, missing };
+};
+
+/** 收藏框、速记簿、队列往一张歌单里加歌：任何来源，返回加了几首、几首已在里面、几首没收。 */
+export const addPickedSongsToFoliaPlaylist = async (
+    playlistId: string,
+    songs: readonly SongResult[],
+): Promise<{ playlist: FoliaPlaylist | null; result: FoliaPlaylistAddResult }> => {
+    const { prepared, missing } = await prepareSongsForFoliaPlaylist(songs);
+    const { playlist, result } = await addSongsToFoliaPlaylist(playlistId, prepared);
+    return { playlist, result: { ...result, rejected: result.rejected + missing } };
+};
+
+/** 用界面上拿到的歌新建一张歌单（收藏框的「新建歌单」、把队列存成歌单）。一首都收不进时不建，抛错。 */
+export const createFoliaPlaylistFromPickedSongs = async (
+    name: string,
+    songs: readonly SongResult[],
+): Promise<{ playlist: FoliaPlaylist; result: FoliaPlaylistAddResult }> => {
+    const { prepared, missing } = await prepareSongsForFoliaPlaylist(songs);
+    const counted = appendFoliaPlaylistEntries([], prepared).result;
+    if (songs.length > 0 && counted.added === 0) throw new Error('None of the songs can go into a playlist');
+    const playlist = await createFoliaPlaylist(name, prepared);
+    return { playlist, result: { ...counted, added: playlist.entries.length, rejected: counted.rejected + missing } };
+};
+
 /** 本地曲库删了歌：每张歌单里那一行直接删掉。 */
 export const removeDeletedLocalSongsFromFoliaPlaylists = async (songIds: readonly string[]): Promise<void> => {
     if (songIds.length === 0) return;

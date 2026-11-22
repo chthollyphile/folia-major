@@ -42,7 +42,7 @@ export type WallToolsHost = {
     /** 把 from 的那首移到 to（拖拽排序；to 是移动完成后的下标）。 */
     moveQueueSong: (from: number, to: number) => void;
     clearQueue: () => void;
-    /** 把当前队列存成本地歌单（只有全是本地歌时可用，见 utils/queueReorder 的 canSaveQueueAsLocalPlaylist）；失败时 reject。 */
+    /** 把当前队列存成 Folia 歌单（任何来源的队列都行，见 utils/queueReorder 的 canSaveQueueAsPlaylist）；失败时 reject。 */
     saveQueueAsPlaylist: (name: string) => Promise<void>;
 };
 

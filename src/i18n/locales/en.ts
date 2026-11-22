@@ -137,6 +137,7 @@ export default {
     "offerLater": "Not now"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "Save the whole scratchpad as a playlist…",
     "title": "Scratchpad",
     "count_one": "{{count}} song",
     "count_other": "{{count}} songs",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "{{count}} selected",
     "removeSelected": "Take out",
     "clearSelection": "Clear selection",
-    "mixedSourcesHint": "These songs come from different sources; a playlist takes one source only",
     "queue": "Queue",
     "queueHint": "The queue that is playing now. Click a song to play it; expand to select several and drag to reorder.",
     "queueEmpty": "The queue is empty.",
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "VIP Only"
   },
   "playlist": {
+    "lastUsed": "Last used",
     "play": "Play",
     "viewTracks": "View tracks",
     "locatePlaying": "Locate the playing song on this page",
@@ -5055,6 +5056,11 @@ export default {
     "lyricsNotAppliedOtherSaved": "Lyrics were not applied; the other selections were saved.",
   },
   "foliaPlaylist": {
+    "clearScratchpad": "Clear scratchpad",
+    "noneAdded": "None of these songs can go into a playlist",
+    "allDuplicates": "Already in “{{name}}” ({{duplicates}})",
+    "addedSome": "Added {{added}} to “{{name}}”; {{duplicates}} already in it",
+    "added": "Added {{added}} to “{{name}}”",
     "created": "Created “{{name}}”",
     "navidromeUnconfigured": "Navidrome not set up",
     "localMissing": "File not in the library",

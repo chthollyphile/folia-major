@@ -12,7 +12,7 @@ import { openSettings } from '../../../stores/useSettingsModalStore';
 // - 生成主题、队列洗牌走命令面板的同一条命令（invokeCommandById），可用性是 canInvokeCommandById 的同一份判定；
 // - 音量预览走应用的 handlePreviewVolume；前往播放器是 navigateToPlayer；打开设置直接开设置弹窗的选项页（与播放页面板的齿轮相同）；
 // - 队列动作：点歌播放（不跳页）、下一首播放、移到末尾、移除、拖拽移动（createQueueMutations）、清空（clearQueue）、
-//   存为本地歌单（播放页队列页的同一个实现 saveCurrentQueueAsLocalPlaylist）。
+//   存为歌单（播放页队列页的同一个实现 saveCurrentQueueAsPlaylist）。
 //   就地编辑之后的重新预取在 createQueueMutations.updateQueueOrder 里（播放页队列页、命令面板、浮岛同一条路），这里不再管。
 // host 身份在应用的整个寿命里不变（动作总读最新的依赖）；可用性变了就发一次通知，面板按 getSnapshot 重画。
 
@@ -37,7 +37,7 @@ export type WallToolsHostDeps = {
     removeQueueSong: (index: number) => void;
     moveQueueSong: (from: number, to: number) => void;
     clearQueue: () => void;
-    saveCurrentQueueAsLocalPlaylist: (name: string) => Promise<void>;
+    saveCurrentQueueAsPlaylist: (name: string) => Promise<void>;
 };
 
 /** 与洗牌本身（usePlaybackQueueController.shuffleQueue）同一个前提：队列至少两首、不是外部 Stage 播放。FM 由命令的可用性管。 */
@@ -76,7 +76,7 @@ export const createWallToolsHostStore = (latest: { current: WallToolsHostDeps })
             removeQueueSong: index => latest.current.removeQueueSong(index),
             moveQueueSong: (from, to) => latest.current.moveQueueSong(from, to),
             clearQueue: () => latest.current.clearQueue(),
-            saveQueueAsPlaylist: name => latest.current.saveCurrentQueueAsLocalPlaylist(name),
+            saveQueueAsPlaylist: name => latest.current.saveCurrentQueueAsPlaylist(name),
         },
         publish: next => {
             if (next.themeGeneration === snapshot.themeGeneration && next.canShuffleQueue === snapshot.canShuffleQueue) return;

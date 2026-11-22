@@ -36,7 +36,7 @@ type UseSessionRestoreControllerParams = {
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     clearPersistedStagePlaybackCache: () => Promise<void>;
     loadLocalSongs: () => Promise<void>;
-    loadLocalPlaylists: () => Promise<void>;
+    loadFoliaPlaylists: () => Promise<void>;
     canRestoreSession?: boolean;
     /**
      * The autoplay intent the audio bridge spends when a source lands. Restore normally leaves it
@@ -55,7 +55,7 @@ export function useSessionRestoreController({
     persistLastPlaybackCache,
     clearPersistedStagePlaybackCache,
     loadLocalSongs,
-    loadLocalPlaylists,
+    loadFoliaPlaylists,
     canRestoreSession = true,
     shouldAutoPlayRef,
 }: UseSessionRestoreControllerParams) {
@@ -75,8 +75,8 @@ export function useSessionRestoreController({
 
         hasLoadedLocalLibraryRef.current = true;
         void loadLocalSongs();
-        void loadLocalPlaylists();
-    }, [loadLocalPlaylists, loadLocalSongs]);
+        void loadFoliaPlaylists();
+    }, [loadFoliaPlaylists, loadLocalSongs]);
 
     useEffect(() => {
         if (!canRestoreSession) {

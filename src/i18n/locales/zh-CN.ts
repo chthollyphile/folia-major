@@ -137,6 +137,7 @@ export default {
     "offerLater": "以后再说"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "整本存成歌单…",
     "title": "速记簿",
     "count_one": "{{count}} 首",
     "count_other": "{{count}} 首",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "已选 {{count}} 首",
     "removeSelected": "移出速记簿",
     "clearSelection": "取消选择",
-    "mixedSourcesHint": "选中的歌来源不同，一个歌单只能放同一来源的歌",
     "queue": "播放队列",
     "queueHint": "正在播的这份队列。点一首就播它；展开后能多选、拖动排序。",
     "queueEmpty": "播放队列是空的。",
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "VIP 专属"
   },
   "playlist": {
+    "lastUsed": "上次用的",
     "play": "播放",
     "viewTracks": "查看曲目",
     "locatePlaying": "在这一页定位正在播放的歌",
@@ -5054,6 +5055,11 @@ export default {
     "lyricsNotAppliedOtherSaved": "歌词未应用，其他选择已保存。"
   },
   "foliaPlaylist": {
+    "clearScratchpad": "清空速记簿",
+    "noneAdded": "这些歌都放不进歌单",
+    "allDuplicates": "这 {{duplicates}} 首都已在「{{name}}」里",
+    "addedSome": "加了 {{added}} 首到「{{name}}」，{{duplicates}} 首已在歌单里",
+    "added": "加了 {{added}} 首到「{{name}}」",
     "created": "已新建「{{name}}」",
     "navidromeUnconfigured": "未配置 Navidrome",
     "localMissing": "曲库里没有这个文件",

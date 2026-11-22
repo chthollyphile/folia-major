@@ -9,6 +9,8 @@ import { SheetButton } from './Sheet';
 // 从上到下：要放进去的歌（封面叠放 + 标题 / 歌手或首数），歌单多时的搜索框，一张列表卡——「我喜欢」排在最前
 // （红心图标，已经喜欢时写一句），其余歌单带封面缩略图与首数，点了就放、这一行转圈、放好关掉；列表下面是新建歌单：
 // 给了 onCreateNamed 就在这里展开输入框直接建，只给 onCreate 时交给调用方自己的对话框。
+// 给了两栏（panes，播放页与速记簿的收藏框：Folia | 歌所属的来源）时，歌的下面多一排切换；列表、搜索、新建都是
+// 当前那一栏的，由调用方按 activePane 给。上次选过的那张歌单（recent）行尾写一句，打开时滚到它。
 
 export interface PlaylistSelectionDialogItem {
     id: string | number;
@@ -20,6 +22,14 @@ export interface PlaylistSelectionDialogItem {
     kind?: 'liked';
     /** 行尾的一句状态（「我喜欢」已经喜欢时）。 */
     note?: string;
+    /** 上次选的就是这张：行尾写「上次用的」，打开时滚到它。 */
+    recent?: boolean;
+}
+
+/** 选择器的一栏（Folia、歌所属的来源）。 */
+export interface PlaylistSelectionPane {
+    id: string;
+    label: string;
 }
 
 /** 要放进歌单的歌：标题、副标题（歌手 · 来源，或首数）与最多三张封面。 */
@@ -43,6 +53,10 @@ interface PlaylistSelectionDialogProps {
     /** 就地新建：输入名字后建好并放进去；给了它就不用 onCreate。 */
     onCreateNamed?: (name: string) => Promise<void>;
     createLabel?: string;
+    /** 两栏：不到两栏时不画切换。 */
+    panes?: readonly PlaylistSelectionPane[];
+    activePane?: string;
+    onPaneChange?: (paneId: string) => void;
 }
 
 /** 歌单超过这么多个才出搜索框。 */
@@ -71,6 +85,9 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
     onCreate,
     onCreateNamed,
     createLabel,
+    panes,
+    activePane,
+    onPaneChange,
 }) => {
     const { t } = useTranslation();
     const [submittingId, setSubmittingId] = React.useState<string | number | null>(null);
@@ -125,7 +142,20 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
         }
     };
 
+    // 换栏：搜索词和没建完的名字是上一栏的，丢掉。
+    React.useEffect(() => {
+        setQuery('');
+        setDraftName(null);
+    }, [activePane]);
+
+    // 上次选的那张在长列表里可能在下面：打开或换栏时滚到它。
+    const recentRef = React.useRef<HTMLButtonElement | null>(null);
+    React.useEffect(() => {
+        if (isOpen) recentRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [activePane, isOpen]);
+
     const covers = subject?.coverUrls?.slice(0, 3) ?? [];
+    const showPanes = Boolean(panes && panes.length > 1);
 
     return (
         <ThemedDialog
@@ -162,6 +192,30 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
                 </div>
             )}
 
+            {showPanes && (
+                <div role="tablist" aria-label={title} className="mb-3 flex shrink-0 gap-1 rounded-lg bg-[var(--st-fill)] p-1" data-playlist-picker-panes="">
+                    {panes?.map(pane => {
+                        const selected = pane.id === activePane;
+                        return (
+                            <button
+                                key={pane.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={selected}
+                                data-playlist-picker-pane={pane.id}
+                                disabled={busy}
+                                onClick={() => { if (!selected) onPaneChange?.(pane.id); }}
+                                className={`st-focus-inside st-t-fast h-8 min-w-0 flex-1 truncate rounded-md px-3 text-[13px] transition-colors disabled:cursor-not-allowed ${selected
+                                    ? 'bg-[var(--st-card)] font-semibold text-[color:var(--st-t1)] shadow-[0_0_0_1px_var(--st-line)]'
+                                    : 'text-[color:var(--st-t2)] enabled:hover:text-[color:var(--st-t1)]'}`}
+                            >
+                                {pane.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             {regular.length > SEARCH_THRESHOLD && (
                 <label className="st-t-fast mb-2.5 flex h-9 shrink-0 items-center gap-2 rounded-lg border border-transparent bg-[var(--st-fill)] px-3 transition-colors focus-within:border-[var(--st-accent)]">
                     <Search size={14} className="shrink-0 text-[color:var(--st-t3)]" />
@@ -183,12 +237,15 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
                     {shown.map((playlist) => {
                         const isLiked = playlist.kind === 'liked';
                         const isSubmitting = submittingId === playlist.id;
+                        const note = playlist.note ?? (playlist.recent ? t('playlist.lastUsed') : undefined);
                         return (
                             <button
                                 key={`${playlist.kind ?? 'playlist'}:${playlist.id}`}
                                 type="button"
                                 role="listitem"
                                 data-playlist-picker-item={isLiked ? 'liked' : 'playlist'}
+                                data-playlist-picker-recent={playlist.recent ? '' : undefined}
+                                ref={playlist.recent ? recentRef : undefined}
                                 onClick={() => void pick(playlist.id)}
                                 disabled={busy}
                                 className="group st-row st-focus-inside st-t-fast relative flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left transition-colors enabled:hover:bg-[var(--st-fill)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -206,15 +263,15 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
                                         <span className="block truncate text-xs leading-[18px] text-[color:var(--st-t2)]">{playlist.description}</span>
                                     )}
                                 </span>
-                                {playlist.note && !isSubmitting && (
+                                {note && !isSubmitting && (
                                     <span className="flex shrink-0 items-center gap-1 text-xs text-[color:var(--st-t2)]">
-                                        <Check size={13} />
-                                        {playlist.note}
+                                        {playlist.note && <Check size={13} />}
+                                        {note}
                                     </span>
                                 )}
                                 {isSubmitting
                                     ? <Loader2 size={16} className="shrink-0 animate-spin text-[color:var(--st-t2)]" />
-                                    : !playlist.note && (
+                                    : !note && (
                                         <Plus size={16} className="shrink-0 text-[color:var(--st-t3)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                                     )}
                             </button>

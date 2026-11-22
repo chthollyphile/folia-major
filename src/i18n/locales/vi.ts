@@ -137,6 +137,7 @@ export default {
     "offerLater": "Để sau"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "Lưu cả sổ ghi nhanh thành danh sách phát…",
     "title": "Sổ ghi nhanh",
     "count_one": "{{count}} bài",
     "count_other": "{{count}} bài",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "Đã chọn {{count}} bài",
     "removeSelected": "Bỏ ra",
     "clearSelection": "Bỏ chọn",
-    "mixedSourcesHint": "Các bài đã chọn đến từ nhiều nguồn; một danh sách phát chỉ nhận một nguồn",
     "queue": "Hàng đợi",
     "queueHint": "Hàng đợi đang phát. Bấm một bài để phát; mở rộng để chọn nhiều và kéo để sắp xếp.",
     "queueEmpty": "Hàng đợi đang trống.",
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "Chỉ VIP"
   },
   "playlist": {
+    "lastUsed": "Dùng gần nhất",
     "play": "Phát",
     "viewTracks": "Xem bài hát",
     "locatePlaying": "Định vị bài hát đang phát trên trang này",
@@ -5055,6 +5056,11 @@ export default {
     "lyricsNotAppliedOtherSaved": "Chưa áp dụng lời bài hát; các lựa chọn khác đã được lưu.",
   },
   "foliaPlaylist": {
+    "clearScratchpad": "Xóa sổ ghi nhanh",
+    "noneAdded": "Không bài nào có thể đưa vào danh sách phát",
+    "allDuplicates": "Đã có trong “{{name}}” ({{duplicates}})",
+    "addedSome": "Đã thêm {{added}} bài vào “{{name}}”; {{duplicates}} bài đã có sẵn",
+    "added": "Đã thêm {{added}} bài vào “{{name}}”",
     "created": "Đã tạo “{{name}}”",
     "navidromeUnconfigured": "Chưa thiết lập Navidrome",
     "localMissing": "Tệp không có trong thư viện",

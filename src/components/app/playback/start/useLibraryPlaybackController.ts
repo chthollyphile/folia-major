@@ -5,7 +5,8 @@ import { LyricParserFactory } from '../../../../utils/lyrics/LyricParserFactory'
 import { getFromCacheWithMigration, getLocalSong, getLocalSongs, removeFromCache, saveLocalSong, saveToCache } from '../../../../services/db';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../../../../services/coverCache';
 import { ensureLocalSongCoverAsset } from '../../../../services/localMusicService';
-import { addLocalSongsToFoliaPlaylist, createFoliaPlaylistFromLocalSongs, setLocalSongFavorite } from '../../../../services/foliaPlaylist/foliaPlaylistService';
+import { createFoliaPlaylistFromPickedSongs, setFoliaSongFavorite, setLocalSongFavorite } from '../../../../services/foliaPlaylist/foliaPlaylistService';
+import { likesGoToFolia } from '../../../../utils/foliaHeart';
 import { buildCanonicalLocalSongIdIndex } from '../../../../services/foliaPlaylist/localSongDuplicates';
 import { applyLocalLibraryEntityDisplay, buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong, resolveLocalSongMetadata } from '../../../../services/playbackAdapters';
 import { getPrefetchedData, prefetchNearbySongs } from '../../../../services/prefetchService';
@@ -18,7 +19,6 @@ import {
     isSamePlaybackSong,
     isStagePlaybackSong,
     getPlaybackSongKey,
-    hasMixedPlaybackSources,
     replacePlaybackSongInQueue,
     replacePlaybackSongWhereQueued,
     resolveNavidromePlaybackCarrier,
@@ -325,13 +325,13 @@ export function useLibraryPlaybackController({
         });
     }, []);
 
-    const loadLocalPlaylists = useCallback(() => useFoliaPlaylistsStore.getState().refresh(), []);
+    const loadFoliaPlaylists = useCallback(() => useFoliaPlaylistsStore.getState().refresh(), []);
 
     const onRefreshLocalSongs = useCallback(async () => {
         const [songs, catalog] = await Promise.all([
             getLocalSongs(),
             getLocalLibraryCatalogSnapshot(),
-            loadLocalPlaylists(),
+            loadFoliaPlaylists(),
         ]);
         setLocalSongs(songs);
         const songsById = new Map(songs.map(song => [song.id, song]));
@@ -372,15 +372,15 @@ export function useLibraryPlaybackController({
         setLyrics(resolvedLyrics.lyrics);
         setActiveLocalLyricsSource(resolvedLyrics.source);
         setCurrentLineIndex(-1);
-    }, [loadLocalPlaylists, setCurrentSong, setIsLyricsLoading, setLyrics, setPlayQueue, shouldAutoPlayRef]);
+    }, [loadFoliaPlaylists, setCurrentSong, setIsLyricsLoading, setLyrics, setPlayQueue, shouldAutoPlayRef]);
 
-    const getFavoriteLocalPlaylist = useMemo(
+    const favoritePlaylist = useMemo(
         () => localPlaylists.find(playlist => playlist.isFavorite) ?? null,
         [localPlaylists],
     );
-    const favoriteLocalSongKeys = useMemo(
-        () => new Set(getFavoriteLocalPlaylist?.entries.map(entry => entry.key)),
-        [getFavoriteLocalPlaylist],
+    const favoriteSongKeys = useMemo(
+        () => new Set(favoritePlaylist?.entries.map(entry => entry.key)),
+        [favoritePlaylist],
     );
 
     const loadBaseOnlineLyrics = useCallback(async (
@@ -411,66 +411,32 @@ export function useLibraryPlaybackController({
     // 同一文件被导入两次时，歌单里留下的是 canonical 那一份的 id，而播放中的可能是另一份副本。
     const canonicalLocalSongIds = useMemo(() => buildCanonicalLocalSongIdIndex(localSongs), [localSongs]);
 
-    const isLocalSongLiked = useCallback((song: SongResult | null) => {
-        if (!song || !isLocalPlaybackSong(song) || !getFavoriteLocalPlaylist) {
+    // 红心归 Folia 管的歌（本地歌、没有账号收藏能力的音源的歌，utils/foliaHeart）是不是在「我喜欢的音乐」里。
+    const isFoliaSongLiked = useCallback((song: SongResult | null) => {
+        if (!song || !favoritePlaylist) {
             return false;
+        }
+        if (!isLocalPlaybackSong(song)) {
+            return favoriteSongKeys.has(getPlaybackSongKey(song));
         }
 
         const songId = song.localRef.songId;
-        return favoriteLocalSongKeys.has(foliaLocalSongKey(canonicalLocalSongIds.get(songId) ?? songId));
-    }, [canonicalLocalSongIds, favoriteLocalSongKeys, getFavoriteLocalPlaylist]);
+        return favoriteSongKeys.has(foliaLocalSongKey(canonicalLocalSongIds.get(songId) ?? songId));
+    }, [canonicalLocalSongIds, favoriteSongKeys, favoritePlaylist]);
 
-    const saveCurrentQueueAsLocalPlaylist = useCallback(async (name: string) => {
+    // 把当前队列存成一张 Folia 歌单：任何来源的队列都行（一张歌单里可以混着各个来源），舞台歌不收。
+    // 一首都收不进时抛错。歌单的列表不用在这里重读：服务写完会通知 useFoliaPlaylistsStore。
+    const saveCurrentQueueAsPlaylist = useCallback(async (name: string) => {
         const trimmedName = name.trim();
         if (!trimmedName) {
             throw new Error('Playlist name is empty');
         }
+        await createFoliaPlaylistFromPickedSongs(trimmedName, playQueue);
+    }, [playQueue]);
 
-        // TODO: Define cross-source playlist export before allowing mixed queues to be saved.
-        if (hasMixedPlaybackSources(playQueue)) {
-            throw new Error('Mixed-source queues cannot be saved as playlists yet');
-        }
-
-        const queueSongs = playQueue
-            .map(resolveLocalSongRecord)
-            .filter((song): song is LocalSong => Boolean(song?.id));
-
-        if (!queueSongs.length) {
-            throw new Error('No local songs in queue');
-        }
-
-        await createFoliaPlaylistFromLocalSongs(trimmedName, queueSongs);
-        await loadLocalPlaylists();
-    }, [loadLocalPlaylists, playQueue, resolveLocalSongRecord]);
-
-    // The six below take the songs the picker was asked for: the shown song (which during a blend is
-    // not the store's current song), or a group of the scratchpad's. They are all of one source.
-    const addPickedSongsToLocalPlaylist = useCallback(async (playlistId: string, songs: SongResult[]) => {
-        const localSongs = songs.map(song => (isLocalPlaybackSong(song) ? resolveLocalSongRecord(song) : null));
-        if (localSongs.length === 0 || localSongs.some(song => !song)) {
-            throw new Error('Picked songs are not all local');
-        }
-
-        await addLocalSongsToFoliaPlaylist(playlistId, localSongs as LocalSong[]);
-        await loadLocalPlaylists();
-    }, [loadLocalPlaylists, resolveLocalSongRecord]);
-
-    const createLocalPlaylistWithSongs = useCallback(async (name: string, songs: SongResult[]) => {
-        const trimmedName = name.trim();
-        if (!trimmedName) {
-            throw new Error('Playlist name is empty');
-        }
-
-        const localSongs = songs.map(song => (isLocalPlaybackSong(song) ? resolveLocalSongRecord(song) : null));
-        if (localSongs.length === 0 || localSongs.some(song => !song)) {
-            throw new Error('Picked songs are not all local');
-        }
-
-        await createFoliaPlaylistFromLocalSongs(trimmedName, localSongs as LocalSong[]);
-        await loadLocalPlaylists();
-        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
-    }, [loadLocalPlaylists, resolveLocalSongRecord, setStatusMsg, t]);
-
+    // The four below take the songs the picker was asked for: the shown song (which during a blend is
+    // not the store's current song), or the ones a scratchpad group or a library card asked for. They
+    // are the source pane's, so all of one source; the Folia pane writes through the playlist service itself.
     const addPickedSongsToOnlinePlaylist = useCallback(async (playlist: ProviderCollection, songs: SongResult[]) => {
         const refused = songs.find(song => !omni.canAddSongToPlaylist(song));
         if (refused) {
@@ -1694,10 +1660,9 @@ export function useLibraryPlaybackController({
 
         const localSong = resolveLocalSongRecord(currentSong);
         if (isLocalPlaybackSong(currentSong) && localSong) {
-            const nextLiked = !isLocalSongLiked(currentSong);
+            const nextLiked = !isFoliaSongLiked(currentSong);
             try {
                 await setLocalSongFavorite(localSong, nextLiked);
-                await loadLocalPlaylists();
                 setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '') });
             } catch (error) {
                 console.error('Failed to update local favorite playlist', error);
@@ -1761,6 +1726,18 @@ export function useLibraryPlaybackController({
             setStatusMsg({ type: 'error', text: t('status.likeFailed') });
             return;
         }
+        // 这个音源没有账号收藏能力：红心记在 Folia 的「我喜欢的音乐」里（规格 §7）。
+        if (likesGoToFolia(currentSong)) {
+            const nextLiked = !isFoliaSongLiked(currentSong);
+            try {
+                await setFoliaSongFavorite(currentSong, nextLiked);
+                setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '') });
+            } catch (error) {
+                console.error('[Like] Failed to update the Folia favorite playlist', error);
+                setStatusMsg({ type: 'error', text: t('status.likeFailed') });
+            }
+            return;
+        }
         if (!omni.canLikeSong(currentSong)) {
             setStatusMsg({
                 type: 'info',
@@ -1788,9 +1765,9 @@ export function useLibraryPlaybackController({
         }
     }, [
         currentSong,
-        isLocalSongLiked,
+        isFoliaSongLiked,
         starredNavidromeSongIds,
-        loadLocalPlaylists,
+        loadFoliaPlaylists,
         setStarredNavidromeSongIds,
         setStatusMsg,
         t,
@@ -1806,13 +1783,11 @@ export function useLibraryPlaybackController({
         openLyricMatch,
         closeLyricMatch,
         loadLocalSongs,
-        loadLocalPlaylists,
+        loadFoliaPlaylists,
         onRefreshLocalSongs,
-        getFavoriteLocalPlaylist,
-        isLocalSongLiked,
-        saveCurrentQueueAsLocalPlaylist,
-        addPickedSongsToLocalPlaylist,
-        createLocalPlaylistWithSongs,
+        favoritePlaylist,
+        isFoliaSongLiked,
+        saveCurrentQueueAsPlaylist,
         addPickedSongsToOnlinePlaylist,
         createOnlinePlaylistWithSongs,
         addPickedSongsToNavidromePlaylist,

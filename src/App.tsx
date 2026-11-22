@@ -900,12 +900,10 @@ export default function App() {
         openLyricMatch,
         closeLyricMatch,
         loadLocalSongs,
-        loadLocalPlaylists,
+        loadFoliaPlaylists,
         onRefreshLocalSongs,
-        isLocalSongLiked,
-        saveCurrentQueueAsLocalPlaylist,
-        addPickedSongsToLocalPlaylist,
-        createLocalPlaylistWithSongs,
+        isFoliaSongLiked,
+        saveCurrentQueueAsPlaylist,
         addPickedSongsToOnlinePlaylist,
         createOnlinePlaylistWithSongs,
         addPickedSongsToNavidromePlaylist,
@@ -949,7 +947,7 @@ export default function App() {
         persistLastPlaybackCache,
         clearPersistedStagePlaybackCache,
         loadLocalSongs,
-        loadLocalPlaylists,
+        loadFoliaPlaylists,
         canRestoreSession: windowPlaybackHandoffRestoreStatus === 'none',
         shouldAutoPlayRef: shouldAutoPlay,
     });
@@ -1089,7 +1087,7 @@ export default function App() {
     usePlaybackUiEffects({
         statusMsg,
         loadLocalSongs,
-        loadLocalPlaylists,
+        loadFoliaPlaylists,
         localMusicUpdatedEvent: LOCAL_MUSIC_UPDATED_EVENT,
         blobUrlRef,
         volumePreviewFrameRef,
@@ -1485,7 +1483,7 @@ export default function App() {
         isTrackTransitionAudible: automix.isTransitionAudible,
         // Keyed on the displayed track, so the like state matches the song the remote is showing
         // while a blend is held rather than the one arriving underneath it.
-        isLiked: resolveSongLiked(displaySong, { isLocalSongLiked, starredNavidromeSongIds }),
+        isLiked: resolveSongLiked(displaySong, { isFoliaSongLiked, starredNavidromeSongIds }),
         onLike: handleLike,
     });
 
@@ -1765,7 +1763,7 @@ export default function App() {
         runAutoMatchBestLyric: handleAutoMatchBestLyricForCurrentSong,
         toggleCurrentSongPureMusicMark: handleToggleCurrentSongPureMusicMark,
         toggleSongLike: handleLike,
-        isSongLiked: resolveSongLiked(displaySong, { isLocalSongLiked, starredNavidromeSongIds }),
+        isSongLiked: resolveSongLiked(displaySong, { isFoliaSongLiked, starredNavidromeSongIds }),
 
         navigateToHome,
         navigateToPlayer,
@@ -2180,7 +2178,7 @@ export default function App() {
         removeQueueSong,
         moveQueueSong,
         clearQueue,
-        saveCurrentQueueAsLocalPlaylist,
+        saveCurrentQueueAsPlaylist,
     });
     // 遥控窗口展开的队列：点歌、下一首播放、移到末尾、移除，走浮岛的同一组队列动作。
     useRemoteQueueCommands(wallToolsHost, playQueue, isNowPlayingControlDisabledRef);
@@ -2199,7 +2197,7 @@ export default function App() {
         localSongs,
         localLibraryCatalog,
         localPlaylists,
-        onRefreshLocalPlaylists: loadLocalPlaylists,
+        onRefreshLocalPlaylists: loadFoliaPlaylists,
         onRefreshLocalSongs,
         onAddLocalSongToQueue: handleLocalQueueAdd,
         localMusicState,
@@ -2286,13 +2284,13 @@ export default function App() {
         removeQueueSong,
         moveQueueSongToEnd,
         moveQueueSongToNext,
-        saveCurrentQueueAsLocalPlaylist,
+        saveCurrentQueueAsPlaylist,
         accountController,
         handleSyncData: handleActiveProviderSyncData,
         isSyncing: isProviderSyncing,
         handleToggleDaylight: toggleDaylightMode,
         // Derived inside the hook, but these are the sources only App.tsx holds.
-        isLocalSongLiked,
+        isFoliaSongLiked,
         shouldHidePlayerRightPanelButton,
         localSongs,
         localLibraryCatalog,
@@ -2922,9 +2920,6 @@ export default function App() {
                 question about the current song, and a shortcut has to reach it with the panel shut. */}
             <AddToPlaylistHost
                 isDaylight={isDaylight}
-                localPlaylists={localPlaylists}
-                onAddSongsToLocalPlaylist={addPickedSongsToLocalPlaylist}
-                onCreateLocalPlaylistWithSongs={createLocalPlaylistWithSongs}
                 onAddSongsToOnlinePlaylist={addPickedSongsToOnlinePlaylist}
                 onCreateOnlinePlaylistWithSongs={createOnlinePlaylistWithSongs}
                 onAddSongsToNavidromePlaylist={addPickedSongsToNavidromePlaylist}

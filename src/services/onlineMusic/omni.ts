@@ -1000,14 +1000,21 @@ export const omni = {
             && Boolean(getOnlineMusicProvider(source.providerId)?.mutations?.createPlaylist);
     },
 
+    // Whether the source keeps likes in an account at all (its declared capabilities, whatever the song and whether
+    // the source is shown). A source without it has no heart of its own: the app keeps those hearts itself, in
+    // Folia's "Liked songs" (utils/foliaHeart). A source that is not registered has none either.
+    sourceHasLikes(providerId: OmniProviderId): boolean {
+        const provider = getOnlineMusicProvider(providerId);
+        return providerSupports(provider, 'mutations')
+            && providerSupports(provider, 'likes')
+            && Boolean(provider?.mutations?.likeSong);
+    },
+
     // Not for a song of a source that is not shown: nothing is written to its kept account (plan §5.3).
     canLikeSong(song: SongResult): boolean {
         const source = getPlaybackSourceRef(song);
         if (source.kind !== 'online' || !isSourceShown(source.providerId)) return false;
-        const provider = getOnlineMusicProvider(source.providerId);
-        return providerSupports(provider, 'mutations')
-            && providerSupports(provider, 'likes')
-            && Boolean(provider?.mutations?.likeSong)
+        return this.sourceHasLikes(source.providerId)
             // An item of a kind its source says cannot be liked (plan §4.4).
             && itemTraits(song).likable;
     },

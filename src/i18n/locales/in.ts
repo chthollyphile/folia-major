@@ -137,6 +137,7 @@ export default {
     "offerLater": "Nanti saja"
   },
   "scratchpad": {
+    "saveAllToPlaylist": "Simpan seluruh buku catatan sebagai playlist…",
     "title": "Buku catatan",
     "count_one": "{{count}} lagu",
     "count_other": "{{count}} lagu",
@@ -184,7 +185,6 @@ export default {
     "selectedCount_other": "{{count}} dipilih",
     "removeSelected": "Keluarkan",
     "clearSelection": "Batalkan pilihan",
-    "mixedSourcesHint": "Lagu terpilih berasal dari sumber berbeda; daftar putar hanya menerima satu sumber",
     "queue": "Antrean",
     "queueHint": "Antrean yang sedang diputar. Klik lagu untuk memutarnya; bentangkan untuk memilih beberapa dan menyeret untuk mengurutkan.",
     "queueEmpty": "Antrean kosong.",
@@ -1775,6 +1775,7 @@ export default {
     "vipOnly": "Hanya VIP"
   },
   "playlist": {
+    "lastUsed": "Terakhir dipakai",
     "play": "Putar",
     "viewTracks": "Lihat lagu",
     "locatePlaying": "Temukan lagu yang diputar di halaman ini",
@@ -5054,6 +5055,11 @@ export default {
     "lyricsNotAppliedOtherSaved": "Lirik tidak diterapkan; pilihan lain disimpan."
   },
   "foliaPlaylist": {
+    "clearScratchpad": "Kosongkan buku catatan",
+    "noneAdded": "Tidak ada lagu yang bisa dimasukkan ke playlist",
+    "allDuplicates": "Sudah ada di “{{name}}” ({{duplicates}})",
+    "addedSome": "{{added}} lagu ditambahkan ke “{{name}}”; {{duplicates}} sudah ada",
+    "added": "{{added}} lagu ditambahkan ke “{{name}}”",
     "created": "“{{name}}” dibuat",
     "navidromeUnconfigured": "Navidrome belum diatur",
     "localMissing": "Berkas tidak ada di pustaka",

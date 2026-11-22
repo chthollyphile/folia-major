@@ -2,9 +2,11 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     addLocalSongsToFoliaPlaylist,
+    addPickedSongsToFoliaPlaylist,
     addSongsToFoliaPlaylist,
     createFoliaPlaylist,
     createFoliaPlaylistFromLocalSongs,
+    createFoliaPlaylistFromPickedSongs,
     deleteFoliaPlaylist,
     getFoliaPlaylist,
     getFoliaPlaylists,
@@ -184,6 +186,32 @@ describe('foliaPlaylistService', () => {
         expect(keysOf(await setFoliaSongFavorite(song, true))).toEqual(['online:lxmusic:7']);
         expect(keysOf(await setFoliaSongFavorite(song, true))).toEqual(['online:lxmusic:7']);
         expect(keysOf(await setFoliaSongFavorite(song, false))).toEqual([]);
+    });
+
+    it('takes songs as the interface has them: local ones as their library record, the rest as they are', async () => {
+        await appDatabase.local_music.bulkPut([track('a'), track('b')]);
+        const playlist = await createFoliaPlaylist('Mix', []);
+        const first = await addPickedSongsToFoliaPlaylist(playlist.id, [localPlaybackSong('a'), onlineSong('lxmusic', 7), localPlaybackSong('gone')]);
+        expect(first.result).toEqual({ added: 2, duplicates: 0, rejected: 1 });
+        expect(keysOf(first.playlist)).toEqual(['local:a', 'online:lxmusic:7']);
+        // 存下的是曲库记录的快照，不是播放用的那份（它带着句柄）。
+        expect(first.playlist?.entries[0].song.name).toBe('a');
+        expect(JSON.stringify(first.playlist?.entries[0].song)).not.toContain('fileHandle');
+
+        // 再存一遍只追加还不在里面的。
+        const second = await addPickedSongsToFoliaPlaylist(playlist.id, [localPlaybackSong('a'), localPlaybackSong('b'), onlineSong('lxmusic', 7)]);
+        expect(second.result).toEqual({ added: 1, duplicates: 2, rejected: 0 });
+        expect(keysOf(second.playlist)).toEqual(['local:a', 'online:lxmusic:7', 'local:b']);
+    });
+
+    it('makes a playlist out of picked songs of any mix of sources, and none when nothing can go in', async () => {
+        await appDatabase.local_music.bulkPut([track('a')]);
+        const made = await createFoliaPlaylistFromPickedSongs('Queue', [localPlaybackSong('a'), onlineSong('netease', 1), onlineSong('netease', 1), navidromeSong('n1')]);
+        expect(keysOf(made.playlist)).toEqual(['local:a', 'online:netease:1', 'navidrome:n1']);
+        expect(made.result).toEqual({ added: 3, duplicates: 1, rejected: 0 });
+
+        await expect(createFoliaPlaylistFromPickedSongs('Empty', [localPlaybackSong('gone')])).rejects.toThrow();
+        expect((await getFoliaPlaylists()).map(item => item.name)).not.toContain('Empty');
     });
 
     it('tells subscribers after a write, not after a read that changed nothing', async () => {
