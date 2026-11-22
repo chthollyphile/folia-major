@@ -20,4 +20,14 @@ describe('abbreviateSeamTabLabels', () => {
         expect(abbreviateSeamTabLabels(['Albums', 'Artists', 'Radio'])).toEqual(['Al', 'Ar', 'R']);
         expect(abbreviateSeamTabLabels(['专辑', '专栏'])).toEqual(['专辑', '专栏']);
     });
+
+    it('looks further along when the first letters are the same too, so two tabs never read alike', () => {
+        // 首页两级页签的一级：Folia 和英文的「本地」（Folder）前三个字母相同。
+        expect(abbreviateSeamTabLabels(['Folia', 'NetEase', 'Folder', 'Navi'])).toEqual(['Fi', 'Ne', 'Fd', 'Na']);
+        expect(abbreviateSeamTabLabels(['Folia', 'Probe', 'Folder'])).toEqual(['Fi', 'P', 'Fd']);
+        // 一个是另一个的开头：短的那个只剩首字，仍然分得开。
+        expect(abbreviateSeamTabLabels(['Fol', 'Folder'])).toEqual(['F', 'Fd']);
+        // 全名相同时分不开，各取前两个字。
+        expect(abbreviateSeamTabLabels(['Folia', 'Folia'])).toEqual(['Fo', 'Fo']);
+    });
 });
