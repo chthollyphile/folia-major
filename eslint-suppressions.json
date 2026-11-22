@@ -7723,7 +7723,7 @@
   },
   "src/library/core/collection/cover/localCollectionCover.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
+      "count": 1
     }
   },
   "src/library/core/collection/cover/localCollectionCovers.service.ts": {
