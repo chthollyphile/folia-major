@@ -1,11 +1,20 @@
 import type { LocalSong, SongResult } from '../../types';
-import type { FoliaPlaylist, FoliaPlaylistAddResult, FoliaPlaylistOrigin } from '../../types/foliaPlaylist';
+import type {
+    FoliaPlayViaUnavailable,
+    FoliaPlaylist,
+    FoliaPlaylistAddResult,
+    FoliaPlaylistOrigin,
+    FoliaRefreshFromOriginResult,
+    FoliaSaveCollectionInput,
+    FoliaSaveCollectionResult,
+} from '../../types/foliaPlaylist';
 import {
     appendFoliaPlaylistEntries,
     foliaLocalSongKey,
     removeFoliaPlaylistEntries as removeEntriesByKey,
     reorderFoliaPlaylistEntries as reorderEntriesByKey,
 } from '../../utils/foliaPlaylistEntries';
+import { buildFoliaTransferEntries, refreshFoliaPlaylistEntries, toFoliaCounterparts, type FoliaCounterparts } from '../../utils/foliaPlaylistTransfer';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { appDatabase } from '../appDatabase';
 import {
@@ -347,6 +356,122 @@ export const toggleFoliaSongFavorite = (song: SongResult): Promise<boolean> => (
         return !liked;
     })
 );
+
+// ---- 转存平台歌单、从原歌单刷新 ----
+// 规则在 utils/foliaPlaylistTransfer.ts。问音源（「对应歌曲」）和读原歌单都在事务外面做完，事务里只把算好的
+// 结果套到歌单此刻的条目上：等的那段时间里用户改了歌单（加歌、删歌、重排），改动都还在。
+
+/** 问目标音源「这些歌你有没有对应的」；答案和 songs 一一对应。宿主的装配是 services/onlineMusic/songCounterparts.ts。 */
+export type FoliaCounterpartResolver = (
+    targetSourceId: string,
+    songs: readonly SongResult[],
+) => Promise<{
+    songs: readonly (SongResult | null)[];
+    unavailable?: Exclude<FoliaPlayViaUnavailable, 'failed'>;
+    /** 实际拿去问的歌数，和其中因为超时、抛错而没问成的。 */
+    asked?: number;
+    failed?: number;
+}>;
+
+export interface FoliaTransferDeps {
+    resolveCounterparts: FoliaCounterpartResolver;
+}
+
+// 问不成（抛错）不挡住转存或刷新：当成一首都没有。
+const askCounterparts = async (
+    playVia: string | undefined,
+    songs: readonly SongResult[],
+    deps: FoliaTransferDeps,
+): Promise<{ counterparts: FoliaCounterparts; unavailable?: FoliaPlayViaUnavailable }> => {
+    if (!playVia || songs.length === 0) return { counterparts: new Map() };
+    try {
+        const answer = await deps.resolveCounterparts(playVia, songs);
+        // 拿去问的全都没问成（超时、抛错）：和「问了、没有对应的」不是一回事，说出来。
+        const allFailed = (answer.asked ?? 0) > 0 && answer.failed === answer.asked;
+        const unavailable: FoliaPlayViaUnavailable | undefined = answer.unavailable ?? (allFailed ? 'failed' : undefined);
+        return { counterparts: toFoliaCounterparts(songs, answer.songs), ...(unavailable ? { unavailable } : {}) };
+    } catch (error) {
+        console.warn(`[FoliaPlaylist] Asking "${playVia}" for counterparts failed`, error);
+        return { counterparts: new Map(), unavailable: 'failed' };
+    }
+};
+
+/**
+ * 把一张平台歌单转存成 Folia 歌单。歌由调用方读好传进来，顺序就是歌单里的顺序。
+ * 选了「改由某个音源播放」（playVia）：逐首问那个音源有没有对应的，有的换成它的歌并记下原来是哪首（originalKey），
+ * 没有的照原样存。目标音源问不成（没装、停用、没配好……）时歌单照样建、全部照原样存，原因在结果里。
+ */
+export const saveCollectionAsFoliaPlaylist = async (
+    input: FoliaSaveCollectionInput,
+    deps: FoliaTransferDeps,
+): Promise<{ playlist: FoliaPlaylist; result: FoliaSaveCollectionResult }> => {
+    const trimmedName = input.name.trim();
+    if (!trimmedName) throw new Error('Playlist name is empty');
+    if (!input.origin.sourceId || !input.origin.collectionId) throw new Error('Playlist origin is incomplete');
+    const playVia = input.playVia && input.playVia !== input.origin.sourceId ? input.playVia : undefined;
+    const { counterparts, unavailable } = await askCounterparts(playVia, input.songs, deps);
+    return withPlaylistTransaction(async state => {
+        const now = Date.now();
+        const { entries, counts } = buildFoliaTransferEntries(input.songs, counterparts, now);
+        const playlist: FoliaPlaylist = {
+            id: createFoliaPlaylistId(),
+            name: trimmedName,
+            createdAt: now,
+            updatedAt: now,
+            origin: {
+                sourceId: input.origin.sourceId,
+                collectionId: input.origin.collectionId,
+                name: input.origin.name,
+                savedAt: now,
+                ...(playVia ? { playVia } : {}),
+            },
+            entries,
+        };
+        state.playlists.push(playlist);
+        await writePlaylist(state, playlist);
+        await writeMeta(state);
+        return { playlist, result: { ...counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) } };
+    });
+};
+
+/**
+ * 从原歌单刷新一张转存来的歌单。原歌单现在的歌由 fetchOriginSongs 去读（调用方给，读不到就抛错，什么都不写）。
+ * 新来的歌按上次选的目标音源（origin.playVia）换；options.playVia 给了就改用它并记下来（null：从此不换）。
+ * 歌单不存在、不是转存来的：null。用户自己加的条目和原歌单里已经没有的歌都留着（规则见 utils/foliaPlaylistTransfer.ts）。
+ */
+export const refreshFoliaPlaylistFromOrigin = async (
+    playlistId: string,
+    fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
+    deps: FoliaTransferDeps,
+    options: { playVia?: string | null } = {},
+): Promise<{ playlist: FoliaPlaylist; result: FoliaRefreshFromOriginResult } | null> => {
+    const before = await getFoliaPlaylist(playlistId);
+    const origin = before?.origin;
+    if (!before || !origin) return null;
+    const originSongs = await fetchOriginSongs(origin);
+    const chosen = options.playVia === undefined ? origin.playVia : options.playVia ?? undefined;
+    const playVia = chosen && chosen !== origin.sourceId ? chosen : undefined;
+    if (originSongs.length === 0) {
+        return { playlist: before, result: { added: 0, swapped: 0, detached: 0, duplicates: 0, rejected: 0, originEmpty: true } };
+    }
+    const { counterparts, unavailable } = await askCounterparts(playVia, originSongs, deps);
+
+    let result: FoliaRefreshFromOriginResult | null = null;
+    const updated = await updatePlaylist(playlistId, playlist => {
+        // 等的时候歌单被换成了别的来源（不该发生）：不动它。
+        if (!playlist.origin || playlist.origin.sourceId !== origin.sourceId || playlist.origin.collectionId !== origin.collectionId) return null;
+        const now = Date.now();
+        const refreshed = refreshFoliaPlaylistEntries(playlist.entries, originSongs, counterparts, now);
+        result = { ...refreshed.counts, ...(unavailable ? { playViaUnavailable: unavailable } : {}) };
+        const { playVia: _playVia, ...originRest } = playlist.origin;
+        return {
+            ...playlist,
+            origin: { ...originRest, refreshedAt: now, ...(playVia ? { playVia } : {}) },
+            entries: refreshed.entries,
+        };
+    });
+    return updated && result ? { playlist: updated, result } : null;
+};
 
 // ---- 本地曲库这一侧 ----
 

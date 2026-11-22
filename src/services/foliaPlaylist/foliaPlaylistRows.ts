@@ -47,11 +47,16 @@ export const parseFoliaPlaylistsMeta = (data: unknown): FoliaPlaylistsMeta => {
 
 const parseOrigin = (data: unknown): FoliaPlaylistOrigin | undefined => {
     if (!isRecord(data) || typeof data.sourceId !== 'string' || typeof data.collectionId !== 'string') return undefined;
+    // 这个版本不认识的字段原样留着（和歌单、条目一样）。
+    const { playVia: _playVia, refreshedAt: _refreshedAt, ...rest } = data;
     return {
+        ...rest,
         sourceId: data.sourceId,
         collectionId: data.collectionId,
         name: typeof data.name === 'string' ? data.name : '',
         savedAt: typeof data.savedAt === 'number' ? data.savedAt : 0,
+        ...(typeof data.playVia === 'string' && data.playVia ? { playVia: data.playVia } : {}),
+        ...(typeof data.refreshedAt === 'number' ? { refreshedAt: data.refreshedAt } : {}),
     };
 };
 
@@ -66,13 +71,14 @@ export const parseFoliaPlaylistRow = (data: unknown): FoliaPlaylist | null => {
     (Array.isArray(data.entries) ? data.entries : []).forEach((entry: unknown) => {
         if (!isRecord(entry) || typeof entry.key !== 'string' || !entry.key || !isRecord(entry.song) || seen.has(entry.key)) return;
         seen.add(entry.key);
-        const { originalKey: _originalKey, ...entryRest } = entry;
+        const { originalKey: _originalKey, fromOrigin: _fromOrigin, ...entryRest } = entry;
         entries.push({
             ...entryRest,
             key: entry.key,
             song: entry.song as unknown as SongResult,
             addedAt: typeof entry.addedAt === 'number' ? entry.addedAt : 0,
             ...(typeof entry.originalKey === 'string' ? { originalKey: entry.originalKey } : {}),
+            ...(entry.fromOrigin === true ? { fromOrigin: true } : {}),
         });
     });
     const origin = parseOrigin(data.origin);

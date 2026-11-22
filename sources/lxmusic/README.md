@@ -37,6 +37,27 @@
 脚本原文、清单、当前选择存在模组自己的 `api.storage`，不碰 localStorage。歌曲 id 是 `<平台键>:<平台的歌曲 id>`
 （`kw:123`、`tx:<mid>`），歌单、榜单、专辑是 `<平台键>:<p|c|a>:<id>`。
 
+## 对应歌曲
+
+洛雪的歌 id 就是 `<平台键>:<平台自己的 id>`，所以网易云、QQ、酷狗三家内置音源的歌可以只凭 id 换成洛雪的歌
+（`songs@1.counterpartSources` / `getCounterparts`，实现在 `client/lxCounterparts.ts`）。把这三家的歌单转存成 Folia 歌单时选
+「改由洛雪音源播放」，用的就是它。
+
+| 来源音源 | 用它的哪个值 | 洛雪的歌 id |
+| --- | --- | --- |
+| `netease` | `id`（数字歌曲 id） | `wy:<id>` |
+| `qq` | `id`（songmid）；`publicId`（数字 songid）一并记进 `data.songId`，有些脚本要 | `tx:<songmid>` |
+| `kugou` | `id`（歌曲 hash，转成小写） | `kg:<hash>` |
+
+- 只按 id 换算，不发请求、不搜索：id 的样子不对就答没有（QQ 的歌没有 songmid、酷狗的不是 32 位 hash），不按歌名歌手去找。
+- 只答当前脚本支持的平台（脚本取不了某家的地址，换过去也播不了）。没有脚本时三家照样声明，但宿主看到音源没配好不会来问
+  （界面上能提示去导入脚本），真问了也全答没有。
+  换了脚本、支持的平台变了，client 入口会调 `handle.changed()`。
+- 答出来的歌带着传进来的歌名、歌手、专辑名、封面、时长；专辑和歌手打不开页面（没有它们的 id）。
+- 酷我没有对应的内置音源，所以不在表里。
+- 换过去的 QQ 歌没有 `mediaMid`、`albumMid`，酷狗歌没有 `audioId`（这些在来源音源自己的 `data` 里，不给别的音源看）。
+  脚本拿到的 `musicInfo` 里这几项是空的；要它们才能取地址的脚本，这首歌会播不了，按平常的播放失败处理。
+
 ## 隔离（改这里的代码前先读）
 
 脚本是不可信的第三方代码。它跑在模组自己的隐藏沙箱窗口里，联网只有一条路：
@@ -97,6 +118,7 @@
 | `mod.json` | 清单：`folium: 2`，音源 `lxmusic`，`offByDefault`，四种语言的名字和启用说明 |
 | `client/index.ts` | client 入口：在第一个 `await` 前 `folium.sources.register`，之后向 main 入口读一次状态 |
 | `client/lxProvider.ts` | 音源定义：`search@1`、`songs@1`、`playback.audio@1`、`lyrics@1`、`catalog@1`、`explore@1` |
+| `client/lxCounterparts.ts` | 「对应歌曲」：网易云、QQ、酷狗的歌按 id 换成洛雪的歌（纯函数） |
 | `client/lxCommands.ts` | 上面那四条命令 |
 | `client/lxTransport.ts` | 经 `folium.rpc` 调 main 入口 |
 | `main/index.ts` | main 入口：rpc、脚本库、沙箱窗口、音频的签发与转发 |
