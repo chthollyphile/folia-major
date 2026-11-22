@@ -227,7 +227,7 @@ const GROUP_ORDER: readonly LibraryHomeGroupKey[] = ['folia', 'online', 'local',
  * 把全部的页分进一级组（两级页签的首页——网格与 Bravais——按它画一级那一排）。一页都没有的组不出现。
  * - 在线组的名字是 onlineLabel（当前在线音源的列表名；一个音源都没启用时调用方给通用的词），其余组用自己那一页的名字。
  * - target：组里记住的那一页可用就是它（在线组是 rememberedOnlineTab，当前页在这个组里时就是当前页），否则第一个可用的。
- *   在线组一页都不可用时仍给第一页、不带 disabledReason：切换音源的入口在这个组上，不能跟着禁用。
+ *   在线组一页都不可用时仍给第一页、不带 disabledReason：那一页自己说明为什么不可用（没登录、没启用音源）。
  */
 export const resolveHomeGroups = ({
     tabs,

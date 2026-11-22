@@ -286,12 +286,11 @@ export const cycleHomeTab = (
 
 /**
  * 首页两级页签的一级那一排：组（Folia、当前在线音源、本地、Navidrome）在前，扩展页签在后；key 是组的 key。
- * 有扩展页签开着时组都不算选中。在线组带 switcher（有启用的音源时）：它同时是音源切换器。
+ * 有扩展页签开着时组都不算选中。
  */
 export const projectHomeSeamGroups = (
     groups: readonly LibraryHomeGroupView[],
     extraTabs: readonly Pick<LibraryHomeExtraTab, 'id' | 'label' | 'active'>[] = [],
-    { switcher = false }: { switcher?: boolean } = {},
 ): BravaisSeamTab[] => {
     const extraActive = extraTabs.some(tab => tab.active);
     return [
@@ -300,7 +299,6 @@ export const projectHomeSeamGroups = (
             label: group.label,
             active: !extraActive && group.active,
             disabled: group.target === null,
-            ...(group.key === 'online' && switcher ? { switcher: true } : {}),
             ...(group.disabledReason ? { title: group.disabledReason } : {}),
         })),
         ...extraTabs.map(entry => ({ key: entry.id, label: entry.label, active: entry.active, disabled: false })),

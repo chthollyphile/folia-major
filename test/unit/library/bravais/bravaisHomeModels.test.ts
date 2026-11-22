@@ -277,7 +277,7 @@ describe('select-all and tabs', () => {
     ] as const;
     const extra = (id: string, active = false) => ({ id, label: id.toUpperCase(), active });
 
-    // 缝里的一级页签是首页两级页签的组；在线组在有启用的音源时同时是音源切换器。
+    // 缝里的一级页签是首页两级页签的组；在线组和别的组一样只是一个页签（名字是当前音源的名字）。
     const nativeGroups: LibraryHomeGroupView[] = [
         { key: 'folia', label: 'Folia', active: false, tabs: [], target: 'folia' },
         { key: 'online', label: 'Source A', active: false, tabs: [], target: 'radio' },
@@ -286,14 +286,12 @@ describe('select-all and tabs', () => {
     ];
 
     it('projects groups as the first-level tabs, contributed pages after them, and lets an open page take the selection', () => {
-        expect(projectHomeSeamGroups(nativeGroups, [], { switcher: true })).toEqual([
+        expect(projectHomeSeamGroups(nativeGroups)).toEqual([
             { key: 'folia', label: 'Folia', active: false, disabled: false },
-            { key: 'online', label: 'Source A', active: false, disabled: false, switcher: true },
+            { key: 'online', label: 'Source A', active: false, disabled: false },
             { key: 'local', label: 'Local', active: true, disabled: false },
             { key: 'navidrome', label: 'Navidrome', active: false, disabled: true, title: 'off' },
         ]);
-        // 一个音源都没启用：在线组只是普通页签。
-        expect(projectHomeSeamGroups(nativeGroups)[1]).toEqual({ key: 'online', label: 'Source A', active: false, disabled: false });
         const closed = projectHomeSeamGroups(nativeGroups, [extra('mod:a'), extra('mod:b')]);
         expect(closed.filter(tab => tab.active).map(tab => tab.key)).toEqual(['local']);
         expect(closed.slice(4)).toEqual([

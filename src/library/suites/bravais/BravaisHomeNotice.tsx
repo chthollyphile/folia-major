@@ -44,10 +44,9 @@ const NoticeLayer: React.FC<{
             pageToolsLabel: t('libraryBravaisHome.pageTools'),
             scan: chrome.scan,
             search: chrome.search,
-            sources: chrome.sources,
         },
     }), [
-        chrome.onSelectOnlineSection, chrome.onSelectTab, chrome.onlineSections, chrome.scan, chrome.search, chrome.sources, chrome.tabs,
+        chrome.onSelectOnlineSection, chrome.onSelectTab, chrome.onlineSections, chrome.scan, chrome.search, chrome.tabs,
         chrome.title, entries, meta, onlineSections, t, tools,
     ]);
     const wall = useMemo(() => ({ filterKey: layerKey, hint }), [hint, layerKey]);

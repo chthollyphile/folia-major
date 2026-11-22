@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { HomeViewTab } from '../../../types';
@@ -7,8 +7,6 @@ import type {
     LibraryHomeGroupKey,
     LibraryHomeGroupView,
     LibraryHomeOnlineSource,
-    LibraryHomeOnlineSwitcher,
-    LibraryHomeOnlineSwitchResult,
     LibraryHomeTabView,
 } from './homeModel.contract';
 import type { LibraryAccountController } from '../account/account.contract';
@@ -22,7 +20,6 @@ import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../../store
 import { getLocalLibraryAvailability } from '../../../services/localLibraryAvailability';
 import { getPersonalFmSelectionLabel } from '../../../services/onlineMusic/fmModes';
 import { builtinSourcesSettled } from '../../../services/onlineMusic/sourceReadiness';
-import { providerDisplayName } from '../../../i18n/providerName';
 import { useLibraryAccountProviders } from '../account/useLibraryAccount';
 
 // src/library/core/home/useLibraryHomeSources.ts
@@ -30,7 +27,7 @@ import { useLibraryAccountProviders } from '../account/useLibraryAccount';
 // 页签列表与不可用原因（规则在 core/home/homeSources，这里翻译）、私人 FM 卡上显示的当前模式。
 // 只订阅这几样（页签、页签显示开关、FM 模式），别的 store 写入不会让首页重渲染。
 // 两级页签：tabs 是全部的页，groups 把它们分进一级组（Folia、当前在线音源、本地、Navidrome），在线组的名字是当前
-// 音源的名字，onlineSwitcher 是那个一级页签上的音源切换器（列表与选择都来自账户 controller，不另存状态）。
+// 音源的名字（换音源在账户 / 登录窗口里做，页签上不带切换器）；一个音源都没启用时组名是通用的词（noOnlineSources）。
 
 export type LibraryHomeSources = {
     tab: HomeViewTab;
@@ -43,8 +40,8 @@ export type LibraryHomeSources = {
     groups: LibraryHomeGroupView[];
     /** 当前页所在的组。 */
     group: LibraryHomeGroupKey;
-    /** 在线组一级页签上的音源切换器。 */
-    onlineSwitcher: LibraryHomeOnlineSwitcher;
+    /** 一个音源都没启用：在线组的名字是通用的词，界面引到「设置 → 音源」。 */
+    noOnlineSources: boolean;
     /** FM 卡上的当前模式（provider 不支持模式时为空）。 */
     personalFmModeLabel: string;
 };
@@ -137,27 +134,6 @@ export const useLibraryHomeSources = ({
         [onlineLabel, rememberedOnlineTab, tab, tabs],
     );
 
-    const selectProvider = useCallback(async (id: string): Promise<LibraryHomeOnlineSwitchResult> => {
-        const result = await account.selectProvider(id);
-        if (result.action === 'login') return 'login';
-        return result.action === 'switch' && result.result.status === 'switched' ? 'switched' : 'unavailable';
-    }, [account]);
-    const onlineSwitcher = useMemo<LibraryHomeOnlineSwitcher>(() => ({
-        empty: noSources,
-        options: providers.map(entry => ({
-            providerId: entry.providerId,
-            label: providerDisplayName(t, entry, entry.providerId),
-            active: entry.providerId === providerId,
-            disabled: !entry.availability.configured,
-            detail: !entry.availability.configured
-                ? t('home.providerNotConfigured')
-                : entry.requiresAccount === false
-                    ? t('home.providerNoAccount')
-                    : entry.user?.nickname || t('home.sourceNotSignedIn'),
-        })),
-        select: selectProvider,
-    }), [noSources, providerId, providers, selectProvider, t]);
-
     const personalFmModeLabel = online.hasPersonalFmModes
         ? getPersonalFmSelectionLabel(personalFmSelection, (key, fallback) => t(key, fallback ?? ''), catalog)
         : '';
@@ -170,7 +146,7 @@ export const useLibraryHomeSources = ({
         tabs,
         groups,
         group: homeGroupOfTab(tab),
-        onlineSwitcher,
+        noOnlineSources: noSources,
         personalFmModeLabel,
     };
 };

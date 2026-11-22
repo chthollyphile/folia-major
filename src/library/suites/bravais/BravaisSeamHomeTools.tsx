@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type FocusEvent, type KeyboardEvent } from 'react';
+import React, { useEffect, useRef, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Disc3,
@@ -8,7 +8,6 @@ import {
     MonitorPlay,
     MoreHorizontal,
     PanelsTopLeft,
-    Settings2,
     RefreshCw,
     Search,
     Settings,
@@ -107,10 +106,6 @@ const BravaisSeamHomeTools: React.FC<{
     pageLimit?: number;
 }> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut, menuEntries, pageLimit: limit }) => {
     const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
-    const sourcesRequested = useBravaisHomeUiStore(state => state.popover === 'sources');
-    const sources = home.sources ?? null;
-    const manageSources = sources?.manage;
-    const sourcesRef = useRef<HTMLDivElement>(null);
     const dockRef = useRef<HTMLDivElement>(null);
     const moreRef = useRef<HTMLButtonElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
@@ -125,8 +120,6 @@ const BravaisSeamHomeTools: React.FC<{
     const entries = menuEntries ?? [];
     const hasMenu = jumps.length > 0 || entries.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
-    // 在线组页签上的音源列表：与「⋯」菜单同一个位置、同一套样式，一次只开一个（popover）。
-    const sourcesOpen = sourcesRequested && sources !== null && !compact;
     // 横的信息条在视口上半时菜单往下弹（工具格一直挂着，dockRef 在打开菜单的那次渲染里已经有值）。
     const pop = bravaisPopMotion(seamPopAnchorFor(dockRef.current), useBravaisReducedTransitions());
 
@@ -136,101 +129,39 @@ const BravaisSeamHomeTools: React.FC<{
         if (!hasMenu && menuOpen) closeBravaisHomePopover('menu');
     }, [hasMenu, menuOpen]);
 
-    // 书脊上点了「⋯」（或要开音源列表）：缝展开成窄缝后在这里把它打开。
+    // 书脊上点了「⋯」：缝展开成窄缝后在这里把它打开。
     useEffect(() => {
         if (compact || request === null) return;
         setBravaisHomeOpenRequest(null);
         setBravaisHomePopover(request);
     }, [compact, request]);
 
-    // 音源列表：书脊上放不下，先把缝展开成窄缝再开（与「⋯」同一条路）；这一层没有列表（没有启用的音源）就收掉。
-    useEffect(() => {
-        if (!sourcesRequested) return;
-        if (sources === null) {
-            closeBravaisHomePopover('sources');
-        } else if (compact) {
-            setBravaisHomePopover(null);
-            setBravaisHomeOpenRequest('sources');
-            onExpand();
-        }
-    }, [compact, onExpand, sources, sourcesRequested]);
-
-    // 音源列表打开时焦点进列表（当前音源那一行），键盘可以直接上下选。
-    useEffect(() => {
-        if (!sourcesOpen) return;
-        const menu = sourcesRef.current;
-        const target = menu?.querySelector<HTMLElement>('[data-bravais-source][aria-checked="true"]:not(:disabled)')
-            ?? menu?.querySelector<HTMLElement>('[data-bravais-source]:not(:disabled)');
-        target?.focus({ preventScroll: true });
-    }, [sourcesOpen]);
-
     // 卸载时收起自己开着的菜单，下次挂载不带着旧的开合。只收「这个实例开着的」：书脊翻成窄缝时新实例先挂上、经
     // openRequest 打开菜单，旧的书脊实例后卸载，它没开过菜单，不能把新开的收掉。
-    const shownRef = useRef<'menu' | 'sources' | null>(null);
-    shownRef.current = open ? 'menu' : sourcesOpen ? 'sources' : null;
+    const shownRef = useRef(false);
+    shownRef.current = open;
     useEffect(() => () => {
-        if (shownRef.current) closeBravaisHomePopover(shownRef.current);
+        if (shownRef.current) closeBravaisHomePopover('menu');
     }, []);
 
     // 菜单开着时点别处收起（缝里、墙上都算）。
     useEffect(() => {
-        if (!open && !sourcesOpen) return undefined;
+        if (!open) return undefined;
         const onPointerDown = (event: PointerEvent) => {
             if (event.target instanceof Node && dockRef.current?.contains(event.target)) return;
-            // 音源列表是那个页签自己开合的：点它不在这里收（否则收了又被它的点击打开）。
-            if (sourcesOpen && event.target instanceof Element && event.target.closest('[data-bravais-tab-switcher]')) return;
-            closeBravaisHomePopover(open ? 'menu' : 'sources');
+            closeBravaisHomePopover('menu');
         };
         document.addEventListener('pointerdown', onPointerDown, true);
         return () => document.removeEventListener('pointerdown', onPointerDown, true);
-    }, [open, sourcesOpen]);
-
-    /** 开着音源列表的那个页签（焦点交回它）。 */
-    const switcherTab = () => dockRef.current?.closest('[data-bravais-home-seam]')?.querySelector<HTMLElement>('[data-bravais-tab-switcher]') ?? null;
+    }, [open]);
 
     // 菜单开着时 Esc 先收起它（preventDefault 让墙的 Esc 阶梯跳过这次按键）。
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (sourcesOpen) {
-            const rows = [...(sourcesRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])];
-            const index = rows.indexOf(document.activeElement as HTMLElement);
-            const move = (next: number) => {
-                event.preventDefault();
-                event.stopPropagation();
-                rows[(next + rows.length) % rows.length]?.focus({ preventScroll: true });
-            };
-            if (event.key === 'ArrowDown') move(index + 1);
-            else if (event.key === 'ArrowUp') move(index <= 0 ? rows.length - 1 : index - 1);
-            else if (event.key === 'Home') move(0);
-            else if (event.key === 'End') move(rows.length - 1);
-            else if (event.key === 'Escape') {
-                event.preventDefault();
-                closeBravaisHomePopover('sources');
-                switcherTab()?.focus({ preventScroll: true });
-            }
-            return;
-        }
         if (event.key !== 'Escape' || !open) return;
         event.preventDefault();
         closeBravaisHomePopover('menu');
         // 菜单要放完收起动画才卸载：焦点在菜单里的话先交回「⋯」，不跟着卸载的菜单丢掉。
         if (event.target instanceof Node && !moreRef.current?.contains(event.target)) moreRef.current?.focus({ preventScroll: true });
-    };
-
-    // 焦点离开工具格（Tab 回墙上）时音源列表跟着收：留着的话之后的 Esc 走墙的阶梯，会多退一层。
-    const onBlur = (event: FocusEvent<HTMLDivElement>) => {
-        if (!sourcesOpen) return;
-        const next = event.relatedTarget;
-        if (!(next instanceof Node)) return;
-        if (dockRef.current?.contains(next) || (next instanceof Element && next.closest('[data-bravais-tab-switcher]'))) return;
-        closeBravaisHomePopover('sources');
-    };
-
-    const runSource = (providerId: string, pressed: Element) => {
-        closeBravaisHomePopover('sources');
-        // 列表要放完收起动画才卸载：焦点先交回页签。登录窗口从那个页签那一边出来。
-        const tab = switcherTab();
-        tab?.focus({ preventScroll: true });
-        sources?.onSelect(providerId, tab ?? pressed);
     };
 
     const runItem = (run: () => void) => {
@@ -279,35 +210,8 @@ const BravaisSeamHomeTools: React.FC<{
     };
 
     return (
-        <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown} onBlur={onBlur}>
+        <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown}>
             <AnimatePresence>
-                {sourcesOpen && (
-                    <motion.div key="sources" ref={sourcesRef} className="bravais-seam-menu is-home is-sources" role="menu" aria-label={sources.label}
-                        data-bravais-seam-menu data-bravais-source-menu {...pop}>
-                        <div className="bravais-seam-menu-heading" aria-hidden>{sources.label}</div>
-                        <div className="bravais-seam-source-list">
-                            {sources.options.map(option => (
-                                <button key={option.providerId} type="button" role="menuitemradio" aria-checked={option.active}
-                                    disabled={option.disabled} data-bravais-source={option.providerId}
-                                    title={`${option.label} · ${option.detail}`}
-                                    className={`is-source${option.active ? ' is-pressed' : ''}`}
-                                    onClick={event => runSource(option.providerId, event.currentTarget)}>
-                                    <span className="is-source-name">{option.label}</span>
-                                    <span className="is-source-detail">{option.detail}</span>
-                                </button>
-                            ))}
-                        </div>
-                        {manageSources && (
-                            <>
-                                <div className="bravais-seam-menu-rule" role="separator" />
-                                <button type="button" role="menuitem" data-bravais-seam-action="manage-sources"
-                                    onClick={() => { closeBravaisHomePopover('sources'); manageSources.run(); }}>
-                                    <Settings2 aria-hidden />{manageSources.label}
-                                </button>
-                            </>
-                        )}
-                    </motion.div>
-                )}
                 {open && (
                     <motion.div key="menu" className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu {...pop}>
                         {jumps.map(shortcut => {

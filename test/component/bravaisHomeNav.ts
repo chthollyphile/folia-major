@@ -17,8 +17,7 @@ export const homeGroupTab = (page: Page, key: string): Locator => page.locator(`
 export const onlinePageTab = (page: Page, key: BravaisOnlinePage): Locator => page.locator(`[data-bravais-seam] [data-bravais-section="${key}"]`);
 
 /**
- * 切到在线组的某一页：先确保一级在在线组，再点二级。在线组的一级页签同时是音源切换器——已经在这一组时再点它会展开
- * 音源列表，所以只在它没选中时才点。
+ * 切到在线组的某一页：先确保一级在在线组，再点二级。
  */
 export const selectOnlinePage = async (page: Page, key: BravaisOnlinePage) => {
     const group = homeGroupTab(page, 'online');

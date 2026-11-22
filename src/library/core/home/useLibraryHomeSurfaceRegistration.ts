@@ -16,27 +16,22 @@ export const useLibraryHomeTabsRegistration = ({
     getState,
     setTab,
     cycleTab,
-    openOnlineSwitcher,
 }: {
     getState: () => LibraryHomeTabsState;
     setTab: (tab: LibraryHomeTabKey) => boolean;
     /** 首页自己的页签循环键（bravais 的 F6）；没有就不提供（见 LibraryHomeTabsHandle.cycleTab）。 */
     cycleTab?: (delta: 1 | -1) => boolean;
-    /** 打开在线组一级页签上的音源列表；没有这个列表的 suite 不提供（见 LibraryHomeTabsHandle.openOnlineSwitcher）。 */
-    openOnlineSwitcher?: () => boolean;
 }) => {
     // 渲染时赋值而不是在 effect 里：effect 之前的窗口里读到的会是上一次渲染的状态。
-    const latestRef = useRef({ getState, setTab, cycleTab, openOnlineSwitcher });
-    latestRef.current = { getState, setTab, cycleTab, openOnlineSwitcher };
+    const latestRef = useRef({ getState, setTab, cycleTab });
+    latestRef.current = { getState, setTab, cycleTab };
     const canCycle = Boolean(cycleTab);
-    const hasSwitcher = Boolean(openOnlineSwitcher);
 
     useEffect(() => useLibraryHomeSurfaceStore.getState().registerTabs({
         getState: () => latestRef.current.getState(),
         setTab: tab => latestRef.current.setTab(tab),
         ...(canCycle ? { cycleTab: (delta: 1 | -1) => latestRef.current.cycleTab?.(delta) ?? false } : {}),
-        ...(hasSwitcher ? { openOnlineSwitcher: () => latestRef.current.openOnlineSwitcher?.() ?? false } : {}),
-    }), [canCycle, hasSwitcher]);
+    }), [canCycle]);
 };
 
 export const useLibraryHomeListRegistration = ({
