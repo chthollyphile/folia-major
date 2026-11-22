@@ -16,6 +16,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({
 vi.mock('@/services/navidromeService', () => ({ getNavidromeConfig: () => ({}) }));
 
 import {
+    describeFoliaNothingSavable,
     describeFoliaOriginUnreadable,
     describeFoliaProvenance,
     describeFoliaRefreshResult,
@@ -23,6 +24,7 @@ import {
     getFoliaSourceLabel,
 } from '@/components/folia-playlists/foliaTransferText';
 import { FoliaOriginUnreadableError } from '@/library/app/foliaOriginSongs';
+import { FoliaNothingToSaveError } from '@/utils/foliaPlaylistTransfer';
 
 // 译文就是「键 + 参数」，断言看得出用了哪句、带了什么数。
 const t = ((key: string, options?: Record<string, unknown>) => (
@@ -49,6 +51,19 @@ describe('what is said after saving a collection', () => {
         expect(message.note).toBe('foliaTransfer.playViaRetryNote');
     });
 
+    it('says in the main text how many the target could not be asked about when only some failed', () => {
+        const message = describeFoliaSaveResult({ swapped: 7, notSwapped: 5, duplicates: 0, rejected: 0, playViaFailed: 3 }, 'Mine', 'beta', t);
+        expect(message.type).toBe('success');
+        expect(message.text).toBe('foliaTransfer.savedViaPartly{"name":"Mine","count":12,"source":"Beta","swapped":7,"kept":5,"failed":3}');
+        expect(message.note).toBe('foliaTransfer.playViaRetryNote');
+    });
+
+    it('says no playlist was created when none of the songs can go into one', () => {
+        expect(describeFoliaNothingSavable(new FoliaNothingToSaveError(4), t)).toEqual({
+            type: 'error', text: 'foliaTransfer.nothingSavable{"count":4}', note: 'foliaTransfer.noPlaylistCreated',
+        });
+    });
+
     it('is a failure when there was nothing to save', () => {
         expect(describeFoliaSaveResult({ swapped: 0, notSwapped: 0, duplicates: 0, rejected: 0 }, 'Mine', undefined, t))
             .toEqual({ type: 'error', text: 'foliaTransfer.savedNothing' });
@@ -61,6 +76,12 @@ describe('what is said after updating from the original', () => {
         expect(message.type).toBe('success');
         expect(message.text).toBe('foliaTransfer.refreshedAddedDetached{"name":"Mine","count":2,"detached":1}');
         expect(message.note).toContain('foliaTransfer.swappedNote{"source":"Beta","count":1}');
+    });
+
+    it('puts the songs the target could not be asked about first in the note', () => {
+        const message = describeFoliaRefreshResult({ added: 2, swapped: 1, detached: 0, duplicates: 0, rejected: 0, playViaFailed: 4 }, 'Mine', 'beta', t);
+        expect(message.type).toBe('success');
+        expect(message.note).toBe('foliaTransfer.playViaPartlyFailedNote{"source":"Beta","count":4} foliaTransfer.swappedNote{"source":"Beta","count":1}');
     });
 
     it('is only a note when nothing changed, or when the original came back empty', () => {

@@ -23,6 +23,19 @@ import { toStoredSongSnapshot } from './songSnapshot';
 //   歌单里只有原歌单的歌时，结果就是原歌单的顺序。
 // - 同一个 key 在歌单里只有一条：换音源会撞上已有条目时不换；新加的歌撞上已有条目时不加。
 
+/**
+ * 要转存的集合里一首能放进歌单的都没有（比如全是舞台歌）：不建歌单。`rejected` 是不收的首数。
+ */
+export class FoliaNothingToSaveError extends Error {
+    readonly rejected: number;
+
+    constructor(rejected: number) {
+        super('None of the songs can go into a playlist');
+        this.name = 'FoliaNothingToSaveError';
+        this.rejected = rejected;
+    }
+}
+
 export interface FoliaTransferCounts {
     /** 换成目标音源来播的条目数。 */
     swapped: number;

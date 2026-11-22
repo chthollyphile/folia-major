@@ -5133,6 +5133,10 @@ export default {
     "edit": "调整歌单顺序",
   },
   "foliaTransfer": {
+    "playViaPartlyFailedNote": "有 {{count}} 首没能向 {{source}} 问成（超时或出错），这次没换。",
+    "savedViaPartly": "已存成 Folia 歌单「{{name}}」：共 {{count}} 首，{{swapped}} 首改由 {{source}} 播放，{{kept}} 首保持原来的来源（其中 {{failed}} 首没问成）",
+    "noPlaylistCreated": "没有新建歌单。",
+    "nothingSavable": "这里的 {{count}} 首都不能放进歌单",
     "saved_one": "已存成 Folia 歌单「{{name}}」，共 {{count}} 首",
     "refreshedNoNewDetached": "「{{name}}」没有新歌；{{detached}} 首已不在原歌单里，仍留在这张歌单中",
     "refreshedAddedDetached": "已更新「{{name}}」：加了 {{count}} 首；{{detached}} 首已不在原歌单里，仍留在这张歌单中",

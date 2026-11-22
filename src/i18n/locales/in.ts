@@ -5133,6 +5133,10 @@ export default {
     "edit": "Urutkan playlist",
   },
   "foliaTransfer": {
+    "playViaPartlyFailedNote": "{{count}} lagu gagal ditanyakan ke {{source}} (waktu habis atau gagal); dibiarkan apa adanya.",
+    "savedViaPartly": "Disimpan sebagai playlist Folia “{{name}}”: {{count}} lagu, {{swapped}} kini diputar lewat {{source}}, {{kept}} tetap di sumber aslinya ({{failed}} di antaranya gagal ditanyakan)",
+    "noPlaylistCreated": "Tidak ada playlist yang dibuat.",
+    "nothingSavable": "Tidak satu pun dari {{count}} lagu di sini bisa dimasukkan ke playlist",
     "saved_one": "Disimpan sebagai playlist Folia “{{name}}” ({{count}} lagu)",
     "refreshedNoNewDetached": "“{{name}}” tidak ada yang baru; {{detached}} yang tidak lagi ada di aslinya tetap disimpan",
     "refreshedAddedDetached": "“{{name}}” diperbarui: {{count}} ditambahkan; {{detached}} yang tidak lagi ada di aslinya tetap disimpan",

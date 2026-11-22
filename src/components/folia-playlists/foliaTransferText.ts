@@ -8,6 +8,7 @@ import type {
 import { FOLIA_ORIGIN_NAVIDROME, FoliaOriginUnreadableError } from '../../library/app/foliaOriginSongs';
 import { omni } from '../../services/onlineMusic/omni';
 import { onlineMutationFailureText } from '../../services/onlineMusic/failure/onlineMutationFailure';
+import { FoliaNothingToSaveError } from '../../utils/foliaPlaylistTransfer';
 
 // src/components/folia-playlists/foliaTransferText.ts
 // 转存与「从原歌单更新」要说的话：来源的称呼、歌单详情里的出处、做完之后的提示。只有字，不用任何平台的商标。
@@ -70,7 +71,7 @@ const playViaAskedNote = (
 
 /**
  * 转存完的提示。要紧的数都写在主句里（提示条的附注放不下会被截掉）：存了几首；选了目标音源的，
- * 其中几首换了、几首没有对应的保持原样；目标音源问不成时照实说。
+ * 其中几首换了、几首没有对应的保持原样；目标音源问不成时照实说，只问成一部分时说出没问成的有几首。
  */
 export const describeFoliaSaveResult = (
     result: FoliaSaveCollectionResult,
@@ -89,25 +90,37 @@ export const describeFoliaSaveResult = (
                 source: getFoliaSourceLabel(playVia, t),
                 reason: describePlayViaUnavailable(result.playViaUnavailable, t),
             })
-            : t('foliaTransfer.savedVia', {
-                name: playlistName,
-                count: saved,
-                source: getFoliaSourceLabel(playVia, t),
-                swapped: result.swapped,
-                kept: result.notSwapped,
-            });
+            : result.playViaFailed
+                ? t('foliaTransfer.savedViaPartly', {
+                    name: playlistName,
+                    count: saved,
+                    source: getFoliaSourceLabel(playVia, t),
+                    swapped: result.swapped,
+                    kept: result.notSwapped,
+                    failed: result.playViaFailed,
+                })
+                : t('foliaTransfer.savedVia', {
+                    name: playlistName,
+                    count: saved,
+                    source: getFoliaSourceLabel(playVia, t),
+                    swapped: result.swapped,
+                    kept: result.notSwapped,
+                });
     return {
         type: 'success',
         text,
         note: joinNotes([
-            playVia && result.playViaUnavailable && t('foliaTransfer.playViaRetryNote'),
+            playVia && Boolean(result.playViaUnavailable || result.playViaFailed) && t('foliaTransfer.playViaRetryNote'),
             result.duplicates > 0 && t('foliaTransfer.duplicatesNote', { count: result.duplicates }),
             result.rejected > 0 && t('foliaPlaylist.rejectedNote', { count: result.rejected }),
         ]),
     };
 };
 
-/** 更新完的提示：主句里是加了几首、几首已不在原歌单里（留在歌单里）；这次换了几首在附注；原歌单读回来是空的就说没动。 */
+/**
+ * 更新完的提示：主句里是加了几首、几首已不在原歌单里（留在歌单里）；这次换了几首在附注；原歌单读回来是空的就说没动。
+ * 目标音源只问成一部分时，没问成的有几首排在附注的最前面（附注放不下时先截后面的）。
+ */
 export const describeFoliaRefreshResult = (
     result: FoliaRefreshFromOriginResult,
     playlistName: string,
@@ -124,12 +137,20 @@ export const describeFoliaRefreshResult = (
         type: changed ? 'success' : 'info',
         text,
         note: joinNotes([
+            playVia && Boolean(result.playViaFailed) && t('foliaTransfer.playViaPartlyFailedNote', { source: getFoliaSourceLabel(playVia, t), count: result.playViaFailed ?? 0 }),
             playVia && result.swapped > 0 && t('foliaTransfer.swappedNote', { source: getFoliaSourceLabel(playVia, t), count: result.swapped }),
             playViaAskedNote(playVia, result.playViaUnavailable, t),
             result.rejected > 0 && t('foliaPlaylist.rejectedNote', { count: result.rejected }),
         ]),
     };
 };
+
+/** 集合里的歌一首都放不进歌单（全是舞台歌）：没有建歌单，照实说有几首不收。 */
+export const describeFoliaNothingSavable = (error: FoliaNothingToSaveError, t: TFunction): FoliaTransferMessage => ({
+    type: 'error',
+    text: t('foliaTransfer.nothingSavable', { count: error.rejected }),
+    note: t('foliaTransfer.noPlaylistCreated'),
+});
 
 /** 读不到原歌单时的提示：来源不在的说来源，读失败的带上能说清的原因（没登录、歌单不存在之类由音源的错给）。 */
 export const describeFoliaOriginUnreadable = (error: unknown, sourceId: string, t: TFunction): FoliaTransferMessage => {

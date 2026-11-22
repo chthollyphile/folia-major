@@ -14,10 +14,12 @@ import {
 } from '../../library/app/foliaOriginSongs';
 import { readTrackSourcesVersion, subscribeTrackSources } from '../../services/foliaPlaylist/trackSourceState';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
+import { FoliaNothingToSaveError } from '../../utils/foliaPlaylistTransfer';
 import { SheetButton } from '../shared/Sheet';
 import ThemedDialog from '../shared/ThemedDialog';
 import type { FoliaTransferRequest } from './foliaPlaylistDialogStore';
 import {
+    describeFoliaNothingSavable,
     describeFoliaOriginUnreadable,
     describeFoliaProvenance,
     describeFoliaRefreshResult,
@@ -137,6 +139,12 @@ const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, 
         } catch (error) {
             // 取消的：对话框已经关了，什么都没写，不用再说。
             if (signal.aborted || isAbortError(error)) return;
+            // 一首都放不进歌单（全是舞台歌）：服务层没有建歌单，照实说，留在对话框里。
+            if (error instanceof FoliaNothingToSaveError) {
+                setStatusMessage(describeFoliaNothingSavable(error, t));
+                setPhase({ step: 'choose' });
+                return;
+            }
             console.warn('[FoliaPlaylist] The transfer failed', error);
             setStatusMessage(describeFoliaOriginUnreadable(error, originSourceId, t));
             setPhase({ step: 'choose' });
