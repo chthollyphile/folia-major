@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useCrossSourceParticipants } from '../../../../hooks/useCrossSourceParticipants';
 import type { CrossSourceSkipReason } from '../../../../services/onlineMusic/crossSource';
-import { resyncAllFolders } from '../../../../services/localMusicService';
+import { LocalFolderUnavailableError, resyncAllFolders } from '../../../../services/localMusicService';
 import { getSourceStates } from '../../../../services/onlineMusic/sourceStates';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
@@ -121,7 +121,10 @@ const LyricsPage: React.FC = () => {
             });
         } catch (error) {
             console.error('[LocalLyricFormatOrder] Failed to resync local folders:', error);
-            setStatusMessage({ type: 'error', text: t('options.localLyricFormatResyncFailed') });
+            // 文件夹读不到时扫描自己已经说过原因了，不拿笼统的「失败」把它盖掉。
+            if (!(error instanceof LocalFolderUnavailableError)) {
+                setStatusMessage({ type: 'error', text: t('options.localLyricFormatResyncFailed') });
+            }
         } finally {
             setIsResyncing(false);
         }
