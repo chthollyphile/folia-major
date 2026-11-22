@@ -48,6 +48,9 @@ const BLOCKED_PORTS = new Set([
 const FAKE_IP = new net.BlockList();
 FAKE_IP.addSubnet('198.18.0.0', 15, 'ipv4');
 
+/** 地址里的主机名，IPv6 去掉方括号。 */
+const bareHost = (url: URL): string => (url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname);
+
 const familyOf = (address: string): 'ipv4' | 'ipv6' | null => {
     const kind = net.isIP(address);
     return kind === 4 ? 'ipv4' : kind === 6 ? 'ipv6' : null;
@@ -124,6 +127,11 @@ export interface EgressOptions {
     allow?: (hostname: string, port: number) => boolean;
     /** 这台机器的网卡表；默认 os.networkInterfaces()。测试里换成假的。 */
     interfaces?: () => NodeJS.Dict<os.NetworkInterfaceInfo[]>;
+    /**
+     * 每一跳连出去之前过的闸（rateLimit.ts 的每秒请求数）：判定通过之后、解析和连接之前叫，轮到了才 resolve。
+     * 没给就不限。
+     */
+    gate?: (hostname: string, signal: AbortSignal) => Promise<void>;
 }
 
 export interface Egress {
@@ -157,8 +165,23 @@ const cleanHeaders = (headers: Record<string, string> | undefined): Record<strin
 };
 
 /** 建一个出口。 */
-export const createEgress = ({ lookup = systemLookup, allow = () => false, interfaces = os.networkInterfaces }: EgressOptions = {}): Egress => {
+export const createEgress = ({ lookup = systemLookup, allow = () => false, interfaces = os.networkInterfaces, gate }: EgressOptions = {}): Egress => {
     const portOf = (url: URL) => Number(url.port || (url.protocol === 'https:' ? 443 : 80));
+
+    /** 连之前就能判的那部分（协议、端口、主机名字面、字面地址）；不许就抛。解析之后的判定在 hop 里。 */
+    const precheck = (url: URL): void => {
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new EgressBlockedError('protocol', url.protocol);
+        const hostname = bareHost(url);
+        const port = portOf(url);
+        if (allow(hostname, port)) return;
+        const literalFamily = familyOf(hostname);
+        const network = literalFamily ? interfaces() : {};
+        const reason = (BLOCKED_PORTS.has(port) ? 'port' : null)
+            ?? hostnameBlockReason(hostname)
+            ?? (literalFamily ? localNetworkReason(hostname, network) : null)
+            ?? (literalFamily && FAKE_IP.check(hostname, literalFamily) ? 'reserved' : null);
+        if (reason) throw new EgressBlockedError(reason, reason === 'port' ? `${hostname}:${port}` : hostname);
+    };
 
     /** 一跳：判定、解析、连接，回这一跳的回答（不跟跳转）。 */
     const hop = (url: URL, method: string, headers: Record<string, string>, body: Uint8Array | null, signal: AbortSignal): Promise<IncomingMessage> => (
@@ -255,6 +278,12 @@ export const createEgress = ({ lookup = systemLookup, allow = () => false, inter
                 url.username = '';
                 url.password = '';
                 url.hash = '';
+                // 限速在判定之后：被拦的去处不占名额，跳转的每一跳各算一次。hop 里会再判一遍，这里先判是为了不让
+                // 一个注定被拦的请求去排队。
+                if (gate) {
+                    precheck(url);
+                    await gate(bareHost(url), controller.signal);
+                }
                 const response = await hop(url, method, headers, body, controller.signal);
                 const status = response.statusCode ?? 0;
                 const location = response.headers.location;

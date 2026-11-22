@@ -1593,7 +1593,6 @@ export default {
     "homeBackToLibrary": "返回书库",
     "homePageNavigation": "首页页面",
     "title": "模组管理",
-    "experimental": "实验性",
     "warning": "模组兼容版本Folium v{{version}}。标有「官方认证」的模组经过 Folium 官方审查并签名，其余模组由第三方提供，未经官方审查。无论是否认证，启用后模组将以应用的完整权限运行（含 Node.js 运行时与任意设置，如 AI 服务地址与密钥）。请仅启用可信来源的模组。",
     "market": "模组市场",
     "trustRevoked": "该模组的文件在你上次确认之后发生了变化，已自动禁用。请确认来源无误后重新启用。",

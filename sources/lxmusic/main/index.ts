@@ -1,10 +1,12 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { Readable } from 'node:stream';
 import type { FoliumSourceAudioQuality, FoliumSourceMainApi, FoliumSourceSong } from '@folia/folium';
 import { CatalogError, createCatalog, parseSongId } from './catalog.ts';
 import type { CatalogFetch } from './catalog.ts';
 import { createEgress, EgressBlockedError } from './egress.ts';
+import { createConcurrencyGate, createRateGate, guardStream, LIMITS, RateLimitedError } from './rateLimit.ts';
 import { buildMusicInfo, LX_TO_QUALITY, pickLxQuality, QUALITY_TO_LX } from './musicInfo.ts';
 import { hostnameBlockReason } from './egressGuard.ts';
 import { createLxSandbox, SANDBOX_PARTITION } from './sandboxHost.ts';
@@ -58,7 +60,12 @@ export default function activate(api: FoliumSourceMainApi): void {
         api.log.warn(detail ? `[LxMusic] ${message}: ${detail}` : `[LxMusic] ${message}`);
     };
     const allow = devAllowance();
-    const egress = createEgress({ allow });
+    const rate = createRateGate(LIMITS.rate);
+    const egress = createEgress({ allow, gate: (hostname, signal) => rate.take(hostname, signal) });
+    // 音频转发另用一套桶，也宽得多：那是播放器发起的请求（拖动时一连串带 Range 的），脚本催不动它；脚本把自己的额度
+    // 用光了也不该让歌放不出来。
+    const audioRate = createRateGate(LIMITS.audioRate);
+    const audioEgress = createEgress({ allow, gate: (hostname, signal) => audioRate.take(hostname, signal) });
     const library = createScriptLibrary(api.storage);
 
     let runtimeCode: string | null = null;
@@ -66,6 +73,7 @@ export default function activate(api: FoliumSourceMainApi): void {
         session: api.net.session(SANDBOX_PARTITION),
         hidden: options => api.windows.hidden(options),
         egress,
+        concurrency: createConcurrencyGate(LIMITS.concurrency),
         // 沙箱页面里的运行环境，和这个入口一起构建出来放在模组文件夹里。
         runtimeCode: () => (runtimeCode ??= fs.readFileSync(path.join(__dirname, 'sandbox.cjs'), 'utf8')),
         isAllowed: () => api.windows.mainWindowPresent(),
@@ -74,6 +82,7 @@ export default function activate(api: FoliumSourceMainApi): void {
     // 隐藏窗口不能在主窗口走了之后让应用活着：跟着关，下次用到再开。
     api.windows.onMainWindowChanged((present) => { if (!present) sandbox.destroy(); });
     api.onBeforeUnload(() => sandbox.destroy());
+    api.onBeforeUnload(() => { for (const stream of forwarding.keys()) stream.destroy(); });
 
     const fetchText: CatalogFetch = async (url, options = {}) => {
         const controller = new AbortController();
@@ -298,13 +307,14 @@ export default function activate(api: FoliumSourceMainApi): void {
 
     // 宿主只把 GET 交过来。失败不带正文：调用方会把收到的正文当成这首歌的音频存起来。
     const CORS = { 'access-control-allow-origin': '*' };
-    /** 一首歌的音频回答最多这么大（按 content-length 判；一小时的 24 bit 无损不到它的一半）。 */
-    const MAX_STREAM_BYTES = 2 * 1024 * 1024 * 1024;
+    const MAX_STREAM_BYTES = LIMITS.maxStreamBytes;
+    // 正在转发的音频流，和各自最近一次被读的时刻。
+    const forwarding = new Map<Readable, number>();
     api.media.serve('stream', async (read) => {
         const entry = streams.get(Object.hasOwn(read.query, 'once') ? read.query.once : '');
         if (!entry || entry.expiresAt < Date.now()) return { status: 410, headers: CORS, body: '' };
         try {
-            const answer = await egress.open({
+            const answer = await audioEgress.open({
                 url: entry.url,
                 headers: { 'accept-encoding': 'identity', ...(read.range ? { range: read.range } : {}) },
                 timeoutMs: 20_000,
@@ -323,10 +333,27 @@ export default function activate(api: FoliumSourceMainApi): void {
             for (const name of ['content-length', 'content-range']) {
                 if (answer.headers[name]) headers[name] = answer.headers[name];
             }
-            return { status: answer.statusCode, headers, body: answer.stream };
+            // 满了就关掉最久没人读的那条：正在放的那首一直有人读，被丢下的（播放器没告诉我们它不要了的）才会排到最前。
+            while (forwarding.size >= LIMITS.maxStreams) {
+                const [stale] = [...forwarding.entries()].reduce((oldest, each) => (each[1] < oldest[1] ? each : oldest));
+                forwarding.delete(stale);
+                stale.destroy(new Error('too many audio streams at once'));
+            }
+            const body = guardStream(answer.stream, {
+                maxBytes: MAX_STREAM_BYTES,
+                idleMs: LIMITS.streamIdleMs,
+                onRead: () => { forwarding.set(body, performance.now()); },
+                onClose: (reason) => {
+                    forwarding.delete(body);
+                    if (reason === 'idle' || reason === 'too-large') log(`audio stream cut (${reason})`);
+                },
+            });
+            forwarding.set(body, performance.now());
+            return { status: answer.statusCode, headers, body };
         } catch (error) {
             log('audio stream failed', error instanceof EgressBlockedError ? error.message : error);
-            return { status: 502, headers: CORS, body: '' };
+            // 太快了的让播放器稍后再来，别的照取不到算。
+            return { status: error instanceof RateLimitedError ? 429 : 502, headers: CORS, body: '' };
         }
     });
 }

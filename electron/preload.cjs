@@ -439,6 +439,12 @@ contextBridge.exposeInMainWorld('electron', {
             ipcRenderer.on('folia-mods:source-states-changed', listener);
             return () => ipcRenderer.removeListener('folia-mods:source-states-changed', listener);
         },
+        // The community mods switch changed (in any window): the others show it without a restart.
+        onCommunityModsChanged: (callback) => {
+            const listener = (_event, payload) => callback(payload);
+            ipcRenderer.on('folia-mods:community-changed', listener);
+            return () => ipcRenderer.removeListener('folia-mods:community-changed', listener);
+        },
         onSourcesStopping: (callback) => {
             const listener = (_event, payload) => callback(payload);
             ipcRenderer.on('folia-mods:sources-stopping', listener);

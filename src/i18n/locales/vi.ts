@@ -1593,7 +1593,6 @@ export default {
     "homeBackToLibrary": "Quay lại thư viện",
     "homePageNavigation": "Chuyển tab trang chủ",
     "title": "Quản lý mod",
-    "experimental": "Thử nghiệm",
     "warning": "Mod tương thích với Folium v{{version}}. Các mod đánh dấu Đã xác minh được Folium kiểm duyệt và ký số; các mod khác do bên thứ ba cung cấp và chưa được kiểm duyệt. Dù đã xác minh hay chưa, khi bật mod sẽ chạy với toàn quyền ứng dụng (gồm runtime Node.js và mọi cài đặt như URL dịch vụ AI và khóa API). Chỉ bật mod từ nguồn đáng tin cậy.",
     "market": "Kho mod",
     "trustRevoked": "Tệp của mod này đã thay đổi kể từ lần xác nhận trước nên đã tự động tắt. Hãy kiểm tra nguồn rồi bật lại.",

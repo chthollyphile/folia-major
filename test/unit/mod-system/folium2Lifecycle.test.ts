@@ -153,6 +153,49 @@ module.exports = async function activate(api) {
         expect(electronCalls.some(([name]) => name === 'session.clearStorageData')).toBe(false);
         expect(modRecord('radio')?.activations).toBe(1);
     });
+
+    const claimant = (modId: string) => writeMod('user', sourceManifest(modId, [{ id: 'qq', claims: { id: 'qq', storeKeys: ['QQ_API_AUTH_SESSION_V1'] } }]));
+
+    it('is not the data of a mod that only waits to take the source over', async () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        claimant('aaa-qq');
+        claimant('bbb-qq');
+        const system = launch();
+        // Both are listed under the short id (their enable confirmation says what they would take over) ...
+        expect(system.listSourceStates().sources.find((source: { sourceId: string }) => source.sourceId === 'qq')).toMatchObject({ takeover: true, loaded: false });
+        // ... but neither ever ran as it: there is nobody whose data to clear, and nothing is asked.
+        expect(system.describeSourceData('qq')).toEqual({ ok: false, error: 'source-not-found' });
+        const asked = dialogs.length;
+        dialogAnswer.response = 1;
+        expect(await system.clearSourceData('qq')).toEqual({ ok: false, error: 'source-not-found' });
+        expect(dialogs).toHaveLength(asked);
+        expect(electronCalls.some(([name]) => name === 'session.clearStorageData')).toBe(false);
+    });
+
+    it('is the data of the holder on record, running or switched off, whichever mod was found first', async () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        claimant('aaa-qq');
+        const holder = claimant('bbb-qq');
+        confirmMod(holder, 'bbb-qq');
+        persisted.set('mods.sourceClaims', { qq: 'bbb-qq' });
+        const system = launch();
+        expect(stateOf(system, 'bbb-qq')!.status).toBe('loaded');
+        expect(system.describeSourceData('qq')).toMatchObject({ ok: true, modId: 'bbb-qq', storeKeys: ['QQ_API_AUTH_SESSION_V1'] });
+        await system.setSourceState('qq', 'disabled');
+        expect(stateOf(system, 'bbb-qq')!.status).not.toBe('loaded');
+        expect(system.describeSourceData('qq')).toMatchObject({ ok: true, modId: 'bbb-qq', storeKeys: ['QQ_API_AUTH_SESSION_V1'] });
+        dialogAnswer.response = 1;
+        expect(await system.clearSourceData('qq')).toMatchObject({ ok: true });
+        expect(fs.existsSync(path.join(harness().userData, 'mods-data', 'aaa-qq'))).toBe(false);
+    });
+
+    it('is still the data of a built-in source that is switched off', async () => {
+        writeSignedIn();
+        const system = launch();
+        await system.setSourceState('folium.radio.station', 'disabled');
+        expect(stateOf(system, 'radio')!.status).not.toBe('loaded');
+        expect(system.describeSourceData('folium.radio.station')).toMatchObject({ ok: true, modId: 'radio' });
+    });
 });
 
 describe('the quit', () => {

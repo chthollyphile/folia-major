@@ -1,6 +1,8 @@
 import type { FoliumSourceNetSession } from '@folia/folium';
 import { EgressBlockedError } from './egress.ts';
 import type { Egress } from './egress.ts';
+import { RateLimitedError } from './rateLimit.ts';
+import type { createConcurrencyGate } from './rateLimit.ts';
 import { REQUEST_PATH, SANDBOX_ORIGIN } from './sandbox/constants.ts';
 import type { LxScriptInfo } from './sandbox/runtime.ts';
 
@@ -32,8 +34,8 @@ export const MAX_ANSWER_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 /** `/__lx/request` 整个 POST 的上限（正文是 base64，再加地址和头）：超了不读进来。 */
 const MAX_ENVELOPE_BYTES = 4 * 1024 * 1024;
-/** 同时在途的 `lx.request`。 */
-const MAX_CONCURRENT_REQUESTS = 8;
+/** 在排队或在途的 `/__lx/request` 最多这么多个（闸自己的队列之外的一道硬上限：再多的连正文都不读）。 */
+const MAX_PENDING_REQUESTS = 24;
 
 /** 这里用到的隐藏窗口的成员（Electron 的 BrowserWindow）。 */
 interface HiddenWindow {
@@ -72,7 +74,9 @@ const json = (status: number, value: unknown): Response => new Response(JSON.str
 });
 
 /** `lx.request` 交来的一个请求：校验形状后经出口发出去，回答整个读回来。 */
-export const answerLxRequest = async (egress: Egress, raw: unknown): Promise<Response> => {
+export const answerLxRequest = async (
+    egress: Egress, raw: unknown, concurrency?: ReturnType<typeof createConcurrencyGate>, signal?: AbortSignal,
+): Promise<Response> => {
     const request = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     if (typeof request.url !== 'string' || request.url.length > 8192) return json(400, { ok: false, error: 'bad request' });
     const headers: Record<string, string> = {};
@@ -83,14 +87,19 @@ export const answerLxRequest = async (egress: Egress, raw: unknown): Promise<Res
     }
     const body = typeof request.body === 'string' ? Buffer.from(request.body, 'base64') : null;
     if (body && body.byteLength > MAX_REQUEST_BYTES) return json(413, { ok: false, error: 'request body too large' });
+    // 同时在途数按目标主机算；地址不成样子的归到一个名下，让出口去报错。
+    const url = request.url;
+    const host = URL.canParse(url) ? new URL(url).hostname : '';
+    const send = () => egress.fetchBytes({
+        url,
+        method: typeof request.method === 'string' ? request.method : 'GET',
+        headers,
+        body,
+        timeoutMs: typeof request.timeoutMs === 'number' ? request.timeoutMs : undefined,
+        signal,
+    }, MAX_ANSWER_BYTES);
     try {
-        const answer = await egress.fetchBytes({
-            url: request.url,
-            method: typeof request.method === 'string' ? request.method : 'GET',
-            headers,
-            body,
-            timeoutMs: typeof request.timeoutMs === 'number' ? request.timeoutMs : undefined,
-        }, MAX_ANSWER_BYTES);
+        const answer = await (concurrency ? concurrency.run(host, send, signal) : send());
         return json(200, {
             ok: true,
             statusCode: answer.statusCode,
@@ -101,6 +110,7 @@ export const answerLxRequest = async (egress: Egress, raw: unknown): Promise<Res
     } catch (error) {
         // 给脚本的只是一句原因；被拦的去处不回任何内容，连解析出的地址也不说（不然脚本能拿它查内网的域名解析）。
         if (error instanceof EgressBlockedError) return json(200, { ok: false, error: `egress blocked (${error.reason})` });
+        if (error instanceof RateLimitedError) return json(200, { ok: false, error: error.message });
         return json(200, { ok: false, error: error instanceof Error ? error.message.slice(0, 200) : 'request failed' });
     }
 };
@@ -127,10 +137,12 @@ const readBounded = async (request: Request, maxBytes: number): Promise<string |
 };
 
 /** 建沙箱。`runtimeCode` 是 sandbox.cjs 的文本；`isAllowed` 说主窗口还在不在（隐藏窗口不能比它活得久）。 */
-export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowed, log }: {
+export const createLxSandbox = ({ session, hidden, egress, concurrency, runtimeCode, isAllowed, log }: {
     session: FoliumSourceNetSession;
     hidden: (options: Record<string, unknown>) => unknown;
     egress: Egress;
+    /** 同时在途的 `lx.request` 的闸（rateLimit.ts）；没给就不限。 */
+    concurrency?: ReturnType<typeof createConcurrencyGate>;
     runtimeCode: () => string;
     isAllowed: () => boolean;
     log: (message: string, error?: unknown) => void;
@@ -139,6 +151,8 @@ export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowe
     let current: { scriptId: string; window: Promise<HiddenWindow> } | null = null;
     let inFlight = 0;
     let downloadsRefused = false;
+    // 窗口的一辈子：窗口销毁时中止它还在途、还在排队的请求，免得旧脚本的尾巴占着新脚本的名额，或在窗口没了之后才发出去。
+    let lifetime = new AbortController();
 
     const serve = async (request: Request): Promise<Response> => {
         const url = new URL(request.url);
@@ -147,12 +161,12 @@ export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowe
             return new Response(BLANK_PAGE, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': PAGE_CSP } });
         }
         if (request.method === 'POST' && url.pathname === REQUEST_PATH) {
-            if (inFlight >= MAX_CONCURRENT_REQUESTS) return json(429, { ok: false, error: 'too many requests at once' });
+            if (inFlight >= MAX_PENDING_REQUESTS) return json(429, { ok: false, error: 'too many requests at once' });
             inFlight += 1;
             try {
                 const text = await readBounded(request, MAX_ENVELOPE_BYTES);
                 if (text === null) return json(413, { ok: false, error: 'request too large' });
-                return await answerLxRequest(egress, JSON.parse(text));
+                return await answerLxRequest(egress, JSON.parse(text), concurrency, lifetime.signal);
             } catch {
                 return json(400, { ok: false, error: 'bad request' });
             } finally {
@@ -217,6 +231,8 @@ export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowe
     const destroy = () => {
         const closing = current;
         current = null;
+        lifetime.abort(new Error('the script sandbox is closed'));
+        lifetime = new AbortController();
         closing?.window.then((window) => { if (!window.isDestroyed()) window.destroy(); }, () => undefined);
     };
 
