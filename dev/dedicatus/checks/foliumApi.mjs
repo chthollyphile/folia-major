@@ -3,9 +3,8 @@
 // 稳定部分有删除或改写的行、而大版本（electron/modSystem/foliumShared.json 的 version.major）没变，报 error；
 // 稳定部分有新增的行、而小版本没变，也报 error（新增稳定接口要升 minor）。注释的改动不算；实验部分
 // （“---- Experimental”一节，以及文档注释带实验标记的声明或成员，见 experimentalLines）不受限。
-// Folium 2.0（方案 §10「交付」）：音源接口标着「预览」期间也算实验部分。生成的类型文件在那几节的标题下面写一行
-// “// 预览：”（dev/folium/types.mjs，foliumShared.json 的 sourcesPreview 为真时才写）；九家迁完、去掉预览标记后
-// 那一行不再生成，这几节就回到只加不改（维护者 2026-11-20 定）。
+// Folium 2.0（方案 §10「交付」）：音源接口（Sources、Source main API 两节）标「预览」期间曾整节算实验部分；
+// 预览标记在 edge 合进 main 之前去掉了，这两节和别处一样只加不改（维护者 2026-11-20 定）。
 // 写着版本号的那一行（FOLIUM_VERSION）不算接口：升 minor 就是改它，它该怎么变由上面两条管。
 
 export const FOLIUM_TYPES = 'mods/folium.d.ts';
@@ -16,14 +15,11 @@ const isComment = text => /^\s*(\/\/|\/\*|\*)/.test(text) || text.trim() === '';
 /** 生成的类型里写着契约版本号的那一行。 */
 const isVersionLine = text => /^export declare const FOLIUM_VERSION\b/.test(text);
 
-/** 一节的标题下面紧跟着的预览标记（dev/folium/types.mjs 在 sourcesPreview 为真时写的那几行的第一行）。 */
-const PREVIEW_SECTION_MARK = /^\/\/ 预览：/;
-
 /** 文档注释里的实验标记：EXPERIMENTAL，或者 “(experimental, `omni.hooks`)” 这样的括注；只是提到 experimental 这个词的不算。 */
 const EXPERIMENTAL_MARK = /EXPERIMENTAL|\(experimental\b/;
 
 /**
- * 每一行是不是实验部分：在 Experimental 一节里，或者在标题下面紧跟预览标记的一节里；或者属于一条文档注释带实验标记的声明或成员，
+ * 每一行是不是实验部分：在 Experimental 一节里；或者属于一条文档注释带实验标记的声明或成员，
  * 从那段注释一直到它结束（同一层的 `;`、`,`、`}` 结尾）；或者在这样一条声明的花括号里面（里面的成员各有自己的
  * 文档注释也一样）。
  * @param {string} text
@@ -39,16 +35,11 @@ export function experimentalLines(text) {
     let pending = false;
     let member = false;
     let memberDepth = 1;
-    let afterHeader = false;
     for (const line of text.split('\n')) {
         if (/^\/\/ -{8,} /.test(line)) {
             section = /Experimental/i.test(line);
             pending = false;
             member = false;
-            afterHeader = true;
-        } else {
-            if (afterHeader && PREVIEW_SECTION_MARK.test(line)) section = true;
-            afterHeader = false;
         }
         if (/^\s*\/\*\*/.test(line)) {
             inDoc = true;

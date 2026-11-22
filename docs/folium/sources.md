@@ -1,9 +1,6 @@
 # 写一个音源模组（Folium 2）
 
-> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源已全部迁过去，标记去掉之前仍可能变动；
-> 用它写的模组可能要随新版本更新。`folium: 1` 冻结的接口不受影响。模组面板里用到这套接口的模组标着「预览」。
-
-Folia 的在线平台（网易云、QQ 音乐、酷狗……）在 Folium 2 里都是**音源模组**：仓库 `sources/<id>/` 下的九个随安装包分发，
+Folia 的在线平台（网易云、QQ 音乐、酷狗……）在 Folium 2 里都是**音源模组**：仓库 `sources/<id>/` 下的十个随安装包分发（九家在线平台和默认停用的洛雪），
 第三方的音源模组用同一套接口。本文讲一个音源模组由哪几块组成、宿主替它做了什么、它要守哪些约定。
 每个类型和成员的签名以生成的 [API 参考](api.md) 为准（「音源（Folium 2）」与「音源类模组的 main 入口」两节），这里不重复。
 普通模组的写法（清单、权限、client 与 main 入口、注册表）见 [Folium 规范](../../mods/README.md) 和
@@ -230,6 +227,6 @@ Folium 1 的实验接口 `omni.providers`（[FoliumOmniProviderDef](api.md#foliu
 
 - [`dev/folium/sample-source-full`](../../dev/folium/sample-source-full/README.md)：实现每个标准能力族的契约测试音源，外加一个外部播放器音源和一个自定义能力。
 - [`dev/folium/sample-video-source`](../../dev/folium/sample-video-source/README.md)：`playback.surface@1`。
-- 仓库里的九个内置音源在 [`sources/`](../../sources/README.md)，每家的 `README.md` 写它靠哪个上游、版本钉在哪。它们怎么构建、依赖怎么打包、
+- 仓库里的十个内置音源在 [`sources/`](../../sources/README.md)，每家的 `README.md` 写它靠哪个上游、版本钉在哪。它们怎么构建、依赖怎么打包、
   安装包带哪几家见 [`dev/sources/README.md`](../../dev/sources/README.md)。往 Folia 仓库里加一个平台的步骤见
   [`src/services/onlineMusic/README.md`](../../src/services/onlineMusic/README.md) 的「接入一个新平台」。

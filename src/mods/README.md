@@ -25,8 +25,8 @@ Folium 模组系统在窗口里的一半。主进程那一半在 `electron/modSy
 - **`folium: 2`**：清单多了 `sources`、`locales`、`assets`、`secrets`、`contexts`、`native`（方案 §5.1）。声明了 `sources` 的是
   **音源类模组**：它在 client 里 `folium.sources.register`，main 入口拿到音源专用的 `api`（`api.net`、`api.media`、`api.cache`、
   `api.legacy` 等，方案 §5.5）。音源类模组按类别豁免网络与存储的权限和限额、自成一组先于普通模组启动、只有自己变了才重载（方案 §5.2）。
-  `mods/folium.d.ts` 的 Sources、Source main API 两节和清单的音源字段目前还标「预览」（`foliumShared.json` 的 `sourcesPreview`）：
-  去掉标记之前可以加，去掉之后按「只加不改」。
+  `mods/folium.d.ts` 的 Sources、Source main API 两节和清单的音源字段曾标「预览」（`foliumShared.json` 的 `sourcesPreview`），
+  `edge` 合进 main 之前去掉了：现在和别的稳定接口一样只加不改，D513 照此检查。
 - 普通模组（不声明 `sources` 的，不论 1 还是 2）的权限、限额、签名标签、启用确认和 Folium 1 一样。
 
 ## 模组从哪里来（层级）
