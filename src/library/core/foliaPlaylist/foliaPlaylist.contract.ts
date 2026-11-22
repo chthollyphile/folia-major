@@ -64,11 +64,12 @@ export interface FoliaPlaylistPort {
      * 从原歌单刷新一张转存来的歌单：原歌单现在的歌由 fetchOriginSongs 去读（读不到就抛错，什么都不写）。
      * 只加不删：原歌单里新的歌加进来（按上次选的目标音源换），已经没有的歌和用户自己加的条目都留着。
      * options.playVia 给了就改用它并记下来（null：从此不换）。歌单不存在、不是转存来的：null。
+     * options.signal 取消了的话，在动笔之前停下（抛 AbortError），什么都不写；saveCollection 的 input.signal 同理。
      */
     refreshFromOrigin(
         playlistId: string,
         fetchOriginSongs: (origin: FoliaPlaylistOrigin) => Promise<readonly SongResult[]>,
-        options?: { playVia?: string | null },
+        options?: { playVia?: string | null; signal?: AbortSignal },
     ): Promise<{ playlist: FoliaPlaylist; result: FoliaRefreshFromOriginResult } | null>;
 }
 
