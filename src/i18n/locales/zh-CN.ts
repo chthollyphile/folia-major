@@ -4959,6 +4959,7 @@ export default {
     "editPlaylist": "编辑歌单",
     "finishEditing": "完成编辑",
     "deletePlaylist": "删除歌单",
+    "deletePlaylistMessage": "只删这张歌单，里面的歌不受影响。删除后不能恢复。",
     "exportPlaylist": "导出歌单…",
     "playlistImportSuccess": "已导入歌单“{{name}}”，共 {{count}} 首歌曲。",
     "playlistImportPartial": "已导入歌单“{{name}}”中的 {{count}} 首歌曲，另有 {{skipped}} 个路径未匹配或存在歧义。",

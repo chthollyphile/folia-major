@@ -774,7 +774,23 @@ test.describe(`[${renderer}] edits`, () => {
         if (renderer === 'grid') {
             expect(await runSurface(page, 'toggle-info-panel')).toBe(true);
             // 探针视口里 DEV 的 suite 切换浮层压在信息面板底部的按钮上，直接派发点击。
-            await page.getByRole('button', { name: 'Delete Playlist' }).dispatchEvent('click');
+            const deleteButton = page.getByRole('button', { name: 'Delete Playlist' });
+            // grid：先问一句（ConfirmDialog，写着歌单名）；Esc、取消都什么也不做，确认了才删。
+            const confirm = page.getByRole('dialog').filter({ hasText: 'Delete “Navi Playlist”?' });
+            await deleteButton.dispatchEvent('click');
+            await expect(confirm).toBeVisible();
+            await expect(confirm).toContainText('Only the playlist is deleted; its songs are not affected. This cannot be undone.');
+            await page.keyboard.press('Escape');
+            await expect(confirm).toHaveCount(0);
+            await deleteButton.dispatchEvent('click');
+            await confirm.getByRole('button', { name: 'Cancel' }).click();
+            await expect(confirm).toHaveCount(0);
+            expect(await requests(page, 'deletePlaylist', 'navi-pl-1')).toHaveLength(0);
+            expect(await stack(page)).toEqual(['Navi Playlist']);
+            await deleteButton.dispatchEvent('click');
+            // 危险动作：焦点落在「取消」上，回车不会误删。
+            await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+            await confirm.getByRole('button', { name: 'Delete Playlist' }).click();
         } else if (renderer === 'bravais') {
             // bravais：「⋯ 更多 → 删除」，缝翻成确认态，确认按钮拿到焦点（Enter 确认）。
             await runBravaisSeamAction(page, 'delete-collection');

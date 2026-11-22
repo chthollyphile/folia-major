@@ -471,6 +471,8 @@ export const GridView: React.FC<GridViewProps> = ({
     const [isPlaylistPickerOpen, setIsPlaylistPickerOpen] = useState(false);
     const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
     const [isDeleteFolderOpen, setIsDeleteFolderOpen] = useState(false);
+    // 删歌单（Folia 歌单、Navidrome 歌单）也先问一句：删了找不回来。
+    const [isDeletePlaylistOpen, setIsDeletePlaylistOpen] = useState(false);
     const [showCutInPanel, setShowCutInPanel] = useState(false);
     const [showSidePanel, setShowSidePanel] = useState(false);
     // 退场动画期间旧网格仍挂着：只有在场的那一个接键盘、筛选框和命令面板，
@@ -630,7 +632,7 @@ export const GridView: React.FC<GridViewProps> = ({
         title,
     ]);
 
-    // 删除成功才返回上一层（文件夹先经确认对话框）。
+    // 删除成功才返回上一层（文件夹、歌单都先经确认对话框）。
     const handleDeleteSourceCollection = useCallback(async () => {
         const result = await mutations?.deleteCollection();
         if (result?.ok) onBack();
@@ -1396,6 +1398,7 @@ export const GridView: React.FC<GridViewProps> = ({
                     || isPlaylistPickerOpen
                     || isCreatePlaylistOpen
                     || isDeleteFolderOpen
+                    || isDeletePlaylistOpen
                 ) return;
 
                 const focusedItem = gridItems[focusedIndex];
@@ -1455,6 +1458,7 @@ export const GridView: React.FC<GridViewProps> = ({
         gridItems,
         isCreatePlaylistOpen,
         isDeleteFolderOpen,
+        isDeletePlaylistOpen,
         isEditMode,
         isActive,
         isPlaylistPickerOpen,
@@ -2209,7 +2213,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                 )}
                                 {mutationCapabilities.deleteCollection.supported && (
                                     <button
-                                        onClick={() => isLocalFolderCollection ? setIsDeleteFolderOpen(true) : void handleDeleteSourceCollection()}
+                                        onClick={() => (isLocalFolderCollection ? setIsDeleteFolderOpen(true) : setIsDeletePlaylistOpen(true))}
                                         disabled={isSourceActionPending}
                                         className="w-full py-2.5 rounded-full text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-red-500/10 text-red-500 border border-red-500/25 hover:bg-red-500/20 disabled:opacity-40"
                                     >
@@ -2260,6 +2264,19 @@ export const GridView: React.FC<GridViewProps> = ({
                     void handleDeleteSourceCollection();
                 }}
                 onClose={() => setIsDeleteFolderOpen(false)}
+                isDaylight={isDaylight}
+            />
+            <ConfirmDialog
+                isOpen={isDeletePlaylistOpen}
+                title={t('libraryTui.confirmDelete', { name: title })}
+                description={t('localMusic.deletePlaylistMessage')}
+                confirmText={t('localMusic.deletePlaylist')}
+                confirmVariant="danger"
+                onConfirm={() => {
+                    setIsDeletePlaylistOpen(false);
+                    void handleDeleteSourceCollection();
+                }}
+                onClose={() => setIsDeletePlaylistOpen(false)}
                 isDaylight={isDaylight}
             />
 

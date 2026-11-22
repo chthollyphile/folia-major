@@ -4959,6 +4959,7 @@ export default {
     "editPlaylist": "Edit Playlist",
     "finishEditing": "Selesai Mengedit",
     "deletePlaylist": "Hapus Playlist",
+    "deletePlaylistMessage": "Hanya playlist ini yang dihapus; lagu-lagunya tidak terpengaruh. Tindakan ini tidak dapat dibatalkan.",
     "exportPlaylist": "Ekspor daftar putar…",
     "playlistImportSuccess": "Diimpor “{{name}}” dengan {{count}} trek.",
     "playlistImportPartial": "Diimpor {{count}} trek ke “{{name}}”; {{skipped}} path tidak ditemukan atau ambigu.",

@@ -4959,6 +4959,7 @@ export default {
     "editPlaylist": "Edit Playlist",
     "finishEditing": "Finish Editing",
     "deletePlaylist": "Delete Playlist",
+    "deletePlaylistMessage": "Only the playlist is deleted; its songs are not affected. This cannot be undone.",
     "exportPlaylist": "Export playlist…",
     "playlistImportSuccess": "Imported “{{name}}” with {{count}} track(s).",
     "playlistImportPartial": "Imported {{count}} track(s) into “{{name}}”; {{skipped}} path(s) were missing or ambiguous.",

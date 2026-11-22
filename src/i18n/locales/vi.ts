@@ -4959,6 +4959,7 @@ export default {
     "editPlaylist": "Sửa danh sách phát",
     "finishEditing": "Hoàn tất chỉnh sửa",
     "deletePlaylist": "Xóa danh sách phát",
+    "deletePlaylistMessage": "Chỉ xóa danh sách phát này; các bài hát không bị ảnh hưởng. Không thể hoàn tác.",
     "exportPlaylist": "Xuất danh sách phát…",
     "playlistImportSuccess": "Đã nhập “{{name}}” với {{count}} bài hát.",
     "playlistImportPartial": "Đã nhập {{count}} bài vào “{{name}}”; bỏ qua {{skipped}} đường dẫn thiếu hoặc không rõ ràng.",
