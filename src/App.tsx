@@ -76,7 +76,7 @@ import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMod
 import type { LocalSong } from './types';
 import { getLocalSongArrayBuffer } from './services/localMusicService';
 import { registerLocalTrackFileReader } from './services/analysis/trackAudio';
-import type { MediaId, ProviderCollection } from './types/onlineMusic';
+import type { MediaId } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
 import { consumeProgrammaticPause, playbackFade } from './services/playbackFade';
@@ -143,7 +143,7 @@ import { useStagePlaybackController } from './components/app/playback/useStagePl
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
 import { useOnlineSongMetadataHydration } from './hooks/useOnlineSongMetadataHydration';
-import { resolveCommandPaletteSearchSource, resolveSearchSource, useSearchNavigationStore } from './stores/useSearchNavigationStore';
+import { isLibrarySearchCollection, resolveCommandPaletteSearchSource, resolveSearchSource, type SearchCollectionResult, useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccountStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
@@ -1019,6 +1019,7 @@ export default function App() {
         isNowPlayingStageActive,
         shouldNavigateToPlayerOnTrackChange: currentView !== 'lattice',
         localSongs,
+        localPlaylists,
         localLibraryCatalog,
         setLyrics,
         setIsLyricsLoading,
@@ -1080,8 +1081,12 @@ export default function App() {
         }
         setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
     }, [navigateToCollection, setStatusMsg, t]);
-    const handleSearchResultCollectionOpen = useCallback((collection: ProviderCollection) => {
-        navigateToCollection(createSearchResultCollection(collection), 'search');
+    const handleSearchResultCollectionOpen = useCallback((collection: SearchCollectionResult) => {
+        // 本地与 Navidrome 的结果本来就是集合描述；在线平台的 omni 集合要转一下。
+        navigateToCollection(
+            isLibrarySearchCollection(collection) ? collection : createSearchResultCollection(collection),
+            'search',
+        );
     }, [navigateToCollection]);
 
     usePlaybackUiEffects({

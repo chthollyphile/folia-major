@@ -4,9 +4,10 @@ import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { Theme, UnifiedSong } from '../../../types';
-import type { MediaId, OmniCollection } from '../../../types/onlineMusic';
+import type { MediaId } from '../../../types/onlineMusic';
 import {
     getSearchKinds,
+    type SearchCollectionResult,
     type SearchKind,
     type SearchSource,
     useSearchNavigationStore,
@@ -38,7 +39,7 @@ type SearchWorkspaceProps = {
     onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: MediaId, entityId?: string) => void;
     onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
     /** 打开搜到的一张专辑或一个歌单。 */
-    onOpenCollection: (collection: OmniCollection) => void;
+    onOpenCollection: (collection: SearchCollectionResult) => void;
     /**
      * 渲染前把结果重新套上当前的展示数据（本地曲目的歌手 / 专辑实体）。store 里的结果是提交那一刻的快照，
      * 本地曲库的实体目录在导入后要晚一拍才加载完，那之前搜到的行没有专辑、歌手链接是灰的；
@@ -260,10 +261,12 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                         onOpenArtist={onOpenArtist}
                                         onOpenAlbum={onOpenAlbum}
                                         onOpenCollection={onOpenCollection}
+                                        onReachEnd={hasMore && !isLoadingMore && !searchError ? onLoadMore : undefined}
                                     />
                                 </div>
+                                {/* 靠右放：底部正中是播放进度条，居中会被它压住。滚到底也会自己加载下一页，按钮留作手动的那一下。 */}
                                 {searchError ? (
-                                    <div className="flex shrink-0 items-center justify-center gap-4 py-3 text-sm">
+                                    <div className="flex shrink-0 items-center justify-end gap-4 py-3 text-sm">
                                         <span className="opacity-60">{t('search.error')}</span>
                                         <button
                                             type="button"
@@ -275,7 +278,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                         </button>
                                     </div>
                                 ) : hasMore && (
-                                    <div className="flex shrink-0 justify-center py-3">
+                                    <div className="flex shrink-0 justify-end py-3">
                                         <button
                                             type="button"
                                             disabled={isLoadingMore}

@@ -44,6 +44,7 @@ vi.mock('@/stores/useAudioSettingsStore', () => ({
 }));
 vi.mock('@/stores/useSearchNavigationStore', () => ({
     useSearchNavigationStore: (selector: (state: unknown) => unknown) => selector({}),
+    setLocalSearchCollectionsReader: () => {},
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, lyricsForNoLyrics: () => null, notifyPlaybackFailed: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({
