@@ -265,7 +265,7 @@ const createModSystem = ({
 
     // To every window that runs the app (not only the main one): what each of them draws by itself.
     const sendToFirstPartyWindows = (channel, payload) => {
-        let windows = null;
+        let windows;
         try {
             windows = typeof getFirstPartyWindows === 'function' ? getFirstPartyWindows() : null;
         } catch {
