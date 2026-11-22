@@ -249,6 +249,8 @@ const FoliaTransferDialog: React.FC<Props> = ({ request, playlists, isDaylight, 
                         onClick={() => void run()}
                         disabled={isBusy || (request.mode === 'save' && !trimmedName)}
                         data-folia-transfer-action="confirm"
+                        // 更新时没有名字框：打开时焦点落在「更新」上，不改选择的话按一下回车就行。
+                        {...(request.mode === 'refresh' ? { 'data-autofocus': true } : {})}
                     >
                         {request.mode === 'save' ? t('foliaTransfer.saveConfirm') : t('foliaTransfer.refreshConfirm')}
                     </SheetButton>

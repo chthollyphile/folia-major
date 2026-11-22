@@ -153,7 +153,8 @@ export const FoliaPlaylistExportDialog: React.FC<{
             footer={(
                 <>
                     <SheetButton onClick={onClose} data-folia-file-action="cancel">{t('localMusic.cancel')}</SheetButton>
-                    <SheetButton variant="primary" onClick={run} data-folia-file-action="confirm">
+                    {/* 打开时焦点落在「导出」上：默认的格式不用改时按一下回车就行。 */}
+                    <SheetButton variant="primary" onClick={run} data-folia-file-action="confirm" data-autofocus>
                         {t('foliaPlaylistFile.exportConfirm')}
                     </SheetButton>
                 </>
@@ -249,6 +250,15 @@ export const FoliaPlaylistImportDialog: React.FC<{
         if (seenMergeTargetId.current !== undefined && seenMergeTargetId.current !== mergeTargetId && !isFavoriteFile) setChoice('new');
         seenMergeTargetId.current = mergeTargetId;
     }, [mergeTargetId, isFavoriteFile]);
+    // 名字框在文件读完之后才出现，对话框打开那一刻的自动聚焦落不到它上面：读完时焦点还在对话框自己身上就补上。
+    const nameInput = useRef<HTMLInputElement>(null);
+    const readFormat = reading?.format;
+    useEffect(() => {
+        const input = nameInput.current;
+        if (!input || !readFormat || readFormat === 'error') return;
+        const active = document.activeElement;
+        if (!active || active === document.body || active === input.closest('[role="dialog"]')) input.focus({ preventScroll: true });
+    }, [readFormat]);
     const importable = reading ? countImportableSongs(reading) : 0;
     const failed = reading?.format === 'error';
     const canImport = Boolean(reading) && !failed && importable > 0 && !writing && (merging || Boolean(trimmedName));
@@ -339,12 +349,19 @@ export const FoliaPlaylistImportDialog: React.FC<{
                         <label className="flex flex-col gap-1.5">
                             <span className={sectionLabel}>{t('foliaPlaylistFile.nameLabel')}</span>
                             <input
+                                ref={nameInput}
                                 data-autofocus
                                 type="text"
                                 value={merging && mergeTarget.isFavorite ? t('localMusic.favoritePlaylist') : name}
                                 disabled={writing || (merging && Boolean(mergeTarget.isFavorite))}
                                 maxLength={200}
                                 onChange={event => setName(event.target.value)}
+                                // 名字框里按回车就是「导入」（和转存对话框一样）；还不能导入时不动。
+                                onKeyDown={(event) => {
+                                    if (event.key !== 'Enter') return;
+                                    event.preventDefault();
+                                    void run();
+                                }}
                                 placeholder={t('localMusic.enterPlaylistName')}
                                 aria-label={t('localMusic.enterPlaylistName')}
                                 className="st-t-fast h-9 w-full rounded-lg border border-transparent bg-[var(--st-fill)] px-3 text-[13px] text-[color:var(--st-t1)] outline-none transition-colors placeholder:text-[color:var(--st-t3)] focus:border-[var(--st-accent)] disabled:opacity-60"
