@@ -8,7 +8,6 @@ import {
     EyeOff,
     Folder,
     FoldHorizontal,
-    Library,
     ListFilter,
     ListMusic,
     MicVocal,
@@ -63,7 +62,6 @@ type PonderBravaisHomeSeamSurfaceProps = {
     registerStateNode?: PonderSurfaceStateRegistrar;
 };
 
-/** 一级页签的「字数」：歌单、电台、专辑、本地、Navi。 */
 // 一级页签是首页两级页签的组：Folia、当前在线音源、本地、Navidrome（西文的两个字小一号）。
 const TAB_GLYPHS = [3, 2, 2, 4] as const;
 const SMALL_TABS: readonly number[] = [0, 3];
@@ -72,7 +70,7 @@ const LOCAL_TAB = 2;
 
 type HomeSeamOptions = {
     tab: number;
-    /** 本地页签：中段多一列二级切换，直达入口换成本地的两张。 */
+    /** 本地页签：中段多一列二级切换（三页），直达入口换成本地的那一张（全部歌曲）。 */
     local?: boolean;
     stage?: boolean;
     filtering?: boolean;
@@ -124,11 +122,11 @@ const HomeSeam: React.FC<{ colors: BravaisSeamColors; options: HomeSeamOptions }
                         <Folder className="h-3.5 w-3.5" />
                         <VerticalGlyphs count={3} size="8px" gap="2px" color={accent} opacity={0.9} />
                     </span>
-                    {[DiscAlbum, MicVocal, Library].map((Icon, index) => <Icon key={index} className="h-3.5 w-3.5 opacity-50" />)}
+                    {[DiscAlbum, MicVocal].map((Icon, index) => <Icon key={index} className="h-3.5 w-3.5 opacity-50" />)}
                 </div>
             )}
 
-            <ShortcutColumns rect={shortcutsRect} counts={options.local ? [4, 3] : [6, 2]} rule={Boolean(options.local)} outline={outline} />
+            <ShortcutColumns rect={shortcutsRect} counts={options.local ? [4] : [6, 2]} rule={Boolean(options.local)} outline={outline} />
 
             {options.filtering && (
                 <div data-ponder-bravais-filter className="flex items-center gap-[6%] border-b-2 px-[4%]" style={{ ...relativeRectStyle(H.filter), borderColor: accent }}>
