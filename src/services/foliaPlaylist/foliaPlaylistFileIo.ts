@@ -8,6 +8,7 @@ import { omni } from '../onlineMusic/omni';
 import {
     FOLIA_PLAYLIST_FILE_EXTENSION,
     FOLIA_PLAYLIST_FILE_MAX_BYTES,
+    FOLIA_PLAYLIST_FILE_MAX_ENTRIES,
     detectPlaylistFileFormat,
     parseFoliaPlaylistFile,
     previewFoliaPlaylistFile,
@@ -108,6 +109,8 @@ export const readPlaylistFileText = (text: string, localSongs: readonly LocalSon
     }
     if (format === 'm3u') {
         const parsed = parseM3uPlaylist(text);
+        // 和 JSON 一样的条目上限：每条路径都要对着曲库找一遍。
+        if (parsed.paths.length > FOLIA_PLAYLIST_FILE_MAX_ENTRIES) return { format: 'error', error: 'too-large' };
         const matched = matchM3uPathsToLocalSongs(parsed.paths, [...localSongs]);
         const songsById = new Map(localSongs.map(song => [song.id, song]));
         return {
@@ -124,14 +127,13 @@ export const readPlaylistFileText = (text: string, localSongs: readonly LocalSon
 /** 读一个歌单文件：先看大小，再按内容认格式（不只看扩展名）。不写任何东西。 */
 export const readPlaylistFile = async (file: File, localSongs: readonly LocalSong[]): Promise<PlaylistFileReading> => {
     if (file.size > FOLIA_PLAYLIST_FILE_MAX_BYTES) return { format: 'error', error: 'too-large' };
-    let text: string;
     try {
-        text = await file.text();
+        return readPlaylistFileText(await file.text(), localSongs);
     } catch (error) {
+        // 读不出文件，或者预览时出了错（比如 Navidrome 的服务器地址写坏了，拼不出地址）。
         console.warn('[FoliaPlaylist] Could not read a playlist file', error);
         return { format: 'error', error: 'unreadable' };
     }
-    return readPlaylistFileText(text, localSongs);
 };
 
 /** 一次读入里能写进歌单的歌数。 */

@@ -15,7 +15,7 @@ import { normalizeM3uPath } from './foliaPlaylistM3u';
 // 文件是不可信的数据。读的时候：
 // - 先看大小、条目数的上限，再逐字段校验；歌的快照是照白名单重新拼出来的，文件里多出来的字段一律不要；
 // - 条目的 key 不信文件写的，从拼出来的歌重新算；
-// - 地址只认 http / https 的封面；别的地址、带凭据的东西既不写出去也不读进来；
+// - 地址只认公开的 http / https 封面（查询串里像凭据的、指向本机或内网的不要）；别的地址、带凭据的东西既不写出去也不读进来；
 // - 本地歌只凭路径、文件名、大小、时长去曲库里找同一个文件，找不到就不导入（不按歌名歌手猜）。
 
 export const FOLIA_PLAYLIST_FILE_FORMAT = 'folia-playlist';
@@ -24,24 +24,47 @@ export const FOLIA_PLAYLIST_FILE_EXTENSION = '.folia-playlist.json';
 /** 读入的上限：文件大小与条目数。 */
 export const FOLIA_PLAYLIST_FILE_MAX_BYTES = 32 * 1024 * 1024;
 export const FOLIA_PLAYLIST_FILE_MAX_ENTRIES = 20_000;
-/** 音源自己的数据（sourceRef.providerData）序列化后最多这么长，和音源契约里的上限一样。 */
+/** 音源自己的数据（sourceRef.providerData）序列化后最多这么长；数值跟音源契约里的上限（sourceDtos.ts）一样，那边改了这里跟着改。 */
 const SOURCE_DATA_MAX_CHARS = 16_384;
 
 type Json = Record<string, unknown>;
 const isRecord = (value: unknown): value is Json => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const clip = (value: unknown, max: number): string => (typeof value === 'string' ? value.slice(0, max) : '');
+// 控制字符与改变显示方向的字符不要：它们进了歌名、歌单名只会把界面弄乱。
+const UNPRINTABLE = /[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu;
+const HAS_UNPRINTABLE = /[\p{Cc}‪-‮⁦-⁩]/u;
+const clip = (value: unknown, max: number): string => (typeof value === 'string' ? value.replace(UNPRINTABLE, '').slice(0, max) : '');
 const finite = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
 const timestamp = (value: unknown): number => {
     const number = finite(value);
-    return number !== undefined && number > 0 ? Math.floor(number) : 0;
+    // Date 装得下的最大值以外的不是时间。
+    return number !== undefined && number > 0 && number <= 8.64e15 ? Math.floor(number) : 0;
 };
+/** 时长的上限（七天）：再长的不是一首歌的时长。 */
+const MAX_DURATION_MS = 7 * 24 * 3600 * 1000;
 const mediaIdOf = (value: unknown): string | number | undefined => {
-    if (typeof value === 'string') return value.length > 0 && value.length <= 256 ? value : undefined;
-    return finite(value);
+    if (typeof value === 'string') return value.length > 0 && value.length <= 256 && !HAS_UNPRINTABLE.test(value) ? value : undefined;
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 };
-const httpUrl = (value: unknown): string | undefined => {
-    const text = clip(value, 2048);
-    return /^https?:\/\/[^\s"'<>]+$/i.test(text) ? text : undefined;
+// 键名像凭据的：音源自己的数据里整项不要，封面地址的查询串里有它就不要这个地址。
+const CREDENTIAL_KEY = /token|cookie|secret|passw|credential|session|api[-_]?key|authori[sz]ation|^auth$|^sig(n|nature)?$/i;
+const PRIVATE_HOST = /^(localhost|.*\.(local|lan|internal|home\.arpa)|127\..*|10\..*|192\.168\..*|172\.(1[6-9]|2\d|3[01])\..*|169\.254\..*|0\.0\.0\.0|\[.*\])$/i;
+/**
+ * 能进文件、也能从文件里读进来的封面地址：http / https，主机不是本机或内网（读进来的地址界面会自动去取图），
+ * 查询串里没有像凭据的键（自建服务器的封面常带 api_key，Subsonic 一类带 u + t / p）。
+ */
+const coverUrlOf = (value: unknown): string | undefined => {
+    const text = typeof value === 'string' && value.length <= 2048 ? value : '';
+    if (!/^https?:\/\/[^\s"'<>]+$/i.test(text)) return undefined;
+    try {
+        const url = new URL(text);
+        if (url.username || url.password || PRIVATE_HOST.test(url.hostname)) return undefined;
+        const keys = [...url.searchParams.keys()];
+        if (keys.some(key => CREDENTIAL_KEY.test(key))) return undefined;
+        if (keys.includes('u') && (keys.includes('t') || keys.includes('p'))) return undefined;
+        return text;
+    } catch {
+        return undefined;
+    }
 };
 const SOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const ITEM_KIND = /^[A-Za-z0-9._-]{1,64}$/;
@@ -60,9 +83,9 @@ export type FoliaFileLocalHint = {
     durationMs?: number;
 };
 
-// 地址里可能带着令牌（查询串、片段），或者只在这台机器上有意义（blob、data、file）：不写出去。
+// 地址里可能带着令牌（查询串、片段；相对地址带查询串的也算），或者只在这台机器上有意义（blob、data、file）：不写出去。
 const isCarryingUrl = (value: string): boolean => (
-    /^(blob|data|file|filesystem):/i.test(value) || (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && /[?#]/.test(value))
+    /^(blob|data|file|filesystem):/i.test(value) || (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && /[?#]/.test(value)) || /\?[^\s?]*=/.test(value)
 );
 
 const cleanSourceData = (value: unknown, depth = 0): JsonValue | undefined => {
@@ -79,7 +102,7 @@ const cleanSourceData = (value: unknown, depth = 0): JsonValue | undefined => {
     if (!isRecord(value)) return undefined;
     const out: Record<string, JsonValue> = {};
     for (const [key, item] of Object.entries(value)) {
-        if (UNSAFE_KEYS.has(key) || key.length > 128) continue;
+        if (UNSAFE_KEYS.has(key) || key.length > 128 || CREDENTIAL_KEY.test(key)) continue;
         const cleaned = cleanSourceData(item, depth + 1);
         if (cleaned !== undefined) out[key] = cleaned;
     }
@@ -110,7 +133,7 @@ const textList = (value: unknown): string[] | undefined => {
  */
 const displayFieldsOf = (song: Json, sourceId: string | null, keepCover: boolean): Pick<SongResult, 'name' | 'artists' | 'album' | 'durationMs'> & Partial<SongResult> => {
     const album = isRecord(song.album) ? song.album : {};
-    const coverUrl = keepCover ? httpUrl(album.coverUrl) : undefined;
+    const coverUrl = keepCover ? coverUrlOf(album.coverUrl) : undefined;
     const albumRef = sourceId ? catalogRefOf(album.catalogRef, sourceId) : undefined;
     const artists = (Array.isArray(song.artists) ? song.artists : []).slice(0, 64).flatMap((artist: unknown) => {
         if (!isRecord(artist)) return [];
@@ -131,7 +154,7 @@ const displayFieldsOf = (song: Json, sourceId: string | null, keepCover: boolean
             ...(coverUrl ? { coverUrl } : {}),
             ...(albumRef ? { catalogRef: albumRef } : {}),
         },
-        durationMs: durationMs !== undefined && durationMs > 0 ? Math.round(durationMs) : 0,
+        durationMs: durationMs !== undefined && durationMs > 0 && durationMs <= MAX_DURATION_MS ? Math.round(durationMs) : 0,
         ...(aliases ? { aliases } : {}),
         ...(translatedNames ? { translatedNames } : {}),
         ...(song.isPureMusic === true ? { isPureMusic: true } : {}),
@@ -145,7 +168,7 @@ const onlineSongOf = (song: Json): UnifiedSong | null => {
     const ref = isRecord(song.sourceRef) ? song.sourceRef : null;
     if (!ref || ref.kind !== 'online' || typeof ref.providerId !== 'string' || !SOURCE_ID.test(ref.providerId)) return null;
     const mediaId = typeof ref.mediaId === 'string' ? ref.mediaId : '';
-    if (!mediaId || mediaId.length > 512) return null;
+    if (!mediaId || mediaId.length > 512 || HAS_UNPRINTABLE.test(mediaId)) return null;
     const fields = displayFieldsOf(song, ref.providerId, true);
     if (!fields.name) return null;
     const variant = clip(ref.variant, 64);
@@ -276,6 +299,8 @@ export const serializeFoliaPlaylistFile = (
         return [{ source: 'online', ...common, song: online }];
     });
     const origin = playlist.origin;
+    // 原歌单在音源那边的附带数据：有的音源读歌单要它；和歌的附带数据过同一道筛。
+    const collectionData = origin ? sourceDataOf(origin.collectionData) : undefined;
     const file = {
         format: FOLIA_PLAYLIST_FILE_FORMAT,
         version: FOLIA_PLAYLIST_FILE_VERSION,
@@ -292,6 +317,8 @@ export const serializeFoliaPlaylistFile = (
                     savedAt: timestamp(origin.savedAt),
                     ...(origin.playVia ? { playVia: origin.playVia } : {}),
                     ...(origin.refreshedAt ? { refreshedAt: timestamp(origin.refreshedAt) } : {}),
+                    ...(origin.collectionType === 'album' ? { collectionType: 'album' } : {}),
+                    ...(collectionData ? { collectionData } : {}),
                 },
             } : {}),
             entries,
@@ -336,11 +363,12 @@ export type FoliaPlaylistFileParse =
 const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
     if (!isRecord(value)) return undefined;
     // Navidrome 的出处写的是 'navidrome'，也过得了这个样子。
-    if (typeof value.sourceId !== 'string' || !SOURCE_ID.test(value.sourceId)) return undefined;
+    if (typeof value.sourceId !== 'string' || !SOURCE_ID.test(value.sourceId) || value.sourceId === 'local') return undefined;
     const collectionId = clip(value.collectionId, 512);
     if (!collectionId || collectionId !== value.collectionId) return undefined;
     const playVia = typeof value.playVia === 'string' && SOURCE_ID.test(value.playVia) ? value.playVia : undefined;
     const refreshedAt = timestamp(value.refreshedAt);
+    const collectionData = sourceDataOf(value.collectionData);
     return {
         sourceId: value.sourceId,
         collectionId,
@@ -348,6 +376,8 @@ const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
         savedAt: timestamp(value.savedAt),
         ...(playVia ? { playVia } : {}),
         ...(refreshedAt ? { refreshedAt } : {}),
+        ...(value.collectionType === 'album' ? { collectionType: 'album' as const } : {}),
+        ...(collectionData ? { collectionData } : {}),
     };
 };
 
@@ -436,17 +466,18 @@ export const parseFoliaPlaylistFile = (text: string): FoliaPlaylistFileParse => 
     };
 };
 
-/** 一个歌单文件是哪种格式，只看内容：JSON 以 `{` 开头；M3U 有它的标记行，或者每一行都像一条路径。 */
+/** 一个歌单文件是哪种格式，只看内容：M3U 有它的标记行，或者每一行都像一条路径；不是 M3U 而以 `{` 开头的当 JSON。 */
 export const detectPlaylistFileFormat = (text: string): 'json' | 'm3u' | 'unknown' => {
     const body = text.replace(/^\uFEFF/, '').trimStart();
     if (!body) return 'unknown';
-    if (body.startsWith('{')) return 'json';
-    // 别的结构化文本、二进制：不是歌单。
-    if (/^[[<]/.test(body) || body.slice(0, 4096).includes('\u0000')) return 'unknown';
+    // 二进制：不是歌单。
+    if (body.slice(0, 4096).includes('\u0000')) return 'unknown';
+    // 先按 M3U 认（文件夹名以 `{`、`[` 开头的路径也是路径），认不成再看是不是 JSON。
     const lines = body.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (lines.some(line => /^#(EXTM3U|EXTINF:|PLAYLIST:)/i.test(line))) return 'm3u';
     const paths = lines.filter(line => !line.startsWith('#'));
-    return paths.length > 0 && paths.every(line => line.length <= 2048 && /\.[A-Za-z0-9]{2,5}$/.test(line)) ? 'm3u' : 'unknown';
+    if (paths.length > 0 && paths.every(line => line.length <= 2048 && /\.[A-Za-z0-9]{2,5}$/.test(line))) return 'm3u';
+    return body.startsWith('{') ? 'json' : 'unknown';
 };
 
 // ---- 本地歌重新认 ----
@@ -484,13 +515,17 @@ export const buildFoliaLocalMatchIndex = (localSongs: readonly LocalSong[]): Fol
 /** 时长差在这以内算同一个文件（不同的解码器量出来的时长会差一点）。 */
 const DURATION_TOLERANCE_MS = 1500;
 
-// 候选里只剩一首才算认出来。路径对上的（requireEvidence 为 false）只有一首就认；不止一首、或只是文件名对上时，
+// 候选里只剩一首才算认出来。路径对上的（requireEvidence 为 false）只有一首就认——除非线索里大小和时长都有、
+// 而这一首两样都对不上（同一个路径上放的是另一个文件）；不止一首、或只是文件名对上时，
 // 要文件大小或时长作证：两样都对得上的优先，否则对得上其中一样的，唯一才认。
 const single = (candidates: readonly LocalSong[] | undefined, hint: FoliaFileLocalHint, requireEvidence: boolean): LocalSong | null => {
     if (!candidates || candidates.length === 0) return null;
-    if (candidates.length === 1 && !requireEvidence) return candidates[0];
     const sizeOk = (song: LocalSong) => hint.fileSize !== undefined && song.fileSize === hint.fileSize;
     const durationOk = (song: LocalSong) => hint.durationMs !== undefined && Math.abs(song.duration - hint.durationMs) <= DURATION_TOLERANCE_MS;
+    if (candidates.length === 1 && !requireEvidence) {
+        const contradicted = hint.fileSize !== undefined && hint.durationMs !== undefined && !sizeOk(candidates[0]) && !durationOk(candidates[0]);
+        return contradicted ? null : candidates[0];
+    }
     const both = candidates.filter(song => sizeOk(song) && durationOk(song));
     if (both.length > 0) return both.length === 1 ? both[0] : null;
     const either = candidates.filter(song => sizeOk(song) || durationOk(song));
@@ -499,7 +534,8 @@ const single = (candidates: readonly LocalSong[] | undefined, hint: FoliaFileLoc
 
 /**
  * 文件里的一条本地歌在这台机器的曲库里是哪一首；认不出来回 null。按顺序：
- * 1. 整条路径一样（不分大小写）；2. 去掉最前面那个导入文件夹的名字后一样（文件夹换了名字、换了位置）；
+ * 1. 整条路径一样（不分大小写）；2. 去掉最前面那个导入文件夹的名字后一样（文件夹换了名字、换了位置）——
+ * 去掉以后只剩文件名的（文件就在导入的文件夹底下）等于只比了文件名，照第 3 步要证据；
  * 3. 文件名一样，并且文件大小或时长对得上。每一步只在剩下唯一一首时才认。不按歌名、歌手找。
  */
 export const matchFoliaLocalSong = (hint: FoliaFileLocalHint, index: FoliaLocalMatchIndex): LocalSong | null => {
@@ -507,8 +543,9 @@ export const matchFoliaLocalSong = (hint: FoliaFileLocalHint, index: FoliaLocalM
     if (path) {
         const exact = single(index.byPath.get(path), hint, false);
         if (exact) return exact;
-        const relative = single(index.byRelativePath.get(withoutRoot(path)), hint, false)
-            ?? single(index.byRelativePath.get(path), hint, false);
+        const rest = withoutRoot(path);
+        const relative = single(index.byRelativePath.get(rest), hint, !rest.includes('/'))
+            ?? single(index.byRelativePath.get(path), hint, !path.includes('/'));
         if (relative) return relative;
     }
     const fileName = (hint.fileName || path?.split('/').pop() || '').toLocaleLowerCase();
@@ -622,7 +659,8 @@ export const previewFoliaPlaylistFile = (
                 key,
                 song,
                 addedAt: item.addedAt || now,
-                ...(item.originalKey && item.originalKey !== key ? { originalKey: item.originalKey } : {}),
+                // 换过来源的记号只对转存来的歌单有意义：文件没有出处就不带。
+                ...(file.origin && item.originalKey && item.originalKey !== key ? { originalKey: item.originalKey } : {}),
             };
         }
         if (keys.has(entry.key)) {
@@ -630,7 +668,7 @@ export const previewFoliaPlaylistFile = (
             continue;
         }
         keys.add(entry.key);
-        entries.push(item.fromOrigin ? { ...entry, fromOrigin: true } : entry);
+        entries.push(file.origin && item.fromOrigin ? { ...entry, fromOrigin: true } : entry);
     }
 
     return {

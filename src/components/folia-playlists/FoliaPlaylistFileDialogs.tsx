@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Loader2 } from 'lucide-react';
@@ -242,6 +242,13 @@ export const FoliaPlaylistImportDialog: React.FC<{
             : playlists.find(playlist => !playlist.isFavorite && playlist.name === trimmedName) ?? null
     ), [isFavoriteFile, playlists, trimmedName]);
     const merging = choice === 'merge' && mergeTarget !== null;
+    // 改了名字、对上了另一张歌单：回到「新建」，并入哪一张要用户再点一次。
+    const mergeTargetId = mergeTarget?.id ?? null;
+    const seenMergeTargetId = useRef<string | null | undefined>(undefined);
+    useEffect(() => {
+        if (seenMergeTargetId.current !== undefined && seenMergeTargetId.current !== mergeTargetId && !isFavoriteFile) setChoice('new');
+        seenMergeTargetId.current = mergeTargetId;
+    }, [mergeTargetId, isFavoriteFile]);
     const importable = reading ? countImportableSongs(reading) : 0;
     const failed = reading?.format === 'error';
     const canImport = Boolean(reading) && !failed && importable > 0 && !writing && (merging || Boolean(trimmedName));
@@ -258,6 +265,8 @@ export const FoliaPlaylistImportDialog: React.FC<{
                 name: trimmedName,
                 ...(merging ? { mergeInto: mergeTarget.id } : {}),
             });
+            // 要并入的那张歌单在这当口被删了：什么都没写。
+            if (merging && !playlist) throw new Error('The playlist to merge into is gone');
             const shownName = merging && mergeTarget.isFavorite ? t('localMusic.favoritePlaylist') : playlist?.name ?? trimmedName;
             if (merging) {
                 setStatusMessage(describeFoliaAddResult(result, shownName, t));

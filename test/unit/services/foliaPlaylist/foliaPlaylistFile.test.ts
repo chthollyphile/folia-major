@@ -279,6 +279,102 @@ describe('parseFoliaPlaylistFile', () => {
     });
 });
 
+describe('what the review of untrusted files asked for', () => {
+    const songOf = (patch: Record<string, unknown> = {}, ref: Record<string, unknown> = {}) => ({
+        source: 'online',
+        song: { name: 'n', album: { name: 'a' }, sourceRef: { kind: 'online', providerId: 'x', mediaId: '1', ...ref }, ...patch },
+    });
+    const onlineSongs = (text: string) => parsed(text).entries.map(entry => (entry.source === 'online' ? entry.song : null));
+
+    it('keeps credentials that are not shaped like an address out, both ways', () => {
+        const providerData = { token: SECRET, sessionCookie: SECRET, apiKey: SECRET, Authorization: SECRET, streamPath: `/audio/1?api_key=${SECRET}`, author: 'kept', hash: 'abc' };
+        const exported = serializeFoliaPlaylistFile(playlistOf([entryOf(online('x', '1', {
+            sourceRef: { kind: 'online', providerId: 'x', mediaId: '1', providerData },
+        }), 'online:x:1')]), []);
+        expect(exported.content).not.toContain(SECRET);
+        expect(onlineSongs(exported.content)[0]?.sourceRef).toMatchObject({ providerData: { author: 'kept', hash: 'abc' } });
+        expect(onlineSongs(fileOf([songOf({}, { providerData })]))[0]?.sourceRef).toEqual({ kind: 'online', providerId: 'x', mediaId: '1', providerData: { author: 'kept', hash: 'abc' } });
+    });
+
+    it('drops a cover whose address carries a credential or points at this machine or a private network', () => {
+        const coverOf = (coverUrl: string) => onlineSongs(fileOf([songOf({ album: { name: 'a', coverUrl } })]))[0]?.album.coverUrl;
+        expect(coverOf('https://img.example/a.jpg?param=300y300')).toBe('https://img.example/a.jpg?param=300y300');
+        for (const url of [
+            `https://srv.example/Items/1/Images/Primary?api_key=${SECRET}`,
+            `https://srv.example/rest/getCoverArt?id=1&u=me&t=${SECRET}&s=salt`,
+            `https://user:${SECRET}@srv.example/a.jpg`,
+            'http://127.0.0.1:8080/admin?do=reboot',
+            'http://localhost/a.jpg',
+            'http://192.168.1.2/a.jpg',
+            'http://10.0.0.2/a.jpg',
+            'http://172.20.0.2/a.jpg',
+            'http://nas.local/a.jpg',
+            'http://[::1]/a.jpg',
+        ]) expect(coverOf(url), url).toBeUndefined();
+        const exported = serializeFoliaPlaylistFile(playlistOf([entryOf(online('x', '1', {
+            album: { id: 1, name: 'a', coverUrl: `http://192.168.1.2:8096/Items/1/Images/Primary?api_key=${SECRET}` },
+        }), 'online:x:1')]), []);
+        expect(exported.content).not.toContain(SECRET);
+        expect(exported.content).not.toContain('192.168');
+    });
+
+    it('bounds times, durations and ids, and strips characters that are not printed', () => {
+        const [song] = onlineSongs(fileOf([songOf({
+            id: -5.5,
+            name: 'a\u202Eb\n\u0000c',
+            durationMs: 1e300,
+            artists: [{ id: 1.5, name: 'x\ty' }],
+            album: { id: -1, name: 'al' },
+        })]));
+        expect(song).toMatchObject({ id: '1', name: 'abc', durationMs: 0, artists: [{ id: 0, name: 'xy' }], album: { id: 0 } });
+        const file = parsed(fileOf([{ ...songOf(), addedAt: 1e300 }], { name: 'li\u2066st\r\n', origin: { sourceId: 'x', collectionId: 'c', savedAt: 1e300 } }));
+        expect(file.entries[0].addedAt).toBe(0);
+        expect(file.name).toBe('list');
+        expect(file.origin?.savedAt).toBe(0);
+        expect(parsed(fileOf([songOf({}, { mediaId: 'a\u0000b' })])).invalidCount).toBe(1);
+        expect(parsed(fileOf([], { origin: { sourceId: 'local', collectionId: 'c' } })).origin).toBeUndefined();
+    });
+
+    it('carries whether the origin is an album, and its data, through the file', () => {
+        const origin = { sourceId: 'netease', collectionId: 'al9', name: 'Album', savedAt: 3, collectionType: 'album' as const, collectionData: { mid: 'x9', page: `https://x.example/?t=${SECRET}`, token: SECRET } };
+        const exported = serializeFoliaPlaylistFile(playlistOf([], { origin }), []);
+        expect(exported.content).not.toContain(SECRET);
+        expect(parsed(exported.content).origin).toEqual({ ...origin, collectionData: { mid: 'x9' } });
+        expect(parsed(fileOf([], { origin: { sourceId: 'x', collectionId: 'c', collectionType: 'radio' } })).origin).toEqual({ sourceId: 'x', collectionId: 'c', name: '', savedAt: 0 });
+    });
+
+    it('leaves the marks of a transfer out when the file names no origin', () => {
+        const withMarks = [{ ...songOf(), originalKey: 'online:y:2', fromOrigin: true }];
+        expect(previewFoliaPlaylistFile(parsed(fileOf(withMarks)), [], allOn, null, 7).entries[0])
+            .toEqual({ key: 'online:x:1', song: expect.anything(), addedAt: 7 });
+        expect(previewFoliaPlaylistFile(parsed(fileOf(withMarks, { origin: { sourceId: 'y', collectionId: 'c' } })), [], allOn, null, 7).entries[0])
+            .toMatchObject({ originalKey: 'online:y:2', fromOrigin: true });
+    });
+
+    it('does not take a file for another one because it sits at the same place', () => {
+        const index = buildFoliaLocalMatchIndex([localSong('r', 'Music/01.mp3', { fileSize: 111, duration: 200_000 }), localSong('d', 'Lib/Album/01.mp3', { fileSize: 222, duration: 100_000 })]);
+        // 文件就在导入的文件夹底下：去掉文件夹名只剩文件名，要证据。
+        expect(matchFoliaLocalSong({ path: 'Other/01.mp3' }, index)).toBeNull();
+        expect(matchFoliaLocalSong({ path: '01.mp3' }, index)).toBeNull();
+        expect(matchFoliaLocalSong({ path: 'Other/01.mp3', fileSize: 999, durationMs: 5000 }, index)).toBeNull();
+        expect(matchFoliaLocalSong({ path: 'Other/01.mp3', fileSize: 111 }, index)?.id).toBe('r');
+        expect(matchFoliaLocalSong({ path: 'Music/01.mp3' }, index)?.id).toBe('r');
+        // 路径对上了，可大小和时长都说不是它。
+        expect(matchFoliaLocalSong({ path: 'X/Album/01.mp3', fileSize: 999, durationMs: 5000 }, index)).toBeNull();
+        expect(matchFoliaLocalSong({ path: 'Music/01.mp3', fileSize: 999, durationMs: 5000 }, index)).toBeNull();
+        expect(matchFoliaLocalSong({ path: 'X/Album/01.mp3', fileSize: 999, durationMs: 100_500 }, index)?.id).toBe('d');
+    });
+
+    it('takes paths that start with a bracket or a brace for an M3U, and bounds its lines', () => {
+        expect(detectPlaylistFileFormat('[2020] Album/01.flac\n[2020] Album/02.flac')).toBe('m3u');
+        expect(detectPlaylistFileFormat('{Best} of/01.mp3\n{Best} of/02.mp3')).toBe('m3u');
+        expect(detectPlaylistFileFormat(serializeFoliaPlaylistFile(MIXED, LIBRARY).content)).toBe('json');
+        expect(detectPlaylistFileFormat(JSON.stringify({ a: 'x.mp3' }))).toBe('json');
+        const lines = Array.from({ length: FOLIA_PLAYLIST_FILE_MAX_ENTRIES + 1 }, (_, at) => `a/${at}.mp3`).join('\n');
+        expect(readPlaylistFileText(lines, [])).toEqual({ format: 'error', error: 'too-large' });
+    });
+});
+
 describe('finding a local song again', () => {
     const library = [
         localSong('a', 'Music/Rock/track.mp3', { fileSize: 100, duration: 60_000 }),
