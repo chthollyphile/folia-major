@@ -29,7 +29,7 @@ UI / hooks / stores / app services
 
 图里的 `<id>Provider.ts` 和 `<id>Transport.ts` 都在各平台自己的目录 `<id>/` 里（例如 `qq/qqProvider.ts`）。网易云没有单独的 transport，请求在 `netease/netease.ts`。
 
-当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify`、`qishui`（汽水音乐）和 `appleMusic`（Apple Music）。波点接入状态、接口与剩余验收见
+当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify`、`qishui`（汽水音乐）、`huawei`（华为音乐）和 `appleMusic`（Apple Music）。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
 登录的分工：provider 把后端的回答翻成 `LoginState`。失败带着平台的原话（`message`）和事实（`failure`：码、原话、HTTP 状态、要等多久，或者直接点名的情况，比如 QQ 的登录设备超限 `device-limit`）；这一次检查在网络这一层没拿到回答、码在平台那边还有效时标 `transient`，登录接着检查。要码与生成二维码拿不到 key / 图片时直接抛错，不交出空值。情况怎么分在 `login/loginFailureCase.ts`，平台自己的码是什么意思由它的 `describeLoginFailure` 说。登录失败后由登录调用一次 `omni.runLoginSelfCheck` 主动自检（`loginSelfCheck.ts`），结果进诊断报告；`omni.getLoginDiagnostics` 的 provider 段每一行都由 `login/loginDiagnosticReport.ts` 的 `diagnosticLine` 写，放进去的文字先洗过：登录凭据、IP 和账号不进报告。
@@ -323,3 +323,9 @@ rg -n "registerOnlineMusicProvider|neteaseProvider|kugouProvider|qqProvider|prov
 ```
 
 先确认 Omni 是否已有能力；没有时扩展 `types/onlineMusic.ts`、`omni.ts` 和适用 adapter，不要新增第二条公开 bypass。加一整个平台，按上面的“接入一个新平台”做。
+
+### 华为音乐（桌面端）
+
+`huawei/huaweiProvider.ts` 接华为音乐自己的移动端接口：匿名可搜索歌曲/专辑/歌单、读专辑与歌手；登录后读账号歌单（含「我喜欢的音乐」）和收藏专辑；首页推荐来自推荐页（pageType 7）的「今日为你推荐」与「歌单推荐」栏目。每日歌曲读取普通歌单 `a001`，尚未接入 HarmonyOS NEXT 的个人「每日30首」；FM 是基于账号歌单或每日列表的相似歌曲电台，不是原生「现在就听」。收藏专辑仍缺已知非空收藏的实际使用验证。播放要华为账号，多数歌曲还要该账号的会员；歌词优先使用可读的逐行歌词地址，逐字歌词尚未解析。资料库只读，不支持收藏、点赞或歌单编辑。
+登录在应用自己的窗口里完成华为账号授权（`electron/huawei/huaweiApiBridge.cjs`、PKCE `hms://redirect_uri`），音乐会话用 `safeStorage` 加密保存在主进程。
+只播放平台返回的原始音频地址，不解密、不下载受保护文件。协议参考见同目录 `UPSTREAMS.md` 的华为一节。

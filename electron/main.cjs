@@ -76,6 +76,8 @@ const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = 
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
+const { createHuaweiApiBridge } = require('./huawei/huaweiApiBridge.cjs');
+const { createHuaweiMediaPolicy } = require('./huawei/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
@@ -382,6 +384,14 @@ const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url,
   onAudioSource: url => qishuiMediaPolicy.register(url),
 });
 const bodianMediaPolicy = createBodianMediaPolicy();
+const huaweiMediaPolicy = createHuaweiMediaPolicy();
+const huaweiApiBridge = createHuaweiApiBridge({
+    store, safeStorage, BrowserWindow, session,
+    language: () => getMainLocaleKey(),
+  fetch: (url, options) => electronNet.fetch(url, options),
+  parentWindow: () => mainWindow,
+  onAudioSource: url => huaweiMediaPolicy.register(url),
+});
 const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
   onAudioSource: url => bodianMediaPolicy.register(url),
   requestFactory: (options, onResponse) => {
@@ -3863,7 +3873,7 @@ function setupCorsBypassHandlers() {
         hostname === 'kugou.com' ||
         hostname.endsWith('.kugou.com') ||
         // Bodian audio and cover CDNs may omit CORS headers needed by Web Audio and canvas/WebGL.
-        bodianMediaPolicy.allows(details) || qishuiMediaPolicy.allows(details);
+        bodianMediaPolicy.allows(details) || qishuiMediaPolicy.allows(details) || huaweiMediaPolicy.allows(details);
     } catch (error) {
       isTargetDomain = false;
     }
@@ -3878,7 +3888,11 @@ function setupCorsBypassHandlers() {
     callback({ cancel: false, responseHeaders });
   });
 
-  ses.webRequest.onBeforeRedirect(details => { bodianMediaPolicy.followRedirect(details); qishuiMediaPolicy.followRedirect(details); });
+  ses.webRequest.onBeforeRedirect(details => {
+    bodianMediaPolicy.followRedirect(details);
+    qishuiMediaPolicy.followRedirect(details);
+    huaweiMediaPolicy.followRedirect(details);
+  });
 
   ses.webRequest.onErrorOccurred({ urls: ['*://*.kugou.com/*'] }, details => {
     const requestInfo = getKugouMediaRequestInfo(details);
@@ -7474,6 +7488,12 @@ ipcMain.handle('bodian-api-request', (event, operation, params) => {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted Bodian request' } };
   }
   return bodianApiBridge.request(operation, params);
+});
+ipcMain.handle('huawei-api-request', (event, operation, params) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return { ok: false, error: { code: 'unavailable', message: 'Untrusted Huawei Music request' } };
+  }
+  return huaweiApiBridge.request(operation, params);
 });
 ipcMain.handle('ytm-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
