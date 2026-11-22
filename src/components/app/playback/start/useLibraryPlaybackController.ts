@@ -1764,6 +1764,7 @@ export function useLibraryPlaybackController({
         }
     }, [
         currentSong,
+        resolveLocalSongRecord,
         starredNavidromeSongIds,
         setStarredNavidromeSongIds,
         setStatusMsg,
