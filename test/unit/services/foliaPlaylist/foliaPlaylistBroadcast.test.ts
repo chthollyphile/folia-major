@@ -130,11 +130,17 @@ describe('foliaPlaylistBroadcast', () => {
         await vi.waitFor(() => expect(useFoliaPlaylistsStore.getState().playlists.find(item => item.id === playlist.id)?.entryCount).toBe(2));
     });
 
-    it('rereads the heart state when another window changed the favorites', async () => {
+    it('rereads the heart state when another window names the favorites, even with the summary unchanged', async () => {
         const favorite = (await getFoliaPlaylistSummaries()).find(item => item.isFavorite);
         if (!favorite) throw new Error('no favorites playlist');
-        say(await writeFromOtherWindow(favorite.id, song(7)));
+        // 只动条目、不动摘要：靠「摘要变了」的兜底看不出来，只有点名才会重读红心。
+        await otherConnection.entries.put({ playlistId: favorite.id, key: 'online:netease:7', pos: 1024, song: song(7), addedAt: 5 });
+        say({ v: 1, from: 'other-window', playlistIds: [favorite.id], list: false });
         await vi.waitFor(() => expect(useFoliaPlaylistsStore.getState().favoriteKeys.has('online:netease:7')).toBe(true));
+        // 说「都变了」也一样。
+        await otherConnection.entries.put({ playlistId: favorite.id, key: 'online:netease:8', pos: 2048, song: song(8), addedAt: 5 });
+        say({ v: 1, from: 'other-window', all: true });
+        await vi.waitFor(() => expect(useFoliaPlaylistsStore.getState().favoriteKeys.has('online:netease:8')).toBe(true));
     });
 
     it('ignores what it said itself', async () => {
@@ -155,6 +161,14 @@ describe('foliaPlaylistBroadcast', () => {
         await vi.waitFor(() => expect(changes).toHaveLength(1));
         await new Promise(resolve => setTimeout(resolve, 120));
         expect(changes).toEqual([{ playlistIds: ['a', 'b', 'c'], list: true, remote: true }]);
+    });
+
+    it('stops naming playlists once a burst names too many', async () => {
+        for (let batch = 0; batch < 3; batch += 1) {
+            say({ v: 1, from: 'other-window', playlistIds: Array.from({ length: 100 }, (_, index) => `p${batch}-${index}`), list: false });
+        }
+        await vi.waitFor(() => expect(changes).toHaveLength(1));
+        expect(changes[0]).toEqual({ playlistIds: [], list: true, remote: true, all: true });
     });
 
     it('treats what it cannot read as "anything may have changed"', async () => {
@@ -193,7 +207,8 @@ describe('foliaPlaylistBroadcast', () => {
         expect(heard).toEqual([]);
     });
 
-    it('does not lose a change that arrives while the list is being read', async () => {
+    // 这一条不保证话正好落在读的中间（话要攒 40 毫秒才交出去）；它保的是连着两次写、两句话之后最后读到的是全的。
+    it('ends up with everything after two writes in a row from another window during a reread', async () => {
         const playlist = await createFoliaPlaylist('Mix', [song(1)]);
         await vi.waitFor(() => expect(useFoliaPlaylistsStore.getState().playlists.find(item => item.id === playlist.id)?.entryCount).toBe(1));
         // 一边重读（要读曲库，慢一点），一边另一个窗口连着写两次、说两次。

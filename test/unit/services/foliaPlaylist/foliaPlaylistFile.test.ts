@@ -349,12 +349,16 @@ describe('what the review of untrusted files asked for', () => {
         expect(parsed(fileOf([], { origin: { sourceId: 'local', collectionId: 'c' } })).origin).toBeUndefined();
     });
 
-    it('carries whether the origin is an album, and its data, through the file', () => {
-        const origin = { sourceId: 'netease', collectionId: 'al9', name: 'Album', savedAt: 3, collectionType: 'album' as const, collectionData: { mid: 'x9', page: `https://x.example/?t=${SECRET}`, token: SECRET } };
+    it('carries whether the origin is an album through the file, and never the data the source kept with it', () => {
+        const origin = { sourceId: 'netease', collectionId: 'al9', name: 'Album', savedAt: 3, collectionType: 'album' as const, collectionData: { mid: 'x9', dirId: 201, owned: true } };
         const exported = serializeFoliaPlaylistFile(playlistOf([], { origin }), []);
-        expect(exported.content).not.toContain(SECRET);
-        expect(parsed(exported.content).origin).toEqual({ ...origin, collectionData: { mid: 'x9' }, fromFile: true });
-        expect(parsed(fileOf([], { origin: { sourceId: 'x', collectionId: 'c', collectionType: 'radio' } })).origin).toEqual({ sourceId: 'x', collectionId: 'c', name: '', savedAt: 0, fromFile: true });
+        expect(exported.content).not.toContain('collectionData');
+        expect(exported.content).not.toContain('dirId');
+        const { collectionData: _collectionData, ...written } = origin;
+        expect(parsed(exported.content).origin).toEqual({ ...written, fromFile: true });
+        // 文件里写了也不读：音源读歌单时会按它选路，读的人确认的只是音源和歌单 id。
+        expect(parsed(fileOf([], { origin: { sourceId: 'x', collectionId: 'c', collectionType: 'radio', collectionData: { dirId: 201 } } })).origin)
+            .toEqual({ sourceId: 'x', collectionId: 'c', name: '', savedAt: 0, fromFile: true });
     });
 
     it('leaves the marks of a transfer out when the file names no origin', () => {
@@ -584,11 +588,16 @@ describe('an online song whose id and source disagree', () => {
 describe('which key names count as credentials', () => {
     it('drops the names that are credentials, however they are written', () => {
         for (const name of [
-            'token', 'accessToken', 'access_token', 'refresh-token', 'musicUserToken', 'X-Auth-Token', 'accesstoken',
-            'cookie', 'sessionCookies', 'secret', 'clientSecret', 'password', 'passwd', 'pwd',
-            'credential', 'credentials', 'session', 'sessionId', 'sessionid', 'SESSION_KEY',
-            'auth', 'Authorization', 'authorisation', 'apiKey', 'api_key', 'api-key', 'apikey', 'X-Api-Key',
-            'sign', 'sig', 'fsig', 'signature', 'X-Amz-Signature', 'freeSign', 'jwt', 'bearer',
+            'token', 'accessToken', 'access_token', 'refresh-token', 'musicUserToken', 'X-Auth-Token', 'accesstoken', 'ACCESS_TOKEN',
+            'accessTOKEN', 'access.token', 'access token', 'accessToken2', 'token2', 'tokenA1', 'XMLHttpToken', 'IDToken', 'oauth2token',
+            'musictokenv2', 'USERTOKENV2', 'accesstokens', 'refreshtokenexpire',
+            'cookie', 'sessionCookies', 'usercookies', 'mycookiejar', 'secret', 'clientSecret', 'clientsecrets', 'appsecretkey', 'secretKey',
+            'password', 'passwd', 'pwd', 'passWord', 'PassWord', 'passPhrase', 'passcode', 'passwordHash',
+            'credential', 'credentials', 'mycredentials',
+            'session', 'sessionId', 'sessionid', 'SESSION_KEY', 'JSESSIONID', 'jsessionid', 'usersession', 'PHPSESSID', 'sessions',
+            'auth', 'authToken', 'authkey', 'auth_key', 'Authorization', 'authorisation', 'xauthorizationx', 'OAuthToken',
+            'apiKey', 'api_key', 'api-key', 'apikey', 'X-Api-Key', 'apiKeys', 'api_keys', 'privateKey', 'accessKey',
+            'sign', 'sig', 'fsig', 'signature', 'X-Amz-Signature', 'freeSign', 'md5Sign', 'jwt', 'bearer', 'csrf', '__csrf', 'xsrf',
         ]) {
             expect(isCredentialKeyName(name), name).toBe(true);
         }
@@ -596,15 +605,17 @@ describe('which key names count as credentials', () => {
 
     it('keeps names that only look like one', () => {
         for (const name of [
-            'author', 'authorName', 'designId', 'assignee', 'signal', 'obsession', 'bypassWindow', 'passage', 'key', 'apiVersion',
-            'keyword', 'hash', 'id', 'mid', 'kind', 'platform', 'authority',
+            'author', 'authorName', 'authority', 'designId', 'assignee', 'signal', 'obsession', 'possession', 'bypassWindow', 'passage',
+            'key', 'apiVersion', 'keyword', 'hash', 'id', 'mid', 'kind', 'platform',
+            'isOAuth', 'OAuthProvider', 'signIn', 'signUpDate', 'signType', 'seasonPass', 'accessLevel', 'privateList',
         ]) {
             expect(isCredentialKeyName(name), name).toBe(false);
         }
     });
 
-    // 十家内置音源的歌 / 歌单附带数据里实际写的键（2026-11-22 对着各家的代码逐个核对；清单在交接说明里按家列着），
-    // 加上宿主自己放的那一个。有一个键被删就说明筛的规则动到了播放或读歌单要用的数据。
+    // 十家内置音源的歌 / 歌单附带数据里实际写的键（2026-11-22 对着各家的代码逐个核对），加上宿主自己放的那一个。
+    // 歌的那份会进文件：有一个键被删就说明筛的规则动到了播放要用的数据。歌单的那份现在不进文件，
+    // 键名留在这里是为了以后要带它的时候，规则已经对过。
     const SONG_DATA_KEYS = [
         '@lyricIds', 'qq', 'kugou',
         'resourceType', 'catalogArtistIds', 'playbackAvailable', 'playbackId', 'playbackKind', 'catalogId', 'isLibrary', 'isrc', 'isLive',
@@ -628,16 +639,15 @@ describe('which key names count as credentials', () => {
         'playlistId', 'mix', 'videoId',
     ];
 
-    it('keeps every key the built-in sources put in a song or a collection', () => {
+    it('keeps every key the built-in sources put in a song (and would in a collection)', () => {
         for (const name of [...SONG_DATA_KEYS, ...COLLECTION_DATA_KEYS]) expect(isCredentialKeyName(name), name).toBe(false);
-        const data = Object.fromEntries([...new Set([...SONG_DATA_KEYS, ...COLLECTION_DATA_KEYS])].map((name, index) => [name, index]));
+        const data = Object.fromEntries(SONG_DATA_KEYS.map((name, index) => [name, index]));
         const exported = serializeFoliaPlaylistFile(playlistOf([entryOf(online('x', '1', {
             sourceRef: { kind: 'online', providerId: 'x', mediaId: '1', providerData: data },
-        }), 'online:x:1')], { origin: { sourceId: 'x', collectionId: 'c', name: 'o', savedAt: 1, collectionData: data } }), []);
+        }), 'online:x:1')]), []);
         const file = parsed(exported.content);
         const ref = file.entries[0].source === 'online' ? file.entries[0].song.sourceRef : undefined;
         expect(ref?.kind === 'online' && ref.providerData).toEqual(data);
-        expect(file.origin?.collectionData).toEqual(data);
     });
 
     it('leaves the one signature a source keeps with its songs out of the file', () => {
@@ -672,8 +682,11 @@ describe('an origin that came from a file', () => {
         const text = fileWithOrigin({ sourceId: 'netease', collectionId: 'c1', name: 'O', confirmedAt: 123 });
         const reading = readPlaylistFileText(text, []);
         if (reading.format !== 'json') throw new Error('expected json');
-        // 就算预览里的出处被塞了「确认过」，写进歌单的也是没确认的。
-        if (reading.preview.origin) reading.preview.origin = { ...reading.preview.origin, confirmedAt: 5 };
+        // 就算预览里的出处被塞了「确认过」、去掉了「文件说的」，服务层写进歌单的也是文件说的、没确认的。
+        if (reading.preview.origin) {
+            const { fromFile: _fromFile, ...rest } = reading.preview.origin;
+            reading.preview.origin = { ...rest, confirmedAt: 5 };
+        }
         const { playlist } = await importPlaylistFileReading(reading, { name: 'From a file' });
         if (!playlist) throw new Error('no playlist');
         expect(playlist.origin).toMatchObject({ fromFile: true });
@@ -706,6 +719,12 @@ describe('an origin that came from a file', () => {
         expect(refreshed?.playlist.origin).toMatchObject({ fromFile: true, sourceId: 'netease', collectionId: 'c1' });
         await refreshFoliaPlaylistFromOrigin(playlist.id, fetch, noTarget);
         expect(asked).toBe(2);
+    });
+
+    it('never starts out confirmed, whoever creates the playlist', async () => {
+        const created = await createFoliaPlaylist('Made', [], { origin: { sourceId: 'netease', collectionId: 'c1', name: 'O', savedAt: 1, fromFile: true, confirmedAt: 9 } });
+        expect(created.origin?.confirmedAt).toBeUndefined();
+        expect(foliaOriginNeedsConfirmation(created.origin)).toBe(true);
     });
 
     it('is not asked about for a playlist saved here', async () => {

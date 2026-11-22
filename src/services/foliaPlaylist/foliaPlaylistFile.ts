@@ -47,19 +47,32 @@ const mediaIdOf = (value: unknown): string | number | undefined => {
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 };
 // 键名是凭据的：音源自己的数据里整项不要，封面地址的查询串里有它就不要这个地址。
-// 不按「键名里含某几个字母」猜（那样 bypassWindow、designId 这类也会中）：键名先按写法拆成词
-// （驼峰、下划线、连字符、点），拆出来的词在下面这张明确的表里才算；整个键是一个不分词的小写串时
-// （sessionid、accesstoken），只看它是不是以表里的长词开头或结尾。
-// 十家内置音源的歌 / 歌单附带数据里实际用到的键逐个对过（test/unit/services/foliaPlaylist/foliaPlaylistFile.test.ts
+// 不按「键名里含某几个字母」猜（那样 designId、signal、author 这类也会中）：键名先按写法拆成词
+// （驼峰、下划线、连字符、点），再对着下面几张明确的表认。规则写在 docs/folia-playlist-file.md。
+// 十家内置音源的歌附带数据里实际用到的键逐个对过（test/unit/services/foliaPlaylist/foliaPlaylistFile.test.ts
 // 里有清单）：除了一家的 freeSign（上游发的签名，是不是跟账号绑定不清楚，按签名处理、不带），没有一个会被删。
+// 拆出来的词等于其中一个就算。
 const CREDENTIAL_WORDS = new Set([
-    'token', 'tokens', 'cookie', 'cookies', 'secret', 'secrets', 'password', 'passwd', 'pwd', 'passphrase',
-    'credential', 'credentials', 'session', 'auth', 'authorization', 'authorisation', 'bearer', 'jwt',
-    'apikey', 'sign', 'sig', 'fsig', 'signature',
+    'password', 'passwd', 'pwd', 'passphrase', 'passcode', 'credential', 'credentials', 'auth', 'authkey',
+    'authorization', 'authorisation', 'bearer', 'jwt', 'apikey', 'apikeys', 'csrf', 'xsrf', 'fsig', 'signature',
 ]);
-// 不分词的键只认这些（短词像 sign、auth、sig 夹在别的词里太常见，不拿来比开头结尾）。
-const CREDENTIAL_AFFIXES = ['token', 'cookie', 'secret', 'password', 'passwd', 'credential', 'apikey', 'authorization', 'authorisation', 'signature'];
+// 词里含有其中一个就算（musictokenv2、usercookies、clientsecrets、PHPSESSID 这类连写的也认得出）。
+const CREDENTIAL_PARTS = ['token', 'cookie', 'secret', 'sessionid', 'sessid', 'password', 'passwd', 'credential', 'apikey', 'authorization', 'authorisation', 'signature'];
+// 相邻两个词合起来才算的（passWord、api_keys、privateKey、accessKey）。
+const CREDENTIAL_PAIRS: ReadonlyArray<[string, ReadonlySet<string>]> = [
+    ['pass', new Set(['word', 'phrase', 'code'])],
+    ['api', new Set(['key', 'keys'])],
+    ['private', new Set(['key', 'keys'])],
+    ['access', new Set(['key', 'keys'])],
+    ['secret', new Set(['key', 'keys'])],
+];
+// 以 session 开头或结尾的词算；这两个英文词只是碰巧以它结尾。
+const NOT_SESSION = new Set(['obsession', 'possession']);
+// sign、sig 只在是键名的最后一个词时算（freeSign、md5Sign、sign）：signIn、signUpDate、signType 不是签名。
+const SIGN_WORDS = new Set(['sign', 'sig']);
 const keyWords = (key: string): string[] => key
+    // OAuth 是一个词，不拆成 O + Auth。
+    .replace(/OAuth/g, 'Oauth')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .split(/[^A-Za-z0-9]+/)
@@ -68,10 +81,13 @@ const keyWords = (key: string): string[] => key
 /** 这个键名（或查询串里的参数名）是不是凭据。 */
 export const isCredentialKeyName = (key: string): boolean => {
     const words = keyWords(key);
-    if (words.some(word => CREDENTIAL_WORDS.has(word))) return true;
-    // api_key、api-key、apiKey。
-    if (words.some((word, index) => word === 'api' && words[index + 1] === 'key')) return true;
-    return words.some(word => word.startsWith('session') || CREDENTIAL_AFFIXES.some(affix => word.startsWith(affix) || word.endsWith(affix)));
+    return words.some((word, index) => (
+        CREDENTIAL_WORDS.has(word)
+        || CREDENTIAL_PARTS.some(part => word.includes(part))
+        || ((word.startsWith('session') || word.endsWith('session')) && !NOT_SESSION.has(word))
+        || (SIGN_WORDS.has(word) && index === words.length - 1)
+        || CREDENTIAL_PAIRS.some(([first, seconds]) => word === first && seconds.has(words[index + 1] ?? ''))
+    ));
 };
 const PRIVATE_HOST = /^(localhost|.*\.(local|lan|internal|home\.arpa)|127\..*|10\..*|192\.168\..*|172\.(1[6-9]|2\d|3[01])\..*|169\.254\..*|0\.0\.0\.0|\[.*\])$/i;
 /**
@@ -214,15 +230,17 @@ const onlineSongOf = (song: Json): UnifiedSong | null => {
 
 /**
  * 读进来的在线歌，它的 id 和来源（sourceRef.mediaId）说的是不是同一首。歌单按 mediaId 认歌、去重、播放，宿主里别的
- * 地方（给别的模组看的 id 等）用的是歌的 id：两样对不上的条目，界面上显示的和实际拿去用的可以是两首歌。
+ * 地方（给别的模组看的 id 等）用的是歌的 id：两样对不上的条目，显示的和实际拿去用的可以是两首歌。
  * 对得上的只有两种：id 就是 mediaId；或者 id 是音源自己的数据（providerData 最外层）里写着的另一个 id——
  * 有的音源给歌两个 id（公开契约的 publicId：播放用的那个作 mediaId，另一个留作歌的 id，并且也放在它自己的数据里）。
  * 文件里没写 id、或 id 不成样子的，用 mediaId 当 id，不算对不上。
+ * 这挡的是 id 指向一首附带数据里根本没提的歌（手改出来的、别的工具拼错的）；附带数据本身也是文件写的，
+ * 有意连它一起改的文件这里分不出来，那要靠音源自己核对。
  */
 const onlineIdAgrees = (rawId: unknown, song: UnifiedSong): boolean => {
     const id = mediaIdOf(rawId);
     const ref = song.sourceRef;
-    if (id === undefined || ref?.kind !== 'online' || String(id) === ref.mediaId) return true;
+    if (id === undefined || ref.kind !== 'online' || String(id) === ref.mediaId) return true;
     return Object.values(ref.providerData ?? {}).some(value => (
         (typeof value === 'string' || typeof value === 'number') && String(value) === String(id)
     ));
@@ -341,8 +359,8 @@ export const serializeFoliaPlaylistFile = (
         return [{ source: 'online', ...common, song: online }];
     });
     const origin = playlist.origin;
-    // 原歌单在音源那边的附带数据：有的音源读歌单要它；和歌的附带数据过同一道筛。
-    const collectionData = origin ? sourceDataOf(origin.collectionData) : undefined;
+    // 原歌单在音源那边的附带数据（origin.collectionData）不写：里面有只对导出者的账号有意义的目录号、主人 id，
+    // 而且音源读歌单时会按它选走哪条路——读的人确认的是「哪家的哪张歌单」，不该再被一份看不见的数据改道。
     const file = {
         format: FOLIA_PLAYLIST_FILE_FORMAT,
         version: FOLIA_PLAYLIST_FILE_VERSION,
@@ -360,7 +378,6 @@ export const serializeFoliaPlaylistFile = (
                     ...(origin.playVia ? { playVia: origin.playVia } : {}),
                     ...(origin.refreshedAt ? { refreshedAt: timestamp(origin.refreshedAt) } : {}),
                     ...(origin.collectionType === 'album' ? { collectionType: 'album' } : {}),
-                    ...(collectionData ? { collectionData } : {}),
                 },
             } : {}),
             entries,
@@ -412,7 +429,7 @@ const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
     if (!collectionId || collectionId !== value.collectionId) return undefined;
     const playVia = typeof value.playVia === 'string' && SOURCE_ID.test(value.playVia) ? value.playVia : undefined;
     const refreshedAt = timestamp(value.refreshedAt);
-    const collectionData = sourceDataOf(value.collectionData);
+    // 文件里的 collectionData 不读（见写出去那一侧的说明）：出处只有音源 id、歌单 id、是歌单还是专辑。
     return {
         sourceId: value.sourceId,
         collectionId,
@@ -421,7 +438,6 @@ const originOf = (value: unknown): FoliaPlaylistOrigin | undefined => {
         ...(playVia ? { playVia } : {}),
         ...(refreshedAt ? { refreshedAt } : {}),
         ...(value.collectionType === 'album' ? { collectionType: 'album' as const } : {}),
-        ...(collectionData ? { collectionData } : {}),
         // 这个出处是文件说的。记号在这里加、不从文件里读（文件里写了 fromFile、confirmedAt 也不认），
         // 所以文件没法把自己说成「已经确认过」。
         fromFile: true,

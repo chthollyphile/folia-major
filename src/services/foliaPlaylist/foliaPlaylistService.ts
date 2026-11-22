@@ -121,14 +121,18 @@ const createWithEntries = (
     entries: readonly FoliaPlaylistEntry[],
     origin: FoliaPlaylistOrigin | undefined,
     now: number,
-): Promise<FoliaPlaylistRow> => createPlaylistRows(write, {
-    id: createFoliaPlaylistId(),
-    name,
-    createdAt: now,
-    updatedAt: now,
-    ...(origin ? { origin } : {}),
-    entries: dedupeByKey(entries),
-});
+): Promise<FoliaPlaylistRow> => {
+    // 新建的歌单不会一出生就「确认过出处」：confirmedAt 只有 confirmFoliaPlaylistOrigin 写。
+    const { confirmedAt: _confirmedAt, ...cleanOrigin } = origin ?? {};
+    return createPlaylistRows(write, {
+        id: createFoliaPlaylistId(),
+        name,
+        createdAt: now,
+        updatedAt: now,
+        ...(origin ? { origin: cleanOrigin as FoliaPlaylistOrigin } : {}),
+        entries: dedupeByKey(entries),
+    });
+};
 
 /** 建一张歌单，可以带上第一批歌（任何来源，一批里可以有多个来源）。名字是空的会抛错。 */
 export const createFoliaPlaylist = (
@@ -147,6 +151,7 @@ export const createFoliaPlaylist = (
 /**
  * 用现成的条目建一张歌单（从 JSON 文件读入时用：条目带着原来的加入时间、换过来源的记号、跟着原歌单的标记）。
  * 条目由调用方校验好；这里只保证同一个 key 只留第一条。名字是空的会抛错。
+ * 带出处的话，出处一定标成「文件说的、还没确认」（fromFile，没有 confirmedAt），不管调用方给的是什么样。
  */
 export const createFoliaPlaylistFromEntries = (
     name: string,
@@ -155,7 +160,8 @@ export const createFoliaPlaylistFromEntries = (
 ): Promise<FoliaPlaylistSummary> => {
     const trimmedName = name.trim();
     if (!trimmedName) return Promise.reject(new Error('Playlist name is empty'));
-    return writeFoliaPlaylists(async write => toSummary(await createWithEntries(write, trimmedName, entries, options.origin, Date.now())));
+    const origin: FoliaPlaylistOrigin | undefined = options.origin ? { ...options.origin, fromFile: true } : undefined;
+    return writeFoliaPlaylists(async write => toSummary(await createWithEntries(write, trimmedName, entries, origin, Date.now())));
 };
 
 /** 改名。「我喜欢的音乐」不能改、名字是空的不改、歌单不存在：都返回 null。 */
@@ -359,6 +365,7 @@ export const confirmFoliaPlaylistOrigin = (
     if (!foliaOriginNeedsConfirmation(row.origin)) return true;
     const now = Date.now();
     await putPlaylistRow(write, { ...row, origin: { ...row.origin, confirmedAt: now }, updatedAt: now });
+    console.info('[FoliaPlaylist] The user confirmed an origin that came from a file', { playlistId, sourceId: row.origin.sourceId });
     return true;
 });
 
