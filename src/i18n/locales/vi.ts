@@ -2237,7 +2237,6 @@ export default {
     "noSourcesBody": "Bật một nguồn trong Cài đặt → Nguồn, danh sách phát, gợi ý và album của nó sẽ hiện ở đây.",
     "noSourcesAction": "Mở cài đặt nguồn",
     "foliaTitle": "Danh sách phát Folia",
-    "foliaBody": "Các danh sách phát trộn bài hát từ mọi nguồn sẽ nằm ở đây. Hiện tại, hãy lưu bài hát vào sổ ghi nhanh."
   },
   "animation": {
     "calm": "Êm dịu",
@@ -4852,7 +4851,6 @@ export default {
     "foldersAndPlaylists": "Thư mục",
     "albums": "Album",
     "artists": "Nghệ sĩ",
-    "customPlaylists": "Danh sách phát",
     "favoritePlaylist": "Bài hát yêu thích",
     "unknownAlbum": "Album không rõ",
     "unknownArtist": "Nghệ sĩ không rõ",

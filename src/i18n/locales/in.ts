@@ -2237,7 +2237,6 @@ export default {
     "noSourcesBody": "Aktifkan satu di Pengaturan → Sumber, lalu playlist, rekomendasi, dan albumnya muncul di sini.",
     "noSourcesAction": "Buka pengaturan sumber",
     "foliaTitle": "Playlist Folia",
-    "foliaBody": "Playlist yang memadukan lagu dari sumber mana pun akan ada di sini. Untuk sekarang, simpan lagu di buku catatan."
   },
   "animation": {
     "calm": "tenang",
@@ -4852,7 +4851,6 @@ export default {
     "foldersAndPlaylists": "Folder",
     "albums": "Album",
     "artists": "Artis",
-    "customPlaylists": "Playlist",
     "favoritePlaylist": "Lagu Disukai",
     "unknownAlbum": "Album Tidak Dikenal",
     "unknownArtist": "Artis Tidak Dikenal",

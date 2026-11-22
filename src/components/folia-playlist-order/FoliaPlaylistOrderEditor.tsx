@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../types';
 import type { FoliaPlaylist } from '../../types/foliaPlaylist';
 import { reorderFoliaPlaylistEntries } from '../../services/foliaPlaylist/foliaPlaylistService';
@@ -57,6 +58,7 @@ const buildOrderSongs = (playlist: FoliaPlaylist, localSongs: readonly LocalSong
 };
 
 export default function FoliaPlaylistOrderEditor({ playlist, localSongs, catalog, isDaylight, onClose, onRefresh }: Props) {
+    const { t } = useTranslation();
     const [songs] = useState(() => buildOrderSongs(playlist, localSongs, catalog));
 
     const save = async (songIds: string[]) => {
@@ -72,7 +74,7 @@ export default function FoliaPlaylistOrderEditor({ playlist, localSongs, catalog
 
     return (
         <FoliaPlaylistOrderDialog
-            name={playlist.name}
+            name={playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name}
             songs={songs}
             isDaylight={isDaylight}
             onClose={onClose}

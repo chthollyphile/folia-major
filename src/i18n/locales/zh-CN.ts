@@ -2237,7 +2237,6 @@ export default {
     "noSourcesBody": "在「设置 → 音源」里启用一个，它的歌单、推荐和专辑就会出现在这里。",
     "noSourcesAction": "打开音源设置",
     "foliaTitle": "Folia 歌单",
-    "foliaBody": "不同来源的歌可以放进同一张歌单，这些歌单会放在这里。现在可以先把歌收进速记簿。"
   },
   "animation": {
     "calm": "平静",
@@ -4852,7 +4851,6 @@ export default {
     "foldersAndPlaylists": "文件夹",
     "albums": "专辑",
     "artists": "艺术家",
-    "customPlaylists": "歌单",
     "favoritePlaylist": "我喜欢的音乐",
     "unknownAlbum": "未知专辑",
     "unknownArtist": "未知艺术家",

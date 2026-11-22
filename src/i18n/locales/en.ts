@@ -2237,7 +2237,6 @@ export default {
     "noSourcesBody": "Enable one under Settings → Sources and its playlists, picks and albums show up here.",
     "noSourcesAction": "Open source settings",
     "foliaTitle": "Folia playlists",
-    "foliaBody": "Playlists that mix songs from any source will live here. Until then, keep songs in the scratchpad."
   },
   "animation": {
     "calm": "calm",
@@ -4852,7 +4851,6 @@ export default {
     "foldersAndPlaylists": "Folders",
     "albums": "Albums",
     "artists": "Artists",
-    "customPlaylists": "Playlists",
     "favoritePlaylist": "Liked Songs",
     "unknownAlbum": "Unknown Album",
     "unknownArtist": "Unknown Artist",
