@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { LocalSong } from '@/types';
 import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+import { summaryOfFoliaPlaylist } from '../../helpers/foliaPlaylistSummary';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
 import type { LocalGridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import type { LibraryMutationPort } from '@/library/core/shared/ports.contract';
@@ -92,7 +93,7 @@ describe('local collection cover keys', () => {
         const songs = [song('s1', 'Root/A'), song('s2', 'Root/B')];
         const catalog = { entities: [entity('e-al', 'Album')], assignments: [assignment('s1', 'e-al'), assignment('s2', 'e-al')] };
         const groups = buildLocalHomeGroups(songs, t, catalog, assetUrl);
-        [...groups.folders, ...groups.albums, ...buildFoliaHomeGroups([playlist('p1', ['s2'])], songs, t, assetUrl)].forEach(group => {
+        [...groups.folders, ...groups.albums, ...buildFoliaHomeGroups([summaryOfFoliaPlaylist(playlist('p1', ['s2']))], songs, t, assetUrl)].forEach(group => {
             expect(localCollectionCoverKey(createLocalGridViewCollection(group))).toBe(localCollectionCoverKey(group));
         });
     });
@@ -100,7 +101,7 @@ describe('local collection cover keys', () => {
     it('keeps every key when the library is scanned again with other songs, other covers and another language', () => {
         const groupsOf = (songs: LocalSong[], playlists: FoliaPlaylist[], translate: TFunction, catalog: Parameters<typeof buildLocalHomeGroups>[2]) => {
             const local = buildLocalHomeGroups(songs, translate, catalog, assetUrl);
-            return [...local.folders, ...local.albums, ...buildFoliaHomeGroups(playlists, songs, translate, assetUrl)];
+            return [...local.folders, ...local.albums, ...buildFoliaHomeGroups(playlists.map(summaryOfFoliaPlaylist), songs, translate, assetUrl)];
         };
         const before = groupsOf(
             [song('s1', 'Root/A', { localCoverAssetId: 'c1' }), song('s2', 'Root/A')],

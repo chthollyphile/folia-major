@@ -4,9 +4,10 @@ import {
     createFoliaPlaylist,
     deleteFoliaPlaylist,
     getFoliaPlaylists,
+    resetFoliaPlaylistStorage,
     setLocalSongFavorite,
 } from '@/services/foliaPlaylist/foliaPlaylistService';
-import { FOLIA_PLAYLISTS_META_KEY, FOLIA_PLAYLIST_ROW_PREFIX } from '@/services/foliaPlaylist/foliaPlaylistRows';
+import { FOLIA_PLAYLISTS_STATE_KEY, foliaPlaylistsDatabase } from '@/services/foliaPlaylist/foliaPlaylistDatabase';
 import { LEGACY_LOCAL_PLAYLISTS_CACHE_KEY, convertLegacyLocalPlaylists } from '@/services/foliaPlaylist/localPlaylistMigration';
 import { appDatabase } from '@/services/appDatabase';
 import type { LocalSong, UnifiedSong } from '@/types';
@@ -14,6 +15,7 @@ import type { FoliaPlaylist } from '@/types/foliaPlaylist';
 
 // test/unit/services/foliaPlaylist/localPlaylistMigration.test.ts
 // 旧的本地歌单（api_cache 的 `local_playlists` 一行）并进 Folia 聚合歌单：一张不少、顺序不变、只迁一次、旧数据不动。
+// 「一张歌单一行」的那种旧结构搬进按条目存的库，在 foliaPlaylistStorage.test.ts。
 
 const createSong = (id: string, filePath = `Library/${id}.mp3`, patch: Partial<LocalSong> = {}): LocalSong => ({
     id,
@@ -33,21 +35,24 @@ const createSong = (id: string, filePath = `Library/${id}.mp3`, patch: Partial<L
 
 const putLegacy = (data: unknown) => appDatabase.api_cache.put({ key: LEGACY_LOCAL_PLAYLISTS_CACHE_KEY, data, timestamp: 1 });
 const readLegacy = async () => (await appDatabase.api_cache.get(LEGACY_LOCAL_PLAYLISTS_CACHE_KEY))?.data;
-const readMeta = async () => (await appDatabase.api_cache.get(FOLIA_PLAYLISTS_META_KEY))?.data as Record<string, unknown> | undefined;
+const readState = () => foliaPlaylistsDatabase.meta.get(FOLIA_PLAYLISTS_STATE_KEY);
+/** 像重开应用那样：下一次读写重新准备存储（再看一遍要不要搬）。 */
+const reopen = () => resetFoliaPlaylistStorage({ keepData: true });
 const keysOf = (playlist: FoliaPlaylist | undefined) => playlist?.entries.map(entry => entry.key);
 
 describe('local playlist migration', () => {
     beforeEach(async () => {
         await appDatabase.delete();
         await appDatabase.open();
+        await resetFoliaPlaylistStorage();
     });
 
     it('creates only the favorite playlist when there was nothing to migrate, and marks the migration done', async () => {
         const playlists = await getFoliaPlaylists();
         expect(playlists).toHaveLength(1);
         expect(playlists[0].isFavorite).toBe(true);
-        expect(await readMeta()).toMatchObject({ version: 1, localPlaylistsMigratedCount: 0, order: [playlists[0].id] });
-        expect(typeof (await readMeta())?.localPlaylistsMigratedAt).toBe('number');
+        expect(await readState()).toMatchObject({ version: 1, importedFrom: 'nothing', importedCount: 0 });
+        expect(typeof (await readState())?.importedAt).toBe('number');
         expect(await readLegacy()).toBeUndefined();
     });
 
@@ -85,7 +90,7 @@ describe('local playlist migration', () => {
             ['fav', 'Liked Songs', 1, 2, true, ['local:a']],
             ['p1', 'Empty', 3, 4, false, []],
         ]);
-        expect(await readMeta()).toMatchObject({ localPlaylistsMigratedCount: 3, order: ['p2', 'fav', 'p1'] });
+        expect(await readState()).toMatchObject({ importedFrom: 'local-playlists', importedCount: 3 });
         expect(await readLegacy()).toEqual(legacy);
     });
 
@@ -146,7 +151,8 @@ describe('local playlist migration', () => {
             { id: 'mix', name: 'Mix', songIds: ['a'], createdAt: 1, updatedAt: 1 },
         ]);
         await getFoliaPlaylists();
-        const migratedAt = (await readMeta())?.localPlaylistsMigratedAt;
+        const migratedAt = (await readState())?.importedAt;
+        expect(typeof migratedAt).toBe('number');
 
         await deleteFoliaPlaylist('mix');
         await setLocalSongFavorite(createSong('b'), true);
@@ -157,12 +163,13 @@ describe('local playlist migration', () => {
             { id: 'mix', name: 'Mix', songIds: ['a', 'b'], createdAt: 1, updatedAt: 9 },
             { id: 'later', name: 'Made in the old version', songIds: ['a'], createdAt: 8, updatedAt: 9 },
         ]);
+        await reopen();
 
         const playlists = await getFoliaPlaylists();
 
         expect(playlists.map(playlist => playlist.id)).toEqual(['fav', created.id]);
         expect(keysOf(playlists[0])).toEqual(['local:b']);
-        expect((await readMeta())?.localPlaylistsMigratedAt).toBe(migratedAt);
+        expect((await readState())?.importedAt).toBe(migratedAt);
     });
 
     it('runs the migration once even when the first reads race', async () => {
@@ -172,8 +179,9 @@ describe('local playlist migration', () => {
         reads.forEach(playlists => {
             expect(playlists.map(playlist => playlist.name).sort()).toEqual(['Liked Songs', 'Mix']);
         });
-        const rows = await appDatabase.api_cache.where(':id').startsWith(FOLIA_PLAYLIST_ROW_PREFIX).count();
-        expect(rows).toBe(2);
+        expect(await foliaPlaylistsDatabase.playlists.count()).toBe(2);
+        // 旧的那张表里只有原来那一行：这一版不往里写。
+        expect(await appDatabase.api_cache.count()).toBe(1);
     });
 
     it('writes nothing when the migration fails half way, and succeeds on the next read', async () => {
@@ -188,15 +196,16 @@ describe('local playlist migration', () => {
             writes += 1;
             if (writes === 2) throw new Error('disk full');
         };
-        appDatabase.api_cache.hook('creating', failOnSecondWrite);
+        foliaPlaylistsDatabase.playlists.hook('creating', failOnSecondWrite);
         try {
             await expect(getFoliaPlaylists()).rejects.toThrow('disk full');
         } finally {
-            appDatabase.api_cache.hook('creating').unsubscribe(failOnSecondWrite);
+            foliaPlaylistsDatabase.playlists.hook('creating').unsubscribe(failOnSecondWrite);
         }
         // 事务回滚：没有写到一半的歌单，没有迁移标记，旧数据还在。
-        expect(await appDatabase.api_cache.where(':id').startsWith(FOLIA_PLAYLIST_ROW_PREFIX).count()).toBe(0);
-        expect(await readMeta()).toBeUndefined();
+        expect(await foliaPlaylistsDatabase.playlists.count()).toBe(0);
+        expect(await foliaPlaylistsDatabase.entries.count()).toBe(0);
+        expect(await readState()).toBeUndefined();
         expect(await readLegacy()).toEqual(legacy);
 
         const playlists = await getFoliaPlaylists();
@@ -206,10 +215,11 @@ describe('local playlist migration', () => {
     it('does not overwrite a playlist that already exists under the same id', async () => {
         await appDatabase.local_music.bulkPut([createSong('a'), createSong('b')]);
         const first = await getFoliaPlaylists();
-        // 模拟标记丢了（meta 坏掉）之后再迁：已经在的那张保持现在的内容。
+        // 模拟标记丢了之后重开：已经在的那张保持现在的内容。
         await putLegacy([{ id: first[0].id, name: 'Liked Songs', songIds: ['a'], createdAt: 1, updatedAt: 1, isFavorite: true }]);
         await setLocalSongFavorite(createSong('b'), true);
-        await appDatabase.api_cache.delete(FOLIA_PLAYLISTS_META_KEY);
+        await foliaPlaylistsDatabase.meta.delete(FOLIA_PLAYLISTS_STATE_KEY);
+        await reopen();
 
         const playlists = await getFoliaPlaylists();
 
@@ -217,7 +227,7 @@ describe('local playlist migration', () => {
         expect(keysOf(playlists[0])).toEqual(['local:b']);
     });
 
-    it('does not bring back a migrated playlist the user deleted when the meta row is lost', async () => {
+    it('does not bring back a migrated playlist the user deleted when the mark is lost', async () => {
         await appDatabase.local_music.bulkPut([createSong('a')]);
         await putLegacy([
             { id: 'keep', name: 'Keep', songIds: ['a'], createdAt: 1, updatedAt: 1 },
@@ -225,12 +235,13 @@ describe('local playlist migration', () => {
         ]);
         await getFoliaPlaylists();
         expect(await deleteFoliaPlaylist('gone')).toBe(true);
-        await appDatabase.api_cache.delete(FOLIA_PLAYLISTS_META_KEY);
+        await foliaPlaylistsDatabase.meta.delete(FOLIA_PLAYLISTS_STATE_KEY);
+        await reopen();
 
         const playlists = await getFoliaPlaylists();
 
         expect(playlists.map(playlist => playlist.name).sort()).toEqual(['Keep', 'Liked Songs']);
-        expect(typeof (await readMeta())?.localPlaylistsMigratedAt).toBe('number');
+        expect(typeof (await readState())?.importedAt).toBe('number');
     });
 
     it('migrates even when a referenced library record is malformed: the reference is kept', async () => {
