@@ -108,6 +108,7 @@ export const buildPlayback = (
     const getAvailability = songs?.getAvailability?.bind(songs);
     const getReplacement = songs?.getReplacement?.bind(songs);
     const getPlayedSong = songs?.getPlayedSong?.bind(songs);
+    const getCounterparts = songs?.getCounterparts?.bind(songs);
     const getAudioSource = audio?.getAudioSource.bind(audio);
     const keepAudio = audio?.keepAudio?.bind(audio);
     const hasKeptAudio = audio?.hasKeptAudio?.bind(audio);
@@ -137,12 +138,33 @@ export const buildPlayback = (
         ...(getPlayedSong ? {
             getPlayedSong: async (song) => kit.song(await kit.run('getPlayedSong', () => getPlayedSong(toSourceSong(song)))),
         } : {}),
+        ...(getCounterparts ? {
+            // The source gets plain copies (it cannot reach the host's objects through them); what it answers is read
+            // as its own songs, and anything that is not one is null.
+            getCounterparts: async (queries) => {
+                const answer = list(await kit.run('getCounterparts', () => getCounterparts(queries.map(query => ({ ...query, artists: [...query.artists] })))));
+                return queries.map((_, index) => kit.song(answer[index]));
+            },
+        } : {}),
         ...(keepAudio ? { keepAudio: async (url) => Boolean(await kit.run('keepAudio', () => keepAudio(url))) } : {}),
         ...(hasKeptAudio ? { hasKeptAudio: async (url) => Boolean(await kit.run('hasKeptAudio', () => hasKeptAudio(url))) } : {}),
     };
     // Read where the host reads them, so a getter of the source's answers for its account now.
     Object.defineProperties(playback, {
         songDetailsPerRequest: { enumerable: true, get: () => songs?.songsPerRequest },
+        counterpartSources: {
+            enumerable: true,
+            get: () => {
+                // A getter of the mod's: one that throws is a source that declares none.
+                let declared: unknown;
+                try {
+                    declared = getCounterparts ? songs?.counterpartSources : undefined;
+                } catch {
+                    declared = undefined;
+                }
+                return Array.isArray(declared) ? declared.filter((id): id is string => typeof id === 'string' && id !== '') : undefined;
+            },
+        },
         audioQualityLevels: { enumerable: true, get: () => audio?.audioQualityLevels },
         previewNoticeKey: { enumerable: true, get: () => (audio?.previewNotice === undefined ? undefined : kit.key(audio.previewNotice, 'previewNotice')) },
     });

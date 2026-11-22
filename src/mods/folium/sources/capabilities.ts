@@ -32,7 +32,7 @@ export type FoliumStandardCapability = keyof typeof FOLIUM_SOURCE_CAPABILITY_VER
 /** The members of each standard capability at version 1, in the order the contract lists them. */
 export const FOLIUM_SOURCE_CAPABILITY_MEMBERS: Readonly<Record<FoliumStandardCapability, readonly string[]>> = Object.freeze({
     search: ['access', 'searchSongs', 'searchAlbums', 'searchPlaylists'],
-    songs: ['access', 'metadataMatch', 'getSong', 'getSongs', 'songsPerRequest', 'getAvailability', 'getReplacement', 'getPlayedSong', 'getPageUrl'],
+    songs: ['access', 'metadataMatch', 'getSong', 'getSongs', 'songsPerRequest', 'getAvailability', 'getReplacement', 'getPlayedSong', 'getPageUrl', 'counterpartSources', 'getCounterparts'],
     'playback.audio': ['getAudioSource', 'audioQualityLevels', 'previewNotice', 'keepAudio', 'hasKeptAudio'],
     'playback.external': [
         'canPlay', 'prepareNext', 'isPrepared', 'play', 'adopt', 'pause', 'resume', 'seek', 'setVolume', 'setRepeatOne',

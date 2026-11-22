@@ -3446,6 +3446,30 @@ export interface FoliumSourceSearch {
 }
 
 /**
+ * Folium 2: a song of another source, as a source is asked for its own counterpart of it
+ * (`songs@1.getCounterparts`). Only what that other source shows of the song: its ids and its public details.
+ * Never its `data`, and nothing of its account.
+ */
+export interface FoliumSourceForeignSong {
+    /** The id of the source the song is from. */
+    sourceId: string;
+    /** The song's id at that source: its `FoliumSourceSong.id`. */
+    id: string;
+    /** Its `FoliumSourceSong.publicId`, where that source gives one. */
+    publicId?: string;
+    /** The title. */
+    title: string;
+    /** The artists' names, in order. */
+    artists: string[];
+    /** The album's name. */
+    album?: string;
+    /** Milliseconds. */
+    durationMs?: number;
+    /** The cover. */
+    coverUrl?: string;
+}
+
+/**
  * Folium 2: what a source marks against a song. `unavailable` goes with `taken-down` only; limits of
  * accounts, payment or region are `unknown` with `restricted`, found out when it is played.
  */
@@ -3481,6 +3505,22 @@ export interface FoliumSourceSongs {
     getPlayedSong?(song: FoliumSourceSong): Promise<FoliumSourceSong | null>;
     /** The song's public web page; null where there is none. Synchronous. */
     getPageUrl?(song: FoliumSourceSong): string | null;
+    /**
+     * The ids of the other sources whose songs this source can name its own counterpart of from the song's ids
+     * alone (the same recording, known there by an id this source can work out). May be a getter: call
+     * `handle.changed()` after it changed. Left out, or empty: `getCounterparts` is never asked.
+     */
+    readonly counterpartSources?: readonly string[];
+    /**
+     * This source's own song for each of `songs`, in their order; null where it has no exact counterpart. Exact
+     * only: a song it would have to look for by title and artist is null. It reads and changes nothing, and is
+     * best answered without a request: the host asks for a whole playlist at once, at most 200 songs a call and
+     * 10 seconds a call (a call that takes longer, rejects or answers something else counts as all null). The
+     * songs are of the sources in `counterpartSources` only. The host asks only while the source is enabled for
+     * playing and `getAvailability` says it is configured. What it answers is kept as this source's song, so it
+     * carries what its rows show (title, artists, album, cover, duration), taken from the song it was given.
+     */
+    getCounterparts?(songs: FoliumSourceForeignSong[]): Promise<(FoliumSourceSong | null)[]>;
 }
 
 /** Folium 2: the quality levels, lowest first. `ultra` only for a source that lists it. */

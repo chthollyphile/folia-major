@@ -83,6 +83,8 @@ export const FOLIUM_SOURCE_MEMBER_DESTINATIONS = Object.freeze({
         getAvailability: 'songs@1.getAvailability',
         getReplacement: 'songs@1.getReplacement',
         getPlayedSong: 'songs@1.getPlayedSong',
+        counterpartSources: 'songs@1.counterpartSources',
+        getCounterparts: 'songs@1.getCounterparts',
         keepAudio: 'playback.audio@1.keepAudio',
         hasKeptAudio: 'playback.audio@1.hasKeptAudio',
     } satisfies Destinations<OnlinePlaybackProvider>,

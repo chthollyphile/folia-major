@@ -393,6 +393,18 @@ export interface OnlineSearchProvider {
     searchPlaylists?(query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
 }
 
+/** A song of another source as a source is asked for its counterpart of it: ids and public details, nothing else. */
+export interface ForeignSongQuery {
+    sourceId: string;
+    id: string;
+    publicId?: string;
+    title: string;
+    artists: string[];
+    album?: string;
+    durationMs?: number;
+    coverUrl?: string;
+}
+
 export interface OnlinePlaybackProvider {
     /**
      * The song by id, or null where the platform has no song by it. Takes the song's `UnifiedSong.id`
@@ -433,6 +445,17 @@ export interface OnlinePlaybackProvider {
     previewNoticeKey?: string;
     getAvailability?(song: SongResult): ProviderSongAvailability;
     getReplacement?(song: SongResult): Promise<ProviderSongReplacement | null>;
+    /**
+     * The ids of the other sources whose songs this one can name its own counterpart of from the song's ids
+     * alone. Read when it is needed (it may change with the source's setup). Without it, or empty,
+     * `getCounterparts` is not asked. Asked through services/onlineMusic/songCounterparts.ts only.
+     */
+    counterpartSources?: readonly string[];
+    /**
+     * This source's own song for each of `songs`, in their order; null where it has no exact counterpart.
+     * Reads and changes nothing. The songs carry ids and public details only (ForeignSongQuery).
+     */
+    getCounterparts?(songs: ForeignSongQuery[]): Promise<(UnifiedSong | null)[]>;
     /**
      * The song `song` is played as in its place, or null where it plays as itself: a music video
      * that a list showed as itself, played as its song version.
