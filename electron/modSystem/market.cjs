@@ -153,7 +153,7 @@ const normalizeModEntry = (entry, origin) => {
     };
 };
 
-/* One awesome-Folia entry: a work kept elsewhere, offered as a link only. */
+/* One Awesome-Folia entry: a work kept elsewhere, offered as a link only. */
 const normalizeAwesomeEntry = (entry) => {
     if (!entry || typeof entry !== 'object') return null;
     const id = typeof entry.id === 'string' && MOD_ID_PATTERN.test(entry.id) ? entry.id : null;

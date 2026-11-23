@@ -414,7 +414,7 @@ export type ModHostRangeState = 'ok' | 'too-old' | 'expired' | 'invalid';
 
 export type ModAwesomeKind = 'source' | 'plugin' | 'app' | 'tool' | 'other';
 
-/** An awesome-Folia entry: a work kept elsewhere, offered as a link only. */
+/** An Awesome-Folia entry: a work kept elsewhere, offered as a link only. */
 export interface ModAwesomeEntry {
     id: string;
     name: string;

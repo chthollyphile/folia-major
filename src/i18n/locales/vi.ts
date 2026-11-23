@@ -1616,7 +1616,7 @@ export default {
         "builtin": "Tích hợp sẵn",
         "source": "Nguồn nhạc",
         "beta": "Thử nghiệm",
-        "awesome": "awesome-Folia",
+        "awesome": "Awesome-Folia",
         "expired": "Phạm vi phiên bản đã hết"
       },
       "sort": {
@@ -1627,7 +1627,7 @@ export default {
         "updates": "Có cập nhật",
         "expired": "Phạm vi phiên bản đã hết",
         "installed": "Đã cài",
-        "awesome": "awesome-Folia · Tác phẩm bên ngoài"
+        "awesome": "Awesome-Folia · Tác phẩm bên ngoài"
       },
       "categoryOther": "Khác",
       "noResults": "Không có mod nào khớp",

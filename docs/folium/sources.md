@@ -216,8 +216,8 @@ worker、子进程、本机 HTTP 服务用 Node 自带的。凭据（cookie、to
 ### 分发
 
 第三方音源模组不收进 folium-compound 仓库，也不经它签名：放在你自己的仓库里发布 zip，再到 folium-compound 开
-[「awesome-Folia 登记」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml)，以外部链接登记。
-它会出现在应用里模组市场的「awesome-Folia · 外部作品」一段，用户点「前往仓库」下载，拖进「设置 → 模组」安装（要先打开「社区模组」），
+[「Awesome-Folia 登记」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml)，以外部链接登记。
+它会出现在应用里模组市场的「Awesome-Folia · 外部作品」一段，用户点「前往仓库」下载，拖进「设置 → 模组」安装（要先打开「社区模组」），
 有问题也去你的仓库反馈。清单里写上 `repository` 和 `bugs`，模组详情里就有这两个链接。
 
 ## 7. 从实验接口 `omni.providers` 迁过来

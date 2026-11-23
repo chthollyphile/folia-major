@@ -1616,7 +1616,7 @@ export default {
         "builtin": "Built in",
         "source": "Sources",
         "beta": "Beta",
-        "awesome": "awesome-Folia",
+        "awesome": "Awesome-Folia",
         "expired": "Expired version range"
       },
       "sort": {
@@ -1627,7 +1627,7 @@ export default {
         "updates": "Updates",
         "expired": "Expired version range",
         "installed": "Installed",
-        "awesome": "awesome-Folia · Elsewhere"
+        "awesome": "Awesome-Folia · Elsewhere"
       },
       "categoryOther": "Other",
       "noResults": "No mods match",

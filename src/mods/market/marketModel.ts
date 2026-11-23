@@ -3,7 +3,7 @@ import { isEmptyModsQuery, type ModsQuery } from './modsQuery';
 
 // src/mods/market/marketModel.ts
 // One list of everything the mods view shows: the installed mods, the market catalog's mods and the
-// awesome-Folia entries, merged by id. Pure functions; the view and its tests share them.
+// Awesome-Folia entries, merged by id. Pure functions; the view and its tests share them.
 
 export type ModViewItem = {
     /** `mod:<id>` or `awesome:<id>` (an awesome entry may share an id with a mod). */

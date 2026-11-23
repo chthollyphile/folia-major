@@ -306,7 +306,7 @@ const mount = async (container, ctx) => {
 
 用户在 Folia 的「设置 → 模组」里就能浏览模组市场：按分类、关键词和筛选词（`@installed`、`@updates`、`@beta`、`@category:<id>` 等）查找，一键安装、更新、卸载。网站 [folium-compound.cielaniska.top](https://folium-compound.cielaniska.top) 是同一份目录。
 
-**音源模组和外部作品不收进仓库**：第三方音源模组（清单带 `sources`，或选用了实验接口 `omni.providers`）、系统插件、外部程序、开发工具，请在 folium-compound 开 [「awesome-Folia 登记」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml)，以外部仓库链接的形式登记在 awesome-Folia。它们同样出现在应用里的模组市场，标「外部链接」，用户点「前往仓库」到你的仓库下载和反馈。folium-compound 不取回、不审查、不签名这些作品；对提交模组的 CI 来说，音源模组会被拒绝并指向这张表单。
+**音源模组和外部作品不收进仓库**：第三方音源模组（清单带 `sources`，或选用了实验接口 `omni.providers`）、系统插件、外部程序、开发工具，请在 folium-compound 开 [「Awesome-Folia 登记」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml)，以外部仓库链接的形式登记在 Awesome-Folia。它们同样出现在应用里的模组市场，标「外部链接」，用户点「前往仓库」到你的仓库下载和反馈。folium-compound 不取回、不审查、不签名这些作品；对提交模组的 CI 来说，音源模组会被拒绝并指向这张表单。
 
 提交时在 issue 表单里选择渠道；维护者可以把正式发布的申请降为先行测试。先行测试的模组以后可以开「模组更新」issue 申请转为正式发布。
 

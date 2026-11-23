@@ -1817,7 +1817,7 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 
 「设置 → 模组」（和命令面板里的「模组」）是一个仿 VS Code 扩展视图的界面：左边是已安装的模组和模组市场合在一起的列表，右边是选中模组的详情；窄时只有一栏，点开一项进详情、带返回。代码在 `src/mods/market/`，主进程一侧在 `electron/modSystem/market.cjs`。
 
-- **列表**：没有搜索词时分段列出「有更新」「版本声明过期」「已安装」、按分类分组的市场模组、「awesome-Folia · 外部作品」，每段可以折叠。搜索框支持筛选词 `@installed` `@updates` `@enabled` `@disabled` `@builtin` `@source` `@beta` `@awesome` `@expired` `@category:<id>`，其余的词都要命中（名称、id、作者、描述、分类、标签）。
+- **列表**：没有搜索词时分段列出「有更新」「版本声明过期」「已安装」、按分类分组的市场模组、「Awesome-Folia · 外部作品」，每段可以折叠。搜索框支持筛选词 `@installed` `@updates` `@enabled` `@disabled` `@builtin` `@source` `@beta` `@awesome` `@expired` `@category:<id>`，其余的词都要命中（名称、id、作者、描述、分类、标签）。
 - **从市场安装与更新**：主进程按目录里的地址下载（只接受市场站点 `/downloads/` 下的地址，大小上限同下面的 zip），校验 SHA-256，再交给同一个 zip 安装器，并多查三项：包里的模组 id、签名渠道（正式发布要「官方认证」，先行测试要「先行测试」）、签名摘要都必须和目录登记的一致，不一致就不换入（`market-id-mismatch`、`market-signature:*`、`market-digest-mismatch`）。信任锚定在应用内置的公钥上，目录只是一张清单。装好后照常弹原生确认窗；原来启用着的模组更新后同样要再确认。「全部更新」逐个进行。
 - **检查更新**：启动约一分钟后读一次目录，之后最多每 6 小时一次（「⋯」菜单里的「自动检查模组更新」可以关）；命令面板有「打开模组市场」「检查模组更新」。目录在 `userData/mod-market/` 缓存 10 分钟，带 ETag；离线时用上次的目录并注明。
 - **卸载**：只处理用户模组目录里的模组（`user` 与 `override` 层）。原生确认后先停用、卸载运行时，再把文件夹移进回收站（`shell.trashItem`，不直接删除），清掉启用与放行记录；数据目录保留。卸掉内置音源的覆盖副本后回落到内置副本。

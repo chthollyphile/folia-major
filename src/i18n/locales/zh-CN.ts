@@ -1616,7 +1616,7 @@ export default {
         "builtin": "内置",
         "source": "音源",
         "beta": "先行测试",
-        "awesome": "awesome-Folia",
+        "awesome": "Awesome-Folia",
         "expired": "版本声明过期"
       },
       "sort": {
@@ -1627,7 +1627,7 @@ export default {
         "updates": "有更新",
         "expired": "版本声明过期",
         "installed": "已安装",
-        "awesome": "awesome-Folia · 外部作品"
+        "awesome": "Awesome-Folia · 外部作品"
       },
       "categoryOther": "其他",
       "noResults": "没有找到匹配的模组",

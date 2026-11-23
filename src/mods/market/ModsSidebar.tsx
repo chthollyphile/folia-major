@@ -15,7 +15,7 @@ import type { ModOps } from './ModsWorkbench';
 
 // src/mods/market/ModsSidebar.tsx
 // The left side of the mods view: the search box with its filter, sort and "⋯" menus, then either the
-// sections (updates, held back by their range, installed, the market by category, awesome-Folia), each
+// sections (updates, held back by their range, installed, the market by category, Awesome-Folia), each
 // folding, or one list of search results.
 
 const PILL = 'st-t-fast inline-flex h-6 items-center whitespace-nowrap rounded-md px-2 text-[11.5px] font-medium transition-[opacity,background-color] disabled:cursor-not-allowed disabled:opacity-45';

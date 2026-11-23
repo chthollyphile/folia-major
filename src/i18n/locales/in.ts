@@ -1616,7 +1616,7 @@ export default {
         "builtin": "Bawaan",
         "source": "Sumber musik",
         "beta": "Beta",
-        "awesome": "awesome-Folia",
+        "awesome": "Awesome-Folia",
         "expired": "Rentang versi kedaluwarsa"
       },
       "sort": {
@@ -1627,7 +1627,7 @@ export default {
         "updates": "Ada pembaruan",
         "expired": "Rentang versi kedaluwarsa",
         "installed": "Terpasang",
-        "awesome": "awesome-Folia · Karya di luar"
+        "awesome": "Awesome-Folia · Karya di luar"
       },
       "categoryOther": "Lainnya",
       "noResults": "Tidak ada mod yang cocok",
