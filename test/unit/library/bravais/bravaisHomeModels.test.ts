@@ -57,6 +57,22 @@ describe('resolveHomeWallMode', () => {
             .toEqual({ mode: 'infinite', filterKey: 'playlist' });
     });
 
+    it('gives browse and manage a finite collage too while the home wall is finite only', () => {
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'browse', batch: false, query: '', finiteOnly: true }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist' });
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'manage', batch: false, query: '', finiteOnly: true }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist|manage' });
+        // 过滤、批量、只看隐藏照旧（本来就是有限拼贴，过滤身份不变）。
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'browse', batch: false, query: 'jazz', finiteOnly: true }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist|browse|filter|jazz' });
+        expect(resolveHomeWallMode({ section: 'folders', visibilityMode: 'browse', batch: true, query: '', finiteOnly: true }))
+            .toEqual({ mode: 'finite', filterKey: 'folders|batch|' });
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'manage-hidden-only', batch: false, query: '', finiteOnly: true }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist|hidden-only' });
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'browse', batch: false, query: '', finiteOnly: false }))
+            .toEqual({ mode: 'infinite', filterKey: 'playlist' });
+    });
+
     it('changes the filter identity when the local row changes, so the whole wall flips', () => {
         const folders = resolveHomeWallMode({ section: 'folders', visibilityMode: 'browse', batch: false, query: '' });
         const albums = resolveHomeWallMode({ section: 'albums', visibilityMode: 'browse', batch: false, query: '' });

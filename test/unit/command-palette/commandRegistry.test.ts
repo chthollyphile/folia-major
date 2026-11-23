@@ -118,6 +118,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setLibraryWallWindowsPerBlock: vi.fn(),
             toggleLibraryWallStackEdges: vi.fn(),
             toggleLibraryWallCollectionTilt: vi.fn(),
+            toggleLibraryWallHomeFinite: vi.fn(),
             libraryWallSeamClear: vi.fn(() => false),
             toggleLibraryWallSeamClear: vi.fn(),
             libraryWallSeamStyle: vi.fn(() => 'paper' as const),

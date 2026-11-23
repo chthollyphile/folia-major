@@ -1,4 +1,4 @@
-import { Blinds, Captions, CornerUpRight, Droplets, GalleryVerticalEnd, Grid2x2, Palette, Rows3, SquareDashed } from 'lucide-react';
+import { Blinds, Captions, CornerUpRight, Droplets, Frame, GalleryVerticalEnd, Grid2x2, Palette, Rows3, SquareDashed } from 'lucide-react';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
 import { createSettingsAnchorCommand, createToggleCommand, defineCommand } from '../commandFactories';
 import {
@@ -9,7 +9,7 @@ import {
 } from '../surfaces/libraryWallLookSurface';
 
 // src/components/command-palette/commands/libraryWallLookCommands.ts
-// bravais 独有设置的命令（settings 组）：透光档位 picker、每块窗数 picker、集合叠页边开关、集合页倾斜开关、信息条方向 picker（自动 / 自动（反向）/
+// bravais 独有设置的命令（settings 组）：透光档位 picker、每块窗数 picker、首页只用有限墙开关、集合叠页边开关、集合页倾斜开关、信息条方向 picker（自动 / 自动（反向）/
 // 竖向 / 横向）、信息条始终透明开关、信息条样式 picker、墙后画面的歌词 / 模糊开关，以及跳到界面设置「Bravais 墙面」分组的锚点命令（settings-bravais）。
 // 可用性与设置分区（LibraryWallLookSettings）同一个谓词：生效 suite 是 bravais（isBravaisLibraryActive，经 context 透出，
 // 这里不 import registry）；窗数命令另要求当前档位是部分透明——别的档位没有「窗数」可调，设置分区里也不显示那一行；
@@ -63,6 +63,15 @@ export const libraryWallLookCommands: CommandPaletteCommand[] = [
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
         execute: () => false,
     }),
+    createToggleCommand(
+        'library-wall-home-finite-toggle',
+        'settings',
+        'Finite home wall',
+        'Lay the home wall out once without repeating, so dragging stops at its edges',
+        ['finite wall', 'no repeat', 'no loop', 'home wall', 'bravais', '有限墙', '不重复', '不循环', '首页墙'],
+        context => context.settings.toggleLibraryWallHomeFinite(),
+        { icon: Frame, isAvailable: isLibraryWallLookCommandAvailable },
+    ),
     createToggleCommand(
         'library-wall-stack-edges-toggle',
         'settings',
