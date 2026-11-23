@@ -58,6 +58,7 @@ const KIND_LABEL_KEYS: Record<BravaisItemKind, string> = {
     artist: 'libraryBravais.kind.artist',
     folder: 'libraryBravais.kind.folder',
     feed: 'libraryBravais.kind.feed',
+    tag: 'libraryBravais.kind.tag',
 };
 
 const NO_KEYS: ReadonlySet<string> = new Set();

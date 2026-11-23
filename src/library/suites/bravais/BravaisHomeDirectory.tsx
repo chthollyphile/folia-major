@@ -53,6 +53,7 @@ const KIND_LABEL_KEYS: Record<BravaisItemKind, string> = {
     artist: 'libraryBravais.kind.artist',
     folder: 'libraryBravais.kind.folder',
     feed: 'libraryBravais.kind.feed',
+    tag: 'libraryBravais.kind.tag',
 };
 
 export type BravaisHomeDirectoryProps = {
@@ -93,6 +94,8 @@ export type BravaisHomeDirectoryProps = {
     shortcutCards?: readonly LibraryHomeCard[];
     /** 不经墙打开直达入口的那张卡（不给就是 onOpen；Navidrome 要按卡片自己的 section 定集合类型）。 */
     openShortcut?: (card: LibraryHomeCard) => void;
+    /** 一直是有限墙（不循环重复，拖到尽头停住）：首页 Folia 的标签页签（用户定，和歌单墙区分开）。 */
+    bounded?: boolean;
 };
 
 const never = () => false;
@@ -122,6 +125,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     isDirect = never,
     shortcutCards,
     openShortcut,
+    bounded = false,
 }) => {
     const { t } = useTranslation();
 
@@ -239,8 +243,9 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     }, labels, cacheRef.current), [displayItems, hiddenIds, labels, panelOpen, selectedIds, source, visibilityMode]);
     // 「首页只用有限墙」只在来源有卡片时生效：加载中、没登录、没导入时仍是无限墙，空 slot 画成空画框（有限墙的空 slot 在
     // 透明档是窗，见 bravaisLook 的 resolveEmptySlotKind，加载期间整面墙会透成一片、也没有加载的呼吸）。卡片到了再翻成有限墙。
+    // 一直是有限墙的页（bounded，首页 Folia 的标签页签）同一条规则，只是不看开关。
     const homeFinite = useLibraryWallLookStore(state => state.homeFinite);
-    const finiteOnly = homeFinite && items.length > 0;
+    const finiteOnly = (homeFinite || bounded) && items.length > 0;
     const { mode, filterKey } = resolveHomeWallMode({ section, visibilityMode, batch: panelOpen, query: effectiveQuery, finiteOnly });
     const planCount = mode === 'finite' ? visibleItems.length : undefined;
     const wall = useMemo(() => ({

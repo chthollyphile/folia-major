@@ -7,6 +7,7 @@ import {
     DiscAlbum,
     Folder,
     FoldHorizontal,
+    Hash,
     History,
     LayoutGrid,
     ListFilter,
@@ -102,6 +103,8 @@ const SECTION_ICONS: Record<string, React.ComponentType<{ 'aria-hidden'?: boolea
     playlists: Library,
     'recently-added': CalendarPlus,
     'recently-played': History,
+    // 首页 Folia 的标签页签（速记簿「时刻」里打的标签）。
+    tags: Hash,
 };
 
 const SectionIcon: React.FC<{ section: BravaisHomeSection }> = ({ section }) => {

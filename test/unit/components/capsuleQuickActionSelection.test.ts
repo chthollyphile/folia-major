@@ -1,105 +1,106 @@
 import { describe, expect, it } from 'vitest';
-import { COMMAND_PALETTE_COMMANDS } from '../../../src/components/command-palette/commandRegistry';
-import type { CommandPaletteCommand } from '../../../src/components/command-palette/types';
 import { resolveCapsuleQuickActions } from '../../../src/components/floating-player/capsuleQuickActionSelection';
+import {
+    CAPSULE_ISLAND_MAX,
+    DEFAULT_CAPSULE_ISLAND,
+    normalizeCapsuleIsland,
+    placePlayerControl,
+    type PlayerControlLayout,
+} from '../../../src/types/playerControlSlots';
 
-// 胶囊上方浮动命令的挑选：只要声明了 capsuleAction 的、去掉槽位里已有的、此刻能用的，放不下按频次取舍。
-
-const command = (id: string, extra: Partial<CommandPaletteCommand> = {}): CommandPaletteCommand => ({
-    id,
-    group: 'playback',
-    title: id,
-    description: id,
-    keywords: [],
-    execute: () => true,
-    capsuleAction: true,
-    ...extra,
-});
+// 胶囊上的控件：浮岛按用户摆的画（去掉槽位里的、此刻用不了的、手指点开时的音量，放不下从末尾截），
+// 以及槽位与浮岛共用一个控件池的摆放规则。
 
 const always = () => true;
 
 describe('resolveCapsuleQuickActions', () => {
-    it('注册表里声明了 capsuleAction 的正好是播放交互那几条', () => {
-        const ids = COMMAND_PALETTE_COMMANDS.filter(entry => entry.capsuleAction).map(entry => entry.id).sort();
-        expect(ids).toEqual([
-            'playback-add-to-playlist',
-            'playback-like',
-            'playback-shuffle',
-            'playback-volume',
-            'settings-subtitles',
-            'visualizer-picker',
-        ]);
-    });
-
-    it('没声明的、隐藏的、此刻用不了的都不上', () => {
-        const result = resolveCapsuleQuickActions({
-            commands: [
-                command('a'),
-                command('settings-thing', { capsuleAction: undefined }),
-                command('hidden', { hidden: true }),
-                command('busy'),
-            ],
+    it('按用户摆的顺序画，去掉槽位里已有的', () => {
+        expect(resolveCapsuleQuickActions({
+            island: ['like', 'queue', 'loop', 'volume'],
             slots: ['loop', 'lyrics-timeline'],
-            canInvoke: id => id !== 'busy',
-            counts: {},
-        });
-        expect(result.map(entry => entry.id)).toEqual(['a']);
+            isAvailable: always,
+        })).toEqual(['like', 'queue', 'volume']);
     });
 
-    it('手指点开的那排不放声明了 mouse-only 的音量，鼠标的照放', () => {
-        const input = {
-            commands: COMMAND_PALETTE_COMMANDS,
-            slots: ['loop', 'lyrics-timeline'] as const,
-            canInvoke: always,
-            counts: {},
+    it('此刻用不了的不画，截断在去掉之后', () => {
+        expect(resolveCapsuleQuickActions({
+            island: ['like', 'queue', 'shuffle', 'volume'],
+            slots: [],
+            isAvailable: id => id !== 'like',
+            limit: 2,
+        })).toEqual(['queue', 'shuffle']);
+    });
+
+    it('手指点开的那一排不放音量', () => {
+        const input = { island: ['volume', 'like'] as const, slots: [], isAvailable: always };
+        expect(resolveCapsuleQuickActions(input)).toEqual(['volume', 'like']);
+        expect(resolveCapsuleQuickActions({ ...input, touch: true })).toEqual(['like']);
+    });
+});
+
+describe('normalizeCapsuleIsland', () => {
+    it('没存过用默认，去掉槽位里的', () => {
+        expect(normalizeCapsuleIsland(null, ['like', 'loop'])).toEqual(DEFAULT_CAPSULE_ISLAND.filter(id => id !== 'like'));
+    });
+
+    it('认不得的、重复的去掉，多的截掉', () => {
+        expect(normalizeCapsuleIsland(['like', 'nope', 'like', 3, 'queue'], [])).toEqual(['like', 'queue']);
+        const many = ['prev', 'next', 'shuffle', 'like', 'volume', 'queue', 'song-wall', 'sleep-timer', 'locate', 'mark-moment'];
+        expect(normalizeCapsuleIsland(many, [])).toHaveLength(CAPSULE_ISLAND_MAX);
+    });
+
+    it('空数组是用户把浮岛清空了，不回默认', () => {
+        expect(normalizeCapsuleIsland([], [])).toEqual([]);
+    });
+});
+
+describe('placePlayerControl', () => {
+    const layout: PlayerControlLayout = { primary: 'loop', secondary: 'lyrics-timeline', island: ['like', 'shuffle', 'volume'] };
+
+    it('池子里的放进槽位，原来的回池子', () => {
+        expect(placePlayerControl(layout, 'queue', { kind: 'slot', slot: 'primary' }))
+            .toEqual({ ...layout, primary: 'queue' });
+    });
+
+    it('浮岛上的放进槽位，原来的换到浮岛那个位置', () => {
+        expect(placePlayerControl(layout, 'shuffle', { kind: 'slot', slot: 'secondary' }))
+            .toEqual({ ...layout, secondary: 'shuffle', island: ['like', 'lyrics-timeline', 'volume'] });
+    });
+
+    it('另一个槽位的放过来，两个槽位互换', () => {
+        expect(placePlayerControl(layout, 'loop', { kind: 'slot', slot: 'secondary' }))
+            .toEqual({ ...layout, primary: 'lyrics-timeline', secondary: 'loop' });
+    });
+
+    it('放回原处不算一步', () => {
+        expect(placePlayerControl(layout, 'loop', { kind: 'slot', slot: 'primary' })).toBeNull();
+        expect(placePlayerControl(layout, 'shuffle', { kind: 'island', index: 1 })).toBeNull();
+    });
+
+    it('浮岛里挪位置、从池子里插进去', () => {
+        expect(placePlayerControl(layout, 'volume', { kind: 'island', index: 0 })?.island).toEqual(['volume', 'like', 'shuffle']);
+        expect(placePlayerControl(layout, 'like', { kind: 'island', index: 2 })?.island).toEqual(['shuffle', 'volume', 'like']);
+        expect(placePlayerControl(layout, 'queue', { kind: 'island', index: 1 })?.island).toEqual(['like', 'queue', 'shuffle', 'volume']);
+    });
+
+    it('浮岛满了，池子里的插不进去，浮岛里挪位置照样行', () => {
+        const full: PlayerControlLayout = {
+            ...layout,
+            island: ['like', 'shuffle', 'volume', 'queue', 'prev', 'next', 'locate', 'sleep-timer'],
         };
-        expect(resolveCapsuleQuickActions(input).map(entry => entry.id)).toContain('playback-volume');
-        const touchIds = resolveCapsuleQuickActions({ ...input, touch: true }).map(entry => entry.id);
-        expect(touchIds).not.toContain('playback-volume');
-        expect(touchIds).toHaveLength(5);
+        expect(placePlayerControl(full, 'song-wall', { kind: 'island', index: 0 })).toBeNull();
+        expect(placePlayerControl(full, 'sleep-timer', { kind: 'island', index: 0 })?.island[0]).toBe('sleep-timer');
     });
 
-    it('已经在槽位里的不重复', () => {
-        const result = resolveCapsuleQuickActions({
-            commands: [command('playback-like'), command('playback-volume'), command('visualizer-picker')],
-            slots: ['like', 'volume'],
-            canInvoke: always,
-            counts: {},
-        });
-        expect(result.map(entry => entry.id)).toEqual(['visualizer-picker']);
+    it('槽位里的不能插进浮岛（槽位会空），只能和浮岛上的互换', () => {
+        expect(placePlayerControl(layout, 'loop', { kind: 'island', index: 0 })).toBeNull();
+        expect(placePlayerControl(layout, 'loop', { kind: 'island-swap', index: 2 }))
+            .toEqual({ ...layout, primary: 'volume', island: ['like', 'shuffle', 'loop'] });
     });
 
-    it('默认槽位（循环 + 歌词时间轴）下白名单六条全放得下，歌词样式选择器不会被挤掉', () => {
-        const result = resolveCapsuleQuickActions({
-            commands: COMMAND_PALETTE_COMMANDS,
-            slots: ['loop', 'lyrics-timeline'],
-            canInvoke: always,
-            counts: {},
-        });
-        expect(result).toHaveLength(6);
-        expect(result.map(entry => entry.id)).toContain('visualizer-picker');
-    });
-
-    it('用不了的在截断之前去掉，不占名额', () => {
-        const result = resolveCapsuleQuickActions({
-            commands: ['a', 'b', 'c', 'd'].map(id => command(id)),
-            slots: ['loop', 'lyrics-timeline'],
-            canInvoke: id => id !== 'a',
-            counts: {},
-            limit: 3,
-        });
-        expect(result.map(entry => entry.id)).toEqual(['b', 'c', 'd']);
-    });
-
-    it('放不下时按频次留，留下的仍按注册表顺序排；次数相同取靠前的', () => {
-        const commands = ['a', 'b', 'c', 'd'].map(id => command(id));
-        const result = resolveCapsuleQuickActions({
-            commands,
-            slots: ['loop', 'lyrics-timeline'],
-            canInvoke: always,
-            counts: { d: 9, b: 3 },
-            limit: 3,
-        });
-        expect(result.map(entry => entry.id)).toEqual(['a', 'b', 'd']);
+    it('只有浮岛上的能放回池子', () => {
+        expect(placePlayerControl(layout, 'like', { kind: 'pool' })?.island).toEqual(['shuffle', 'volume']);
+        expect(placePlayerControl(layout, 'loop', { kind: 'pool' })).toBeNull();
+        expect(placePlayerControl(layout, 'queue', { kind: 'pool' })).toBeNull();
     });
 });

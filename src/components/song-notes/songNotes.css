@@ -1,0 +1,126 @@
+/* src/components/song-notes/songNotes.css — 播放条上的歌曲评论（SongNoteProgress）：进度条下方的小点与悬停的小纸条、
+   胶囊槽位「记下这个时刻」弹出的小框。
+   点的颜色跟着进度条走（--folium-progress-*，ProgressBar 写在根节点上）；小签和小框是胶囊那层半透明玻璃（capsuleGlass），字跟歌曲主题色。 */
+
+.song-note-marks { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+
+/* 一个点：进度条下方 4px 的圆点。点击区只在轨道下面（不压在轨道上），轨道本身照样能拖。 */
+.song-note-mark {
+    position: absolute;
+    top: calc(100% + 1px);
+    width: 12px;
+    height: 10px;
+    margin-left: -6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.song-note-mark::before {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--folium-progress-fill);
+    opacity: 0.75;
+    content: '';
+    transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.song-note-mark:disabled { cursor: default; pointer-events: none; }
+.song-note-mark:hover::before,
+.song-note-mark:focus-visible::before { opacity: 1; transform: scale(1.5); }
+.song-note-mark:focus-visible { outline: none; }
+
+/* 悬停的小签：挂在 body 上（胶囊会裁掉溢出的东西），钉在点的上方。表面是胶囊那层半透明玻璃（capsuleGlass，组件里加的类）。 */
+.song-note-mark-tip {
+    position: fixed;
+    z-index: 160;
+    display: flex;
+    width: max-content;
+    max-width: 240px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    text-align: left;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.song-note-mark-tip b { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10.5px; opacity: 0.7; }
+
+.song-note-mark-tip span {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
+/* 「记下这个时刻」小框：挂在 body 上，钉在点下的按钮上方。和换按钮的浮层同一层玻璃、同一档圆角，字跟歌曲主题色。 */
+.song-note-pin-popover {
+    position: fixed;
+    z-index: 160;
+    display: flex;
+    width: 280px;
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 20px;
+}
+
+.song-note-pin-popover-head { display: flex; align-items: center; gap: 8px; }
+
+.song-note-pin-popover-at {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.song-note-pin-popover-title { flex: 1 1 auto; font-size: 12.5px; font-weight: 700; }
+
+.song-note-pin-popover-close {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+}
+
+.song-note-pin-popover-close:hover { opacity: 1; background: color-mix(in srgb, currentColor 10%, transparent); }
+.song-note-pin-popover-close svg { width: 14px; height: 14px; }
+
+.song-note-pin-popover-input {
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 9%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+}
+
+.song-note-pin-popover-input::placeholder { color: inherit; opacity: 0.45; }
+.song-note-pin-popover-input:focus-visible { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 35%, transparent); }
+
+.song-note-pin-popover-hint { padding: 0 4px; font-size: 10.5px; opacity: 0.55; }

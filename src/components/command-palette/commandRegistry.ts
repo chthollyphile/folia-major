@@ -14,10 +14,11 @@ export { getCommandPaletteMatches, matchCommandsExactly, rankCommands } from './
 export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = ALL_COMMAND_PALETTE_COMMANDS;
 
 // The slices installed into the list at run time, each replaced whole by its setter.
-const installedSlices: Record<'suite-chrome' | 'provider-search' | 'source-switch', readonly CommandPaletteCommand[]> = {
+const installedSlices: Record<'suite-chrome' | 'provider-search' | 'source-switch' | 'song-note-tags', readonly CommandPaletteCommand[]> = {
     'suite-chrome': [],
     'provider-search': [],
     'source-switch': [],
+    'song-note-tags': [],
 };
 
 // Replaces one installed slice, re-checking the static list's invariants over the combined list: a duplicate id
@@ -70,6 +71,14 @@ export const setProviderSearchCommands = (commands: readonly CommandPaletteComma
  */
 export const setSourceSwitchCommands = (commands: readonly CommandPaletteCommand[]) => {
     installSlice('source-switch', commands);
+};
+
+/**
+ * Puts the #tag commands (one per song-note tag, songNoteTagCommandsInstaller.ts) into the list, replacing the ones an
+ * earlier call put there. Installed again whenever the tags change, with the same checks.
+ */
+export const setSongNoteTagCommands = (commands: readonly CommandPaletteCommand[]) => {
+    installSlice('song-note-tags', commands);
 };
 
 // Availability is declared on each command: `platform` gates the environment, `scope` gates the

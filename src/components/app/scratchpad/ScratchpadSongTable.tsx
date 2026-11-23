@@ -62,6 +62,7 @@ function SongTableRowView({ ariaAttributes, index, style, rows, primaryLabel, cu
                     )}
                     {row.meta ?? getSongArtistLabel(row.song)}
                 </span>
+                {row.noteLine && <span className="scratchpad-row-noteline">{row.noteLine}</span>}
             </button>
             <span className="scratchpad-row-actions">
                 <button

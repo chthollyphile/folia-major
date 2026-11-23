@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { ListPlus, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
+import { ListPlus, NotebookPen, Play, Star, Tag, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { groupScratchpadEntries, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
@@ -19,12 +19,20 @@ import ScratchpadEdge from './ScratchpadEdge';
 import ScratchpadPanel from './ScratchpadPanel';
 import ScratchpadSheet, { ScratchpadBandActions } from './ScratchpadSheet';
 import ScratchpadOverview from './ScratchpadOverview';
+import ScratchpadComments from './ScratchpadComments';
+import { useSongNotesCount } from '../../song-notes/useSongNotesStore';
+import { openSongComments } from '../../song-notes/songNoteNavigation';
+import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+import ScratchpadTagPopovers from './ScratchpadTagPopovers';
+import { closeTagPopover, openBatchTagger } from './songNoteTagPopoverStore';
+import { useSongNoteChipLines } from './useSongNoteChipLines';
 import { NOTE_SPACING } from './canvasLayout';
 import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 import { useSlimOrder } from './scratchpadPaper';
 import './scratchpad.css';
+import './comments.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
 // 速记簿的界面：左缘的把手和从左边滑出的抽屉（设计稿 plan/scratchpad-spec.md）。抽屉非模态——不加遮罩、不抢焦点，
@@ -45,6 +53,8 @@ export type ScratchpadPlayback = {
     enqueueAll: (songs: SongResult[]) => void;
     /** 换掉队列，从第一首播起。 */
     replaceQueue: (songs: SongResult[]) => void;
+    /** 跳到正在播的这首的某个位置（秒）：「评论」页点时间轴注释。 */
+    seek: (time: number) => void;
 };
 
 /** App 交给速记簿「播放队列」页的动作（身份稳定，执行时读最新的队列）。 */
@@ -69,7 +79,7 @@ type ScratchpadHostProps = {
 const TABS = SCRATCHPAD_TABS;
 
 /** 各页的全名（展开整页里那一页区域的名字）。 */
-const PAGE_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
+const PAGE_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue', comments: 'songNotes.title' };
 
 /** 清空的第二下要在这么久之内点，过了就复原。 */
 const CLEAR_CONFIRM_MS = 3000;
@@ -157,6 +167,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     })));
     const groups = useMemo(() => groupScratchpadEntries(entries), [entries]);
     const queueLength = usePlaybackStore(state => state.playQueue.length);
+    // 「评论」页的计数：写过评论或打过标签的歌有几首（库里读，抽屉关着也读——把手不显示它，只在纸上用）。
+    const commentsCount = useSongNotesCount();
     // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
     const showHandle = useScratchpadSettingsStore(state => state.showHandle);
     const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
@@ -166,6 +178,12 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const handleStyle = useScratchpadSettingsStore(state => state.handleStyle);
     const listRef = useRef<HTMLDivElement>(null);
     const [confirmingClear, setConfirmingClear] = useState(false);
+    // 卡片、行上那一小行标签与评论数（抽屉开着才读）。
+    const noteLines = useSongNoteChipLines(isOpen);
+    // 标签小浮层跟着抽屉：换页、展开收回、关掉抽屉时收起。
+    useEffect(() => {
+        closeTagPopover();
+    }, [isExpanded, isOpen, tab]);
 
     // 新收进来的行：和上一批条目比出来，闪一下底色；列表开着时滚到第一条新行。
     const seenKeysRef = useRef<Set<string>>(new Set(entries.map(entry => entry.key)));
@@ -238,10 +256,11 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
             entries: group.entries.map(entry => ({
                 ...entry,
                 meta: [getSongArtistLabel(entry.song), entry.origin?.label].filter(Boolean).join(' · '),
+                noteLine: noteLines.get(getPlaybackSongKey(entry.song)),
             })),
             buttons: sourceGroupButtons(t, actions.canAddToPlaylist(sample), () => actions.enqueue(group.entries), () => actions.addToPlaylist(group.entries)),
         };
-    }), [actions, groups, t]);
+    }), [actions, groups, noteLines, t]);
     const removeEntries = useCallback((list: ScratchpadEntry[]) => actions.remove(list.map(entry => entry.key)), [actions]);
     // 选中后的菜单：入队、加入歌单（来源不同也行，收藏框的 Folia 栏收任何来源）、移出速记簿。
     const notesSelectionActions = useCallback((list: ScratchpadEntry[]): ScratchpadAction[] => {
@@ -254,9 +273,11 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                 run: () => actions.addToPlaylist(list),
                 disabled: list.length === 0 || !list.every(entry => actions.canAddToPlaylist(entry.song)),
             },
+            { id: 'tag', label: t('songNotes.batchTag'), icon: Tag, run: () => openBatchTagger(list.map(entry => entry.song)) },
             { id: 'remove', label: t('scratchpad.removeSelected'), icon: Trash2, run: () => actions.remove(list.map(entry => entry.key)) },
         ];
     }, [actions, t]);
+    const commentOn = useCallback((entry: { song: SongResult }) => openSongComments(entry.song), []);
 
     // 「全部」按界面上看到的顺序（按组），与画布里全选后入队一致。
     const songs = useMemo(() => groups.flatMap(group => group.entries.map(entry => entry.song)), [groups]);
@@ -490,7 +511,9 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                     animate="center"
                     exit="exit"
                 >
-                    {tab === 'history' ? (
+                    {tab === 'comments' ? (
+                        <ScratchpadComments playback={playback} expanded={isExpanded} onCollapse={collapseCanvas} />
+                    ) : tab === 'history' ? (
                         <>
                             {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>}
                             <ScratchpadHistory playback={playback} expanded={isExpanded} onCollapse={collapseCanvas} />
@@ -525,11 +548,13 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                                         onDelete={removeEntries}
                                         selectionActions={notesSelectionActions}
                                         onEscape={collapseCanvas}
+                                        onComment={commentOn}
+                                        commentLabel={t('songNotes.openComments')}
                                     />
                                 </>
                             ) : (
                                 <>
-                                    <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
+                                    <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} noteLines={noteLines} />
                                     {footer}
                                 </>
                             )}
@@ -583,6 +608,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             tab={tab}
                             notesCount={entries.length}
                             queueCount={queueLength}
+                            commentsCount={commentsCount}
                             slimOrder={slimOrder}
                             onSelectTab={setTab}
                             onClose={() => setOpen(false)}
@@ -590,12 +616,15 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             expandDisabled={tab === 'notes' && entries.length === 0}
                             onExpand={() => setExpanded(true)}
                             expandRef={toggleCanvasRef}
+                            showIntro={tab !== 'comments'}
                         >
                             {tabPanel}
                         </ScratchpadPanel>
                     </motion.aside>
                 )}
             </AnimatePresence>
+            {/* 标签小浮层（整理标签、批量打标签）：贴着打开它的按钮，fixed。 */}
+            {isOpen && <ScratchpadTagPopovers />}
             <AnimatePresence>
                 {isOpen && isExpanded && (
                     <motion.aside
@@ -615,6 +644,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             tab={tab}
                             notesCount={entries.length}
                             queueCount={queueLength}
+                            commentsCount={commentsCount}
                             tilt={tilt}
                             calm={calm}
                             slimOrder={slimOrder}

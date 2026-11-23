@@ -33,6 +33,8 @@ interface Grid3DSliderProps {
     emptyMessage?: string;
     isDaylight: boolean;
     hasFloatingPlayer?: boolean;
+    /** 卡与卡之间的空隙（px）；缺省 GRID3D_CARD_GAP。首页 Folia 的标签页签给得更宽（用户定，和歌单区分开）。 */
+    cardGap?: number;
 }
 
 const compactDescription = (description?: string, maxLength = 72) => {
@@ -224,6 +226,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
     emptyMessage,
     isDaylight,
     hasFloatingPlayer = false,
+    cardGap = GRID3D_CARD_GAP,
 }) => {
     const { t } = useTranslation();
     const grid3dCardStyle = useHomeLayoutSettingsStore(state => state.grid3dCardStyle);
@@ -326,11 +329,11 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
 
     const { start: windowStart, end: windowEnd } = getGrid3DWindowRange(safeFocusedIndex, items.length);
     const windowedItems = items.slice(windowStart, windowEnd);
-    const cardPitch = coverSize + GRID3D_CARD_GAP;
+    const cardPitch = coverSize + cardGap;
     const leadingSpacerWidth = windowStart * cardPitch;
     const remainingItemCount = items.length - windowEnd;
     const trailingSpacerWidth = remainingItemCount > 0
-        ? remainingItemCount * coverSize + Math.max(0, remainingItemCount - 1) * GRID3D_CARD_GAP
+        ? remainingItemCount * coverSize + Math.max(0, remainingItemCount - 1) * cardGap
         : 0;
 
     const updateCardTransforms = useCallback(() => {
@@ -820,7 +823,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
                                     key={item.id}
                                     data-grid3d-index={index}
                                     className="shrink-0 cursor-pointer pointer-events-auto select-none"
-                                    style={{ marginRight: index < items.length - 1 ? GRID3D_CARD_GAP : 0 }}
+                                    style={{ marginRight: index < items.length - 1 ? cardGap : 0 }}
                                     onClick={() => {
                                         if (!isInteractive || dragDistanceRef.current >= 8) return;
                                         if (isFocused) {

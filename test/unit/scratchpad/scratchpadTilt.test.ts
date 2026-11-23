@@ -7,6 +7,7 @@ import {
     PHOTO_SPACING,
     OVERVIEW_ROW_BLOCK,
     OVERVIEW_ROW_MIN_STEP,
+    OVERVIEW_ROW_TUCKED_STEP,
     cardRect,
     cardSize,
     columnsFor,
@@ -134,17 +135,20 @@ describe('band decorations', () => {
     });
 });
 
-describe('three-row overview layout', () => {
+describe('four-row overview layout', () => {
     it('keeps the design positions on a tall window', () => {
         const tops = overviewRowTops(900);
-        expect(tops[0]).toBeCloseTo(116.1, 1);
+        expect(tops).toHaveLength(4);
+        expect(tops[0]).toBeCloseTo(63, 1);
         // The minimum step (a row is as tall as the tallest card) wins over the design ratio here.
-        expect(tops[1]).toBeCloseTo(116.1 + OVERVIEW_ROW_MIN_STEP, 1);
-        expect(tops[2]).toBeCloseTo(116.1 + 2 * OVERVIEW_ROW_MIN_STEP, 1);
+        for (let index = 1; index < 4; index += 1) {
+            expect(tops[index]).toBeCloseTo(63 + index * OVERVIEW_ROW_MIN_STEP, 1);
+        }
+        expect(tops[3] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(900 - 8);
     });
 
-    it('never lets a row run into the next one', () => {
-        for (const height of [560, 640, 700, 768, 824, 900, 1080]) {
+    it('never lets a row run into the next one while the window has room for it', () => {
+        for (const height of [788, 824, 900, 1080]) {
             const tops = overviewRowTops(height);
             for (let index = 1; index < tops.length; index += 1) {
                 expect(tops[index] - tops[index - 1]).toBeGreaterThanOrEqual(OVERVIEW_ROW_BLOCK - 1e-9);
@@ -152,15 +156,19 @@ describe('three-row overview layout', () => {
         }
     });
 
-    it('keeps the third row inside a short window, moving up before squeezing', () => {
+    it('keeps the last row inside a short window, moving up before squeezing', () => {
         const tops = overviewRowTops(760);
-        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(760 - 8 + 1e-9);
-        expect(tops[1] - tops[0]).toBeGreaterThanOrEqual(OVERVIEW_ROW_BLOCK);
+        expect(tops[3] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(760 - 8 + 1e-9);
+        // Shorter than four full rows: they tuck a little under one another, never more than the tucked step.
+        expect(tops[1] - tops[0]).toBeGreaterThanOrEqual(OVERVIEW_ROW_TUCKED_STEP - 1e-9);
         expect(tops[0]).toBeGreaterThanOrEqual(36);
+        const tiny = overviewRowTops(560);
+        expect(tiny[1] - tiny[0]).toBeCloseTo(OVERVIEW_ROW_TUCKED_STEP, 6);
         // Tall enough to keep the full spacing once moved up: no squeezing.
-        const roomy = overviewRowTops(820);
+        const roomy = overviewRowTops(840);
+        expect(roomy[0]).toBeLessThan(0.07 * 840);
         expect(roomy[1] - roomy[0]).toBeCloseTo(OVERVIEW_ROW_MIN_STEP, 6);
-        expect(roomy[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(820 - 8 + 1e-9);
+        expect(roomy[3] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(840 - 8 + 1e-9);
     });
 });
 
@@ -175,8 +183,8 @@ describe('tilted safe area', () => {
     it('keeps the overview clear of the sunk right end when the window has room for it', () => {
         const inset = overviewBottomInset(1760, 6);
         const tops = overviewRowTops(860, inset);
-        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(860 - 8 - inset + 1e-9);
+        expect(tops[3] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(860 - 8 - inset + 1e-9);
         // Without the inset the last row would have stayed lower.
-        expect(overviewRowTops(860)[2]).toBeGreaterThan(tops[2]);
+        expect(overviewRowTops(860)[3]).toBeGreaterThan(tops[3]);
     });
 });

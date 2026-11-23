@@ -60,7 +60,7 @@ export const resolveHomeWallMode = ({
     batch: boolean;
     /** 这一页的过滤词（目录会话的 query；浏览、管理隐藏、批量模式里都生效）。 */
     query: string;
-    /** 首页只用有限墙（设置开关）：浏览与「管理隐藏」也给有限拼贴，不循环重复。 */
+    /** 首页只用有限墙（设置开关；首页 Folia 的标签页签一直这样）：浏览与「管理隐藏」也给有限拼贴，不循环重复。 */
     finiteOnly?: boolean;
 }): BravaisHomeWallMode => {
     const text = query.trim();

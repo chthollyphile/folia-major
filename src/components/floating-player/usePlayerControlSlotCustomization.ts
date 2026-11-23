@@ -30,15 +30,11 @@ export const usePlayerControlSlotCustomization = (
     const openPrimaryPicker = useCallback((anchorRect: DOMRect) => setSlotPicker({ side: 'primary', anchorRect }), []);
     const openSecondaryPicker = useCallback((anchorRect: DOMRect) => setSlotPicker({ side: 'secondary', anchorRect }), []);
 
-    // 选中另一个槽位正放着的动作时两个槽位互换，不让两个按钮变成同一个。
+    // 选中另一个槽位、或浮岛上正放着的动作时，原来的那个和它互换（store 的 handleSetPlayerControlSlot），不让一个控件出现两次。
     const assignSlot = useCallback((side: PlayerControlSlotSide, actionId: PlayerControlSlotActionId) => {
         const current = side === 'primary' ? slotPrimary : slotSecondary;
-        const other = side === 'primary' ? slotSecondary : slotPrimary;
         if (actionId === current) {
             return;
-        }
-        if (actionId === other) {
-            setSlot(side === 'primary' ? 'secondary' : 'primary', current);
         }
         setSlot(side, actionId);
         setIsShowingChange(true);

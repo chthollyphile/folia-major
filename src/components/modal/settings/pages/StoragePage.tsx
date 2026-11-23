@@ -35,7 +35,8 @@ const StoragePage: React.FC = () => {
     const setCacheLimitGb = useAudioSettingsStore(state => state.handleSetMediaCacheLimitGb);
     const [clearingAll, setClearingAll] = useState<'no' | 'asking' | 'running'>('no');
 
-    // Everything the app stored goes, so it starts again from an empty state.
+    // Everything the app stored goes, so it starts again from an empty state — except song comments
+    // (FoliaSongNotesDB), which the user chose to keep (2026-11-24); the confirm text says so.
     const clearEverything = async () => {
         setClearingAll('running');
         await clearAllData();

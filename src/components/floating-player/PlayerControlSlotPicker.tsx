@@ -13,7 +13,8 @@ const PICKER_WIDTH_PX = 296;
 const VIEWPORT_MARGIN_PX = 8;
 const ANCHOR_GAP_PX = 12;
 
-export type PlayerControlSlotSide = 'primary' | 'secondary';
+export type { PlayerControlSlotSide } from '../../types/playerControlSlots';
+import type { PlayerControlSlotSide } from '../../types/playerControlSlots';
 
 interface PlayerControlSlotPickerProps {
     /** 打开那一刻量到的槽位按钮位置；胶囊在浮层打开期间保持展开，位置不会再变。 */

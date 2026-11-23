@@ -183,7 +183,7 @@ describe('PonderSurfaceContents', () => {
     it('换按钮的浮层一格一个可放的动作', () => {
         const markup = renderSurface('slot-picker');
         expect(markup).toContain('data-ponder-slot-picker');
-        expect(markup.match(/data-ponder-slot-picker-option/g)).toHaveLength(11);
+        expect(markup.match(/data-ponder-slot-picker-option/g)).toHaveLength(15);
     });
 
     it('自定义快捷键画的是两颗键帽加一个下拉，Alt 那颗是印死的', () => {

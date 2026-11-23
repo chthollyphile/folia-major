@@ -21,7 +21,8 @@ export const resolveBravaisTileForm = (item: Pick<BravaisItem, 'kind' | 'direct'
         case 'artist': return 'portrait';
         case 'album':
         case 'playlist':
-        case 'folder': return 'stack';
+        case 'folder':
+        case 'tag': return 'stack';
         case 'feed': return item.direct ? 'poster' : 'stack';
         default: return 'poster';
     }
