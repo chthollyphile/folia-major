@@ -60,11 +60,12 @@ export const usePlayerControlSlotSuggestionStore = create<PlayerControlSlotSugge
     pending: null,
     offered: readOffered(),
     noteCommandUse: (commandId, useCount) => {
-        const { playerControlSlotPrimary, playerControlSlotSecondary } = usePlayerChromeSettingsStore.getState();
+        const { playerControlSlotPrimary, playerControlSlotSecondary, playerCapsuleIsland } = usePlayerChromeSettingsStore.getState();
         const actionId = resolvePlayerControlSlotSuggestion({
             commandId,
             useCount,
-            slots: [playerControlSlotPrimary, playerControlSlotSecondary],
+            // 已经摆在浮岛上的也不提：它已经在胶囊上了。
+            slots: [playerControlSlotPrimary, playerControlSlotSecondary, ...playerCapsuleIsland],
             offered: get().offered,
         });
         if (actionId && get().pending !== actionId) {

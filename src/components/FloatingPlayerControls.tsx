@@ -31,7 +31,7 @@ import { HifiProgressRow } from './hifi/HifiBadge';
 import { useIsHifiRoute } from './hifi/useHifiSignalPath';
 import { selectWallLocate, useBottomDockStore, type DockCapsuleState } from '../stores/useBottomDockStore';
 import { COMPACT_CAPSULE_BASE_BOTTOM_PX } from '../utils/playerBottomBarLayout';
-import { CAPSULE_QUICK_ACTION_LIMIT } from './floating-player/capsuleQuickActionSelection';
+import { CAPSULE_ISLAND_MAX } from '../types/playerControlSlots';
 import {
     COMPACT_CAPSULE_RADIUS_PX,
     CompactCapsuleBorder,
@@ -147,10 +147,10 @@ interface FloatingPlayerControlsProps {
  * 和按钮大小（手指 44、鼠标 32，各带 2px 间隔）算。只在这一行出现时按窗口宽度算一次，不量元素。
  */
 const resolveCompactQuickActionLimit = (touch: boolean): number => {
-    if (typeof window === 'undefined') return CAPSULE_QUICK_ACTION_LIMIT;
+    if (typeof window === 'undefined') return CAPSULE_ISLAND_MAX;
     const inner = Math.min(window.innerWidth - 24, 520) - 16;
     const button = (touch ? 44 : 32) + 2;
-    return Math.max(2, Math.min(CAPSULE_QUICK_ACTION_LIMIT, Math.floor((inner - button - 8) / button)));
+    return Math.max(2, Math.min(CAPSULE_ISLAND_MAX, Math.floor((inner - button - 8) / button)));
 };
 
 

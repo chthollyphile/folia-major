@@ -87,10 +87,11 @@ export const listenSongNotesBroadcast = (handler: (change: SongNotesRemoteChange
 };
 
 /** 本窗口的写事务提交之后叫：告诉别的窗口哪几首歌的评论变了。发不出去只记日志。 */
-export const announceSongNotesChange = (songKeys: readonly string[]): void => {
+export const announceSongNotesChange = (songKeys: readonly string[] | 'all'): void => {
     const channel = openChannel();
     if (!channel) return;
-    const message: Wire = songKeys.length > MAX_KEYS
+    // 'all'：改的是标签本身（改名、合并、删除、换先后）或一大批歌，别的窗口全部重读。
+    const message: Wire = songKeys === 'all' || songKeys.length > MAX_KEYS
         ? { v: 1, from: state.senderId, all: true }
         : { v: 1, from: state.senderId, songKeys: [...songKeys] };
     try {

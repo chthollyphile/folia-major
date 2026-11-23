@@ -50,6 +50,7 @@ export const resolveHomeWallMode = ({
     visibilityMode,
     batch,
     query,
+    bounded = false,
 }: {
     /** 二级切换的 section（在线页签给页签自己）。 */
     section: string;
@@ -58,9 +59,13 @@ export const resolveHomeWallMode = ({
     batch: boolean;
     /** 这一页的过滤词（目录会话的 query；浏览、管理隐藏、批量模式里都生效）。 */
     query: string;
+    /** 这一页一直是有限墙（首页 Folia 的标签页签）：不过滤时也不循环重复。 */
+    bounded?: boolean;
 }): BravaisHomeWallMode => {
     const text = query.trim();
     if (batch) return { mode: 'finite', filterKey: `${section}|batch|${text}` };
+    // 一直是有限墙的页（首页 Folia 的标签页签）：浏览、管理隐藏都不循环重复；过滤身份照旧带上模式和词。
+    if (bounded) return { mode: 'finite', filterKey: `${section}|bounded|${visibilityMode}${text ? `|${text}` : ''}` };
     // 当前页过滤（设计稿 §7.6 / §4）：过滤中退化为以缝为中心的有限拼贴（不重复）；过滤身份带上词，换词就从缝的两侧翻。
     if (visibilityMode === 'manage-hidden-only') return { mode: 'finite', filterKey: `${section}|hidden-only${text ? `|${text}` : ''}` };
     if (text) return { mode: 'finite', filterKey: `${section}|${visibilityMode}|filter|${text}` };

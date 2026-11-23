@@ -35,6 +35,9 @@
     transition: box-shadow 600ms ease, filter 600ms ease, transform 300ms ease-out;
 }
 
+/* 首页 Folia「标签」页签的卡：四边各收进一截，卡与卡之间的空隙比歌单墙宽得多（用户定，和歌单墙区分开）。只改画法，格子不变。 */
+.bravais-tile[data-bravais-kind="tag"] > .bravais-tile-face { inset: 16px; }
+
 /* 悬停与键盘焦点：四边各外扩一个 GAP（--bravais-pop-x / -y 由外框按自己的尺寸给出）。 */
 .bravais-tile:hover > .bravais-tile-face:not(.is-wall):not(.is-expanded),
 .bravais-tile.is-focused > .bravais-tile-face:not(.is-wall):not(.is-expanded) {

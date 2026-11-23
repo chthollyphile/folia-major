@@ -23,7 +23,8 @@ import {
 // 最新一条），标签和评论都删光了就删掉这一行。事务提交之后告诉本窗口的订阅者（useSongNotesStore）和别的窗口（songNotesBroadcast）。
 // 写不进去（库打不开、配额满）返回 failed，由界面报错；这里只记日志，不弹提示。
 
-export type SongNoteWriteError = 'stage' | 'tooManyComments' | 'tooManyTags' | 'empty' | 'notFound' | 'failed';
+/** conflict：改名改成了另一个已有的标签（界面问过要不要合并，再带 merge 重来）。 */
+export type SongNoteWriteError = 'stage' | 'tooManyComments' | 'tooManyTags' | 'empty' | 'notFound' | 'conflict' | 'failed';
 export type SongNoteResult<T> = { ok: true; value: T } | { ok: false; error: SongNoteWriteError };
 
 /** 一首歌的评论：这一行（没写过就是 null）和它的全部评论（按写的时间）。 */
@@ -42,7 +43,7 @@ export const emitSongNotesChange = (songKeys: readonly string[] | 'all'): void =
     for (const listener of listeners) listener(songKeys);
 };
 
-const changed = (songKeys: readonly string[]) => {
+const changed = (songKeys: readonly string[] | 'all') => {
     emitSongNotesChange(songKeys);
     announceSongNotesChange(songKeys);
 };
@@ -67,7 +68,11 @@ const refreshRow = async (db: SongNotesDatabase, key: string, now: number, row: 
     });
 };
 
-const runWrite = async <T>(label: string, work: (db: SongNotesDatabase) => Promise<SongNoteResult<T>>, keys: () => readonly string[]): Promise<SongNoteResult<T>> => {
+const runWrite = async <T>(
+    label: string,
+    work: (db: SongNotesDatabase) => Promise<SongNoteResult<T>>,
+    keys: () => readonly string[] | 'all',
+): Promise<SongNoteResult<T>> => {
     const db = songNotesDatabase();
     try {
         const result = await db.transaction('rw', db.songs, db.comments, db.tags, () => work(db));
@@ -212,3 +217,185 @@ export const removeSongTag = async (songKey: string, tagKey: string, now = Date.
         return { ok: true, value: undefined };
     }, () => [songKey])
 );
+
+/** 每个标签下几首（走 tags 的 multiEntry 索引，只读 key，不读歌的快照）。命令 #标签 用。 */
+export const countSongNoteTags = async (): Promise<Map<string, number>> => {
+    const counts = new Map<string, number>();
+    try {
+        const keys = await songNotesDatabase().songs.orderBy('tags').keys();
+        for (const key of keys) if (typeof key === 'string') counts.set(key, (counts.get(key) ?? 0) + 1);
+    } catch (error) {
+        console.warn('[SongNotes] tag count failed', error);
+    }
+    return counts;
+};
+
+/** 全部写过评论或打过标签的歌（新的在前）：「时刻」展开整页按标签分组、首页的标签页签、另外三页卡片上的标签小条都从它来。 */
+export const listAllSongNotes = async (): Promise<SongNoteRow[]> => {
+    try {
+        return await songNotesDatabase().songs.orderBy('updatedAt').reverse().toArray();
+    } catch (error) {
+        console.warn('[SongNotes] list all failed', error);
+        return [];
+    }
+};
+
+/**
+ * 搜：歌名、歌手、专辑、标签的写法、评论的字里有这段话的歌（不分大小写）。返回这些歌的 key。
+ * 评论表整张扫一遍（一首最多 1000 条，库里通常几千条）：只在展开整页的搜索框里用，打字停下来才搜。
+ */
+export const searchSongNoteKeys = async (query: string): Promise<Set<string>> => {
+    // 标签处处写成「#标签」：搜「#rock」也找得到 rock。
+    const needle = query.trim().replace(/^[#＃]+/u, '').trim().toLocaleLowerCase();
+    const found = new Set<string>();
+    if (!needle) return found;
+    try {
+        const db = songNotesDatabase();
+        const [rows, tags] = await Promise.all([db.songs.toArray(), db.tags.toArray()]);
+        const tagHits = new Set(tags.filter(tag => tag.name.toLocaleLowerCase().includes(needle)).map(tag => tag.key));
+        for (const row of rows) {
+            const song = row.song;
+            const text = [song.name, ...song.artists.map(artist => artist.name), song.album.name].join('\n').toLocaleLowerCase();
+            if (text.includes(needle) || row.tags.some(key => tagHits.has(key) || key.includes(needle))) found.add(row.key);
+        }
+        await db.comments.each(comment => {
+            if (!found.has(comment.songKey) && comment.text.toLocaleLowerCase().includes(needle)) found.add(comment.songKey);
+        });
+    } catch (error) {
+        console.warn('[SongNotes] search failed', error);
+    }
+    return found;
+};
+
+/** 把一批歌上的 fromKey 换成 intoKey（合并）；intoKey 已经在的只去掉 fromKey，打上的时间取早的那个。 */
+const replaceTagOnSongs = async (db: SongNotesDatabase, fromKey: string, intoKey: string): Promise<void> => {
+    const rows = await db.songs.where('tags').equals(fromKey).toArray();
+    for (const row of rows) {
+        const { [fromKey]: fromAt, ...rest } = row.tagAddedAt;
+        const has = row.tags.includes(intoKey);
+        const tags = has ? row.tags.filter(key => key !== fromKey) : row.tags.map(key => (key === fromKey ? intoKey : key));
+        const times = [has ? rest[intoKey] : undefined, fromAt].filter((at): at is number => typeof at === 'number');
+        await db.songs.put({ ...row, tags, tagAddedAt: times.length > 0 ? { ...rest, [intoKey]: Math.min(...times) } : rest });
+    }
+};
+
+/**
+ * 给一个标签改名。只改大小写、空白（规整后 key 不变）就只换写法；新名字是另一个已有的标签时，不带 merge 返回 conflict
+ * （界面问「合并到那个标签？」），带 merge 就把这个标签并进那个（歌上换过去，这个标签删掉，那个的先后不变）。
+ * 改成一个新名字：换 key，先后不变。不动歌的 updatedAt（改标签不算新评论）。
+ */
+export const renameSongNoteTag = async (tagKey: string, rawName: string, options: { merge?: boolean } = {}): Promise<SongNoteResult<SongNoteTag>> => {
+    const name = normalizeTagName(rawName);
+    if (!name) return fail('empty');
+    const nextKey = tagKeyOf(name);
+    return runWrite('rename tag', async db => {
+        const tag = await db.tags.get(tagKey);
+        if (!tag) return fail('notFound');
+        if (nextKey === tagKey) {
+            const renamed = { ...tag, name };
+            await db.tags.put(renamed);
+            return { ok: true, value: renamed };
+        }
+        const existing = await db.tags.get(nextKey);
+        if (existing && !options.merge) return fail('conflict');
+        await replaceTagOnSongs(db, tagKey, nextKey);
+        await db.tags.delete(tagKey);
+        if (existing) return { ok: true, value: existing };
+        const moved = { ...tag, key: nextKey, name };
+        await db.tags.put(moved);
+        return { ok: true, value: moved };
+    }, () => 'all');
+};
+
+/** 删掉一个标签：从所有歌上去掉；标签和评论都没了的歌，这一行也删掉。评论不动。 */
+export const deleteSongNoteTag = async (tagKey: string): Promise<SongNoteResult<void>> => runWrite('delete tag', async db => {
+    const rows = await db.songs.where('tags').equals(tagKey).toArray();
+    for (const row of rows) {
+        const { [tagKey]: _removed, ...tagAddedAt } = row.tagAddedAt;
+        const tags = row.tags.filter(key => key !== tagKey);
+        if (tags.length === 0 && row.commentCount === 0) await db.songs.delete(row.key);
+        else await db.songs.put({ ...row, tags, tagAddedAt });
+    }
+    await db.tags.delete(tagKey);
+    return { ok: true, value: undefined };
+}, () => 'all');
+
+/** 把一个标签往前（-1）或往后（1）挪一位：和挨着的那个换先后。已经在头上、尾上时什么都不做。 */
+export const moveSongNoteTag = async (tagKey: string, step: -1 | 1): Promise<SongNoteResult<void>> => runWrite('move tag', async db => {
+    const tags = await db.tags.orderBy('order').toArray();
+    const index = tags.findIndex(tag => tag.key === tagKey);
+    if (index < 0) return fail('notFound');
+    const target = index + step;
+    if (target < 0 || target >= tags.length) return { ok: true, value: undefined };
+    // 先后重新编成 1、2、3…（以前删过标签留下的空号一起补上），再对调这两个。
+    const order = [...tags];
+    [order[index], order[target]] = [order[target], order[index]];
+    await db.tags.bulkPut(order.map((tag, position) => ({ ...tag, order: position + 1 })));
+    return { ok: true, value: undefined };
+}, () => 'all');
+
+/**
+ * 给一批歌打同一个标签（速记簿多选的「打标签」）。外部播放器的歌、标签已经满了的歌跳过，算进 skipped；
+ * 已经有这个标签的不算跳过，也不重打。
+ */
+export const tagSongs = (
+    songs: readonly SongResult[],
+    rawName: string,
+    now = Date.now(),
+): Promise<SongNoteResult<{ tag: SongNoteTag | null; tagged: number; skipped: number }>> => {
+    const name = normalizeTagName(rawName);
+    if (!name) return Promise.resolve(fail('empty'));
+    const tagKey = tagKeyOf(name);
+    const keys: string[] = [];
+    return runWrite('tag songs', async db => {
+        let tag = await db.tags.get(tagKey);
+        let tagged = 0;
+        let skipped = 0;
+        const seen = new Set<string>();
+        for (const song of songs) {
+            if (isStagePlaybackSong(song)) {
+                skipped += 1;
+                continue;
+            }
+            const key = getPlaybackSongKey(song);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const row = await db.songs.get(key);
+            if (row?.tags.includes(tagKey)) continue;
+            if ((row?.tags.length ?? 0) >= SONG_NOTE_MAX_TAGS) {
+                skipped += 1;
+                continue;
+            }
+            if (!tag) {
+                const last = await db.tags.orderBy('order').last();
+                tag = { key: tagKey, name, order: (last?.order ?? 0) + 1, createdAt: now };
+                await db.tags.put(tag);
+            }
+            const base: SongNoteRow = row ?? {
+                key, song: toStoredSongSnapshot(song), tags: [], tagAddedAt: {}, commentCount: 0, timedCount: 0, updatedAt: now,
+            };
+            await db.songs.put({ ...base, tags: [...base.tags, tagKey], tagAddedAt: { ...base.tagAddedAt, [tagKey]: now }, updatedAt: now });
+            keys.push(key);
+            tagged += 1;
+        }
+        return { ok: true, value: { tag: tag ?? null, tagged, skipped } };
+    }, () => keys);
+};
+
+/** 从一批歌上去掉同一个标签（速记簿多选、「时刻」整页的「移出这个标签」）。没有歌再用它时标签也删掉。返回去掉了几首。 */
+export const untagSongs = async (songKeys: readonly string[], tagKey: string, now = Date.now()): Promise<SongNoteResult<number>> => {
+    const keys: string[] = [];
+    return runWrite('untag songs', async db => {
+        for (const songKey of new Set(songKeys)) {
+            const row = await db.songs.get(songKey);
+            if (!row || !row.tags.includes(tagKey)) continue;
+            const { [tagKey]: _removed, ...tagAddedAt } = row.tagAddedAt;
+            const next: SongNoteRow = { ...row, tags: row.tags.filter(key => key !== tagKey), tagAddedAt };
+            await db.songs.put(next);
+            await refreshRow(db, songKey, now, next);
+            keys.push(songKey);
+        }
+        if (keys.length > 0 && await db.songs.where('tags').equals(tagKey).count() === 0) await db.tags.delete(tagKey);
+        return { ok: true, value: keys.length };
+    }, () => keys);
+};

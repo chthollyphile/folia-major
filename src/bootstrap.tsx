@@ -13,6 +13,7 @@ import { installFoliumHomePageDismissal } from './components/app/home/foliumHome
 import { installLibrarySuiteChromeCommands } from './library/app/installLibrarySuiteChromeCommands';
 import { installProviderSearchCommands } from './components/command-palette/providerSearchCommandsInstaller';
 import { installSourceSwitchCommands } from './components/command-palette/sourceSwitchCommandsInstaller';
+import { installSongNoteTagCommands } from './components/command-palette/songNoteTagCommandsInstaller';
 import { isModsBridgeAvailable } from './mods/ipc';
 import { registerWebSources } from './services/onlineMusic/web';
 import { noteFoliumFirstScreenMounted, startFoliumForMainWindow } from './mods/runtime/mainWindowStart';
@@ -106,6 +107,8 @@ if (!isModsBridgeAvailable()) registerWebSources();
 if (isMainApp) installProviderSearchCommands();
 // One command per state each source can be switched to (Settings → Sources), following the main process's states.
 if (isMainApp) installSourceSwitchCommands();
+// One #tag command per song-note tag (opens the scratchpad's Moments sheet at that tag), following the tags.
+if (isMainApp) installSongNoteTagCommands();
 
 // 界面缩放（#1264）在首屏渲染前套上，免得先按 100% 排一遍版再缩。只缩主窗口。
 if (isMainApp) installUiZoom();

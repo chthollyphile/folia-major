@@ -1,28 +1,34 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, ListMusic, RotateCcw, Volume2 } from 'lucide-react';
+import { ChevronRight, ListMusic, RotateCcw, Volume2 } from 'lucide-react';
 import type { PonderSurfaceDeclarations } from '../surfaceDeclarations';
 
 // src/components/ponder/surfaces/settings/controlBarSettings.surface.tsx
-// 设置里管底部控制条的两块：换槽位的那对下拉框，和「控制栏」那一组。
+// 设置里管底部控制条的两块：进度条按钮的摆放编辑器，和「控制栏」那一组。
 
+/**
+ * 进度条按钮的摆放编辑器（设置 · 播放页）：上面是缩小的胶囊（浮岛一排在上，进度条和右侧两个槽位在下），
+ * 下面是没摆出去的控件。两个槽位画成带记号的方格（data-ponder-picker-field）。
+ */
 const PickerContents: React.FC<{ line: string; outline: string; accent: string }> = ({ line, outline, accent }) => (
-    <div className="absolute inset-0 flex flex-col justify-center gap-[12%] px-[8%] py-[8%]">
-        <div className="flex items-center gap-2">
-            <div className="h-2 w-[42%] rounded-full" style={{ backgroundColor: line }} />
-            <div className="h-px flex-1" style={{ backgroundColor: outline }} />
+    <div className="absolute inset-0 flex flex-col justify-center gap-[8%] px-[8%] py-[8%]">
+        <div className="flex flex-col gap-2 rounded-xl px-[5%] py-[5%]" style={{ backgroundColor: outline }}>
+            <div className="flex items-center gap-1 self-start rounded-full px-1.5 py-1" style={{ backgroundColor: line }}>
+                {[0, 1, 2, 3].map(index => (
+                    <span key={index} className="h-4 w-4 rounded-full" style={{ backgroundColor: outline }} />
+                ))}
+            </div>
+            <div className="flex items-center gap-2 rounded-full px-1.5 py-1" style={{ backgroundColor: line }}>
+                <span className="h-1 flex-1 rounded-full" style={{ backgroundColor: outline }} />
+                {[0, 1].map(index => (
+                    <span key={index} data-ponder-picker-field className="flex h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: outline }}>
+                        {index === 0 ? <ListMusic className="h-3 w-3" style={{ color: accent }} /> : <Volume2 className="h-3 w-3" style={{ color: accent }} />}
+                    </span>
+                ))}
+            </div>
         </div>
-        <div className="grid grid-cols-2 gap-[6%]">
-            {[0, 1].map(index => (
-                <div key={index} className="flex flex-col gap-2">
-                    <div className="h-1.5 w-[58%] rounded-full" style={{ backgroundColor: line }} />
-                    <div data-ponder-picker-field className="flex h-9 items-center gap-2 rounded-lg border px-2" style={{ borderColor: outline }}>
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: line }}>
-                            {index === 0 ? <ListMusic className="h-3 w-3" style={{ color: accent }} /> : <Volume2 className="h-3 w-3" style={{ color: accent }} />}
-                        </span>
-                        <span className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: line }} />
-                        <ChevronDown className="h-3 w-3 opacity-45" />
-                    </div>
-                </div>
+        <div className="flex flex-wrap gap-1.5">
+            {[0, 1, 2, 3, 4].map(index => (
+                <span key={index} className="h-4 w-[22%] rounded-md" style={{ backgroundColor: line }} />
             ))}
         </div>
     </div>
@@ -38,7 +44,7 @@ const RowLabel: React.FC<{ line: string; width: string; note?: boolean }> = ({ l
 
 /**
  * 设置 · 播放页里的「控制栏」那一组，一张卡四行：自动隐藏控制栏（开关）；底部组件高度（复位的小图标
- * 和一条滑杆）；在播放页拖动调整（点这一行，右端一个箭头）；进度条右侧按钮（左侧、右侧两个下拉）。
+ * 和一条滑杆）；在播放页拖动调整（点这一行，右端一个箭头）；进度条按钮（右端「恢复默认」，下面一块缩小的胶囊）。
  *
  * 教程讲的是中间那两行：滑杆直接定高度，点「在播放页拖动调整」那一行把控制条变成可以拖的东西。
  */
@@ -70,14 +76,14 @@ const BottomUiSettingsContents: React.FC<{ line: string; outline: string; accent
                 <RowLabel line={line} width="38%" />
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" />
             </div>
-            <div className="flex items-center gap-[4%]">
-                <RowLabel line={line} width="34%" note />
-                <span className="flex w-[50%] shrink-0 items-stretch gap-[5%]">
-                    {[0, 1].map(index => (
-                        <span key={index} className="flex h-5 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5" style={{ backgroundColor: line }}>
-                            <span className="h-1 min-w-0 flex-1 rounded-full" style={{ backgroundColor: outline }} />
-                            <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-50" />
-                        </span>
+            <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-[4%]">
+                    <RowLabel line={line} width="34%" note />
+                    <RotateCcw className="h-3 w-3 shrink-0 opacity-45" />
+                </div>
+                <span className="flex h-5 items-center gap-1 rounded-md px-1.5" style={{ backgroundColor: line }}>
+                    {[0, 1, 2, 3].map(index => (
+                        <span key={index} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: outline }} />
                     ))}
                 </span>
             </div>

@@ -137,6 +137,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "playback_entry_view",
   "playback_entry_view_chosen",
   "player_bottom_bar_offset",
+  "player_capsule_island",
   "player_chrome_hidden",
   "player_control_slot_primary",
   "player_control_slot_secondary",

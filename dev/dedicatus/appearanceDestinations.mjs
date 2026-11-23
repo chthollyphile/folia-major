@@ -48,6 +48,7 @@ export const APPEARANCE_DESTINATIONS = {
     'hide_player_progress_bar': { config: null, why: '播放页控件，OBS 页面不显示（isPlayerChromeHidden）（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
     'hide_player_right_panel_button': { config: null, why: '播放页控件，OBS 页面不显示（isPlayerChromeHidden）（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
     'player_bottom_bar_offset': { config: null, why: '播放页控件，OBS 页面不显示（isPlayerChromeHidden）（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
+    'player_capsule_island': { config: null, why: '播放页控件，OBS 页面不显示（isPlayerChromeHidden）（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
     'player_control_slot_primary': { config: null, why: '播放页控件，OBS 页面不显示（isPlayerChromeHidden）（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
     'player_control_slot_secondary': { config: null, why: '播放页控件，OBS 页面不显示（isPlayerChromeHidden）（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
     'player_header_blur': { config: 'playerHeaderBlur' },

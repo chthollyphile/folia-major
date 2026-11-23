@@ -1,4 +1,4 @@
-import { ChartBar, Crosshair, Heart, ListMusic, PanelsTopLeft, Pin, Repeat, Shuffle, SkipBack, SkipForward, Timer, Volume2 } from 'lucide-react';
+import { Captions, ChartBar, Crosshair, Heart, LayoutGrid, ListMusic, PanelsTopLeft, Pin, Repeat, Shuffle, SkipBack, SkipForward, Star, Timer, Volume2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlayerControlSlotActionId } from '../../types/playerControlSlots';
 import { noteLoopButtonPress } from '../../services/ponder/loopShuffleHint';
@@ -6,7 +6,7 @@ import { loopModeIcon, loopModeLabelName } from '../shared/loopModeDisplay';
 import { openSongNotePin } from '../song-notes/songNotePin';
 
 // src/components/floating-player/playerControlSlotActions.ts
-// 进度条胶囊右侧两个可自定义槽位的动作清单。
+// 进度条胶囊上用户能摆的控件清单：右侧两个槽位和胶囊上方浮出的那一排（浮岛）共用这一份。
 //
 // 仓库里没有中心化的播放动作注册表，最接近的是 command palette 的 playbackCommands；
 // 这里只登记「已有图标 + 已有 handler」的播放相关动作，图标沿用那些命令自己声明的那一个。
@@ -69,6 +69,9 @@ export const PLAYER_CONTROL_SLOT_OPTIONS: readonly { id: PlayerControlSlotAction
     { id: 'sleep-timer', icon: Timer, labelKey: 'options.playerControlSlotAction_sleepTimer' },
     { id: 'locate', icon: Crosshair, labelKey: 'options.playerControlSlotAction_locate' },
     { id: 'mark-moment', icon: Pin, labelKey: 'options.playerControlSlotAction_markMoment' },
+    { id: 'add-to-playlist', icon: Star, labelKey: 'options.playerControlSlotAction_addToPlaylist' },
+    { id: 'subtitles', icon: Captions, labelKey: 'options.playerControlSlotAction_subtitles' },
+    { id: 'lyric-style', icon: LayoutGrid, labelKey: 'options.playerControlSlotAction_lyricStyle' },
 ];
 
 /**
@@ -87,6 +90,9 @@ export const PLAYER_CONTROL_SLOT_COMMAND_IDS: Readonly<Record<Exclude<PlayerCont
     'sleep-timer': 'sleep-timer',
     locate: 'locate-playing-song',
     'mark-moment': 'song-notes-mark-moment',
+    'add-to-playlist': 'playback-add-to-playlist',
+    subtitles: 'settings-subtitles',
+    'lyric-style': 'visualizer-picker',
 };
 
 /** 命令 id 反查槽位动作；不是任何槽位动作的命令返回 null。 */
@@ -211,6 +217,21 @@ export const resolvePlayerControlSlot = (
                 onActivate: anchor => openSongNotePin(anchor),
                 labelKey: 'options.playerControlSlotAction_markMoment',
             };
+        case 'add-to-playlist':
+        case 'subtitles':
+        case 'lyric-style': {
+            // 打开命令面板里那块界面（加到歌单、字幕调节、歌词样式选择器），和命令同一套可用判断。
+            const commandId = PLAYER_CONTROL_SLOT_COMMAND_IDS[id];
+            const option = PLAYER_CONTROL_SLOT_OPTIONS.find(entry => entry.id === id);
+            return {
+                icon: option?.icon ?? LayoutGrid,
+                filled: false,
+                active: false,
+                disabled: !context.canInvokeCommandById(commandId),
+                onActivate: () => context.invokeCommandById(commandId),
+                labelKey: option?.labelKey ?? 'options.playerControlSlotAction_lyricStyle',
+            };
+        }
         case 'lyrics-timeline':
         default:
             return {

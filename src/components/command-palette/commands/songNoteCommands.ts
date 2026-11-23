@@ -25,7 +25,6 @@ export const songNoteCommands: CommandPaletteCommand[] = [
             icon: Pin,
             executeShortcut: 'k',
             // 也上胶囊上方那排浮动命令：点了和槽位一样，在按钮上方弹「记下这个时刻」小框（借槽位 mark-moment 的解析）。
-            capsuleAction: true,
             isAvailable: context => (context ? Boolean(context.shared.currentSong && !isStagePlaybackSong(context.shared.currentSong)) : true),
         },
     ),
@@ -33,7 +32,7 @@ export const songNoteCommands: CommandPaletteCommand[] = [
         'song-notes-write',
         'panel',
         'Write a comment',
-        'Open the comments page of the scratchpad for the current song',
+        'Open the Moments page of the scratchpad for the current song',
         ['comment', 'note', 'tag', 'review', '评论', '笔记', '标签', '写评论', '速记簿'],
         () => {
             useSongNotesStore.getState().view(null);

@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from 'react';
 import { animate, motion, useMotionValue, type MotionValue } from 'framer-motion';
-import { Check, Music2, Play } from 'lucide-react';
+import { Check, MessageSquareQuote, Music2, Play } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
@@ -54,6 +54,8 @@ export type CanvasEntry = {
     tagLine?: string;
     quote?: string;
     counts?: string;
+    /** 另外三页的卡片上那一小行：这首的标签与评论数（「#夜车 · 3 条」，commentCards 的 songNoteChipLine）。 */
+    noteLine?: string;
 };
 
 export type CardMotion = { x: MotionValue<number>; y: MotionValue<number> };
@@ -79,6 +81,9 @@ type ScratchpadCardProps = {
     register: (key: string, motion: CardMotion | null) => void;
     onPointerDown: (entry: CanvasEntry, event: React.PointerEvent<HTMLDivElement>) => void;
     onPlay: (entry: CanvasEntry) => void;
+    /** 封面上的「评论」钮（给了才画）：看这首的评论与标签。 */
+    onComment?: (entry: CanvasEntry) => void;
+    commentLabel?: string;
 };
 
 const SNAP = { type: 'spring', stiffness: 520, damping: 42, mass: 0.7 } as const;
@@ -99,6 +104,8 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
     register,
     onPointerDown,
     onPlay,
+    onComment,
+    commentLabel = '',
 }) => {
     const x = useMotionValue(slotX);
     const y = useMotionValue(slotY);
@@ -175,6 +182,20 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
                 >
                     <Play aria-hidden="true" fill="currentColor" />
                 </button>
+                {onComment && (
+                    <button
+                        type="button"
+                        className="scratchpad-card-play is-comment"
+                        title={commentLabel}
+                        aria-label={commentLabel}
+                        onPointerDown={event => event.stopPropagation()}
+                        onClick={() => onComment(entry)}
+                    >
+                        <MessageSquareQuote aria-hidden="true" />
+                    </button>
+                )}
+                {/* 这首的标签与评论数：贴在封面左上角的一小条（卡片高度是定的，不另起一行）。 */}
+                {variant !== 'catalog' && entry.noteLine && <span className="scratchpad-card-noteline">{entry.noteLine}</span>}
             </span>
             {movingCount > 1 && <span className="scratchpad-card-count" aria-hidden="true">{movingCount}</span>}
             {variant === 'catalog' && entry.catalogNumber && (

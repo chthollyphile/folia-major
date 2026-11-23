@@ -22,7 +22,6 @@ export const subtitleSettingsCommand: CommandPaletteCommand = defineCommand({
         'subtitle size', 'subtitle blur', '字幕大小', '字幕尺寸', '字幕模糊',
     ],
     icon: Captions,
-    capsuleAction: true,
     requiresInput: true,
     surface: subtitleSettingsSurface,
     placeholder: context => context.shared.t('commandPalette.subtitleSettingsPlaceholder', 'Adjust the subtitles below'),

@@ -50,6 +50,7 @@ const KIND_LABEL_KEYS: Record<BravaisItemKind, string> = {
     artist: 'libraryBravais.kind.artist',
     folder: 'libraryBravais.kind.folder',
     feed: 'libraryBravais.kind.feed',
+    tag: 'libraryBravais.kind.tag',
 };
 
 export type BravaisHomeDirectoryProps = {
@@ -90,6 +91,8 @@ export type BravaisHomeDirectoryProps = {
     shortcutCards?: readonly LibraryHomeCard[];
     /** 不经墙打开直达入口的那张卡（不给就是 onOpen；Navidrome 要按卡片自己的 section 定集合类型）。 */
     openShortcut?: (card: LibraryHomeCard) => void;
+    /** 一直是有限墙（不循环重复，拖到尽头停住）：首页 Folia 的标签页签（用户定，和歌单墙区分开）。 */
+    bounded?: boolean;
 };
 
 const never = () => false;
@@ -119,6 +122,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     isDirect = never,
     shortcutCards,
     openShortcut,
+    bounded = false,
 }) => {
     const { t } = useTranslation();
 
@@ -234,7 +238,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         isDirect: card => isDirectRef.current(card),
         source,
     }, labels, cacheRef.current), [displayItems, hiddenIds, labels, panelOpen, selectedIds, source, visibilityMode]);
-    const { mode, filterKey } = resolveHomeWallMode({ section, visibilityMode, batch: panelOpen, query: effectiveQuery });
+    const { mode, filterKey } = resolveHomeWallMode({ section, visibilityMode, batch: panelOpen, query: effectiveQuery, bounded });
     const planCount = mode === 'finite' ? visibleItems.length : undefined;
     const wall = useMemo(() => ({
         filterKey,

@@ -373,19 +373,170 @@ button.scratchpad-comment-at:focus-visible { outline: 2px solid var(--scratchpad
     -webkit-line-clamp: 2;
 }
 
-/* —— 展开整页（第一阶段：最近评论过的歌，一张张目录卡）—— */
-.scratchpad-comments-sheet {
-    position: relative;
-    min-height: 0;
-    flex: 1 1 auto;
-    grid-column: 1 / -1;
-    padding: 6px 10px calc(24px + var(--scratchpad-safe-cards, 0px));
-    overflow-x: hidden;
-    overflow-y: auto;
+/* —— 展开整页：按标签分组的目录卡（画布与另外三页共用，ScratchpadCanvas）。单击卡片是在面板里看这一首。—— */
+.scratchpad-canvas.is-catalog .scratchpad-card { cursor: pointer; }
+
+/* 信息条右端的搜索框（只有这一页有）：墨色细线框、方角，同条上别的按钮。 */
+.scratchpad-comments-search {
+    display: inline-flex;
+    width: 280px;
+    height: 34px;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border: 1.5px solid var(--scratchpad-ink);
+    background: transparent;
+    color: var(--scratchpad-ink);
 }
 
-.scratchpad-comments-sheet-grid { position: relative; }
-.scratchpad-comments-sheet .scratchpad-card { cursor: pointer; }
+.scratchpad-comments-search svg { width: 15px; height: 15px; flex: none; opacity: 0.7; }
+
+.scratchpad-comments-search input {
+    min-width: 0;
+    flex: 1 1 auto;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.scratchpad-comments-search input::placeholder { color: rgb(20 20 20 / 45%); }
+.scratchpad-comments-search input::-webkit-search-cancel-button { display: none; }
+.scratchpad-comments-search-count { flex: none; font-size: 11.5px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.scratchpad-comments-search:focus-within { box-shadow: 3px 3px 0 var(--scratchpad-mark); }
+
+/* —— 另外三页：卡片封面左上角那一小条标签与评论数，行里歌手下面那一小行（只是显示）—— */
+.scratchpad-card-noteline {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    max-width: calc(100% - 12px);
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 2px 6px;
+    background: var(--scratchpad-ink);
+    color: var(--scratchpad-paper);
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.scratchpad-card.is-film .scratchpad-card-noteline { top: auto; bottom: 6px; }
+
+.scratchpad-row-noteline {
+    display: block;
+    overflow: hidden;
+    color: var(--scratchpad-mark-wall);
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 卡片封面上的「评论」钮：在播放钮左边。 */
+.scratchpad-card-play.is-comment { right: 42px; }
+.scratchpad-canvas .scratchpad-card-play.is-comment { right: 48px; }
+.scratchpad-card-play.is-comment svg { margin-left: 0; }
+
+/* —— 标签小浮层（ScratchpadTagPopovers）：整理标签、批量打标签。墨色底、米白字、方角，贴着打开它的按钮。—— */
+.scratchpad-tag-popover {
+    position: fixed;
+    /* 抽屉是 95（展开整页铺满视口），弹窗是 100：浮层压在抽屉上、弹窗下。 */
+    z-index: 98;
+    display: flex;
+    width: 340px;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: var(--scratchpad-ink);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 55%);
+    color: var(--scratchpad-paper);
+    font-size: 12.5px;
+    visibility: hidden;
+}
+
+.scratchpad-tag-popover-title { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 14px; font-weight: 900; }
+.scratchpad-tag-popover-count { color: var(--scratchpad-mark-dark); font-size: 12px; font-variant-numeric: tabular-nums; }
+.scratchpad-tag-popover-label { margin: 2px 0 0; opacity: 0.6; font-size: 11.5px; font-weight: 800; }
+.scratchpad-tag-popover-field { display: flex; gap: 6px; }
+
+.scratchpad-tag-popover-field input {
+    min-width: 0;
+    height: 32px;
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    padding: 0 10px;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 0;
+    outline: none;
+    background: rgb(255 255 255 / 6%);
+    color: inherit;
+    font: inherit;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.scratchpad-tag-popover-field input:focus { border-color: var(--scratchpad-mark-dark); }
+.scratchpad-tag-popover-row,
+.scratchpad-tag-popover-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.scratchpad-tag-popover-ask > span { flex: 1 1 100%; color: var(--scratchpad-mark-dark); font-weight: 800; }
+.scratchpad-tag-popover-spacer { flex: 1 1 auto; }
+
+.scratchpad-tag-popover-button {
+    display: inline-flex;
+    height: 32px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 0;
+    background: rgb(255 255 255 / 9%);
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.scratchpad-tag-popover-button svg { width: 14px; height: 14px; }
+.scratchpad-tag-popover-button:hover:not(:disabled) { background: var(--scratchpad-paper); color: var(--scratchpad-ink); }
+.scratchpad-tag-popover-button:disabled { opacity: 0.35; cursor: default; }
+.scratchpad-tag-popover-button.is-mark { background: var(--scratchpad-mark-dark); color: var(--scratchpad-ink); }
+.scratchpad-tag-popover-button.is-danger { background: #c8442f; color: #fff; }
+
+.scratchpad-tag-popover-chips { display: flex; max-height: 132px; flex-wrap: wrap; gap: 6px; overflow-y: auto; }
+
+.scratchpad-tag-chip {
+    display: inline-flex;
+    height: 26px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.scratchpad-tag-chip svg { width: 12px; height: 12px; opacity: 0.7; }
+.scratchpad-tag-chip:hover:not(:disabled) { border-color: var(--scratchpad-paper); background: var(--scratchpad-paper); color: var(--scratchpad-ink); }
+.scratchpad-tag-chip.is-removable:hover:not(:disabled) { border-color: #c8442f; background: #c8442f; color: #fff; }
 
 /* —— 目录卡（is-catalog）：米白卡、左上小封面与编号、歌名、歌手，一道点缀色的线，标签，横格上斜体的最新一条评论，底下计数。
    不要底部的穿孔圆点（用户定，2026-11-24）。默认是展开整页的 172 × 214；总览里那张小的在下面另写。 */

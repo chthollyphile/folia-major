@@ -16,6 +16,7 @@ export const homeCardKind = (type: string | undefined): BravaisItemKind => {
         case 'album': return 'album';
         case 'artist': return 'artist';
         case 'folder': return 'folder';
+        case 'tag': return 'tag';
         case 'radio':
         case 'daily_recommendations': return 'feed';
         default: return 'playlist';

@@ -19,7 +19,7 @@ import type { ScratchpadPlayback } from './ScratchpadHost';
 // 收起的面板（设计稿 G 组 Comments）默认看正在播的那首：上半截歌曲头、标签、小时间轴（ScratchpadCommentsHead），中间评论列表
 // （按写的时间 / 按时间轴两种排法），底下输入框（ScratchpadCommentComposer）。从最近评论、展开整页的卡点进来的是那一首，
 // 顶上出「回到正在播放」。没有歌在播、也没在看哪一首时，写问候和最近评论过的几首。
-// 展开整页第一阶段只列最近评论过的歌（ScratchpadCommentsSheet）；按标签分组、搜索在第二阶段。
+// 展开整页按标签分组（ScratchpadCommentsSheet）：整组动作、整理标签、批量打标签、搜索。
 
 const RECENT_IN_PANEL = 12;
 
@@ -55,7 +55,7 @@ const ScratchpadComments: React.FC<ScratchpadCommentsProps> = ({ playback, expan
     }, [expanded, onCollapse, view]);
 
     if (expanded) {
-        return <ScratchpadCommentsSheet playback={playback} tagNames={tagNames} playingKey={playingKey} onOpen={openSong} />;
+        return <ScratchpadCommentsSheet playback={playback} tagNames={tagNames} playingKey={playingKey} onOpen={openSong} onEscape={onCollapse} />;
     }
 
     if (!target) {

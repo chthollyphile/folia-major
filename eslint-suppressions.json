@@ -10411,11 +10411,8 @@
     }
   },
   "src/stores/usePlayerChromeSettingsStore.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
     "dedicatus/restricted-apis": {
-      "count": 5
+      "count": 4
     }
   },
   "src/stores/usePlayingSongLocatorStore.ts": {

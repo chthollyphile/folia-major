@@ -72,7 +72,7 @@ test('a tap on the capsule floats the row up without volume, and it folds away a
     await expect(quickActions(page)).toBeVisible();
     await expect(page.getByTestId('command-palette-panel')).toHaveCount(0);
     expect(await readPlayerState(page)).toBe('PLAYING');
-    await expect(quickActions(page).locator('[data-capsule-action="playback-volume"]')).toHaveCount(0);
+    await expect(quickActions(page).locator('[data-capsule-action="volume"]')).toHaveCount(0);
     const box = await quickActions(page).locator('[data-capsule-action="open-command-palette"]').boundingBox();
     expect(box?.width).toBe(44);
 

@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, History, ListPlus, Music2, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
+import { Check, History, ListPlus, Music2, NotebookPen, Play, Star, Tag, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { forgetPlays, type RecentPlay } from '../home/explore/recentPlays';
 import { collectToScratchpad, useScratchpadStore } from '../../../stores/useScratchpadStore';
@@ -14,6 +14,9 @@ import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import ScratchpadCanvas, { type CanvasGroup, type CanvasSide } from './ScratchpadCanvas';
+import { useSongNoteChipLines } from './useSongNoteChipLines';
+import { openBatchTagger } from './songNoteTagPopoverStore';
+import { openSongComments } from '../../song-notes/songNoteNavigation';
 import { ScratchpadBandActions } from './ScratchpadSheet';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import type { CanvasEntry } from './ScratchpadCard';
@@ -125,11 +128,13 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
     ), [formats, t]);
 
     // 展开整页的画布：一天一组（新的在前），组头是相册的页眉（大号的日子、月份星期），相片底下写几点放的。
+    const noteLines = useSongNoteChipLines(expanded);
     const canvasGroups = useMemo<CanvasGroup[]>(() => (expanded ? days.map(day => {
         const dayEntries = day.plays.map((play): CanvasEntry => ({
             key: getPlaybackSongKey(play.song),
             song: play.song,
             meta: formats.node.format(play.at),
+            noteLine: noteLines.get(getPlaybackSongKey(play.song)),
         }));
         return {
             key: String(day.start),
@@ -145,7 +150,7 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
                 run: () => latest.current.playback.enqueueAll(dayEntries.map(entry => entry.song)),
             }],
         };
-    }) : []), [dayLabel, days, expanded, formats, t]);
+    }) : []), [dayLabel, days, expanded, formats, noteLines, t]);
     // 展开整页那张纸转不转（降低动态效果时不转），与右边那一列的跳到栏、操作提示。
     const tilt = useReducedMotionFor('uiMicroMotion') ? 0 : SCRATCHPAD_TILT_DEG;
     const side = useMemo<CanvasSide>(() => ({
@@ -161,6 +166,7 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
         collectToScratchpad(songs, { label: latest.current.t('scratchpad.originHistory') });
     }, []);
     const play = useCallback((entry: CanvasEntry) => latest.current.playback.playNow(entry.song), []);
+    const commentOn = useCallback((entry: CanvasEntry) => openSongComments(entry.song), []);
     // 从播放历史里删掉：只删此刻读的这几份记录里的（换了账户的那份不动），探索页的「最近播放」跟着少。
     const forget = useCallback((selected: CanvasEntry[]) => {
         const count = forgetPlays(historyScopes(), selected.map(entry => entry.key));
@@ -188,6 +194,7 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
                 // 选中的歌来源不同也行：收藏框的 Folia 栏收任何来源。
                 disabled: !songs.every(canOpenPlaylistPickerFor),
             },
+            { id: 'tag', label: translate('songNotes.batchTag'), icon: Tag, run: () => openBatchTagger(songs) },
             { id: 'delete-from-history', label: translate('scratchpad.deleteFromHistory'), icon: Trash2, run: () => forget(selected) },
         ];
     }, [collect, forget]);
@@ -220,6 +227,8 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
                     selectionActions={selectionActions}
                     onEscape={onCollapse}
                     spacing={PHOTO_SPACING}
+                    onComment={commentOn}
+                    commentLabel={t('songNotes.openComments')}
                 />
             </>
         );

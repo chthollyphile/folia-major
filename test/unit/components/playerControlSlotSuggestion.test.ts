@@ -27,7 +27,7 @@ describe('槽位动作和命令的对应', () => {
     it('命令 id 能反查回槽位动作，别的命令得 null', () => {
         expect(playerControlSlotActionForCommand('sleep-timer')).toBe('sleep-timer');
         expect(playerControlSlotActionForCommand('playback-shuffle')).toBe('shuffle');
-        expect(playerControlSlotActionForCommand('visualizer-picker')).toBeNull();
+        expect(playerControlSlotActionForCommand('background-picker')).toBeNull();
     });
 });
 
@@ -50,7 +50,7 @@ describe('resolvePlayerControlSlotSuggestion', () => {
     it('已经在槽位里、提过、或者不是槽位动作的命令都不提', () => {
         expect(resolvePlayerControlSlotSuggestion({ ...base, slots: ['sleep-timer', 'loop'] })).toBeNull();
         expect(resolvePlayerControlSlotSuggestion({ ...base, offered: ['sleep-timer'] })).toBeNull();
-        expect(resolvePlayerControlSlotSuggestion({ ...base, commandId: 'visualizer-picker' })).toBeNull();
+        expect(resolvePlayerControlSlotSuggestion({ ...base, commandId: 'background-picker' })).toBeNull();
     });
 });
 

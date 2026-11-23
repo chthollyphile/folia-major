@@ -654,7 +654,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsAnchorCommand(
         'settings-player-control-slots',
         'Player button slots',
-        'Choose which actions the two buttons beside the progress bar run',
+        'Arrange the two buttons beside the progress bar and the button island',
         [
             'progress bar buttons', 'customize player buttons',
             '进度条按钮', '播放按钮自定义', '按钮槽位',
