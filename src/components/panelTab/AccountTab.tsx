@@ -69,6 +69,8 @@ const AccountTab: React.FC<AccountTabProps> = ({
     const qualityLevels = omni.getAudioQualityLevels(activeProviderId);
     const qualityOptions = AUDIO_QUALITY_OPTIONS.filter(option => qualityLevels.includes(option.value));
     const litQuality = omni.resolveAudioQuality(activeProviderId, audioQuality);
+    // A provider whose sound the preference does not choose now (its own player has its own setting) says where it is set.
+    const qualityNoticeKey = omni.audioQualityNoticeKey(activeProviderId);
 
     const handleLogout = () => accountController.logout(activeProviderId);
     // The sign-in of the platform in use ran out: the account has left, and the row says so.
@@ -125,16 +127,20 @@ const AccountTab: React.FC<AccountTabProps> = ({
 
             {/* Provider-independent audio quality preference; each online provider maps these semantic presets. */}
             <PanelRow label={t('account.audioQuality')}>
-                <Select
-                    name={t('account.audioQuality')}
-                    // The panel sits at the bottom of the window: a list that opens down covers the tab row.
-                    preferAbove
-                    value={litQuality}
-                    options={qualityOptions.map(option => ({ value: option.value, label: t(option.labelKey) }))}
-                    // (The lit level is where the stored preference already stands on this provider: choosing it
-                    // changes nothing here, and must not lower what is stored for the other providers.)
-                    onChange={(quality) => { if (quality !== litQuality) onAudioQualityChange(quality); }}
-                />
+                {qualityNoticeKey ? (
+                    <span className="text-right text-xs leading-[18px] text-[color:var(--st-t2)]">{t(qualityNoticeKey)}</span>
+                ) : (
+                    <Select
+                        name={t('account.audioQuality')}
+                        // The panel sits at the bottom of the window: a list that opens down covers the tab row.
+                        preferAbove
+                        value={litQuality}
+                        options={qualityOptions.map(option => ({ value: option.value, label: t(option.labelKey) }))}
+                        // (The lit level is where the stored preference already stands on this provider: choosing it
+                        // changes nothing here, and must not lower what is stored for the other providers.)
+                        onChange={(quality) => { if (quality !== litQuality) onAudioQualityChange(quality); }}
+                    />
+                )}
             </PanelRow>
 
             <PlaybackSignalPathButton />

@@ -196,6 +196,11 @@ export const createSpotifySource = (env: SpotifySourceEnv): FoliumSourceDef => {
                 // Spotify's files are Ogg Vorbis at 160 and at 320 kbit/s and nothing above (`BITRATES` on
                 // the desktop side): two levels, and a preference above `high` is asked for as `high`.
                 audioQualityLevels: ['standard', 'high'] as const,
+                // Through Soloist the host asks for no file: Soloist streams at the level set for it in the Spotify
+                // app (its device menu; Soloist ships a FLAC decoder and lets the controlling app set its quality).
+                get audioQualityNotice(): FoliumText | undefined {
+                    return spotifyPlaysThroughSoloist() ? env.text('soloist.qualityNotice') : undefined;
+                },
                 // Spotify's own audio, for paying accounts only (Spotify's rule for every player that is not
                 // its own): a free account is answered `subscription-required`. The address is served by the
                 // main entry itself (its `_media/audio` route) and is new on every call: its key works once.

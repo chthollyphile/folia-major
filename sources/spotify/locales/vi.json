@@ -23,6 +23,7 @@
         "similar": "Tương tự với «{{name}}»"
     },
     "soloist": {
+        "qualityNotice": "Đặt trong ứng dụng Spotify",
         "method": {
             "standard": "Tiêu chuẩn",
             "standardNote": "Đăng nhập Spotify trong trình duyệt; Folia tự phát bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc đều hoạt động.",

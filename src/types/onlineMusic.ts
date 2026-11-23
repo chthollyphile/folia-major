@@ -438,6 +438,12 @@ export interface OnlinePlaybackProvider {
      */
     audioQualityLevels?: readonly AudioQualityPreference[];
     /**
+     * The i18n key of the words the quality option shows instead of its pick list, while the stored
+     * preference does not choose this provider's sound (it plays through a player of its own that has
+     * its own setting, as Spotify's Soloist). Read when it is needed: it may change with the way it plays.
+     */
+    audioQualityNoticeKey?: string;
+    /**
      * The i18n key of the notice shown when a preview clip of this provider's song plays
      * (`ProviderAudioSource.preview`), for a provider whose clips mean something else than
      * "this account may only preview it". Without it, `status.songPreviewOnly`.

@@ -1386,6 +1386,12 @@ export const omni = {
         return audioQualityLevelsOf(providerId);
     },
 
+    // The i18n key of what the quality option says in place of its pick list for a provider whose sound the
+    // preference does not choose now (`OnlinePlaybackProvider.audioQualityNoticeKey`); undefined for the pick list.
+    audioQualityNoticeKey(providerId: OmniProviderId): string | undefined {
+        return getOnlineMusicProvider(providerId)?.playback?.audioQualityNoticeKey || undefined;
+    },
+
     // The level `preference` means to a provider: the one the quality option lights, and the one
     // `getAudioSource` asks the provider for.
     resolveAudioQuality(providerId: OmniProviderId, preference: AudioQualityPreference): AudioQualityPreference {

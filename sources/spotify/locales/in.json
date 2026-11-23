@@ -23,6 +23,7 @@
         "similar": "Mirip dengan {{name}}"
     },
     "soloist": {
+        "qualityNotice": "Atur di aplikasi Spotify",
         "method": {
             "standard": "Standar",
             "standardNote": "Masuk ke Spotify di peramban; Folia memutar lagunya sendiri. Ekualiser, Automix, dan efek yang mengikuti musik semuanya berfungsi.",

@@ -166,6 +166,17 @@ export const buildPlayback = (
             },
         },
         audioQualityLevels: { enumerable: true, get: () => audio?.audioQualityLevels },
+        audioQualityNoticeKey: {
+            enumerable: true,
+            get: () => {
+                // A getter of the mod's: one that throws says nothing, and the pick list shows.
+                try {
+                    return kit.key(audio?.audioQualityNotice, 'audioQualityNotice');
+                } catch {
+                    return undefined;
+                }
+            },
+        },
         previewNoticeKey: { enumerable: true, get: () => (audio?.previewNotice === undefined ? undefined : kit.key(audio.previewNotice, 'previewNotice')) },
     });
     return playback;

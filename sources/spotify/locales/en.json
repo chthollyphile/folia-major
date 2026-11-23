@@ -23,6 +23,7 @@
         "similar": "Similar to {{name}}"
     },
     "soloist": {
+        "qualityNotice": "Set in the Spotify app",
         "method": {
             "standard": "Standard",
             "standardNote": "Sign in to Spotify in the browser; Folia plays the songs itself. The equalizer, Automix and the effects that move with the music all work.",

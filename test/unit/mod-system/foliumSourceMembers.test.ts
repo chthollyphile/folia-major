@@ -48,6 +48,7 @@ const VALUES: Record<string, unknown> = {
     songsPerRequest: 10,
     counterpartSources: ['other'],
     audioQualityLevels: ['standard', 'high'],
+    audioQualityNotice: 'set elsewhere',
     previewNotice: 'a clip',
     crossSource: { linesOnly: false },
     prefersOwnWordByWord: true,
@@ -144,8 +145,9 @@ describe('every member of the internal contract has a place for a Folium 2.0 sou
         }
         // The member matrix's count (dev/folium/folium-2-member-matrix.md §1): 13 + 13 + 111 + 3 + 25, and the three
         // the host took in S6 for playback.surface after the matrix was made (routeOf, itemKinds, externalPlayback.mount).
-        // And the two of songs@1 that name a counterpart of another source's song (counterpartSources, getCounterparts).
-        expect(count).toBe(165 + 3 + 2);
+        // And the two of songs@1 that name a counterpart of another source's song (counterpartSources, getCounterparts),
+        // and the words in place of the quality pick list (audioQualityNoticeKey, playback.audio@1.audioQualityNotice).
+        expect(count).toBe(165 + 3 + 2 + 1);
         // No sub-interface of the provider is left out of the table.
         const slots = Object.entries(FOLIUM_SOURCE_MEMBER_DESTINATIONS.OnlineMusicProvider)
             .filter(([slot, destination]) => slot !== 'capabilities' && (destination.startsWith('derived from') || destination === 'dto'))

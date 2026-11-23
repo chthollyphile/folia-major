@@ -79,6 +79,7 @@ export const FOLIUM_SOURCE_MEMBER_DESTINATIONS = Object.freeze({
         songDetailsPerRequest: 'songs@1.songsPerRequest',
         getAudioSource: 'playback.audio@1.getAudioSource',
         audioQualityLevels: 'playback.audio@1.audioQualityLevels',
+        audioQualityNoticeKey: 'playback.audio@1.audioQualityNotice',
         previewNoticeKey: 'playback.audio@1.previewNotice',
         getAvailability: 'songs@1.getAvailability',
         getReplacement: 'songs@1.getReplacement',

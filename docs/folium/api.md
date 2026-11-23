@@ -2824,6 +2824,7 @@ Folium 2: `playback.audio@1`.
 | --- | --- | --- |
 | `getAudioSource()` | `(song: FoliumSourceSong, quality: FoliumSourceAudioQuality): Promise<FoliumSourceAudio \| null>` | The address of `song` at `quality` (one of `audioQualityLevels`); null when there is none and nothing to say. |
 | `readonly audioQualityLevels?` | `readonly FoliumSourceAudioQuality[]` | The levels the source tells apart, lowest first; all but `ultra` when left out. May be a getter. |
+| `readonly audioQualityNotice?` | `FoliumText` | Shown in place of the quality pick list while set: the host's level does not choose this source's sound now (it plays through a player of its own, which has its own setting). Say where the quality is set. May be a getter. |
 | `readonly previewNotice?` | `FoliumText` | What the notice says while a clip of this source plays; the host's own words when left out. |
 | `keepAudio?()` | `(url: string): Promise<boolean>` | For a source that keeps audio in a cache of its own: keep the file `url` plays; resolves to whether it is kept. |
 | `hasKeptAudio?()` | `(url: string): Promise<boolean>` | Whether that cache holds the file `url` plays. |

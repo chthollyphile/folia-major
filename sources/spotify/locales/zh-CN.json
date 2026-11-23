@@ -23,6 +23,7 @@
         "similar": "与《{{name}}》相似"
     },
     "soloist": {
+        "qualityNotice": "在 Spotify 应用里设置",
         "method": {
             "standard": "标准播放",
             "standardNote": "在浏览器里登录 Spotify，歌曲由 Folia 自己播放。均衡器、Automix 和跟着音乐跳动的效果都能用。",
