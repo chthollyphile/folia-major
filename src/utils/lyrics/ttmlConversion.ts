@@ -189,7 +189,7 @@ const convertLine = (line: TtmlLyricLine, buildTimedWords: TimedWordBuilder): Li
         ...(line.id ? { id: line.id } : {}),
         ...(line.agentId ? { agentId: line.agentId } : {}),
         ...(line.songPart ? { songPart: line.songPart } : {}),
-        ...(isChorusSongPart(line.songPart) ? { isChorus: true } : {}),
+        ...(isChorusSongPart(line.songPart) ? { isChorus: true, chorusOrigin: 'source' as const } : {}),
         ...(typeof line.blockIndex === 'number' ? { blockIndex: line.blockIndex } : {}),
         ...(getFirstText(line.romanizations) ? { romanization: getFirstText(line.romanizations) } : {}),
         ...(alternateTexts.length > 0 ? { alternateTexts } : {}),

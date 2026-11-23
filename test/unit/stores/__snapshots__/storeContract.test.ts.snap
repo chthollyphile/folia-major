@@ -96,6 +96,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "library_wall_backdrop_blur",
   "library_wall_backdrop_lyrics",
   "library_wall_collection_tilt",
+  "library_wall_home_finite",
   "library_wall_look",
   "library_wall_seam_clear",
   "library_wall_seam_direction",

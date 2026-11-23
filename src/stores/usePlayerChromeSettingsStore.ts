@@ -98,6 +98,8 @@ const initialSlotSecondary = storedSlotSecondary !== initialSlotPrimary
 
 export type PlayerChromeSettingsState = {
     hidePlayerProgressBar: boolean;
+    /** A small notch in the progress bar where the chorus starts, for lyrics whose source marked it. */
+    progressBarChorusMarker: boolean;
     playerBottomBarOffset: number;
     playerControlSlotPrimary: PlayerControlSlotActionId;
     playerControlSlotSecondary: PlayerControlSlotActionId;
@@ -123,6 +125,7 @@ export type PlayerChromeSettingsState = {
     setTransparentPlayerBackgroundFromSystem: (enabled: boolean) => void;
     handleTogglePlayerPageNativeBlur: (enable: boolean) => void;
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
+    handleToggleProgressBarChorusMarker: (enable: boolean) => void;
     handleSetPlayerBottomBarOffset: (offsetPx: number) => void;
     /** 放进一个槽位；原来的那个和它互换位置（它从另一个槽位、从浮岛来时），从池子里来的则把原来的换回池子。 */
     handleSetPlayerControlSlot: (slot: 'primary' | 'secondary', actionId: PlayerControlSlotActionId) => void;
@@ -147,6 +150,7 @@ export type PlayerChromeSettingsState = {
 
 export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((set, get) => ({
     hidePlayerProgressBar: getStoredBoolean('hide_player_progress_bar', false),
+    progressBarChorusMarker: getStoredBoolean('progress_bar_chorus_marker', true),
     playerBottomBarOffset: readStoredPlayerBottomBarOffset(),
     playerControlSlotPrimary: initialSlotPrimary,
     playerControlSlotSecondary: initialSlotSecondary,
@@ -211,6 +215,14 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
         setStatusMessage({
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'progressBarHidden' : 'progressBarShown')),
+        });
+    },
+    handleToggleProgressBarChorusMarker: (enable) => {
+        setStoredBoolean('progress_bar_chorus_marker', enable);
+        set({ progressBarChorusMarker: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'progressBarChorusMarkerOn' : 'progressBarChorusMarkerOff')),
         });
     },
     handleSetPlayerBottomBarOffset: (offsetPx) => {
@@ -353,6 +365,7 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
  */
 export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsState) => ({
     hidePlayerProgressBar: state.hidePlayerProgressBar,
+    progressBarChorusMarker: state.progressBarChorusMarker,
     playerBottomBarOffset: state.playerBottomBarOffset,
     playerControlSlotPrimary: state.playerControlSlotPrimary,
     playerControlSlotSecondary: state.playerControlSlotSecondary,
@@ -375,6 +388,7 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     hideCursorWhenIdle: state.hideCursorWhenIdle,
     showOpenPanelCloseButton: state.showOpenPanelCloseButton,
     handleToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
+    handleToggleProgressBarChorusMarker: state.handleToggleProgressBarChorusMarker,
     handleSetPlayerBottomBarOffset: state.handleSetPlayerBottomBarOffset,
     handleSetPlayerControlSlot: state.handleSetPlayerControlSlot,
     handleSetPlayerControlLayout: state.handleSetPlayerControlLayout,

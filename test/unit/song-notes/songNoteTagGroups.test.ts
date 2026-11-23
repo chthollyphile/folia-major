@@ -71,14 +71,10 @@ describe('buildSongNoteTagCommands', () => {
     });
 });
 
-describe('resolveHomeWallMode bounded', () => {
-    it('keeps a bounded page finite while browsing, filtered or not', () => {
-        expect(resolveHomeWallMode({ section: 'folia-tags', visibilityMode: 'browse', batch: false, query: '', bounded: true }).mode).toBe('finite');
-        expect(resolveHomeWallMode({ section: 'folia-tags', visibilityMode: 'browse', batch: false, query: 'x', bounded: true })).toEqual({
-            mode: 'finite',
-            filterKey: 'folia-tags|bounded|browse|x',
-        });
-        expect(resolveHomeWallMode({ section: 'folia-tags', visibilityMode: 'manage', batch: false, query: '', bounded: true }).mode).toBe('finite');
+describe('resolveHomeWallMode finiteOnly (the tags section passes it always)', () => {
+    it('keeps the page finite while browsing and managing', () => {
+        expect(resolveHomeWallMode({ section: 'folia-tags', visibilityMode: 'browse', batch: false, query: '', finiteOnly: true }).mode).toBe('finite');
+        expect(resolveHomeWallMode({ section: 'folia-tags', visibilityMode: 'manage', batch: false, query: '', finiteOnly: true }).mode).toBe('finite');
         expect(resolveHomeWallMode({ section: 'folia', visibilityMode: 'browse', batch: false, query: '' }).mode).toBe('infinite');
     });
 });

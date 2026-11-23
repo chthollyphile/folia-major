@@ -299,6 +299,8 @@ export type CommandPaletteSettingsContext = {
     libraryWallWindowsPerBlock: () => number;
     /** Clamps to 1–6 before storing. */
     setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
+    /** bravais home wall finite only, never repeating (useLibraryWallLookStore.homeFinite): flips the stored value. */
+    toggleLibraryWallHomeFinite: () => void;
     /** bravais collection tiles' stack edges (useLibraryWallLookStore.collectionStackEdges): flips the stored value. */
     toggleLibraryWallStackEdges: () => void;
     /** bravais collection pages' tilt (useLibraryWallLookStore.collectionTilt): flips the stored value. */
@@ -350,6 +352,7 @@ export type CommandPaletteSettingsContext = {
     toggleAlwaysShowTrackSwitchButtons: () => void;
     toggleAlwaysShowMainWindowTitlebar: () => void;
     togglePlayerHeaderBlur: () => void;
+    toggleProgressBarChorusMarker: () => void;
     toggleTitlebarSide: () => void;
     toggleHideFullscreenButton: () => void;
     toggleNativeMacFullscreenButton: () => void;

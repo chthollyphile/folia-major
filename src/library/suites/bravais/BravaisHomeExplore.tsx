@@ -37,6 +37,8 @@ import { availableLocalTabLabel, onlineWallHint } from './bravaisEmptyWallHint';
 // - 缝：标题与面包屑是「探索」，元数据行是平台；读取中 / 读不到 / 空页的说明进状态行（墙上有本机的两组时照样说）；
 //   「⋯」里有「换一批」。平台声明了探索页的偏好入口时，缝中段（直达入口那一列，在线页签原本是空的）多一个「偏好设置」。
 // - 账户：与另外几个在线页签同一套（未登录、解析中时墙空着，缝里说原因；未登录时墙面上有背景说明，bravaisEmptyWallHint）。
+// - 设置「首页只用有限墙」不管探索页：探索页按 section 铺的版面本身就是按块重复的（bravaisWallShape 的探索形状），
+//   没有按 rank 排的有限版面，层照旧是无限拼贴。
 // 这个组件只渲染 null。
 
 const NO_KEYS: ReadonlySet<string> = new Set();

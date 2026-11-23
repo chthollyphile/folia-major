@@ -106,6 +106,10 @@ export const buildSettingsCommandContext = (
         setLibraryWallLook: look => useLibraryWallLookStore.getState().setLook(look),
         libraryWallWindowsPerBlock: () => useLibraryWallLookStore.getState().windowsPerBlock,
         setLibraryWallWindowsPerBlock: windowsPerBlock => useLibraryWallLookStore.getState().setWindowsPerBlock(windowsPerBlock),
+        toggleLibraryWallHomeFinite: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setHomeFinite(!wall.homeFinite);
+        },
         toggleLibraryWallStackEdges: () => {
             const wall = useLibraryWallLookStore.getState();
             wall.setCollectionStackEdges(!wall.collectionStackEdges);
@@ -194,6 +198,9 @@ export const buildSettingsCommandContext = (
             const current = usePlayerChromeSettingsStore.getState();
             current.handleSetTitlebarSide(current.titlebarSide === 'left' ? 'right' : 'left');
         },
+        toggleProgressBarChorusMarker: () => chrome.handleToggleProgressBarChorusMarker(
+            !usePlayerChromeSettingsStore.getState().progressBarChorusMarker,
+        ),
         togglePlayerHeaderBlur: () => chrome.handleTogglePlayerHeaderBlur(
             !usePlayerChromeSettingsStore.getState().playerHeaderBlur,
         ),

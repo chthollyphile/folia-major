@@ -10896,9 +10896,6 @@
     }
   },
   "src/utils/lyrics/chorusEffects.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     }

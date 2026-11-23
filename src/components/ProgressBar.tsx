@@ -3,6 +3,7 @@ import { MotionValue, useMotionValueEvent } from 'framer-motion';
 import { FoliumProgressButtons, FoliumProgressLayers, useFoliumProgressContext } from '../mods/folium/registries/progress';
 import { getProgressFillStep, getProgressFillStepFraction } from './progressFillStep';
 import { SongNoteMarks } from './song-notes/SongNoteProgress';
+import { useChorusMarkerFraction } from './progressChorusMarker';
 
 // Folium public parts (mods/README.md): `data-folium-part` marks what mod CSS may
 // restyle — progress.root / track / fill / thumb / time / duration. Colors come
@@ -30,6 +31,8 @@ interface ProgressBarProps {
      * a 3px track, and a taller invisible hit area so it can still be dragged.
      */
     variant?: 'default' | 'line';
+    /** False for a bar that is not the song on screen: the chorus tick belongs to the lyrics shown. */
+    chorusMarker?: boolean;
 }
 
 
@@ -53,6 +56,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     edgeStyle = 'rounded',
     collapsed = false,
     variant = 'default',
+    chorusMarker = true,
 }) => {
     const isLine = variant === 'line';
     const progressRef = useRef<HTMLDivElement>(null);
@@ -64,6 +68,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const lastInputSecondRef = useRef<number | null>(null);
     const trackDeviceWidthRef = useRef(0);
     const lastFillStepRef = useRef<number | null>(null);
+    const chorusFraction = useChorusMarkerFraction(duration, chorusMarker);
 
     // Keeps continuous progress on the compositor while coarse values update only when needed.
     const updateUI = useCallback((value: number, force = false, syncInput = true, bypassDrag = false) => {
@@ -221,6 +226,15 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                         willChange: 'clip-path',
                     }}
                 />
+                {chorusFraction !== null && (
+                    // The chorus start: a thin tick in the fill colour that stands a little proud of
+                    // the track, so it shows ahead of the fill and its ends still show once filled.
+                    <div
+                        className={`absolute top-1/2 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none bg-[var(--folium-progress-fill)] opacity-50 ${isLine ? 'h-[7px]' : 'h-2.5'}`}
+                        style={{ left: `${(chorusFraction * 100).toFixed(3)}%` }}
+                        data-chorus-marker=""
+                    />
+                )}
                 <div
                     ref={thumbRef}
                     className="absolute inset-0 pointer-events-none"

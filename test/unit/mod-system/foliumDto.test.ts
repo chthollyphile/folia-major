@@ -117,6 +117,22 @@ describe('fromFoliumLines', () => {
         expect(second.renderHints).toEqual(buildLineRenderHints(second));
     });
 
+    it('keeps where the chorus of a rebuilt chorus line came from, which mods do not see', () => {
+        const fromSource = line({ startTime: 3, endTime: 4, isChorus: true, chorusOrigin: 'source' });
+        const guessed = line({ startTime: 5, endTime: 6, isChorus: true, chorusOrigin: 'text' });
+        const dtos = toFoliumLines([fromSource, guessed]);
+        expect(dtos[0]).not.toHaveProperty('chorusOrigin');
+        const [first, second, added] = fromFoliumLines([fromSource, guessed], dtos, [
+            { ...dtos[0], translation: 'a' },
+            { ...dtos[1], translation: 'b' },
+            { ...dtos[0], startTime: 7, endTime: 8 },
+        ]);
+        expect(first).toMatchObject({ isChorus: true, chorusOrigin: 'source', translation: 'a' });
+        expect(second).toMatchObject({ isChorus: true, chorusOrigin: 'text' });
+        // A chorus line no original line started with: not known to be the source's.
+        expect(added).not.toHaveProperty('chorusOrigin');
+    });
+
     it('drops a word split that no longer joins back to the text', () => {
         const source = line();
         const dtos = toFoliumLines([source]);

@@ -50,6 +50,7 @@ const O = {
     barOffset: option(BAR, 'playerBottomBarOffset', 'options.playerBottomBarOffset'),
     barReposition: option(BAR, 'playerBottomBarReposition', 'options.playerBottomBarReposition'),
     controlSlots: option(BAR, 'playerControlSlots', 'options.playerControlSlots'),
+    chorusMarker: option(BAR, 'progressBarChorusMarker', 'options.progressBarChorusMarker'),
     cardMode: option(CARD, 'stageTrackPillMode', 'options.stageTrackPillMode'),
     cardTimeout: option(CARD, 'stageTrackPillTimeout', 'options.stageTrackPillTimeout'),
     cardPosition: option(CARD, 'stageTrackPillReposition', 'options.stageTrackPillReposition'),
@@ -105,6 +106,7 @@ const PlayerPage: React.FC = () => {
         hideCursorWhenIdle: state.hideCursorWhenIdle,
         barOffset: state.playerBottomBarOffset,
         hideProgressBar: state.hidePlayerProgressBar,
+        chorusMarker: state.progressBarChorusMarker,
         hidePanelButton: state.hidePlayerRightPanelButton,
         alwaysBackButton: state.alwaysShowPlayerBackButton,
         alwaysTrackSwitch: state.alwaysShowTrackSwitchButtons,
@@ -116,6 +118,7 @@ const PlayerPage: React.FC = () => {
         setBarOffset: state.handleSetPlayerBottomBarOffset,
         resetControlLayout: state.handleResetPlayerControlLayout,
         setHideProgressBar: state.handleToggleHidePlayerProgressBar,
+        setChorusMarker: state.handleToggleProgressBarChorusMarker,
         setHidePanelButton: state.handleToggleHidePlayerRightPanelButton,
         setAlwaysBackButton: state.handleToggleAlwaysShowPlayerBackButton,
         setAlwaysTrackSwitch: state.handleToggleAlwaysShowTrackSwitchButtons,
@@ -263,6 +266,9 @@ const PlayerPage: React.FC = () => {
                 </Reveal>
                 <Row option={O.idleCursorHide} note={t('options.hideCursorWhenIdleDesc')}>
                     <Toggle checked={chrome.hideCursorWhenIdle} onChange={chrome.setHideCursorWhenIdle} />
+                </Row>
+                <Row option={O.chorusMarker} note={t('options.progressBarChorusMarkerDesc')}>
+                    <Toggle checked={chrome.chorusMarker} onChange={chrome.setChorusMarker} />
                 </Row>
                 <Row option={O.barOffset} note={t('options.playerBottomBarOffsetDesc')}>
                     <Button

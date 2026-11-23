@@ -27,6 +27,7 @@ describe('resolveProviderLyricsChorus', () => {
         expect(result.result.lyrics?.lines[1].isChorus).toBe(true);
         expect(result.result.lyrics?.lines[2].isChorus).toBeUndefined();
         expect(result.result.chorusRanges).toEqual([{ startTime: 9, endTime: 13 }]);
+        expect(result.result.lyrics?.lines[1].chorusOrigin).toBe('source');
     });
 
     it('falls back to repeated text when native ranges are empty', async () => {
@@ -43,6 +44,7 @@ describe('resolveProviderLyricsChorus', () => {
         expect(result.mode).toBe('text');
         expect(result.result.lyrics?.lines[1].isChorus).toBe(true);
         expect(result.result.lyrics?.lines[2].isChorus).toBe(true);
+        expect(result.result.lyrics?.lines[1].chorusOrigin).toBe('text');
     });
 
     it('warns and falls back when the provider request fails', async () => {
