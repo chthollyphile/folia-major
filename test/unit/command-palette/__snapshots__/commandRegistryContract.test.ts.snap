@@ -187,6 +187,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "ponder-touch-button-toggle",
   "ponder-hints-off",
   "settings-player-bottom-bar-position",
+  "settings-alpha-video-export",
   "settings-player-control-slots",
   "settings-visualizer",
   "settings-theme-park",

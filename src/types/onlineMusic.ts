@@ -440,7 +440,7 @@ export interface OnlinePlaybackProvider {
     /**
      * The i18n key of the words the quality option shows instead of its pick list, while the stored
      * preference does not choose this provider's sound (it plays through a player of its own that has
-     * its own setting, as Spotify's Soloist). Read when it is needed: it may change with the way it plays.
+     * its own setting). Read when it is needed: it may change with the way it plays.
      */
     audioQualityNoticeKey?: string;
     /**
