@@ -66,6 +66,7 @@ export const STORAGE_KEYS = [
     'main:enable_player_page_native_blur',
     'main:fnmusic-config',
     'main:fnmusic-device-id',
+    'main:video_export_ffmpeg_path',
     'main:wallpaper_display',
     'main:wallpaper_entry_confirmed',
     'main:wallpaper_forward_mouse',

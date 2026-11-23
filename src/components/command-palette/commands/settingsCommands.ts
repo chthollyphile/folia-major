@@ -642,6 +642,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
     },
     // 用 anchor 版而不是 createSettingsCommand：后者只认页面，落在「通用」页顶部，
     // 而槽位选择器在这一页的底部界面那一节里，跳过去等于没跳。
+    // The transparent export's ffmpeg (found, chosen by hand, or none) sits at the bottom of the Remote Control page.
+    createSettingsAnchorCommand(
+        'settings-alpha-video-export',
+        'Transparent video export',
+        'Choose the ffmpeg the transparent video export uses and see which formats it can write',
+        ['ffmpeg', 'transparent video', 'alpha', 'prores', 'vp9', 'export video', '透明视频导出', '透明导出', '选择 ffmpeg', '带透明通道'],
+        'alphaVideoExport',
+        { platform: ['electron'] },
+    ),
     createSettingsAnchorCommand(
         'settings-player-control-slots',
         'Player button slots',

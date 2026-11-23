@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModSourceUsageResult, ModStorageUsageResult } from './mods/types';
+import type { AlphaVideoExportProgress, AlphaVideoFormatId, AlphaVideoExportRequest, AlphaVideoExportResult, VideoExportFfmpegChooseResult, VideoExportFfmpegStatus } from './types/videoExport';
 import type { PerfCheckProcessMemory, PerfCheckSettings } from './components/perfCheck/perfCheckTypes';
 
 declare global {
@@ -193,7 +194,7 @@ declare global {
     | { type: 'cycle-player-chrome-visibility-mode' }
     | { type: 'set-player-chrome-visibility-mode'; mode: import('./types/remoteControl').PlayerChromeVisibilityMode }
     | { type: 'open-export' }
-    | { type: 'start-export'; preset: ElectronVideoExportPreset; startMode: ElectronVideoExportStartMode }
+    | { type: 'start-export'; preset: ElectronVideoExportPreset; startMode: ElectronVideoExportStartMode; alphaFormat?: AlphaVideoFormatId }
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
     | { type: 'toggle-like' }
@@ -1007,6 +1008,12 @@ declare global {
       appendVideoExportChunk: (sessionId: string, data: ArrayBuffer) => Promise<number>;
       finishVideoExportFile: (sessionId: string) => Promise<{ filePath: string; bytesWritten: number; finalized: boolean }>;
       abortVideoExportFile: (sessionId: string) => Promise<boolean>;
+      getVideoExportFfmpegStatus?: (refresh?: boolean) => Promise<VideoExportFfmpegStatus>;
+      chooseVideoExportFfmpeg?: () => Promise<VideoExportFfmpegChooseResult>;
+      clearVideoExportFfmpeg?: () => Promise<VideoExportFfmpegStatus>;
+      startAlphaVideoExport?: (request: AlphaVideoExportRequest) => Promise<AlphaVideoExportResult>;
+      cancelAlphaVideoExport?: () => Promise<{ ok: boolean }>;
+      onAlphaVideoExportProgress?: (callback: (progress: AlphaVideoExportProgress) => void) => () => void;
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
       regenerateStageToken: () => Promise<StageStatus>;

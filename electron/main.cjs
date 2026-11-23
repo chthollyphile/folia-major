@@ -81,6 +81,8 @@ const { createWindowsThumbar } = require('./windowsThumbar.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createVideoExportFileWriter } = require('./videoExportFileWriter.cjs');
 const { finalizeVideoExportFile } = require('./videoExportMp4.cjs');
+const { createExportFfmpegResolver } = require('./alphaExport/exportFfmpeg.cjs');
+const { registerAlphaExportIpc } = require('./alphaExport/alphaExportIpc.cjs');
 const { createLyricApi } = require('./lyricApi.cjs');
 const { createLocalCoverAssetStore, getLocalCoverAssetDirectory } = require('./localCoverAssets.cjs');
 const {
@@ -2585,6 +2587,9 @@ const backgroundThrottling = createBackgroundThrottling({
 // Chromium's fragmented MP4 leaves the movie duration at the first fragment (#549); patch it
 // from the fragment timeline once recording ends.
 const videoExportFileWriter = createVideoExportFileWriter({ finalizeFile: finalizeVideoExportFile });
+// The ffmpeg of the transparent export (the user's choice in Settings, else a checked search), shared by
+// the host's own export and the mods' api.render.exportVideo.
+const exportFfmpegResolver = createExportFfmpegResolver({ store, appGetAppPath: () => app.getAppPath() });
 let autoUpdater = null;
 // The updater's own check of GitHub is running: its failure is handled where it was started (the
 // mirrors get asked), so the updater's 'error' event leaves the state alone meanwhile.
@@ -6398,6 +6403,7 @@ app.whenReady().then(async () => {
       // api.cache.legacyDir: a built-in source's cache of before, in the media cache folder the listener chose.
       legacyCacheDir: (name) => path.join(getConfiguredCacheDirectory(), name),
       openExternal: (url) => openExternalUrl(url),
+      resolveExportFfmpeg: () => exportFfmpegResolver.resolve(),
       // api.native.path / load: the native files the app ships for a built-in source (electron/modSystem/nativeFiles.cjs).
       // A file that is not there (a development run that has not built it, a broken install) is as unavailable as one
       // the system has no build of: the source says so at once instead of starting what cannot start.
@@ -8096,6 +8102,18 @@ ipcMain.handle('video-export-finish-file', (event, sessionId) => {
 ipcMain.handle('video-export-abort-file', (event, sessionId) => {
   assertTrustedVideoExportWriter(event);
   return videoExportFileWriter.abort(sessionId);
+});
+
+registerAlphaExportIpc({
+  ipcMain,
+  dialog,
+  app,
+  resolver: exportFfmpegResolver,
+  getModSystem: () => modSystem,
+  getMainWindow: () => mainWindow,
+  getSenderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
+  isFirstParty: isFirstPartyWindowContents,
+  isMainWindowSender: (event) => isTrustedMainWindowContents(event.sender),
 });
 
 ipcMain.handle('debug-get-rendered-fonts', async (event, selector) => {
