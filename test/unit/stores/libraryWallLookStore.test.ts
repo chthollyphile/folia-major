@@ -21,6 +21,7 @@ const LOOK_KEY = 'library_wall_look';
 const WINDOWS_KEY = 'library_wall_windows_per_block';
 const STACK_EDGES_KEY = 'library_wall_stack_edges';
 const COLLECTION_TILT_KEY = 'library_wall_collection_tilt';
+const HOME_FINITE_KEY = 'library_wall_home_finite';
 const SEAM_CLEAR_KEY = 'library_wall_seam_clear';
 const SEAM_STYLE_KEY = 'library_wall_seam_style';
 const SEAM_DIRECTION_KEY = 'library_wall_seam_direction';
@@ -226,6 +227,21 @@ describe('useLibraryWallLookStore', () => {
         // 只认 'false' 为关；读不到或别的值按默认（开）。
         expect((await loadStore({ [COLLECTION_TILT_KEY]: 'nope' })).getState().collectionTilt).toBe(true);
         expect((await loadStore({ [COLLECTION_TILT_KEY]: 'false' }, { throwOnGet: true })).getState().collectionTilt).toBe(true);
+    });
+
+    it('keeps the home wall infinite by default and persists the finite-only switch', async () => {
+        const store = await loadStore();
+        expect(store.getState().homeFinite).toBe(false);
+        expect(storage.size).toBe(0);
+
+        store.getState().setHomeFinite(true);
+        expect(storage.get(HOME_FINITE_KEY)).toBe('true');
+        const restarted = await loadStore(Object.fromEntries(storage));
+        expect(restarted.getState().homeFinite).toBe(true);
+
+        // 只认 'true' 为开；读不到或别的值按默认（关）。
+        expect((await loadStore({ [HOME_FINITE_KEY]: 'yes' })).getState().homeFinite).toBe(false);
+        expect((await loadStore({ [HOME_FINITE_KEY]: 'true' }, { throwOnGet: true })).getState().homeFinite).toBe(false);
     });
 
     // 2026-10-09：信息条的材质与墙后的画面。信息条始终透明默认开（用户定，只认 'false' 为关）；歌词 / 模糊默认关、
