@@ -284,8 +284,8 @@ describe('the notice a failing mod raises', () => {
         expect(useSettingsModalStore.getState().settingsModalState).toMatchObject({
             isOpen: true,
             initialTab: 'options',
-            initialSubview: 'mods',
-            initialAnchor: { id: 'modList', rowId: 'mod:fault-open' },
+            initialSubview: 'modsWindow',
+            initialAnchor: null,
         });
         expect(isFoliumFaultNoticeMuted('fault-open')).toBe(false);
         useSettingsModalStore.getState().closeSettings();

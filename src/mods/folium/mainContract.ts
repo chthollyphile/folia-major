@@ -109,6 +109,10 @@ export interface FoliumManifest {
     readonly contexts?: readonly string[] | null;
     /** Folium 2: native files of the app a built-in source uses, or null. */
     readonly native?: readonly string[] | null;
+    /** Folium 2.1: the https link of the mod's source repository, or null. */
+    readonly repository?: string | null;
+    /** Folium 2.1: the https link where users report the mod's problems, or null. */
+    readonly bugs?: string | null;
 }
 
 /**

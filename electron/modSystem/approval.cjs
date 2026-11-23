@@ -22,7 +22,7 @@ const TRUST_DIALOG_LOCALE = {
     'zh-CN': {
         title: '启用模组',
         message: (name, id) => `确定要启用模组“${name}”（${id}）吗？`,
-        risk: '模组是第三方代码，未经官方安全审计。一旦启用，它将以应用的完整权限运行：可读写本地文件、访问网络、读取或修改任意应用设置（包括 AI 服务地址与密钥），并可在界面中执行代码。请仅启用你信任来源的模组。',
+        risk: '模组是第三方代码。启用后它以应用的完整权限运行，能读写文件、访问网络、改动任意设置。只启用你信任来源的模组。',
         permissions: '声明的权限：',
         noPermissions: '声明的权限：无',
         platformRead: (platforms) => `以你的账号读取平台数据（实验接口 platform.raw）：${platforms}。模组会以你在 Folia 登录的账号读取这些平台上的数据，例如听歌记录。`,
@@ -43,9 +43,9 @@ const TRUST_DIALOG_LOCALE = {
         experimental: '选用的实验接口：',
         embedOrigins: '可嵌入的外部网页：',
         folia: '需要的 Folia 版本：',
-        verifiedRisk: '此模组带有有效的 Folium 官方签名，来源与内容已经过官方审查，且签名后未被修改。启用后它仍以应用的完整权限运行：可读写本地文件、访问网络、读取或修改任意应用设置（包括 AI 服务地址与密钥），并可在界面中执行代码。',
+        verifiedRisk: '这个模组带有效的 Folium 官方签名：经过官方审查，签名后没有改动。启用后它仍以应用的完整权限运行。',
         signatureVerified: (key) => `签名：官方认证（${key}）`,
-        betaRisk: '此模组是 Folium 先行测试版本：仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作，主要供社区开发者做创意实验，普通用户请勿轻易启用。启用后它仍以应用的完整权限运行：可读写本地文件、访问网络、读取或修改任意应用设置（包括 AI 服务地址与密钥），并可在界面中执行代码。',
+        betaRisk: '这是先行测试版：只通过了安全审查，功能可能不完整甚至无法工作。启用后它以应用的完整权限运行。',
         signatureBeta: (key) => `签名：先行测试（${key}）`,
         signatureUnsigned: '签名：无（未经官方审查的第三方模组）',
         signatureInvalid: (reason) => `签名：不匹配（${reason}）。模组内容在签名后被修改，或签名无效，这份签名不能作为审查依据。`,
@@ -69,14 +69,25 @@ const TRUST_DIALOG_LOCALE = {
         enable: '仍要启用',
         communityTitle: '打开社区模组',
         communityMessage: '允许安装和运行社区模组吗？',
-        communityDetail: '社区模组是第三方代码，没有经过 Folia 的官方签名，可能也没有经过安全审查。打开后，你可以从 zip 安装任何模组，模组目录里已有的模组也能启用；启用的模组以应用的完整权限运行：能读写本地文件、访问网络、读取或修改应用设置，并能在界面里执行代码。之前确认过的模组会立刻运行，其余每个模组启用前仍会单独确认。只安装你信任的来源。',
+        communityDetail: '社区模组是第三方代码，没有 Folia 的官方签名，可能也没有经过安全审查。打开后可以从 zip 或模组市场安装任何模组；之前确认过的模组会立刻运行，其余每个模组启用前仍会单独确认。启用的模组以应用的完整权限运行。',
         communityConfirm: '打开',
+        rangeTitle: '尝试加载版本声明已过期的模组',
+        rangeMessage: (name, id) => `仍要尝试加载“${name}”（${id}）吗？`,
+        rangeBatchMessage: (count) => `仍要尝试加载这 ${count} 个版本声明已过期的模组吗？`,
+        rangeDetail: (range, version) => `作者声明它只支持 Folia ${range}，当前是 ${version}。它多半还能用，但可能出错或功能不全；出了问题请向模组作者反馈，不要反馈到 Folia。模组更新后要重新确认。`,
+        rangeFeedback: (url) => `反馈地址：${url}`,
+        rangeConfirm: '尝试加载',
+        uninstallTitle: '卸载模组',
+        uninstallMessage: (name, id) => `卸载模组“${name}”（${id}）吗？`,
+        uninstallDetail: '模组文件夹会移到回收站，它存下的数据保留。',
+        uninstallOverride: '卸载后回到随应用安装的内置版本。',
+        uninstallConfirm: '卸载',
         cancel: '取消',
     },
     'zh-TW': {
         title: '啟用模組',
         message: (name, id) => `確定要啟用模組“${name}”（${id}）嗎？`,
-        risk: '模組是第三方程式碼，未經官方安全審計。一旦啟用，它將以應用的完整權限執行：可讀寫本地檔案、存取網路、讀取或修改任意應用設定（包括 AI 服務位址與金鑰），並可在介面中執行程式碼。請僅啟用你信任來源的模組。',
+        risk: '模組是第三方程式碼。啟用後它以應用的完整權限執行，能讀寫檔案、存取網路、改動任意設定。只啟用你信任來源的模組。',
         permissions: '宣告的權限：',
         noPermissions: '宣告的權限：無',
         platformRead: (platforms) => `以你的帳號讀取平臺數據（實驗介面 platform.raw）：${platforms}。模組會以你在 Folia 登入的帳號讀取這些平臺上的資料，例如聽歌記錄。`,
@@ -97,9 +108,9 @@ const TRUST_DIALOG_LOCALE = {
         experimental: '選用的實驗介面：',
         embedOrigins: '可嵌入的外部網頁：',
         folia: '需要的 Folia 版本：',
-        verifiedRisk: '此模組帶有有效的 Folium 官方簽名，來源與內容已經過官方審查，且簽名後未被修改。啟用後它仍以應用的完整權限執行：可讀寫本地檔案、存取網路、讀取或修改任意應用設定（包括 AI 服務位址與金鑰），並可在介面中執行程式碼。',
+        verifiedRisk: '這個模組帶有效的 Folium 官方簽名：經過官方審查，簽名後沒有改動。啟用後它仍以應用的完整權限執行。',
         signatureVerified: (key) => `簽名：官方認證（${key}）`,
-        betaRisk: '此模組是 Folium 先行測試版本：僅通過了安全審查，不保證功能實現的整潔，甚至功能可能完全無法工作，主要供社群開發者做創意實驗，普通使用者請勿輕易啟用。啟用後它仍以應用的完整權限執行：可讀寫本地檔案、存取網路、讀取或修改任意應用設定（包括 AI 服務位址與金鑰），並可在介面中執行程式碼。',
+        betaRisk: '這是先行測試版：只通過了安全審查，功能可能不完整甚至無法工作。啟用後它以應用的完整權限執行。',
         signatureBeta: (key) => `簽名：先行測試（${key}）`,
         signatureUnsigned: '簽名：無（未經官方審查的第三方模組）',
         signatureInvalid: (reason) => `簽名：不匹配（${reason}）。模組內容在簽名後被修改，或簽名無效，這份簽名不能作為審查依據。`,
@@ -123,14 +134,25 @@ const TRUST_DIALOG_LOCALE = {
         enable: '仍要啟用',
         communityTitle: '開啟社群模組',
         communityMessage: '允許安裝和執行社群模組嗎？',
-        communityDetail: '社群模組是第三方程式碼，沒有經過 Folia 的官方簽名，可能也沒有經過安全審查。開啟後，你可以從 zip 安裝任何模組，模組目錄裡已有的模組也能啟用；啟用的模組以應用的完整權限執行：能讀寫本地檔案、存取網路、讀取或修改應用設定，並能在介面裡執行程式碼。之前確認過的模組會立刻執行，其餘每個模組啟用前仍會單獨確認。只安裝你信任的來源。',
+        communityDetail: '社群模組是第三方程式碼，沒有 Folia 的官方簽名，可能也沒有經過安全審查。開啟後可以從 zip 或模組市場安裝任何模組；之前確認過的模組會立刻執行，其餘每個模組啟用前仍會單獨確認。啟用的模組以應用的完整權限執行。',
         communityConfirm: '開啟',
+        rangeTitle: '嘗試載入版本宣告已過期的模組',
+        rangeMessage: (name, id) => `仍要嘗試載入“${name}”（${id}）嗎？`,
+        rangeBatchMessage: (count) => `仍要嘗試載入這 ${count} 個版本宣告已過期的模組嗎？`,
+        rangeDetail: (range, version) => `作者宣告它只支援 Folia ${range}，當前是 ${version}。它多半還能用，但可能出錯或功能不全；出了問題請向模組作者反饋，不要反饋到 Folia。模組更新後要重新確認。`,
+        rangeFeedback: (url) => `反饋位址：${url}`,
+        rangeConfirm: '嘗試載入',
+        uninstallTitle: '解除安裝模組',
+        uninstallMessage: (name, id) => `解除安裝模組“${name}”（${id}）嗎？`,
+        uninstallDetail: '模組資料夾會移到回收站，它存下的資料保留。',
+        uninstallOverride: '解除安裝後回到隨應用安裝的內建版本。',
+        uninstallConfirm: '解除安裝',
         cancel: '取消',
     },
     en: {
         title: 'Enable mod',
         message: (name, id) => `Enable the mod "${name}" (${id})?`,
-        risk: 'Mods are third-party code and are not security-audited. Once enabled, a mod runs with the full privileges of the app: it can read and write local files, access the network, read or change any app setting (including the AI service URL and key), and run code inside the UI. Only enable mods from sources you trust.',
+        risk: 'Mods are third-party code. Once enabled, a mod runs with the full privileges of the app: it can read and write files, reach the network and change any setting. Only enable mods from sources you trust.',
         permissions: 'Declared permissions: ',
         noPermissions: 'Declared permissions: none',
         platformRead: (platforms) => `Reads platform data as you (experimental platform.raw): ${platforms}. The mod can read data on these platforms with the account you signed in to Folia with, such as your listening records.`,
@@ -151,9 +173,9 @@ const TRUST_DIALOG_LOCALE = {
         experimental: 'Experimental APIs opted into: ',
         embedOrigins: 'External pages it may embed: ',
         folia: 'Needs Folia ',
-        verifiedRisk: 'This mod carries a valid official Folium signature: its source and content were reviewed by Folium and have not changed since signing. Once enabled it still runs with the full privileges of the app: it can read and write local files, access the network, read or change any app setting (including the AI service URL and key), and run code inside the UI.',
+        verifiedRisk: 'This mod carries a valid official Folium signature: it was reviewed and has not changed since signing. Once enabled it still runs with the full privileges of the app.',
         signatureVerified: (key) => `Signature: officially verified (${key})`,
-        betaRisk: 'This mod is a Folium preview build: it passed the security review only. Its implementation may be rough and its features may not work at all; it is meant for community developers to experiment with, and most users should not enable it. Once enabled it still runs with the full privileges of the app: it can read and write local files, access the network, read or change any app setting (including the AI service URL and key), and run code inside the UI.',
+        betaRisk: 'This is a preview build: it passed the security review only, and its features may be incomplete or not work at all. Once enabled it runs with the full privileges of the app.',
         signatureBeta: (key) => `Signature: preview build (${key})`,
         signatureUnsigned: 'Signature: none (a third-party mod not reviewed by Folium)',
         signatureInvalid: (reason) => `Signature: does not match (${reason}). The mod was changed after signing, or the signature is invalid; the signature can no longer vouch for it.`,
@@ -177,14 +199,25 @@ const TRUST_DIALOG_LOCALE = {
         enable: 'Enable anyway',
         communityTitle: 'Turn on community mods',
         communityMessage: 'Allow installing and running community mods?',
-        communityDetail: 'Community mods are third-party code without an official Folia signature, and may not have had a security review. Once this is on, any mod can be installed from a zip and the mods already in the mods folder can be enabled; an enabled mod runs with the app\'s full rights: it can read and write local files, reach the network, read or change the app\'s settings and run code in the interface. Mods you confirmed before run at once; any other mod is still confirmed on its own before it is enabled. Only install mods from sources you trust.',
+        communityDetail: 'Community mods are third-party code without an official Folia signature, and may not have had a security review. Once this is on, any mod can be installed from a zip or the mod market; mods you confirmed before run at once, and any other mod is still confirmed on its own before it is enabled. An enabled mod runs with the full privileges of the app.',
         communityConfirm: 'Turn on',
+        rangeTitle: 'Try a mod whose version range has expired',
+        rangeMessage: (name, id) => `Try loading "${name}" (${id}) anyway?`,
+        rangeBatchMessage: (count) => `Try loading these ${count} mods whose version range has expired?`,
+        rangeDetail: (range, version) => `Its author says it supports Folia ${range}; this is ${version}. It will most likely still work, but it may fail or miss features. Report problems to the mod's author, not to Folia. After the mod updates you are asked again.`,
+        rangeFeedback: (url) => `Report problems at: ${url}`,
+        rangeConfirm: 'Try loading',
+        uninstallTitle: 'Uninstall mod',
+        uninstallMessage: (name, id) => `Uninstall the mod "${name}" (${id})?`,
+        uninstallDetail: 'The mod folder is moved to the trash; the data it saved is kept.',
+        uninstallOverride: 'The built-in version installed with the app runs again.',
+        uninstallConfirm: 'Uninstall',
         cancel: 'Cancel',
     },
     in: {
         title: 'Aktifkan mod',
         message: (name, id) => `Aktifkan mod "${name}" (${id})?`,
-        risk: 'Mod adalah kode pihak ketiga dan tidak diaudit keamanannya. Setelah diaktifkan, mod berjalan dengan hak penuh aplikasi: dapat membaca dan menulis berkas lokal, mengakses jaringan, membaca atau mengubah pengaturan apa pun (termasuk URL dan kunci layanan AI), serta menjalankan kode di dalam antarmuka. Aktifkan hanya mod dari sumber yang Anda percayai.',
+        risk: 'Mod adalah kode pihak ketiga. Setelah diaktifkan, mod berjalan dengan hak penuh aplikasi: dapat membaca dan menulis berkas, mengakses jaringan, dan mengubah pengaturan apa pun. Aktifkan hanya mod dari sumber yang Anda percayai.',
         permissions: 'Izin yang dideklarasikan: ',
         noPermissions: 'Izin yang dideklarasikan: tidak ada',
         platformRead: (platforms) => `Membaca data platform atas nama Anda (API eksperimental platform.raw): ${platforms}. Mod dapat membaca data di platform ini dengan akun yang Anda pakai untuk masuk ke Folia, misalnya riwayat mendengarkan.`,
@@ -205,9 +238,9 @@ const TRUST_DIALOG_LOCALE = {
         experimental: 'API eksperimental yang dipakai: ',
         embedOrigins: 'Halaman eksternal yang dapat disematkan: ',
         folia: 'Membutuhkan Folia ',
-        verifiedRisk: 'Mod ini memiliki tanda tangan resmi Folium yang valid: sumber dan isinya telah ditinjau oleh Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi: dapat membaca dan menulis berkas lokal, mengakses jaringan, membaca atau mengubah pengaturan apa pun (termasuk URL dan kunci layanan AI), serta menjalankan kode di dalam antarmuka.',
+        verifiedRisk: 'Mod ini memiliki tanda tangan resmi Folium yang valid: sudah ditinjau dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.',
         signatureVerified: (key) => `Tanda tangan: terverifikasi resmi (${key})`,
-        betaRisk: 'Mod ini adalah versi pratinjau Folium: hanya lolos tinjauan keamanan. Implementasinya mungkin belum rapi dan fiturnya bisa saja sama sekali tidak berfungsi; mod ini ditujukan bagi pengembang komunitas untuk bereksperimen, dan sebagian besar pengguna sebaiknya tidak mengaktifkannya. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi: dapat membaca dan menulis berkas lokal, mengakses jaringan, membaca atau mengubah pengaturan apa pun (termasuk URL dan kunci layanan AI), serta menjalankan kode di dalam antarmuka.',
+        betaRisk: 'Ini versi pratinjau: hanya lolos tinjauan keamanan, dan fiturnya mungkin belum lengkap atau tidak berfungsi sama sekali. Setelah diaktifkan, mod berjalan dengan hak penuh aplikasi.',
         signatureBeta: (key) => `Tanda tangan: versi pratinjau (${key})`,
         signatureUnsigned: 'Tanda tangan: tidak ada (mod pihak ketiga yang belum ditinjau Folium)',
         signatureInvalid: (reason) => `Tanda tangan: tidak cocok (${reason}). Mod diubah setelah ditandatangani, atau tanda tangannya tidak valid; tanda tangan ini tidak lagi bisa menjaminnya.`,
@@ -231,14 +264,25 @@ const TRUST_DIALOG_LOCALE = {
         enable: 'Tetap aktifkan',
         communityTitle: 'Aktifkan mod komunitas',
         communityMessage: 'Izinkan memasang dan menjalankan mod komunitas?',
-        communityDetail: 'Mod komunitas adalah kode pihak ketiga tanpa tanda tangan resmi Folia, dan mungkin belum melewati tinjauan keamanan. Setelah diaktifkan, mod apa pun bisa dipasang dari zip dan mod yang sudah ada di folder mod bisa diaktifkan; mod yang aktif berjalan dengan hak penuh aplikasi: bisa membaca dan menulis file lokal, mengakses jaringan, membaca atau mengubah pengaturan aplikasi, dan menjalankan kode di antarmuka. Mod yang sudah pernah Anda konfirmasi langsung berjalan; mod lain tetap dikonfirmasi sendiri sebelum diaktifkan. Pasang hanya dari sumber yang Anda percayai.',
+        communityDetail: 'Mod komunitas adalah kode pihak ketiga tanpa tanda tangan resmi Folia, dan mungkin belum melewati tinjauan keamanan. Setelah diaktifkan, mod apa pun bisa dipasang dari zip atau pasar mod; mod yang sudah pernah Anda konfirmasi langsung berjalan, dan mod lain tetap dikonfirmasi sendiri sebelum diaktifkan. Mod yang aktif berjalan dengan hak penuh aplikasi.',
         communityConfirm: 'Aktifkan',
+        rangeTitle: 'Coba mod yang rentang versinya sudah kedaluwarsa',
+        rangeMessage: (name, id) => `Tetap coba muat "${name}" (${id})?`,
+        rangeBatchMessage: (count) => `Tetap coba muat ${count} mod yang rentang versinya sudah kedaluwarsa ini?`,
+        rangeDetail: (range, version) => `Pembuatnya menyatakan mod ini mendukung Folia ${range}; versi ini ${version}. Kemungkinan besar mod masih berfungsi, tetapi bisa gagal atau fiturnya tidak lengkap. Laporkan masalah ke pembuat mod, bukan ke Folia. Setelah mod diperbarui, Anda akan ditanya lagi.`,
+        rangeFeedback: (url) => `Laporkan masalah di: ${url}`,
+        rangeConfirm: 'Coba muat',
+        uninstallTitle: 'Copot mod',
+        uninstallMessage: (name, id) => `Copot mod "${name}" (${id})?`,
+        uninstallDetail: 'Folder mod dipindahkan ke tempat sampah; data yang disimpannya tetap ada.',
+        uninstallOverride: 'Versi bawaan yang terpasang bersama aplikasi akan berjalan lagi.',
+        uninstallConfirm: 'Copot',
         cancel: 'Batal',
     },
     vi: {
         title: 'Bật mod',
         message: (name, id) => `Bạn có chắc chắn muốn bật mod “${name}” (${id}) không?`,
-        risk: 'Mod là mã nguồn từ bên thứ ba và chưa được kiểm tra an toàn chính thức. Khi được bật, mod sẽ chạy với toàn bộ quyền hạn của ứng dụng: có thể đọc và ghi tệp cục bộ, truy cập mạng, đọc hoặc thay đổi bất kỳ cài đặt nào của ứng dụng (bao gồm địa chỉ và khóa dịch vụ AI), và thực thi mã trong giao diện. Chỉ bật các mod từ nguồn mà bạn tin cậy.',
+        risk: 'Mod là mã của bên thứ ba. Khi được bật, mod chạy với toàn bộ quyền hạn của ứng dụng: có thể đọc ghi tệp, truy cập mạng và thay đổi mọi cài đặt. Chỉ bật mod từ nguồn bạn tin cậy.',
         permissions: 'Các quyền khai báo: ',
         noPermissions: 'Các quyền khai báo: không có',
         platformRead: (platforms) => `Đọc dữ liệu nền tảng dưới danh nghĩa tài khoản của bạn (giao diện thử nghiệm platform.raw): ${platforms}. Mod có thể đọc dữ liệu trên các nền tảng này bằng tài khoản bạn đã đăng nhập vào Folia, chẳng hạn như lịch sử nghe.`,
@@ -259,9 +303,9 @@ const TRUST_DIALOG_LOCALE = {
         experimental: 'Giao diện thử nghiệm tùy chọn: ',
         embedOrigins: 'Trang web bên ngoài có thể nhúng: ',
         folia: 'Yêu cầu phiên bản Folia ',
-        verifiedRisk: 'Mod này có chữ ký chính thức hợp lệ của Folium: nguồn và nội dung đã được Folium xem xét và không bị chỉnh sửa kể từ khi ký. Sau khi bật, mod vẫn chạy với toàn bộ quyền hạn của ứng dụng: có thể đọc và ghi tệp cục bộ, truy cập mạng, đọc hoặc thay đổi bất kỳ cài đặt nào của ứng dụng (bao gồm địa chỉ và khóa dịch vụ AI), và thực thi mã trong giao diện.',
+        verifiedRisk: 'Mod này có chữ ký chính thức hợp lệ của Folium: đã được xem xét và không bị sửa đổi kể từ khi ký. Sau khi bật, mod vẫn chạy với toàn bộ quyền hạn của ứng dụng.',
         signatureVerified: (key) => `Chữ ký: Chứng nhận chính thức (${key})`,
-        betaRisk: 'Mod này là bản thử nghiệm sớm của Folium: chỉ mới vượt qua kiểm tra an toàn, không đảm bảo tính ổn định và thậm chí có thể không hoạt động; chủ yếu dành cho nhà phát triển cộng đồng thử nghiệm, người dùng thông thường không nên bật. Sau khi bật, mod vẫn chạy với toàn bộ quyền hạn của ứng dụng: có thể đọc và ghi tệp cục bộ, truy cập mạng, đọc hoặc thay đổi bất kỳ cài đặt nào của ứng dụng (bao gồm địa chỉ và khóa dịch vụ AI), và thực thi mã trong giao diện.',
+        betaRisk: 'Đây là bản thử nghiệm sớm: chỉ mới vượt qua kiểm tra an toàn, tính năng có thể chưa đầy đủ hoặc không hoạt động. Sau khi bật, mod chạy với toàn bộ quyền hạn của ứng dụng.',
         signatureBeta: (key) => `Chữ ký: Thử nghiệm sớm (${key})`,
         signatureUnsigned: 'Chữ ký: Không có (mod bên thứ ba chưa được Folium xem xét)',
         signatureInvalid: (reason) => `Chữ ký: Không khớp (${reason}). Nội dung mod đã bị sửa đổi sau khi ký hoặc chữ ký không hợp lệ; chữ ký này không còn giá trị chứng nhận.`,
@@ -285,8 +329,19 @@ const TRUST_DIALOG_LOCALE = {
         enable: 'Vẫn bật',
         communityTitle: 'Bật mod cộng đồng',
         communityMessage: 'Cho phép cài đặt và chạy mod cộng đồng?',
-        communityDetail: 'Mod cộng đồng là mã của bên thứ ba, không có chữ ký chính thức của Folia và có thể chưa qua đánh giá bảo mật. Khi bật, có thể cài bất kỳ mod nào từ zip và bật các mod đã có trong thư mục mod; mod đã bật chạy với toàn quyền của ứng dụng: đọc ghi tệp cục bộ, truy cập mạng, đọc hoặc sửa cài đặt ứng dụng và chạy mã trong giao diện. Các mod bạn đã xác nhận trước đó sẽ chạy ngay; mọi mod khác vẫn được xác nhận riêng trước khi bật. Chỉ cài từ nguồn bạn tin cậy.',
+        communityDetail: 'Mod cộng đồng là mã của bên thứ ba, không có chữ ký chính thức của Folia và có thể chưa qua đánh giá bảo mật. Khi bật, có thể cài bất kỳ mod nào từ zip hoặc kho mod; các mod bạn đã xác nhận trước đó sẽ chạy ngay, mọi mod khác vẫn được xác nhận riêng trước khi bật. Mod đã bật chạy với toàn bộ quyền hạn của ứng dụng.',
         communityConfirm: 'Bật',
+        rangeTitle: 'Thử tải mod có khai báo phiên bản đã hết hạn',
+        rangeMessage: (name, id) => `Vẫn thử tải “${name}” (${id})?`,
+        rangeBatchMessage: (count) => `Vẫn thử tải ${count} mod có khai báo phiên bản đã hết hạn này?`,
+        rangeDetail: (range, version) => `Tác giả khai báo mod hỗ trợ Folia ${range}; phiên bản hiện tại là ${version}. Nhiều khả năng mod vẫn chạy được, nhưng có thể lỗi hoặc thiếu tính năng. Hãy báo lỗi cho tác giả mod, không phải cho Folia. Sau khi mod cập nhật, bạn sẽ được hỏi lại.`,
+        rangeFeedback: (url) => `Báo lỗi tại: ${url}`,
+        rangeConfirm: 'Thử tải',
+        uninstallTitle: 'Gỡ mod',
+        uninstallMessage: (name, id) => `Gỡ mod “${name}” (${id})?`,
+        uninstallDetail: 'Thư mục mod sẽ được chuyển vào thùng rác; dữ liệu mod đã lưu vẫn được giữ.',
+        uninstallOverride: 'Phiên bản tích hợp cài cùng ứng dụng sẽ chạy lại.',
+        uninstallConfirm: 'Gỡ',
         cancel: 'Hủy',
     },
 };
@@ -376,9 +431,34 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         }
     };
 
+    // A null `digest` takes the confirmation back (uninstalling the override copy).
     const writeOverrideApproval = (modId, digest) => {
         try {
-            store.set(overrideKey(modId), { digest, confirmedAt: new Date().toISOString() });
+            store.set(overrideKey(modId), digest ? { digest, confirmedAt: new Date().toISOString() } : null);
+        } catch {
+            // Best-effort, as above.
+        }
+    };
+
+    /*
+     * A mod whose `folia` range only ran out above (manifest.cjs classifyHostRange 'expired'), loaded anyway
+     * because the user said so. Bound to the files like an approval: an update has to be confirmed again.
+     */
+    const rangeKey = (modId) => `${String(enabledKey(modId)).replace(/\.enabled\./, '.range.')}`;
+
+    const isRangeOverrideConfirmed = (modId, digest) => {
+        try {
+            const stored = store.get(rangeKey(modId));
+            return Boolean(digest && stored && typeof stored === 'object' && stored.digest === digest);
+        } catch {
+            return false;
+        }
+    };
+
+    // A null `digest` takes the permission back (a record that is not an object reads as none).
+    const writeRangeOverride = (modId, digest) => {
+        try {
+            store.set(rangeKey(modId), digest ? { digest, confirmedAt: new Date().toISOString() } : null);
         } catch {
             // Best-effort, as above.
         }
@@ -552,7 +632,61 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         });
     };
 
-    const confirmEnableMod = async (runtime, digest, signature) => {
+    /*
+     * Loading mods whose `folia` range ran out above anyway (B4 of the Folium 2 market plan). `entries` are
+     * `{ name, id, range, feedbackUrl }`; one dialog for one mod or for a batch.
+     */
+    const confirmRangeOverride = async (entries, hostVersion) => {
+        const locale = resolveDialogLocale();
+        const list = Array.isArray(entries) ? entries : [];
+        if (list.length === 0) return false;
+        const first = list[0];
+        const lines = list.length === 1
+            ? [
+                locale.rangeDetail(first.range ?? '-', hostVersion),
+                ...(first.feedbackUrl ? ['', locale.rangeFeedback(first.feedbackUrl)] : []),
+            ]
+            : [
+                locale.rangeDetail(list.map((entry) => entry.range).filter(Boolean).filter((range, index, all) => all.indexOf(range) === index).join(' / ') || '-', hostVersion),
+                '',
+                ...list.map((entry) => `${entry.name} (${entry.id})${entry.range ? `: ${entry.range}` : ''}`),
+            ];
+        return showDialog({
+            type: 'warning',
+            title: locale.rangeTitle,
+            message: list.length === 1 ? locale.rangeMessage(first.name, first.id) : locale.rangeBatchMessage(String(list.length)),
+            detail: lines.join('\n'),
+            buttons: [locale.cancel, locale.rangeConfirm],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+    };
+
+    /* Uninstalling a mod from the user's folder; `restoresBuiltin` when a built-in copy of the same id runs again. */
+    const confirmUninstall = async (runtime, { restoresBuiltin = false } = {}) => {
+        const locale = resolveDialogLocale();
+        return showDialog({
+            type: 'question',
+            title: locale.uninstallTitle,
+            message: locale.uninstallMessage(runtime.manifest.name, runtime.manifest.id),
+            detail: [
+                locale.uninstallDetail,
+                ...(restoresBuiltin ? [locale.uninstallOverride] : []),
+                `${locale.location}${runtime.dirPath ?? '-'}`,
+            ].join('\n'),
+            buttons: [locale.cancel, locale.uninstallConfirm],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+    };
+
+    /*
+     * `rangeExpired` ({ range, hostVersion, feedbackUrl }): the mod's `folia` range ran out above, and this
+     * confirmation also lets it load anyway (the caller records that with the trust).
+     */
+    const confirmEnableMod = async (runtime, digest, signature, { rangeExpired = null } = {}) => {
         const locale = resolveDialogLocale();
         const keyText = signature.keyLabel ? `${signature.keyLabel}, ${signature.keyId}` : signature.keyId;
         const signatureLine = signature.status === 'verified'
@@ -573,6 +707,8 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         const writePlatforms = platformsWith('write');
         const detail = [
             signature.status === 'verified' ? locale.verifiedRisk : signature.status === 'beta' ? locale.betaRisk : locale.risk,
+            ...(rangeExpired ? ['', locale.rangeDetail(rangeExpired.range ?? '-', rangeExpired.hostVersion ?? '-')] : []),
+            ...(rangeExpired?.feedbackUrl ? [locale.rangeFeedback(rangeExpired.feedbackUrl)] : []),
             '',
             signatureLine,
             permissions.length > 0 ? `${locale.permissions}${permissions.join(', ')}` : locale.noPermissions,
@@ -627,6 +763,10 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         confirmOverride,
         confirmClearSourceData,
         confirmCommunityMods,
+        isRangeOverrideConfirmed,
+        writeRangeOverride,
+        confirmRangeOverride,
+        confirmUninstall,
     };
 };
 

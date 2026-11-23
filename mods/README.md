@@ -164,6 +164,8 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
 | `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions`、`platform.raw`（1.7） |
 | `folia` | 可选。宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
+| `repository` | 可选，Folium 2.1，只限 `folium: 2`。源码仓库的 https 链接。「设置 → 模组」的详情里显示，用户由此找到作者 |
+| `bugs` | 可选，Folium 2.1，只限 `folium: 2`。反馈问题的 https 链接（例如仓库的 issues 页）。没写时面板用 `repository` 推出 `/issues`，再没有就用模组市场登记的来源仓库 |
 
 | 权限 | 解锁 |
 | --- | --- |
@@ -1764,6 +1766,11 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 - 模组停掉之后，它原来那个 `folium` 对象的 `register` 和 `events.on` 不再生效；挂载结束之后经 `ctx` 订的监听同样不再生效。
 - 监听属于订阅它的那一次挂载：同一个函数在两处挂载里各订一次，每次变化各调用一次。
 
+**Folium 2.1 的变化**（只加不改，为 2.0 写的模组不用改）：
+
+- 清单加两个可选字段 `repository`、`bugs`（https 链接，只限 `folium: 2`），「设置 → 模组」的详情与出错提示旁的「向作者反馈」用它们，让用户把模组的问题带给作者，而不是 Folia 主仓库。
+  `folium: 1` 的模组冻结在 1.10，不能写这两个字段；面板改用模组市场登记的来源仓库。
+
 **Folium 1.10 的变化**（都是新增，为 1.9 写的模组不用改）：
 
 - 屏幕上的主题：`folium.theme` 加 `getCurrent`、`getOverride`、`fromColors`、`apply`、`release`，通知事件 `theme.overrideChanged`；新权限 `theme.write`（`apply`、`release` 需要，别的不需要）。
@@ -1808,14 +1815,22 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 
 ## 从 UI 安装与管理
 
-- **打开模组目录**：模组面板右上角按钮，打开用户模组目录 `userData/mods`（打包版为 `%APPDATA%\Folia\mods`）。
-- **拖放 zip 安装**：把 `.zip` 拖到模组面板；`mod.json` 可以在根目录或唯一顶层文件夹里。
+「设置 → 模组」（和命令面板里的「模组」）是一个仿 VS Code 扩展视图的界面：左边是已安装的模组和模组市场合在一起的列表，右边是选中模组的详情；窄时只有一栏，点开一项进详情、带返回。代码在 `src/mods/market/`，主进程一侧在 `electron/modSystem/market.cjs`。
+
+- **列表**：没有搜索词时分段列出「有更新」「版本声明过期」「已安装」、按分类分组的市场模组、「Awesome-Folia · 外部作品」，每段可以折叠。搜索框支持筛选词 `@installed` `@updates` `@enabled` `@disabled` `@builtin` `@source` `@beta` `@awesome` `@expired` `@category:<id>`，其余的词都要命中（名称、id、作者、描述、分类、标签）。
+- **从市场安装与更新**：主进程按目录里的地址下载（只接受市场站点 `/downloads/` 下的地址，大小上限同下面的 zip），校验 SHA-256，再交给同一个 zip 安装器，并多查三项：包里的模组 id、签名渠道（正式发布要「官方认证」，先行测试要「先行测试」）、签名摘要都必须和目录登记的一致，不一致就不换入（`market-id-mismatch`、`market-signature:*`、`market-digest-mismatch`）。信任锚定在应用内置的公钥上，目录只是一张清单。装好后照常弹原生确认窗；原来启用着的模组更新后同样要再确认。「全部更新」逐个进行。
+- **检查更新**：启动约一分钟后读一次目录，之后最多每 6 小时一次（「⋯」菜单里的「自动检查模组更新」可以关）；命令面板有「打开模组市场」「检查模组更新」。目录在 `userData/mod-market/` 缓存 10 分钟，带 ETag；离线时用上次的目录并注明。
+- **卸载**：只处理用户模组目录里的模组（`user` 与 `override` 层）。原生确认后先停用、卸载运行时，再把文件夹移进回收站（`shell.trashItem`，不直接删除），清掉启用与放行记录；数据目录保留。卸掉内置音源的覆盖副本后回落到内置副本。
+- **反馈问题**：详情页头、「⋯」菜单和错误提示旁都有「反馈问题」。地址依次取清单的 `bugs`、由 `repository` 推出的 issues 页、市场目录登记的仓库；内置模组指向 Folia 的 issues，官方模组指向 folium-compound 的 issues。
+- **版本声明过期**：`folia` 范围只是上界不满足（`<`、`<=`、`^` 的主版本、低于当前的精确版本）、下界都满足时，模组停在 `host-range-expired`，不报 `host-version-mismatch`。点「仍然尝试加载」（或该段的「全部尝试加载」）弹原生确认，写明声明的范围、当前版本和反馈地址；确认后按内容摘要记一条放行，照常加载，并标「强制加载」。模组文件变了，放行随之失效。可以在「⋯」里撤销。下界不满足（`too-old`）或范围写错的不给放行。启用一个只是范围过期的模组时，这条说明并进启用确认窗，一次确认就够。
+- **打开模组目录**：「⋯」菜单里的按钮，打开用户模组目录 `userData/mods`（打包版为 `%APPDATA%\Folia\mods`）。
+- **拖放 zip 安装**：把 `.zip` 拖到模组视图上；`mod.json` 可以在根目录或唯一顶层文件夹里。
   - 安全校验：拒绝路径穿越与绝对路径；压缩包 ≤ 96 MB，解压后 ≤ 96 MB，单文件 ≤ 64 MB（Folium 2.0 方案 §6.2：音源模组的依赖归档是一个大文件），条目 ≤ 2000。
   - **原子安装**：先解压到 `userData/mods/.staging/` 校验（清单、声明的 `main` / `client` 文件必须存在），通过后才换入；
     失败则回滚，旧版本原样保留。
   - 同 id 覆盖即升级；内容指纹改变后模组保持禁用，直到重新确认。
-- **占用与清空缓存**：声明了 `filesystem.data` 的模组，展开它的行时会显示「数据 X」「缓存 Y」两行和「清空缓存」按钮。
-  - 只在展开时统计，停用的模组也能查、能清。统计只算普通文件，不跟随符号链接或 junction。
+- **占用与清空缓存**：声明了 `filesystem.data` 的模组，详情的「运行状态」页签里会显示「数据 X」「缓存 Y」两行和「清空缓存」按钮。
+  - 只在打开这个页签时统计，停用的模组也能查、能清。统计只算普通文件，不跟随符号链接或 junction。
   - 「数据」是整个 `mods-data/<id>`（含 `api.storage` 的数据文件和 1.7 起的密钥文件 `secrets.json`），「缓存」是 `mods-cache/<id>`。
   - 「清空缓存」删除缓存目录里的所有内容，保留目录本身，然后重新统计，并在面板上方的提示条里报告释放了多少。缓存为 0 或目录不存在时按钮不可用。
     缓存目录的位置上是一个文件或目标已经不在的链接时（这时模组读 `paths.cache` 会一直抛错），面板显示缓存目录已损坏，按钮可用，

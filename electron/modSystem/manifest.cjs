@@ -59,7 +59,7 @@ const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
  * `folium: 1` mod is read exactly as before; the fields below are for 2 only.
  */
 const MANIFEST_VERSIONS = Object.freeze([...shared.manifestVersions]);
-const FOLIUM_2_FIELDS = Object.freeze(['sources', 'locales', 'assets', 'secrets', 'contexts', 'native']);
+const FOLIUM_2_FIELDS = Object.freeze(['sources', 'locales', 'assets', 'secrets', 'contexts', 'native', 'repository', 'bugs']);
 
 /*
  * Folium 2.0 `sources[]` (plan §5.1). `id` is the source's name inside the mod: a third-party source is
@@ -137,6 +137,11 @@ const parseVersion = (version) => {
     return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
 };
 
+// The running app's own version. A Cielo or release-candidate build is `0.7.29-alpha.1795177495`: it has the
+// interfaces of 0.7.29, so a mod's `folia` range is checked against that base version (and a build suffix
+// after `+` is dropped the same way). Mod versions themselves stay plain x.y.z.
+const parseHostVersion = (version) => parseVersion(String(version ?? '').trim().replace(/^([0-9]+\.[0-9]+\.[0-9]+)[-+][0-9A-Za-z.+-]+$/, '$1'));
+
 const compareVersions = (left, right) => {
     if (left.major !== right.major) return left.major - right.major;
     if (left.minor !== right.minor) return left.minor - right.minor;
@@ -201,7 +206,7 @@ const parseHostRange = (range) => {
 
 const satisfiesHostRange = (version, range) => {
     const comparators = parseHostRange(range);
-    const parsed = parseVersion(version);
+    const parsed = parseHostVersion(version);
     if (!comparators || !parsed) {
         return false;
     }
@@ -216,6 +221,41 @@ const satisfiesHostRange = (version, range) => {
             default: return order === 0;
         }
     });
+};
+
+/*
+ * Why a host version is outside a `folia` range, so the loader can tell a mod the host is too old for from
+ * one whose declared range merely ran out above (a `<0.8.0` written before 0.8.0 shipped):
+ *   'ok'       the version satisfies the range;
+ *   'too-old'  some lower bound fails: the mod may need interfaces this host does not have;
+ *   'expired'  every lower bound holds and only upper bounds (`<`, `<=`, the major of `^`, an exact version
+ *              below this one) fail: the user may load it anyway;
+ *   'invalid'  the range or the version does not parse.
+ */
+const classifyHostRange = (version, range) => {
+    const comparators = parseHostRange(range);
+    const parsed = parseHostVersion(version);
+    if (!comparators || !parsed) {
+        return 'invalid';
+    }
+    let expired = false;
+    for (const { operator, version: bound } of comparators) {
+        const order = compareVersions(parsed, bound);
+        switch (operator) {
+            case '>=': if (order < 0) return 'too-old'; break;
+            case '>': if (order <= 0) return 'too-old'; break;
+            case '<=': if (order > 0) expired = true; break;
+            case '<': if (order >= 0) expired = true; break;
+            case '^':
+                if (order < 0) return 'too-old';
+                if (parsed.major !== bound.major) expired = true;
+                break;
+            default:
+                if (order < 0) return 'too-old';
+                if (order > 0) expired = true;
+        }
+    }
+    return expired ? 'expired' : 'ok';
 };
 
 // A relative path inside the mod directory: no traversal, no backslashes, no absolute paths.
@@ -237,6 +277,20 @@ const isHttpsOrigin = (value) => {
     try {
         const url = new URL(value);
         return url.protocol === 'https:' && url.origin === value;
+    } catch {
+        return false;
+    }
+};
+
+/*
+ * Folium 2.1: `repository` and `bugs` are full https links (the source repository and where to report
+ * problems), shown in the mods panel so a user takes a mod's problem to its author. No credentials in them.
+ */
+const isHttpsLink = (value) => {
+    if (typeof value !== 'string' || value.length > 512) return false;
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && url.username === '' && url.password === '';
     } catch {
         return false;
     }
@@ -391,6 +445,11 @@ const validateFolium2Fields = (manifest, errors) => {
             errors.push('a source mod\'s client never runs in the export window; leave "export" out of mod.contexts');
         }
     }
+    for (const field of ['repository', 'bugs']) {
+        if (manifest[field] !== null && !isHttpsLink(manifest[field])) {
+            errors.push(`mod.${field} must be an https link like "https://github.com/me/my-mod"`);
+        }
+    }
     if (manifest.native !== null && (!isStringList(manifest.native) || !manifest.native.every((name) => NATIVE_NAME_PATTERN.test(name)))) {
         errors.push(`mod.native must be a list of names matching ${NATIVE_NAME_PATTERN}`);
     }
@@ -430,6 +489,9 @@ const validateManifest = (raw) => {
         secrets: raw.secrets ?? null,
         contexts: raw.contexts ?? null,
         native: raw.native ?? null,
+        // Folium 2.1: links for the mods panel (isHttpsLink).
+        repository: raw.repository ?? null,
+        bugs: raw.bugs ?? null,
     };
     // Folium 1.6 only (deprecated.cjs): an old permission id is read as its new one, and a field
     // mod.json does not have is a warning, not the error below.
@@ -660,6 +722,7 @@ module.exports = {
     parseDependency,
     satisfiesRange,
     satisfiesHostRange,
+    classifyHostRange,
     parseHostRange,
     validateManifest,
     resolveLoadOrder,

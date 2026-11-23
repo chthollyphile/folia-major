@@ -13,7 +13,7 @@ const path = require('path');
 const { unzipSync } = require('fflate');
 
 const { validateManifest } = require('./manifest.cjs');
-const { verifyModSignature } = require('./modSignature.cjs');
+const { verifyModSignature, computeSignedDigest } = require('./modSignature.cjs');
 const { isAllowedWithoutCommunity } = require('./communityMods.cjs');
 
 // Staged installs and their rollback copies live under this directory inside
@@ -169,8 +169,13 @@ const createZipInstall = ({ app, isModSystemEnabled, isCommunityModsEnabled = ()
      *
      * A replaced mod's stored approval no longer matches the new content
      * digest, so an upgrade always lands disabled and must be confirmed again.
+     *
+     * `expect` ({ id, version, digest, channel }) is the mod market's (market.cjs), never the window's: the staged
+     * files must be that mod at that version (an altered catalog cannot pass an older signed package off as the
+     * update it announces), signed by a key this app trusts for that channel, with that signed digest.
+     * The catalog is only a list; the signature checked here is what vouches for the files.
      */
-    const installModFromZip = async (zipPath) => {
+    const installModFromZip = async (zipPath, { expect = null } = {}) => {
         if (!isModSystemEnabled()) {
             return { ok: false, error: 'mod-system-disabled' };
         }
@@ -244,12 +249,28 @@ const createZipInstall = ({ app, isModSystemEnabled, isCommunityModsEnabled = ()
             }
             // Folium 2.0, community mods off: the staged files must be an official source mod (communityMods.cjs).
             // Checked on the staged tree, the files that would run, before anything replaces a working install.
+            const signature = verifyModSignature(stagingDir, validation.value);
             if (!isCommunityModsEnabled() && !isAllowedWithoutCommunity({
                 tier: 'user',
                 manifest: validation.value,
-                signature: verifyModSignature(stagingDir, validation.value),
+                signature,
             })) {
                 throw new Error('install-community-off');
+            }
+            if (expect) {
+                if (modId !== expect.id) {
+                    throw new Error('market-id-mismatch');
+                }
+                if (expect.version !== undefined && validation.value.version !== expect.version) {
+                    throw new Error('market-version-mismatch');
+                }
+                const wanted = expect.channel === 'beta' ? 'beta' : 'verified';
+                if (signature.status !== wanted) {
+                    throw new Error(signature.status === 'invalid' ? `market-signature-invalid:${signature.reason ?? 'invalid'}` : `market-signature:${signature.status}`);
+                }
+                if (computeSignedDigest(stagingDir) !== expect.digest) {
+                    throw new Error('market-digest-mismatch');
+                }
             }
 
             // Atomic-ish swap: move the old copy aside, move the new one in, and

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/mod-system/modStorageUsage.test.ts
-// The expanded mod row's file section: counted only when the row of a `filesystem.data` mod opens,
+// The mod detail's file section: counted only when the runtime tab of a `filesystem.data` mod opens,
 // "clear cache" disabled while there is nothing to clear (but offered for a broken cache root, which
 // counts 0), and a clear re-counts and reports how much went (or that it was partial) through the
 // manager's notice line.
@@ -39,7 +39,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { Theme } from '@/types';
 import type { ModRuntimeInfo } from '@/mods/types';
 import { ModStorageUsage } from '@/mods/manager/ModStorageUsage';
-import { ModListItem } from '@/mods/manager/ModListItem';
+import { ModRuntimeSection } from '@/mods/market/ModDetailSections';
 import { modManagerClassesFor } from '@/mods/manager/modManagerClasses';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -194,23 +194,18 @@ describe('mod storage section', () => {
     });
 });
 
-describe('mod row storage section', () => {
-    const renderRow = async (mod: ModRuntimeInfo, expanded: boolean) => {
+describe('mod detail storage section', () => {
+    // The runtime tab of the detail pane is mounted only while it is the tab shown.
+    const renderSection = async (mod: ModRuntimeInfo, shown: boolean) => {
         await act(async () => {
-            root!.render(React.createElement(ModListItem, {
+            root!.render(shown ? React.createElement(ModRuntimeSection, {
                 mod,
-                expanded,
-                selected: false,
-                selectionMode: false,
-                isLast: true,
                 isDaylight: false,
                 theme: { secondaryColor: '#888888' } as Theme,
                 classes,
-                onToggleExpand: () => {},
-                onToggleEnabled: () => {},
-                onToggleSelected: () => {},
+                feedback: null,
                 onNotice: () => {},
-            }));
+            }) : null);
         });
     };
 
@@ -218,20 +213,20 @@ describe('mod row storage section', () => {
         store.getModStorageUsage.mockResolvedValue({ ok: true, data: 0, cache: 0 });
     });
 
-    it('counts nothing while the row is collapsed', async () => {
-        await renderRow(modInfo(), false);
+    it('counts nothing while the tab is not shown', async () => {
+        await renderSection(modInfo(), false);
         expect(host.querySelector('[data-mod-storage]')).toBeNull();
         expect(store.getModStorageUsage).not.toHaveBeenCalled();
     });
 
-    it('appears in the expanded row of a mod that declares storage', async () => {
-        await renderRow(modInfo(), true);
+    it('appears in the runtime tab of a mod that declares storage', async () => {
+        await renderSection(modInfo(), true);
         expect(host.querySelector('[data-mod-storage="mod-b"]')).not.toBeNull();
         expect(store.getModStorageUsage).toHaveBeenCalledWith('mod-b');
     });
 
     it('stays away from a mod without storage', async () => {
-        await renderRow(modInfo({ permissions: ['net.fetch'] }), true);
+        await renderSection(modInfo({ permissions: ['net.fetch'] }), true);
         expect(host.querySelector('[data-mod-storage]')).toBeNull();
         expect(store.getModStorageUsage).not.toHaveBeenCalled();
     });

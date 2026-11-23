@@ -273,6 +273,8 @@ exports[`command palette registry contract > keeps the registered command order 
   "scratchpad-handle-toggle",
   "settings-scratchpad",
   "mods",
+  "mods-market",
+  "mods-check-updates",
   "lyric-segmentation",
   "visualizer-picker",
   "background-picker",

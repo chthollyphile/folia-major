@@ -213,6 +213,13 @@ worker、子进程、本机 HTTP 服务用 Node 自带的。凭据（cookie、to
   `folium.sig.json`，声明了原生件的按系统带上那一份（`--system`；Apple Music 伴侣程序只有 Windows 的）。未签名的包只能接管，官方签名、
   版本更高的才能覆盖。各家装上后能跑到哪一步见 [`dev/sources/README.md`](../../dev/sources/README.md) 的「打成 zip」。
 
+### 分发
+
+第三方音源模组不收进 folium-compound 仓库，也不经它签名：放在你自己的仓库里发布 zip，再到 folium-compound 开
+[「Awesome-Folia 登记」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml)，以外部链接登记。
+它会出现在应用里模组市场的「Awesome-Folia · 外部作品」一段，用户点「前往仓库」下载，拖进「设置 → 模组」安装（要先打开「社区模组」），
+有问题也去你的仓库反馈。清单里写上 `repository` 和 `bugs`，模组详情里就有这两个链接。
+
 ## 7. 从实验接口 `omni.providers` 迁过来
 
 Folium 1 的实验接口 `omni.providers`（[FoliumOmniProviderDef](api.md#foliumomniproviderdef)）还能用，它现在是新注册表上的一层薄壳。

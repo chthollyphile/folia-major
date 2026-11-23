@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, startTransition } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,8 @@ import VisPlayground from '../visualizer/window/VisPlayground';
 import { useVisualizerTunings } from '../visualizer/useVisualizerTunings';
 import ThemePark from './ThemePark';
 import SceneWindow from '../scenes/settings/SceneWindow';
+// The mods window (installed mods and the market), loaded when it is first opened.
+const ModsWindow = lazy(() => import('../../mods/market/ModsWindow'));
 import LyricFilterSettingsModal from './LyricFilterSettingsModal';
 import type { LyricFilterDraft } from './LyricFilterSettingsModal';
 import GlobalLyricOffsetModal from './settings/GlobalLyricOffsetModal';
@@ -69,6 +71,8 @@ interface SettingsModalProps {
     initialVisualizerSection?: VisualizerSettingsSection | null;
     /** A section inside the subview to land on, rather than its top. */
     initialAnchor?: SettingsModalState['initialAnchor'];
+    /** Changes with every openSettings call: the request is applied again even when it names the same subview. */
+    requestSeq?: number;
     theme?: Theme;
     bgMode: ThemeMode;
     onApplyDefaultTheme: () => void;
@@ -131,6 +135,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     initialSubview = null,
     initialVisualizerSection = null,
     initialAnchor = null,
+    requestSeq = 0,
     theme,
     bgMode,
     onApplyDefaultTheme,
@@ -330,6 +335,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showSceneWindow, setShowSceneWindow] = useState(false);
+    const [showModsWindow, setShowModsWindow] = useState(false);
     const [showLyricFilterSettings, setShowLyricFilterSettings] = useState(false);
     const [showGlobalLyricOffset, setShowGlobalLyricOffset] = useState(false);
     const [showAiHelpPrompt, setShowAiHelpPrompt] = useState(false);
@@ -343,6 +349,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowVisPlayground(initialSubview === 'visualizer');
         setShowThemePark(initialSubview === 'themePark');
         setShowSceneWindow(initialSubview === 'scene');
+        setShowModsWindow(initialSubview === 'modsWindow');
         setShowLyricFilterSettings(initialSubview === 'lyricFilter');
         setShowGlobalLyricOffset(initialSubview === 'globalLyricOffset');
 
@@ -357,7 +364,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
             setActiveSettingsSection(prev => prev || 'appearance');
         }
-    }, [initialSubview, initialTab]);
+        // requestSeq: a repeated request for the same subview is applied again (see useSettingsModalStore).
+    }, [initialSubview, initialTab, requestSeq]);
 
     // A request for one place in the settings: show the page settingsAnchorModel puts it on, then
     // land on it. Each request has its own seq, so naming the same place again lands again.
@@ -908,6 +916,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const isAnySubviewOpen = showVisPlayground
         || showThemePark
         || showSceneWindow
+        || showModsWindow
         || showLyricFilterSettings
         || showGlobalLyricOffset
         || showAiHelpPrompt
@@ -917,7 +926,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     // open sheet takes the key on the document and stops it (shared/Sheet.tsx). A menu or a pick
     // list that is open takes the key before this window hears it as well. The two work windows
     // leave Escape to their owner, so they are what it can find open here.
-    const isWorkWindowOpen = showVisPlayground || showThemePark || showSceneWindow;
+    const isWorkWindowOpen = showVisPlayground || showThemePark || showSceneWindow || showModsWindow;
 
     const closeWorkWindows = () => {
         if (shouldCloseModalOnSubviewBack) {
@@ -927,6 +936,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowVisPlayground(false);
         setShowThemePark(false);
         setShowSceneWindow(false);
+        setShowModsWindow(false);
     };
 
     useEffect(() => {
@@ -1056,6 +1066,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         onOpenVisPlayground: () => setShowVisPlayground(true),
         onOpenThemePark: () => setShowThemePark(true),
         onOpenSceneWindow: () => setShowSceneWindow(true),
+        onOpenModsWindow: () => setShowModsWindow(true),
         onToggleTransparentPlayerBackground: resolvedToggleTransparentPlayerBackground,
         viewProps: {
             appearance: {
@@ -1439,6 +1450,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         theme={theme}
                         onClose={() => closeSubviewOrModal(() => setShowSceneWindow(false))}
                     />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {showModsWindow && (
+                    <Suspense fallback={null}>
+                        <ModsWindow
+                            isDaylight={isDaylight}
+                            theme={theme ?? null}
+                            onClose={() => closeSubviewOrModal(() => setShowModsWindow(false))}
+                        />
+                    </Suspense>
                 )}
             </AnimatePresence>
 

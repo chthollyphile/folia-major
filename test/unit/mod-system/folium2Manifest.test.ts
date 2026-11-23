@@ -134,3 +134,20 @@ describe('the enable confirmation of a third-party source mod (§5.2)', () => {
         expect(dialogs.at(-1)!.detail).not.toContain('music sources');
     });
 });
+
+describe('repository and bugs (Folium 2.1)', () => {
+    it('takes https links on a folium 2 manifest and hands them on', () => {
+        const result = v2({ repository: 'https://github.com/me/radio', bugs: 'https://github.com/me/radio/issues' });
+        expect(result.ok).toBe(true);
+        expect(result.value).toMatchObject({ repository: 'https://github.com/me/radio', bugs: 'https://github.com/me/radio/issues' });
+        expect(v2({}).value).toMatchObject({ repository: null, bugs: null });
+    });
+
+    it('refuses other schemes, credentials, non-strings and a folium 1 manifest', () => {
+        expect(errorsOf({ repository: 'http://github.com/me/radio' })).toEqual(['mod.repository must be an https link like "https://github.com/me/my-mod"']);
+        expect(errorsOf({ bugs: 'javascript:alert(1)' })).toEqual(['mod.bugs must be an https link like "https://github.com/me/my-mod"']);
+        expect(errorsOf({ bugs: 'https://user:pass@example.com/' })).toHaveLength(1);
+        expect(errorsOf({ repository: 42 })).toHaveLength(1);
+        expect(validateManifest({ ...base, folium: 1, bugs: 'https://example.com/' }).errors).toEqual(['"bugs" needs "folium": 2']);
+    });
+});

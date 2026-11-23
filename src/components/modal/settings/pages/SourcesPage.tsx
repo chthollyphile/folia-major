@@ -11,6 +11,7 @@ import { Button, Group, Row, option, type SettingsGroupDef, type SettingsOptionD
 import { manifestSourceName, shownSourceUsage, type SourceNotice, type SourceRowModel } from './sources/sourcesModel';
 import { SourceStateDots } from './sources/SourceStateDots';
 import { useSourcesSettings } from './sources/useSourcesSettings';
+import { useSettingsPage } from './settingsPageContext';
 import type { ModSourceUsageResult } from '../../../../mods/types';
 
 // src/components/modal/settings/pages/SourcesPage.tsx
@@ -68,6 +69,8 @@ const usageText = (t: (key: string, options?: Record<string, unknown>) => string
 const SourcesPage: React.FC = () => {
     const { t, i18n } = useTranslation();
     const { ready, rows, notices, usage, pending, switchTo, clearData, runNoticeAction, installZip } = useSourcesSettings();
+    // The 「打开模组」 button opens the mods window straight away, over this page (closing it comes back here).
+    const { onOpenModsWindow } = useSettingsPage();
 
     // A source mod by its manifest's name whether it is switched on or off (one name in every state, as the start
     // prompt and the command palette give it); a source the host registers by the name the switcher uses.
@@ -175,7 +178,7 @@ const SourcesPage: React.FC = () => {
                         </Button>
                     </Row>
                     <Row option={O.install} hint={t('sourcesSettings.installHint')}>
-                        <Button onClick={() => openSettings('options', 'mods', null, 'modList')}>
+                        <Button onClick={onOpenModsWindow}>
                             {t('sourcesSettings.installButton')}
                         </Button>
                     </Row>

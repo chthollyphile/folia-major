@@ -15,6 +15,7 @@ import { tabTarget } from './sheetKeys';
 // itself, so the kit's parts work anywhere inside it. 1240 by 780, never larger than the app's
 // window. Where that window is narrower than 1024px the column goes under the stage and the two
 // scroll together; the stage then has a height of its own, so what fills it still has one.
+// A window that edits nothing live (the mods window) leaves the stage out and fills the body itself.
 // It knows nothing of what it frames.
 //
 // It is drawn where it is rendered, inside an AnimatePresence: it comes in with the kit's `unfold`
@@ -32,9 +33,12 @@ type StudioWindowProps = {
     slot?: React.ReactNode;
     /** At the right end of the header. */
     actions?: React.ReactNode;
-    /** The left part: the sample, and what belongs under it. A column; a child with a height of 100% or `flex-1` fills it. */
-    stage: React.ReactNode;
-    /** The right column, a bare box 420px wide: tabs at the top and a part that scrolls (StudioColumnBody), or a column that brings both. */
+    /**
+     * The left part: the sample, and what belongs under it. A column; a child with a height of 100% or `flex-1` fills it.
+     * Left out, the window has no stage and no column: `children` gets the whole body, a box of its own height.
+     */
+    stage?: React.ReactNode;
+    /** The right column, a bare box 420px wide: tabs at the top and a part that scrolls (StudioColumnBody), or a column that brings both. Without a stage, the whole body. */
     children: React.ReactNode;
     /**
      * Drawn over the whole window: a picker that takes it over for a moment. While it is there the
@@ -205,12 +209,16 @@ export const StudioWindow: React.FC<StudioWindowProps> = ({
                         <div className="flex min-w-0 flex-1 items-center gap-2">{slot}</div>
                         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
                     </header>
-                    <div inert={hasOver} className="st-scroll flex min-h-0 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
-                        <section className="flex h-[64vh] min-h-[380px] min-w-0 shrink-0 flex-col gap-4 px-4 pb-6 sm:px-6 lg:h-auto lg:min-h-0">{stage}</section>
-                        <aside className="flex min-w-0 shrink-0 flex-col border-t border-[var(--st-line)] lg:min-h-0 lg:border-l lg:border-t-0">
-                            {children}
-                        </aside>
-                    </div>
+                    {stage === undefined ? (
+                        <div inert={hasOver} className="min-h-0 min-w-0 overflow-hidden">{children}</div>
+                    ) : (
+                        <div inert={hasOver} className="st-scroll flex min-h-0 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
+                            <section className="flex h-[64vh] min-h-[380px] min-w-0 shrink-0 flex-col gap-4 px-4 pb-6 sm:px-6 lg:h-auto lg:min-h-0">{stage}</section>
+                            <aside className="flex min-w-0 shrink-0 flex-col border-t border-[var(--st-line)] lg:min-h-0 lg:border-l lg:border-t-0">
+                                {children}
+                            </aside>
+                        </div>
+                    )}
                     {hasOver && <div ref={overRef} className="contents">{over}</div>}
                 </SettingsKitThemeContext.Provider>
             </motion.div>

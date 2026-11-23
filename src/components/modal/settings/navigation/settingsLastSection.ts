@@ -41,6 +41,10 @@ export const sectionForSettingsSubview = (subview: SettingsSubviewId | null | un
     if (subview === 'globalLyricOffset' || subview === 'lyricFilter') {
         return 'lyrics';
     }
+    // The mods window opens from the mods page, and that page is what lies behind it.
+    if (subview === 'modsWindow') {
+        return 'mods';
+    }
     const isSection = SETTINGS_NAV_GROUP_SPECS.some(group => group.sections.some(section => section.id === subview));
     return isSection ? (subview as SettingsSectionId) : null;
 };

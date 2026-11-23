@@ -152,6 +152,8 @@ export const STORAGE_KEYS = [
     'web:folia_local_music_last_row',
     'web:folia_loop_shuffle_hint_count',
     'web:folia_media_cache_limit_gb',
+    'web:folia_mod_update_check',
+    'web:folia_mod_update_checked_at',
     'web:folia_navidrome_last_section',
     'web:folia_netease_scrobble',
     'web:folia_playback_fade_enabled',

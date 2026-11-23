@@ -2,7 +2,7 @@
 
 # Folium API 参考
 
-当前契约版本：**Folium 2.0**。
+当前契约版本：**Folium 2.1**。
 
 本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)
 （client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
@@ -3698,6 +3698,8 @@ A mod's mod.json as the main entry sees it in `api.manifest`: every field there,
 | `readonly secrets?` | `readonly string[] \| null` | Folium 2: the secret slots a source mod keeps outside settings fields, or null. |
 | `readonly contexts?` | `readonly string[] \| null` | Folium 2: where the client runs (`main`, `export`), or null for everywhere. |
 | `readonly native?` | `readonly string[] \| null` | Folium 2: native files of the app a built-in source uses, or null. |
+| `readonly repository?` | `string \| null` | Folium 2.1: the https link of the mod's source repository, or null. |
+| `readonly bugs?` | `string \| null` | Folium 2.1: the https link where users report the mod's problems, or null. |
 
 ### FoliumMainStorage
 
@@ -4097,7 +4099,7 @@ Folium 2: `api.windows` of a source mod.
 The Folium version this host implements; mods read it at runtime as `folium.host.folium`.
 
 ```ts
-const FOLIUM_VERSION = Object.freeze({ major: 2, minor: 0 })
+const FOLIUM_VERSION = Object.freeze({ major: 2, minor: 1 })
 ```
 
 ### FoliumId

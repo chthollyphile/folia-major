@@ -3107,11 +3107,6 @@
       "count": 2
     }
   },
-  "src/components/command-palette/commands/modsCommands.ts": {
-    "@stylistic/eol-last": {
-      "count": 1
-    }
-  },
   "src/components/command-palette/commands/pickerOptions.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
@@ -3225,11 +3220,6 @@
   "src/components/command-palette/surfaces/lyricSegmentationSurface.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
-    }
-  },
-  "src/components/command-palette/surfaces/modsSurface.ts": {
-    "@stylistic/eol-last": {
-      "count": 1
     }
   },
   "src/components/command-palette/surfaces/queueSurface.ts": {
@@ -9073,19 +9063,6 @@
       "count": 1
     }
   },
-  "src/mods/manager/ModListItem.tsx": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    }
-  },
-  "src/mods/manager/ModManager.tsx": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    }
-  },
   "src/mods/manager/ModSurfaceRenderer.tsx": {
     "@typescript-eslint/no-misused-promises": {
       "count": 1
@@ -9098,6 +9075,14 @@
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 1
+    }
+  },
+  "src/mods/market/ModsWorkbench.tsx": {
+    "@typescript-eslint/no-misused-promises": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
     }
   },
   "src/mods/params/FoliumSecretField.tsx": {
@@ -9266,11 +9251,6 @@
   "src/mods/runtime/visualizer/hostVisualizer.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 4
-    }
-  },
-  "src/mods/useModsStore.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
     }
   },
   "src/services/aiText.ts": {

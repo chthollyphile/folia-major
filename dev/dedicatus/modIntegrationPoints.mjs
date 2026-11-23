@@ -14,11 +14,12 @@ export const MOD_INTEGRATION_POINTS = [
     'src/components/app/home/foliumHomePageDismissal.ts', // README 没写（待补）
     'src/components/app/home/useFoliumHomeNavigation.ts',
     'src/components/app/playback/bridges/useElectronPlaybackBridge.ts',
+    'src/components/command-palette/commands/modsCommands.ts',
     'src/components/command-palette/commands/playbackCommands.ts',
     'src/components/command-palette/globalShortcuts/useGlobalShortcuts.ts',
     'src/components/command-palette/sourceSwitchCommandsInstaller.ts',
-    'src/components/command-palette/surfaces/modsSurface.ts',
     'src/components/modal/playback-entry-view/sourcesOnboarding.ts',
+    'src/components/modal/SettingsModal.tsx',
     'src/components/modal/settings/pages/GlobalShortcutsGroup.tsx',
     'src/components/modal/settings/pages/ModsPage.tsx',
     'src/components/modal/settings/pages/sources/useSourcesSettings.ts',

@@ -77,18 +77,15 @@ export const useModsStore = create<ModsStoreState>((set, get) => ({
 
     refresh: async () => {
         const payload = await listMods();
-        set((state) => {
-            const selectedModId = state.selectedModId ?? payload.mods[0]?.id ?? null;
-            return {
-                mods: payload.mods,
-                ffmpeg: payload.ffmpeg,
-                directories: payload.directories,
-                startSkipped: payload.startSkipped,
-                selectedModId: payload.mods.some((mod) => mod.id === selectedModId)
-                    ? selectedModId
-                    : payload.mods[0]?.id ?? null,
-            };
-        });
+        // The chosen mod stays chosen while it is listed; nothing is chosen for the user (the mods view picks
+        // what it shows when wide, and shows the list when narrow).
+        set((state) => ({
+            mods: payload.mods,
+            ffmpeg: payload.ffmpeg,
+            directories: payload.directories,
+            startSkipped: payload.startSkipped,
+            selectedModId: payload.mods.some((mod) => mod.id === state.selectedModId) ? state.selectedModId : null,
+        }));
     },
 
     refreshFfmpeg: async () => {

@@ -216,6 +216,13 @@ export interface ModRuntimeInfo {
     shadowedBy?: string | null;
     /** Reasons that do not stop the mod, e.g. 'claim-signature-invalid'. */
     notes?: string[];
+    /** Folium 2.1 (manifest `repository` / `bugs`): the mod's source repository and where to report problems. */
+    repository?: string | null;
+    bugs?: string | null;
+    /** Its `folia` range ran out above, and the user let it load anyway (bound to these files). */
+    rangeOverridden?: boolean;
+    /** It sits in the user mods folder, so the panel can uninstall it (a list from an older main process has no such field). */
+    uninstallable?: boolean;
 }
 
 /*
@@ -355,4 +362,98 @@ export interface ModRuntimeSnapshot {
     capturedAt: number;
     public: FoliumPlaybackSnapshot;
     internal: ModExportHostState;
+}
+
+// ---- The mod market (electron/modSystem/market.cjs): the catalog as the main process normalized it. ----
+
+export interface ModMarketOwner {
+    login: string;
+    /** The owner's page (https), or null. */
+    url: string | null;
+}
+
+export interface ModMarketEntry {
+    id: string;
+    name: string;
+    version: string;
+    author: string | null;
+    description: string | null;
+    origin: 'official' | 'community';
+    channel: 'release' | 'beta';
+    kind: 'standard' | 'source';
+    category: string | null;
+    tags: string[];
+    permissions: string[];
+    experimental: string[];
+    embedOrigins: string[];
+    depends: string[];
+    folia: string | null;
+    hasMain: boolean;
+    owners: ModMarketOwner[];
+    source: string | null;
+    repository: string | null;
+    bugs: string | null;
+    readmeUrl: string | null;
+    keyLabel: string | null;
+    keyId: string | null;
+    signedAt: string | null;
+    addedAt: string | null;
+    updatedAt: string | null;
+    digest: string;
+    download: { url: string; sha256: string; size: number | null };
+    preview: { url: string; width: number | null; height: number | null } | null;
+    /** The mod's page on the market site. */
+    page: string;
+    /** How its `folia` range reads on this Folia (the main process's classifyHostRange). */
+    hostRange: ModHostRangeState;
+    /** The community mods switch is off and keeps this one out. */
+    communityBlocked: boolean;
+}
+
+export type ModHostRangeState = 'ok' | 'too-old' | 'expired' | 'invalid';
+
+export type ModAwesomeKind = 'source' | 'plugin' | 'app' | 'tool' | 'other';
+
+/** An Awesome-Folia entry: a work kept elsewhere, offered as a link only. */
+export interface ModAwesomeEntry {
+    id: string;
+    name: string;
+    kind: ModAwesomeKind;
+    category: string | null;
+    description: string | null;
+    url: string;
+    homepage: string | null;
+    bugs: string | null;
+    owners: ModMarketOwner[];
+    tags: string[];
+    addedAt: string | null;
+    updatedAt: string | null;
+}
+
+export interface ModMarketCategory {
+    id: string;
+    label: { 'zh-CN': string; en: string };
+}
+
+export interface ModMarketCatalog {
+    version: number | null;
+    commit: string | null;
+    origin: string;
+    categories: ModMarketCategory[];
+    mods: ModMarketEntry[];
+    awesome: ModAwesomeEntry[];
+}
+
+export type ModMarketCatalogResult =
+    | { ok: true; catalog: ModMarketCatalog; fetchedAt: number | null; stale: boolean; error?: string; hostVersion?: string | null }
+    | { ok: false; error: string };
+
+export type ModMarketInstallPhase = 'download' | 'verify' | 'install' | 'done' | 'error';
+
+export interface ModMarketProgress {
+    id: string;
+    phase: ModMarketInstallPhase;
+    received?: number;
+    total?: number | null;
+    error?: string;
 }
