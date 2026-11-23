@@ -158,6 +158,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleShuffleRoundNoRepeat: vi.fn(),
             toggleAlwaysShowMainWindowTitlebar: vi.fn(),
             togglePlayerHeaderBlur: vi.fn(),
+            toggleProgressBarChorusMarker: vi.fn(),
             toggleTitlebarSide: vi.fn(),
             toggleHideFullscreenButton: vi.fn(),
             toggleNativeMacFullscreenButton: vi.fn(),

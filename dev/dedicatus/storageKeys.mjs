@@ -263,6 +263,7 @@ export const STORAGE_KEYS = [
     'web:preferred_alternative_lyric_source',
     'web:preferred_alternative_lyric_source_v2',
     'web:prevent_display_sleep_during_playback',
+    'web:progress_bar_chorus_marker',
     'web:queue_add_behavior',
     'web:queue_palette_keep_open',
     'web:random_visualizer_mode_per_song',

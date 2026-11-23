@@ -194,6 +194,9 @@ export const buildSettingsCommandContext = (
             const current = usePlayerChromeSettingsStore.getState();
             current.handleSetTitlebarSide(current.titlebarSide === 'left' ? 'right' : 'left');
         },
+        toggleProgressBarChorusMarker: () => chrome.handleToggleProgressBarChorusMarker(
+            !usePlayerChromeSettingsStore.getState().progressBarChorusMarker,
+        ),
         togglePlayerHeaderBlur: () => chrome.handleTogglePlayerHeaderBlur(
             !usePlayerChromeSettingsStore.getState().playerHeaderBlur,
         ),

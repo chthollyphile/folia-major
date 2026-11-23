@@ -178,6 +178,69 @@ describe('createLyricsSetter', () => {
         expect(result.lines[1].isChorus).toBe(true);
     });
 
+    it('keeps where cached chorus ranges came from when it applies them to other lyrics of the same song', () => {
+        const currentSong: SongResult = {
+            id: 23456,
+            name: 'Test Song',
+            artists: [],
+            album: { id: 1, name: 'Test Album' },
+            durationMs: 180000,
+        };
+        const run = (origin: 'source' | 'text' | undefined) => {
+            const setLyricsStateMock = vi.fn();
+            const setter = createLyricsSetter(setLyricsStateMock, [], { current: currentSong });
+            setter({
+                lines: [
+                    { fullText: '主歌', startTime: 0, endTime: 10, words: [] },
+                    { fullText: '副歌部分', startTime: 10, endTime: 30, words: [], isChorus: true, ...(origin ? { chorusOrigin: origin } : {}) },
+                ],
+            });
+            setter({
+                lines: [
+                    { fullText: 'Verse 1', startTime: 0, endTime: 9, words: [] },
+                    { fullText: 'Chorus part', startTime: 11, endTime: 28, words: [] },
+                ],
+            });
+            return (setLyricsStateMock.mock.calls[1][0] as LyricData).lines[1];
+        };
+
+        expect(run('source')).toMatchObject({ isChorus: true, chorusOrigin: 'source' });
+        expect(run('text')).toMatchObject({ isChorus: true, chorusOrigin: 'text' });
+        // Marked before the origin was recorded: not known to be the source's, so never passed off as one.
+        expect(run(undefined)).toMatchObject({ isChorus: true, chorusOrigin: 'text' });
+    });
+
+    it('reapplies the chorus ranges of the source, not the lines they marked, to other lyrics of the same song', () => {
+        const setLyricsStateMock = vi.fn();
+        const currentSong: SongResult = {
+            id: 34567,
+            name: 'Test Song',
+            artists: [],
+            album: { id: 1, name: 'Test Album' },
+            durationMs: 180000,
+        };
+        const setter = createLyricsSetter(setLyricsStateMock, [], { current: currentSong });
+        setter({
+            lines: [
+                { fullText: '主歌', startTime: 0, endTime: 10, words: [] },
+                { fullText: '副歌部分', startTime: 10, endTime: 30, words: [], isChorus: true, chorusOrigin: 'source' },
+            ],
+            sourceChorusRanges: [{ startTime: 12, endTime: 30 }],
+        });
+        setter({
+            lines: [
+                { fullText: 'Verse 1', startTime: 0, endTime: 11, words: [] },
+                { fullText: 'Chorus part', startTime: 11, endTime: 28, words: [] },
+            ],
+        });
+
+        const result = setLyricsStateMock.mock.calls[1][0] as LyricData;
+        // The line from 10 s would also catch the verse ending at 11 s; the source's range from 12 s does not.
+        expect(result.lines[0].isChorus).toBeUndefined();
+        expect(result.lines[1]).toMatchObject({ isChorus: true, chorusOrigin: 'source' });
+        expect(result.sourceChorusRanges).toEqual([{ startTime: 12, endTime: 30 }]);
+    });
+
     it('does not require a full LocalSong carrier for local playback snapshots', () => {
         const setLyricsStateMock = vi.fn();
         const currentSong = {

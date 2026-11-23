@@ -216,6 +216,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-toggle-follow-system-reduced-motion",
   "settings-toggle-track-switch-buttons",
   "settings-toggle-main-window-titlebar",
+  "settings-toggle-progress-chorus-marker",
   "settings-toggle-player-header-blur",
   "settings-toggle-titlebar-side",
   "settings-toggle-fullscreen-titlebar-button",

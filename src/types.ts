@@ -71,6 +71,8 @@ export interface LyricAgent {
   type?: string;
 }
 
+export type LyricChorusOrigin = 'source' | 'text';
+
 export interface Line {
   words: Word[];
   startTime: number;
@@ -88,6 +90,10 @@ export interface Line {
   renderHints?: LineRenderHints;
   isChorus?: boolean;
   chorusEffect?: 'bars' | 'circles' | 'beams';
+  // Where isChorus came from: 'source' when the lyric data said so (a platform's chorus ranges, a
+  // TTML songPart), 'text' when the host guessed it from repeated lines. Absent on lyrics marked
+  // before this was recorded, which count as not known.
+  chorusOrigin?: LyricChorusOrigin;
   // User-saved fine word boundaries for fullText, baked in upstream by the lyric setter.
   // join('') must equal fullText. When present it wins over every automatic segmentation.
   wordSegments?: string[];
@@ -99,6 +105,9 @@ export interface Line {
 
 export interface LyricData {
   lines: Line[];
+  // The chorus ranges a lyric source gave (seconds, lyric clock), kept when they marked lines here:
+  // a range can start inside a line, and the progress bar's chorus tick wants the range's own start.
+  sourceChorusRanges?: Array<{ startTime: number; endTime: number }>;
   title?: string;
   artist?: string;
   isWordByWord?: boolean;
