@@ -288,9 +288,9 @@ describe('loader integration', () => {
             expect((await system.setModEnabled(modId, true)).error).toBe('enable-declined');
         }
         expect(dialogDetails[0]).toContain('Signature: officially verified (Folium official, folium-2026-1)');
-        expect(dialogDetails[0]).toContain('reviewed by Folium');
+        expect(dialogDetails[0]).toContain('it was reviewed');
         expect(dialogDetails[1]).toContain('Signature: does not match (unknown-key)');
-        expect(dialogDetails[1]).toContain('not security-audited');
+        expect(dialogDetails[1]).toContain('Mods are third-party code');
         expect(dialogDetails[2]).toContain('Signature: none');
         expect(dialogDetails[3]).toContain('Signature: preview build (Folium beta, folium-beta-2026-1)');
         expect(dialogDetails[3]).toContain('passed the security review only');

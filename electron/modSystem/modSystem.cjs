@@ -50,10 +50,11 @@ const Store = require('electron-store').default || require('electron-store');
 
 const { dialog, ipcMain, protocol, safeStorage, shell } = electron;
 const {
-    FOLIUM_VERSION, resolveLoadPlan, satisfiesHostRange, parseDependency, permissionGuarding, isSourceManifest,
+    FOLIUM_VERSION, resolveLoadPlan, satisfiesHostRange, classifyHostRange, parseDependency, permissionGuarding, isSourceManifest,
 } = require('./manifest.cjs');
 const { computeModDigest, shortDigest } = require('./modDigest.cjs');
 const { verifyModSignature } = require('./modSignature.cjs');
+const { createModMarket, feedbackUrlOf, resolveMarketOrigin } = require('./market.cjs');
 const { clearDirectoryContents, isBrokenDirectory, measureDirectoryBytes, resolveModStorageDirs } = require('./modFiles.cjs');
 const { measureSourceUsage } = require('./sourceUsage.cjs');
 const { createFileGrantStore } = require('./fileGrants.cjs');
@@ -448,6 +449,7 @@ const createModSystem = ({
         writeTrust, isDevSourceMod, resolveTrust, confirmEnableMod,
         readBuiltinEnabled, writeBuiltinEnabled, isOverrideConfirmed, writeOverrideApproval, confirmOverride,
         confirmClearSourceData, confirmCommunityMods,
+        isRangeOverrideConfirmed, writeRangeOverride, confirmRangeOverride, confirmUninstall,
     } = createModApproval({ app, store, enabledKey, getMainWindowSafe, getLocaleKey });
 
     /*
@@ -548,6 +550,18 @@ ${partition}`;
         };
     });
 
+    // A mod `uninstallMod` removes: one folder directly in the user mods folder (a zip or market install, or an
+    // override copy of a built-in mod put there). Built-in mods, the source tree and resources/ stay.
+    // Its folder there, or null.
+    const userModsFolderOf = (runtime) => {
+        if (!runtime?.dirPath || !['user', 'override'].includes(runtime.tier)) return null;
+        const userDir = path.resolve(getUserModsDirectory());
+        const relative = path.relative(userDir, path.resolve(runtime.dirPath));
+        const topFolder = relative.split(path.sep)[0];
+        if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative) || !topFolder || topFolder.startsWith('.')) return null;
+        return path.join(userDir, topFolder);
+    };
+
     const publicModState = (runtime) => {
         const entry = mods.get(runtime.manifest.id);
         if (!entry) {
@@ -563,7 +577,14 @@ ${partition}`;
             experimental: entry.manifest.experimental ?? [],
             embedOrigins: entry.manifest.embedOrigins ?? [],
             folia: entry.manifest.folia ?? null,
+            // Folium 2.1: where to take the mod's problems (the panel falls back to the market catalog).
+            repository: entry.manifest.repository ?? null,
+            bugs: entry.manifest.bugs ?? null,
             hasMain: Boolean(entry.manifest.main),
+            // Its `folia` range ran out above and it runs because the user let it through (classifyHostRange 'expired').
+            rangeOverridden: Boolean(entry.rangeOverridden),
+            // What the panel offers to uninstall: the same rule uninstallMod applies.
+            uninstallable: userModsFolderOf(entry) !== null,
             // Client entries are only exposed for mods that are enabled and
             // loaded; the protocol handler enforces the same rule per request.
             clientUrl: entry.status === 'loaded' ? clientUrl(entry) : null,
@@ -790,9 +811,12 @@ ${partition}`;
     // What decides whether a running copy is kept by the next load (plan §5.4, `unloadAll()` made differential).
     // Enabled and used only for matching run the same copy (its main entry starts in both): switching between the
     // two keeps it running, so a backend is not restarted; only 'off' differs, and an off copy does not run.
+    // Letting an expired range through (or taking that back) changes it too: a source copy is otherwise kept
+    // running by every load, and a revoked one would go on until the next start.
     const reloadKeyOf = (entry) => JSON.stringify([
         entry.tier, entry.dirPath, entry.digest, entry.mode === 'off' ? 'off' : entry.mode ? 'on' : null,
         (entry.source?.sources ?? []).map((source) => [source.sourceId, source.legacy]),
+        typeof entry.manifest?.id === 'string' && isRangeOverrideConfirmed(entry.manifest.id, entry.digest),
     ]);
 
     /*
@@ -919,14 +943,20 @@ ${partition}`;
                 nextMods.set(modId, runtime);
                 return;
             }
-            // A mod that names the Folia versions it needs (manifest "folia")
-            // never runs on a host outside that range.
+            // A mod that names the Folia versions it needs (manifest "folia") does not run on a host
+            // outside that range, with one exception: a range that only ran out above ('expired', a
+            // `<0.8.0` written before 0.8.0 shipped) runs when the user let these files through.
             const range = runtime.manifest.folia;
             if (range && entry.tier !== 'builtin' && !satisfiesHostRange(hostVersion, range)) {
-                runtime.status = 'error';
-                runtime.error = 'host-version-mismatch';
-                nextMods.set(modId, runtime);
-                return;
+                const rangeState = classifyHostRange(hostVersion, range);
+                if (rangeState === 'expired' && isRangeOverrideConfirmed(modId, entry.digest)) {
+                    runtime.rangeOverridden = true;
+                } else {
+                    runtime.status = 'error';
+                    runtime.error = rangeState === 'expired' ? 'host-range-expired' : 'host-version-mismatch';
+                    nextMods.set(modId, runtime);
+                    return;
+                }
             }
             try {
                 runtime.load((error) => {
@@ -1071,11 +1101,18 @@ ${partition}`;
         }
         // Same moment as the digest: the label must describe the bytes being approved.
         const signature = verifyModSignature(runtime.dirPath, runtime.manifest);
-        const confirmed = await confirmEnableMod(runtime, digest, signature);
+        // A `folia` range that only ran out above: the one confirmation says so and lets it load anyway.
+        const hostVersion = typeof app.getVersion === 'function' ? app.getVersion() : null;
+        const rangeExpired = runtime.manifest.folia && !BUILTIN_TIERS.has(runtime.tier)
+            && classifyHostRange(hostVersion, runtime.manifest.folia) === 'expired'
+            ? { range: runtime.manifest.folia, hostVersion, feedbackUrl: feedbackUrlOf(runtime.manifest) }
+            : null;
+        const confirmed = await confirmEnableMod(runtime, digest, signature, { rangeExpired });
         if (!confirmed) {
             return { ok: false, error: 'enable-declined', mods: listMods() };
         }
         writeTrust(modId, true, digest);
+        if (rangeExpired) writeRangeOverride(modId, digest);
         /*
          * A takeover: the first one confirmed holds the short id (plan §5.1, one id to one mod). Only what this
          * confirmation showed as taken over is recorded: the plan described the mod's source as a takeover of that
@@ -1590,6 +1627,15 @@ ${partition}`;
         app, isModSystemEnabled, isCommunityModsEnabled, loadAll: () => reloadChanged(), emitLog, serializeError,
     });
 
+    // The mod market (market.cjs): its catalog, README files and installs, all from the market origin.
+    const market = createModMarket({
+        origin: resolveMarketOrigin({ isPackaged: app.isPackaged }),
+        cacheDir: path.join(app.getPath('userData'), 'mod-market'),
+        fetchImpl: (url, init) => electron.net.fetch(url, init),
+        installModFromZip,
+        onProgress: (progress) => sendToRenderer(IPC.fMarketProgress, progress),
+    });
+
     /*
      * 「从 zip 安装音源模组」 (Settings → Sources): the main process asks for the file, so the window never names a
      * path; then the same install as a dropped zip. A cancelled picker answers 'install-cancelled'.
@@ -1630,6 +1676,102 @@ ${partition}`;
         // switch as it was. The main process already judges by the new value: this is for what they draw.
         sendToFirstPartyWindows(IPC.fCommunityChanged, { enabled: wanted });
         return { ok: true, enabled: wanted, mods: await reloadChanged({ differential: false }) };
+    };
+
+    /*
+     * Loads mods whose `folia` range only ran out above (status 'host-range-expired') after one native
+     * confirmation for all of them; bound to the files of each, so an update asks again.
+     */
+    const allowExpiredRange = async (modIds) => {
+        const hostVersion = typeof app.getVersion === 'function' ? app.getVersion() : null;
+        const targets = (Array.isArray(modIds) ? modIds : [modIds])
+            .map((modId) => (typeof modId === 'string' ? mods.get(modId) : undefined))
+            .filter((runtime) => runtime && runtime.error === 'host-range-expired' && runtime.dirPath)
+            .map((runtime) => ({ runtime, digest: computeModDigest(runtime.dirPath) }))
+            .filter(({ digest }) => Boolean(digest));
+        if (targets.length === 0) {
+            return { ok: false, error: 'no-expired-range', mods: listMods() };
+        }
+        const confirmed = await confirmRangeOverride(targets.map(({ runtime }) => ({
+            name: runtime.manifest.name,
+            id: runtime.manifest.id,
+            range: runtime.manifest.folia,
+            feedbackUrl: feedbackUrlOf(runtime.manifest),
+        })), hostVersion ?? '-');
+        if (!confirmed) {
+            return { ok: false, error: 'range-override-declined', mods: listMods() };
+        }
+        targets.forEach(({ runtime, digest }) => writeRangeOverride(runtime.manifest.id, digest));
+        console.info(`[Mods] loading ${targets.length} mod(s) past their declared Folia range: ${targets.map(({ runtime }) => runtime.manifest.id).join(', ')}`);
+        return { ok: true, mods: await reloadChanged() };
+    };
+
+    // Takes that back: the mod stops and shows its expired range again.
+    const revokeExpiredRange = async (modId) => {
+        if (typeof modId !== 'string') return { ok: false, error: 'mod-not-found', mods: listMods() };
+        writeRangeOverride(modId, null);
+        return { ok: true, mods: await reloadChanged({ differential: false }) };
+    };
+
+    /*
+     * Uninstalls a mod from the user mods folder: after a native confirmation its folder goes to the trash
+     * (never deleted outright), its approvals are dropped and its data stays. An override copy of a built-in
+     * mod gives the place back to the built-in copy. Mods elsewhere (built in, the source tree, resources/) are
+     * not removed here.
+     */
+    const uninstallMod = async (modId) => {
+        const runtime = typeof modId === 'string' ? mods.get(modId) : undefined;
+        if (!runtime?.dirPath) {
+            return { ok: false, error: 'mod-not-found', mods: listMods() };
+        }
+        const folder = userModsFolderOf(runtime);
+        if (!folder) {
+            return { ok: false, error: 'uninstall-not-user-mod', mods: listMods() };
+        }
+        const restoresBuiltin = runtime.tier === 'override';
+        if (!(await confirmUninstall(runtime, { restoresBuiltin }))) {
+            return { ok: false, error: 'uninstall-declined', mods: listMods() };
+        }
+        writeTrust(modId, false, null);
+        writeRangeOverride(modId, null);
+        writeOverrideApproval(modId, null);
+        const overridden = store.get(OVERRIDDEN_BUILTINS_KEY);
+        if (overridden && typeof overridden === 'object') {
+            store.set(OVERRIDDEN_BUILTINS_KEY, Object.fromEntries(Object.entries(overridden).filter(([, by]) => by !== modId)));
+        }
+        // Stop it first, so nothing of it (a source backend, a native program) holds its files.
+        await reloadChanged();
+        try {
+            await shell.trashItem(folder);
+        } catch (error) {
+            console.warn(`[Mods] ${modId}: could not move its folder to the trash`, error);
+            return { ok: false, error: 'uninstall-trash-failed', mods: await reloadChanged() };
+        }
+        console.info(`[Mods] ${modId}: uninstalled, its folder moved to the trash`);
+        return { ok: true, mods: await reloadChanged() };
+    };
+
+    /*
+     * The catalog as the window shows it: each mod also says how its `folia` range reads on this Folia
+     * (classifyHostRange; 'ok' without one) and whether the community mods switch keeps it out. Only an official
+     * release source mod gets past that switch (communityMods.cjs); the signature check at install has the last word.
+     */
+    const describeMarketCatalog = (result) => {
+        if (!result?.ok) return result;
+        const hostVersion = typeof app.getVersion === 'function' ? app.getVersion() : null;
+        const communityOn = isCommunityModsEnabled();
+        return {
+            ...result,
+            hostVersion,
+            catalog: {
+                ...result.catalog,
+                mods: result.catalog.mods.map((entry) => ({
+                    ...entry,
+                    hostRange: entry.folia ? classifyHostRange(hostVersion, entry.folia) : 'ok',
+                    communityBlocked: !communityOn && !(entry.origin === 'official' && entry.channel === 'release' && entry.kind === 'source'),
+                })),
+            },
+        };
     };
 
     const openModsDirectory = async () => {
@@ -1776,6 +1918,14 @@ ${partition}`;
         handle(IPC.clearSourceData, (_event, sourceId) => clearSourceData(sourceId));
         handle(IPC.confirmOverride, (_event, modId) => confirmModOverride(modId));
         handle(IPC.assignSourceClaim, (_event, shortId, modId) => assignSourceClaim(shortId, modId));
+        // The mods panel: uninstall a mod from the user folder, and load mods past an expired `folia` range.
+        handle(IPC.uninstall, (_event, modId) => uninstallMod(modId));
+        handle(IPC.allowExpiredRange, (_event, modIds) => allowExpiredRange(modIds));
+        handle(IPC.revokeExpiredRange, (_event, modId) => revokeExpiredRange(modId));
+        // The mod market: the window names a mod id; every URL and path is the market's own.
+        handle(IPC.marketCatalog, async (_event, options) => describeMarketCatalog(await market.getCatalog({ force: Boolean(options?.force) })));
+        handle(IPC.marketReadme, (_event, url) => market.getReadme(url));
+        handle(IPC.marketInstall, (_event, modId) => market.install(modId));
         // Folium 2.0 (S3): the window says which of a source mod's declared sources its client registered;
         // none at all takes the exemptions back from this running copy (plan §5.2).
         // The report names the client copy it is of (its URL, which carries the content tag): one of a copy that

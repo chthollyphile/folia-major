@@ -35,3 +35,23 @@ export const modManagerClassesFor = (isDaylight: boolean) => ({
 });
 
 export type ModManagerClasses = ReturnType<typeof modManagerClassesFor>;
+
+/*
+ * The same in the settings kit's colours (its --st-* variables), for the mods view: Settings → Mods sets them as
+ * the settings window, and the palette's mods surface sets them around the view.
+ */
+export const MOD_KIT_CLASSES: ModManagerClasses = {
+    card: 'border-transparent bg-[var(--st-card)] shadow-[0_0_0_1px_var(--st-line)]',
+    divider: 'border-[color:var(--st-line)]',
+    toggleOff: 'bg-[var(--st-track)]',
+    ghostButton: 'border-transparent bg-[var(--st-fill)] hover:bg-[var(--st-fill2)]',
+    activeButton: 'border-transparent bg-[var(--st-track)]',
+    rowHover: 'hover:bg-[var(--st-fill)]',
+    expandedRow: 'bg-[var(--st-fill)]',
+    chip: 'bg-[var(--st-fill)]',
+    muted: 'text-[color:var(--st-t3)]',
+    warning: 'border-[color:var(--st-warn)]/25 bg-[var(--st-warn)]/10 text-[color:var(--st-t1)]',
+    danger: 'border-[color:var(--st-err)]/25 bg-[var(--st-err)]/10 text-[color:var(--st-t1)]',
+    preview: 'border-violet-400/25 bg-violet-500/10 text-[color:var(--st-t1)]',
+    success: 'border-[color:var(--st-ok)]/25 bg-[var(--st-ok)]/10 text-[color:var(--st-t1)]',
+};

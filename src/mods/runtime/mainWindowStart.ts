@@ -13,6 +13,8 @@ import { installFoliumHostEqualizer } from './equalizer/hostEqualizer';
 import { installFoliumHostVisualizer } from './visualizer/hostVisualizer';
 import { installFoliumHostTheme } from './theme/hostTheme';
 import { restoreSavedFoliumSelections } from './missingEntries';
+import { startModUpdateCheck } from '../market/useModMarketStore';
+import { useDesktopSettingsStore } from '@/stores/useDesktopSettingsStore';
 
 // src/mods/runtime/mainWindowStart.ts
 // How the main window starts the mods' clients before its first screen.
@@ -117,6 +119,8 @@ export const startFoliumForMainWindow = async ({ firstScreenWaitMs }: FoliumMain
         if (alive !== null) clearInterval(alive);
         return reportModsStartSettled();
     });
+    // The market's update check: a minute later, then at most every six hours (market/useModMarketStore.ts).
+    startModUpdateCheck(() => useDesktopSettingsStore.getState().modSystemEnabled);
     await sourcesUp;
     await within(started, firstScreenWaitMs);
 };

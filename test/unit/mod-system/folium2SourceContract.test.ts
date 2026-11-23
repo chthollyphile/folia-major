@@ -38,7 +38,7 @@ describe('the Folium version a main entry reads', () => {
         confirmMod(writeMod('user', sourceManifest('radio', ['station']), { main: true }), 'radio');
         launch();
         expect((modRecord('old')!.api.host as { folium: unknown }).folium).toEqual({ major: 1, minor: 10 });
-        expect((modRecord('radio')!.api.host as { folium: unknown }).folium).toEqual({ major: 2, minor: 0 });
+        expect((modRecord('radio')!.api.host as { folium: unknown }).folium).toEqual({ major: 2, minor: 1 });
     });
 });
 

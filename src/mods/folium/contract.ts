@@ -17,7 +17,7 @@
 import type { FoliumI18nService, FoliumSourcesService } from './sources/contract';
 
 /** The Folium version this host implements; mods read it at runtime as `folium.host.folium`. */
-export const FOLIUM_VERSION = Object.freeze({ major: 2, minor: 0 });
+export const FOLIUM_VERSION = Object.freeze({ major: 2, minor: 1 });
 
 /** `modid:name`, like a Forge ResourceLocation. The mod id part is added by the host. */
 export type FoliumId = string;

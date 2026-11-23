@@ -62,7 +62,7 @@ import { readFoliumShared } from './api-docs.mjs';
 import { isFoliumStandardCapability, parseFoliumCapabilityKey, supportsFoliumCapability, FOLIUM_CUSTOM_CAPABILITY_PATTERN } from '../../src/mods/folium/sources/capabilities.ts';
 
 const require = createRequire(import.meta.url);
-const { validateManifest, satisfiesHostRange, isSourceManifest } = require('../../electron/modSystem/manifest.cjs');
+const { validateManifest, satisfiesHostRange, classifyHostRange, isSourceManifest } = require('../../electron/modSystem/manifest.cjs');
 const { OLD_MAIN_NAMES, oldNameText, oldNameWarnings } = require('../../electron/modSystem/deprecated.cjs');
 const { computeModDigest } = require('../../electron/modSystem/modDigest.cjs');
 const { verifyModSignature } = require('../../electron/modSystem/modSignature.cjs');
@@ -301,11 +301,21 @@ export const checkFoliumMod = (directory) => {
     if (manifest.preview === null) {
         notes.push('mod.json has no "preview": the app needs none, a submission to the mod market does (a .png, .jpg or .webp image in the folder)');
     }
+    // Folium 2.1: without these the mods panel can only send a user to the market's record of the mod, if any.
+    if (manifest.folium === 2 && manifest.repository === null && manifest.bugs === null) {
+        notes.push('mod.json has no "repository" or "bugs": with one of them the mods panel shows users where to report a problem with this mod');
+    }
 
     // The app does not run a mod that asks for another Folia than the one it is (host-version-mismatch).
     const hostVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
     if (manifest.folia && !satisfiesHostRange(hostVersion, manifest.folia)) {
         problems.push(`mod.json asks for Folia "${manifest.folia}" and this checkout is ${hostVersion}: the app would not run the mod`);
+    }
+    // An upper bound that the next minor already passes: there the app holds the mod back until the user lets it load.
+    const nextMinor = /^(\d+)\.(\d+)\./.exec(hostVersion);
+    const nextVersion = nextMinor ? `${nextMinor[1]}.${Number(nextMinor[2]) + 1}.0` : null;
+    if (manifest.folia && nextVersion && satisfiesHostRange(hostVersion, manifest.folia) && classifyHostRange(nextVersion, manifest.folia) === 'expired') {
+        notes.push(`mod.json caps Folia at "${manifest.folia}": Folia ${nextVersion} would not load it unless the user chooses "try loading anyway"; write only a lower bound (">=${hostVersion}")`);
     }
     if (manifest.depends.length > 0) {
         notes.push(`depends on ${manifest.depends.join(', ')}: whether those mods are installed and enabled is not looked at here; the app does not run this mod without them`);

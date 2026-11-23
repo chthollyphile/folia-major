@@ -65,6 +65,8 @@ export type SettingsPageContextValue = {
     onOpenThemePark: () => void;
     /** Opens the scene window over the dialog. */
     onOpenSceneWindow: () => void;
+    /** Opens the mods window (installed mods and the mod market) over the dialog. */
+    onOpenModsWindow: () => void;
     onToggleTransparentPlayerBackground: (enabled: boolean) => void;
     /**
      * State the dialog itself holds (the desktop app's settings file, the Navidrome form, cache

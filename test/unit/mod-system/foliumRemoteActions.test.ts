@@ -28,7 +28,7 @@ describe('experimental remote.actions registry', () => {
         expect(validateManifest(manifest).ok).toBe(true);
         expect(validateManifest({ ...manifest, experimental: ['remote.ui'] }).ok).toBe(false);
         // Folium 2.0 (S3) raised the version itself; the opt-in still changes nothing of it.
-        expect(FOLIUM_VERSION).toEqual({ major: 2, minor: 0 });
+        expect(FOLIUM_VERSION).toEqual({ major: 2, minor: 1 });
     });
 
     it('namespaces actions by mod and group, keeping group order and complete locale maps', () => {

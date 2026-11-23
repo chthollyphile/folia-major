@@ -420,6 +420,18 @@ contextBridge.exposeInMainWorld('electron', {
         confirmModOverride: (modId) => ipcRenderer.invoke('folia-mods:confirm-override', modId),
         assignSourceClaim: (shortId, modId) => ipcRenderer.invoke('folia-mods:assign-source-claim', shortId, modId),
         reportSourcesRegistered: (modId, registered, clientUrl) => ipcRenderer.invoke('folia-mods:sources-registered', modId, registered, clientUrl),
+        // Folium 2.1: uninstall (to the trash), loading mods past an expired `folia` range, and the mod market.
+        uninstallMod: (modId) => ipcRenderer.invoke('folia-mods:uninstall', modId),
+        allowExpiredModRange: (modIds) => ipcRenderer.invoke('folia-mods:allow-expired-range', modIds),
+        revokeExpiredModRange: (modId) => ipcRenderer.invoke('folia-mods:revoke-expired-range', modId),
+        getMarketCatalog: (options) => ipcRenderer.invoke('folia-mods:market-catalog', options),
+        getMarketReadme: (url) => ipcRenderer.invoke('folia-mods:market-readme', url),
+        installFromMarket: (modId) => ipcRenderer.invoke('folia-mods:market-install', modId),
+        onMarketProgress: (callback) => {
+            const listener = (_event, progress) => callback(progress);
+            ipcRenderer.on('folia-mods:market-progress', listener);
+            return () => ipcRenderer.removeListener('folia-mods:market-progress', listener);
+        },
         onModsStateChanged: (callback) => {
             const listener = (_event, mods) => callback(mods);
             ipcRenderer.on('folia-mods:state-changed', listener);

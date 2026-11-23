@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModSourceUsageResult, ModStorageUsageResult } from './mods/types';
+import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModMarketCatalogResult, ModMarketProgress, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModSourceUsageResult, ModStorageUsageResult } from './mods/types';
 import type { AlphaVideoExportProgress, AlphaVideoFormatId, AlphaVideoExportRequest, AlphaVideoExportResult, VideoExportFfmpegChooseResult, VideoExportFfmpegStatus } from './types/videoExport';
 import type { PerfCheckProcessMemory, PerfCheckSettings } from './components/perfCheck/perfCheckTypes';
 
@@ -1066,6 +1066,14 @@ declare global {
         onSourceStatesChanged?: (callback: (payload: ModSourceStatesPayload) => void) => () => void;
         onCommunityModsChanged?: (callback: (payload: { enabled: boolean }) => void) => () => void;
         onSourcesStopping?: (callback: (payload: { sourceIds: string[] }) => void) => () => void;
+        // Folium 2.1: uninstall, loading past an expired `folia` range, the mod market.
+        uninstallMod?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        allowExpiredModRange?: (modIds: string[]) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        revokeExpiredModRange?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        getMarketCatalog?: (options?: { force?: boolean }) => Promise<ModMarketCatalogResult>;
+        getMarketReadme?: (url: string) => Promise<{ ok: boolean; text?: string; error?: string }>;
+        installFromMarket?: (modId: string) => Promise<{ ok: boolean; id?: string; error?: string; mods?: ModRuntimeInfo[] }>;
+        onMarketProgress?: (callback: (progress: ModMarketProgress) => void) => () => void;
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;

@@ -82,6 +82,11 @@ stubModule('electron', {
     },
     shell: {
         openPath: async () => '',
+        // Uninstalling moves the folder to the trash; here it goes away.
+        trashItem: async (target: string) => {
+            electronCalls.push(['shell.trashItem', target]);
+            fs.rmSync(target, { recursive: true, force: true });
+        },
         openExternal: async (url: string) => { electronCalls.push(['shell.openExternal', url]); },
     },
     net: {

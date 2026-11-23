@@ -1,5 +1,5 @@
 {
-    "version": { "major": 2, "minor": 0 },
+    "version": { "major": 2, "minor": 1 },
     "foliumOneVersion": { "major": 1, "minor": 10 },
     "manifestVersions": [1, 2],
     "sourceCapabilities": {
@@ -80,6 +80,9 @@
         "remoteActions": "remote.actions",
         "platformRaw": "platform.raw"
     },
+    "market": {
+        "origin": "https://folium-compound.cielaniska.top"
+    },
     "channels": {
         "list": "folia-mods:list",
         "setEnabled": "folia-mods:set-enabled",
@@ -112,6 +115,12 @@
         "confirmOverride": "folia-mods:confirm-override",
         "assignSourceClaim": "folia-mods:assign-source-claim",
         "sourcesRegistered": "folia-mods:sources-registered",
+        "uninstall": "folia-mods:uninstall",
+        "allowExpiredRange": "folia-mods:allow-expired-range",
+        "revokeExpiredRange": "folia-mods:revoke-expired-range",
+        "marketCatalog": "folia-mods:market-catalog",
+        "marketReadme": "folia-mods:market-readme",
+        "marketInstall": "folia-mods:market-install",
         "fStateChanged": "folia-mods:state-changed",
         "fExportProgress": "folia-mods:export-progress",
         "fLog": "folia-mods:log",
@@ -119,6 +128,7 @@
         "fSecretChanged": "folia-mods:secret-changed",
         "fSourceStatesChanged": "folia-mods:source-states-changed",
         "fCommunityChanged": "folia-mods:community-changed",
-        "fSourcesStopping": "folia-mods:sources-stopping"
+        "fSourcesStopping": "folia-mods:sources-stopping",
+        "fMarketProgress": "folia-mods:market-progress"
     }
 }

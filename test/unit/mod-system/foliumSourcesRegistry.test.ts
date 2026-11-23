@@ -94,7 +94,7 @@ describe('the Folium version, two tracks (plan §9)', () => {
         expect(typeof one.lyrics.parse).toBe('function');
         expect(typeof one.lyrics.getLines).toBe('function');
         const two = createFoliumClientApi(mod({ kind: 'standard', sources: undefined }), clientApiOptions('export'));
-        expect(two.host.folium).toEqual({ major: 2, minor: 0 });
+        expect(two.host.folium).toEqual({ major: 2, minor: 1 });
         expect(two.sources.supports('search', 1)).toBe(true);
         expect(two.sources.supports('playback.surface', 1)).toBe(true);
         expect(two.sources.supports('playback.surface', 2)).toBe(false);

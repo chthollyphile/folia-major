@@ -8,6 +8,8 @@ import type {
     ModFfmpegStatus,
     ModLogEntry,
     ModMainCallStats,
+    ModMarketCatalogResult,
+    ModMarketProgress,
     ModRpcMessage,
     ModRuntimeInfo,
     ModRuntimeSnapshot,
@@ -335,3 +337,48 @@ export const subscribeSourcesStopping = (callback: (payload: { sourceIds: string
 /** The sources' states changed (a switch, a load). */
 export const subscribeSourceStates = (callback: (payload: ModSourceStatesPayload) => void): (() => void) =>
     bridge()?.onSourceStatesChanged?.(callback) ?? (() => {});
+
+// ---- Folium 2.1: uninstall, loading past an expired `folia` range, and the mod market (market.cjs). ----
+
+type ModsAnswer = { ok: boolean; error?: string; mods?: ModRuntimeInfo[] };
+
+/** Moves a mod of the user mods folder to the trash after a native confirmation. */
+export const uninstallMod = async (modId: string): Promise<ModsAnswer> => (
+    await bridge()?.uninstallMod?.(modId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** Lets mods whose `folia` range only ran out above load anyway (one native confirmation for all of them). */
+export const allowExpiredModRange = async (modIds: string[]): Promise<ModsAnswer> => (
+    await bridge()?.allowExpiredModRange?.(modIds) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** Takes that back for one mod: it stops and shows its expired range again. */
+export const revokeExpiredModRange = async (modId: string): Promise<ModsAnswer> => (
+    await bridge()?.revokeExpiredModRange?.(modId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** The market catalog, kept by the main process for ten minutes (`force` reads it again). */
+export const getMarketCatalog = async (options?: { force?: boolean }): Promise<ModMarketCatalogResult> => {
+    try {
+        return await bridge()?.getMarketCatalog?.(options) ?? { ok: false, error: 'no-electron-bridge' };
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+};
+
+/** A mod's README text; the URL must be one the catalog gave (the main process checks it is the market's). */
+export const getMarketReadme = async (url: string): Promise<{ ok: boolean; text?: string; error?: string }> => {
+    try {
+        return await bridge()?.getMarketReadme?.(url) ?? { ok: false, error: 'no-electron-bridge' };
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+};
+
+/** Installs or updates a mod from the market: the main process downloads, checks and installs the catalog's version. */
+export const installFromMarket = async (modId: string): Promise<{ ok: boolean; id?: string; error?: string; mods?: ModRuntimeInfo[] }> => (
+    await bridge()?.installFromMarket?.(modId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+export const subscribeMarketProgress = (callback: (progress: ModMarketProgress) => void): (() => void) =>
+    bridge()?.onMarketProgress?.(callback) ?? (() => {});

@@ -23,7 +23,7 @@
 //     clearFoliumOldNames line and the addOldClientNames line (it imports
 //     src/mods/folium/deprecated/);
 //   - src/mods/types.ts: ModRuntimeInfo.warnings;
-//   - src/mods/manager/ModListItem.tsx: the import of
+//   - src/mods/market/ModDetailSections.tsx (ModRuntimeSection): the import of
 //     src/mods/folium/deprecated/warnings.ts, NO_OLD_NAMES, the two lines that
 //     read both sides' lines (`mod.warnings` and the client's), the box that
 //     lists them, and the locale key mods.oldNames (zh-CN, en, in);
