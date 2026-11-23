@@ -23,6 +23,9 @@ const FORMAT_LABEL_KEYS = {
     qtrle: 'options.alphaExportFormatQtrle',
 } as const;
 
+// The container each format is written in, shown beside its name.
+const FORMAT_CONTAINERS = { prores: 'MOV', vp9: 'WebM', qtrle: 'MOV' } as const;
+
 const PROBLEM_KEYS: Record<VideoExportFfmpegProblem, string> = {
     'not-found': 'options.alphaExportProblemNotFound',
     'not-runnable': 'options.alphaExportProblemNotRunnable',
@@ -40,10 +43,13 @@ export const AlphaExportFfmpegGroup: React.FC = () => {
     const [rejected, setRejected] = useState<VideoExportFfmpegProblem | null>(null);
     const O = ALPHA_EXPORT_OPTIONS;
 
+    // The build string after the version (`5.1.2-essentials_build-www.gyan.dev`) is too long for the
+    // status line; the full one is the path line's tooltip.
+    const shortVersion = status?.version ? (/^n?\d+(?:\.\d+)*/.exec(status.version)?.[0] ?? status.version) : '?';
     const sourceText = !status
         ? t('options.alphaExportSearching')
         : status.available
-            ? t(status.source === 'manual' ? 'options.alphaExportSourceManual' : 'options.alphaExportSourceAuto', { version: status.version ?? '?' })
+            ? t(status.source === 'manual' ? 'options.alphaExportSourceManual' : 'options.alphaExportSourceAuto', { version: shortVersion })
             : t('options.alphaExportSourceNone');
     const formats = (status?.formats ?? []).filter(isAlphaVideoFormatId);
 
@@ -57,8 +63,15 @@ export const AlphaExportFfmpegGroup: React.FC = () => {
 
     return (
         <Group def={ALPHA_EXPORT_GROUP}>
-            <Row option={O.ffmpeg} hint={status?.path ?? t('options.alphaExportFfmpegHint')} note={t('options.alphaExportFfmpegNote')}>
-                <Status tone={!status ? undefined : status.available ? 'ok' : 'error'}>{sourceText}</Status>
+            {/* Status under the label, the two buttons at the right, the full path on a line of its own. */}
+            <Row
+                option={O.ffmpeg}
+                hint={<Status tone={!status ? undefined : status.available ? 'ok' : 'error'}>{sourceText}</Status>}
+                note={t('options.alphaExportFfmpegNote')}
+                below={status?.path ? (
+                    <div className="break-all text-xs leading-[18px] text-[color:var(--st-t3)]" title={status.version ?? undefined}>{status.path}</div>
+                ) : undefined}
+            >
                 <Button icon={RefreshCw} tip={t('options.alphaExportSearchAgain')} disabled={busy} onClick={() => { setRejected(null); void refresh(); }} />
                 <Button icon={FolderOpen} disabled={busy} onClick={() => { void onChoose(); }}>
                     {t('options.alphaExportChoose')}
@@ -69,19 +82,30 @@ export const AlphaExportFfmpegGroup: React.FC = () => {
                 <Row sub notice={t('options.alphaExportManualBroken', { reason: t(problemKey(status.manualProblem)) })} />
             )}
             {status?.manualPath && (
-                <Row sub label={t('options.alphaExportManualPath')} hint={status.manualPath}>
+                // The path is the one above while it is in use; a broken choice shows its own here.
+                <Row sub label={t('options.alphaExportManualPath')} hint={status.manualProblem ? status.manualPath : undefined}>
                     <Button disabled={busy} onClick={() => { setRejected(null); void clearChoice(); }}>
                         {t('options.alphaExportUseSearch')}
                     </Button>
                 </Row>
             )}
             {status && !status.available && <Row sub notice={t('options.alphaExportMissing')} />}
-            {/* The list goes on the hint line: it wraps there, where a control would be cut short. */}
             <Row
                 option={O.formats}
-                hint={formats.length > 0 ? formats.map(id => t(FORMAT_LABEL_KEYS[id])).join(' · ') : '—'}
                 note={t('options.alphaExportFormatsHint')}
-            />
+                below={formats.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                        {formats.map(id => (
+                            <span key={id} className="inline-flex items-baseline gap-1.5 rounded-md bg-[var(--st-fill)] px-2 py-0.5 text-xs leading-[18px] text-[color:var(--st-t1)]">
+                                {t(FORMAT_LABEL_KEYS[id])}
+                                <span className="text-[11px] text-[color:var(--st-t3)]">{FORMAT_CONTAINERS[id]}</span>
+                            </span>
+                        ))}
+                    </div>
+                ) : undefined}
+            >
+                {formats.length === 0 && <span className="text-xs text-[color:var(--st-t3)]">—</span>}
+            </Row>
         </Group>
     );
 };

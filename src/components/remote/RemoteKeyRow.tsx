@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Ellipsis, Heart, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { Heart, ListMusic, Pause, Play, SkipBack, SkipForward, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../types';
 import type { RemoteControlSnapshot } from '../../types/remoteControl';
@@ -201,13 +201,14 @@ const RemoteKeyRow: React.FC<RemoteKeyRowProps> = ({
                     </button>
                     <button
                         type="button"
-                        aria-label={t('remote.more')}
+                        aria-label={t('remote.tools')}
+                        title={t('remote.tools')}
                         aria-expanded={isSheetOpen}
                         data-on={isSheetOpen}
                         className="remote-key remote-key--small"
                         onClick={onToggleSheet}
                     >
-                        <Ellipsis size={16} />
+                        <Wrench size={14} />
                         {isExportBusy && !isSheetOpen && <span className="remote-key__dot remote-key__dot--live" />}
                     </button>
                 </div>

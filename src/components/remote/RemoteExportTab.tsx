@@ -7,14 +7,15 @@ import { useVideoExportFfmpegStatus } from '../../hooks/useVideoExportFfmpegStat
 import { REMOTE_NO_DRAG_STYLE, sendRemoteCommand } from './remoteWindowBridge';
 import { RemoteSeg } from './RemoteSheetControls';
 import { formatRemoteSize, RemoteSizeSeg } from './RemoteSizeRows';
-import type { RemoteExportChoices, RemoteExportFormat } from './useRemoteExportChoices';
+import type { RemoteExportBackground, RemoteExportChoices } from './useRemoteExportChoices';
 
 // src/components/remote/RemoteExportTab.tsx
 // The "export video" tab of the remote window's sheet. Before a recording: range, size, start.
 // While one is busy: a large line with the countdown number or the percent, and stop / cancel.
-// The controls live only in this window, which the recording does not capture. The format row picks
-// between recording the window (with sound) and a transparent render through the user's full ffmpeg,
-// offered only in the formats the ffmpeg found can write.
+// The controls live only in this window, which the recording does not capture. The background row
+// says plainly which of the two exports runs: opaque records the window with sound; transparent
+// renders a video with alpha through the user's full ffmpeg (no sound), in one of the formats that
+// ffmpeg can write, picked beside it.
 
 const ALPHA_FORMAT_LABEL_KEYS = {
     prores: 'remote.formatProres',
@@ -42,8 +43,10 @@ const RemoteExportTab: React.FC<RemoteExportTabProps> = ({ exportState, choices,
     const { status } = exportState;
     const ffmpeg = useVideoExportFfmpegStatus().status;
     const alphaFormats = (ffmpeg?.formats ?? []).filter(isAlphaVideoFormatId);
-    // A format the ffmpeg in use cannot write (another file was chosen since) falls back to the window.
-    const format: RemoteExportFormat = choices.format !== 'window' && alphaFormats.includes(choices.format) ? choices.format : 'window';
+    const canExportAlpha = alphaFormats.length > 0;
+    // Transparent only while the ffmpeg in use can write it; a format it lacks falls back to its first.
+    const transparent = choices.background === 'transparent' && canExportAlpha;
+    const alphaFormat = alphaFormats.includes(choices.alphaFormat) ? choices.alphaFormat : alphaFormats[0];
     const isAlpha = exportState.kind === 'alpha';
 
     if (isRemoteExportBusy(status)) {
@@ -117,10 +120,10 @@ const RemoteExportTab: React.FC<RemoteExportTabProps> = ({ exportState, choices,
                             type: 'start-export',
                             preset: choices.selectedPreset,
                             startMode: choices.startMode,
-                            ...(format !== 'window' ? { alphaFormat: format } : {}),
+                            ...(transparent ? { alphaFormat } : {}),
                         })}
                     >
-                        {t(format !== 'window' ? 'remote.startRendering' : 'remote.startRecording')}
+                        {t(transparent ? 'remote.startRendering' : 'remote.startRecording')}
                     </button>
                 </div>
                 <div className="remote-row">
@@ -128,25 +131,35 @@ const RemoteExportTab: React.FC<RemoteExportTabProps> = ({ exportState, choices,
                     <RemoteSizeSeg choices={choices} onCustom={onOpenSize} />
                 </div>
                 <div className="remote-row">
-                    <span className="remote-row__label">{t('remote.rowFormat')}</span>
-                    <RemoteSeg
-                        label={t('remote.rowFormat')}
-                        value={format}
+                    <span className="remote-row__label">{t('remote.rowBackground')}</span>
+                    <RemoteSeg<RemoteExportBackground>
+                        label={t('remote.rowBackground')}
+                        value={transparent ? 'transparent' : 'opaque'}
                         options={[
-                            { value: 'window', label: t('remote.formatWindow') },
-                            ...alphaFormats.map(id => ({ value: id, label: t(ALPHA_FORMAT_LABEL_KEYS[id]) })),
+                            { value: 'opaque', label: t('remote.exportOpaque') },
+                            { value: 'transparent', label: t('remote.exportTransparent'), disabled: !canExportAlpha },
                         ]}
-                        onChange={choices.setFormat}
+                        onChange={choices.setBackground}
                     />
+                    {transparent && (
+                        <RemoteSeg
+                            quiet
+                            label={t('remote.rowFormat')}
+                            value={alphaFormat}
+                            options={alphaFormats.map(id => ({ value: id, label: t(ALPHA_FORMAT_LABEL_KEYS[id]) }))}
+                            onChange={choices.setAlphaFormat}
+                        />
+                    )}
                     {status === 'error' ? (
                         <span className="remote-row__note remote-row__note--error" role="alert" title={exportState.error ?? undefined}>
                             {exportState.error ? `${t('remote.error')}　${exportState.error}` : t('remote.error')}
                         </span>
-                    ) : (
-                        <span className="remote-row__note" title={ffmpeg && !ffmpeg.available ? t('remote.alphaNeedsFfmpegHint') : undefined}>
-                            {ffmpeg && !ffmpeg.available
-                                ? t('remote.alphaNeedsFfmpeg')
-                                : format !== 'window' ? t('remote.alphaNoSound') : ''}
+                    ) : !transparent && (
+                        <span
+                            className="remote-row__note"
+                            title={ffmpeg && !canExportAlpha ? t('remote.alphaNeedsFfmpegHint') : undefined}
+                        >
+                            {ffmpeg && !canExportAlpha ? t('remote.alphaNeedsFfmpeg') : t('remote.opaqueNote')}
                         </span>
                     )}
                 </div>

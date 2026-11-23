@@ -8,14 +8,16 @@ type RemoteSegProps<T extends string> = {
     /** What the choice is about, for screen readers; the visible label sits beside it in the row. */
     label: string;
     value: T;
-    options: ReadonlyArray<{ value: T; label: string }>;
+    options: ReadonlyArray<{ value: T; label: string; disabled?: boolean }>;
     disabled?: boolean;
+    /** A second choice beside the first in one row: drawn lighter. */
+    quiet?: boolean;
     onChange: (value: T) => void;
 };
 
-export function RemoteSeg<T extends string>({ label, value, options, disabled, onChange }: RemoteSegProps<T>) {
+export function RemoteSeg<T extends string>({ label, value, options, disabled, quiet, onChange }: RemoteSegProps<T>) {
     return (
-        <div className="remote-seg" role="radiogroup" aria-label={label} style={REMOTE_NO_DRAG_STYLE}>
+        <div className={quiet ? 'remote-seg remote-seg--quiet' : 'remote-seg'} role="radiogroup" aria-label={label} style={REMOTE_NO_DRAG_STYLE}>
             {options.map(option => (
                 <button
                     key={option.value}
@@ -23,7 +25,7 @@ export function RemoteSeg<T extends string>({ label, value, options, disabled, o
                     role="radio"
                     aria-checked={option.value === value}
                     data-on={option.value === value}
-                    disabled={disabled}
+                    disabled={disabled || option.disabled}
                     className="remote-seg__cell"
                     onClick={() => onChange(option.value)}
                 >

@@ -44,18 +44,22 @@ export interface RemoteExportChoices {
     saveCustomSize: (width: number, height: number) => void;
     startMode: VideoExportStartMode;
     setStartMode: (mode: VideoExportStartMode) => void;
-    /** `window`: record the main window (with sound); an alpha format: render a transparent video with ffmpeg. */
-    format: RemoteExportFormat;
-    setFormat: (format: RemoteExportFormat) => void;
+    /** Opaque: record the main window, with sound. Transparent: render a video with alpha through ffmpeg, no sound. */
+    background: RemoteExportBackground;
+    setBackground: (background: RemoteExportBackground) => void;
+    /** The format of a transparent export. */
+    alphaFormat: AlphaVideoFormatId;
+    setAlphaFormat: (format: AlphaVideoFormatId) => void;
 }
 
-export type RemoteExportFormat = 'window' | AlphaVideoFormatId;
+export type RemoteExportBackground = 'opaque' | 'transparent';
 
 export const useRemoteExportChoices = (): RemoteExportChoices => {
     const [selectedPresetId, setSelectedPresetId] = useState(DEFAULT_VIDEO_EXPORT_PRESET_ID);
     const [presetValues, setPresetValues] = useState<VideoExportPresetValues>(readStoredPresetValues);
     const [startMode, setStartMode] = useState<VideoExportStartMode>('from-start');
-    const [format, setFormat] = useState<RemoteExportFormat>('window');
+    const [background, setBackground] = useState<RemoteExportBackground>('opaque');
+    const [alphaFormat, setAlphaFormat] = useState<AlphaVideoFormatId>('prores');
     const presets = useMemo(() => createVideoExportPresets(presetValues), [presetValues]);
     const selectedPreset = presets.find(preset => preset.id === selectedPresetId) ?? presets[1];
 
@@ -86,7 +90,7 @@ export const useRemoteExportChoices = (): RemoteExportChoices => {
         sendRemoteCommand({ type: 'resize-main-window', ...nextValues[index] });
     }, [presetValues, presets, selectedPreset.id]);
 
-    return { presets, selectedPreset, selectPreset, saveCustomSize, startMode, setStartMode, format, setFormat };
+    return { presets, selectedPreset, selectPreset, saveCustomSize, startMode, setStartMode, background, setBackground, alphaFormat, setAlphaFormat };
 };
 
 export type RemoteAspectKind = 'landscape' | 'portrait' | 'square' | 'ultrawide';
