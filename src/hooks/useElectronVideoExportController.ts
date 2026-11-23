@@ -28,6 +28,7 @@ import { setIsPanelOpen } from '../stores/useAppViewStore';
 import { currentTime } from '../stores/motionSignals';
 import { isHifiRoute } from '../services/hifi/hifiPlayback';
 import { isExternalRoute } from '../services/onlineMusic/externalPlayback';
+import { useAlphaVideoExport } from './useAlphaVideoExport';
 
 // src/hooks/useElectronVideoExportController.ts
 // Records the real player window so audio.currentTime remains the single animation clock.
@@ -58,6 +59,7 @@ export const useElectronVideoExportController = ({
     const recorderRef = useRef<MediaRecorder | null>(null);
     const cancelRequestedRef = useRef(false);
     const runningRef = useRef(false);
+    const { startAlphaExport, cancelAlphaExport } = useAlphaVideoExport({ setExportState, runningRef });
 
     const stopActiveExport = useCallback((discard: boolean) => {
         cancelRequestedRef.current = discard;
@@ -357,6 +359,10 @@ export const useElectronVideoExportController = ({
 
     const handleExportCommand = useCallback((command: RemoteControlCommand) => {
         if (command.type === 'start-export') {
+            if (command.alphaFormat) {
+                void startAlphaExport(command.preset, command.startMode, command.alphaFormat);
+                return true;
+            }
             void startExport(command.preset, command.startMode);
             return true;
         }
@@ -367,12 +373,15 @@ export const useElectronVideoExportController = ({
         }
 
         if (command.type === 'cancel-export') {
+            if (cancelAlphaExport()) {
+                return true;
+            }
             stopActiveExport(true);
             return true;
         }
 
         return false;
-    }, [startExport, stopActiveExport]);
+    }, [cancelAlphaExport, startAlphaExport, startExport, stopActiveExport]);
 
     // Automatically reset export status back to 'idle' after completion (3s) or error (4s)
     useEffect(() => {

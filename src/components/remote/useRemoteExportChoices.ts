@@ -5,7 +5,7 @@ import {
     DEFAULT_VIDEO_EXPORT_PRESET_VALUES,
     sanitizeVideoExportPresetValues,
 } from '../../types/videoExport';
-import type { VideoExportPreset, VideoExportPresetValues, VideoExportStartMode } from '../../types/videoExport';
+import type { AlphaVideoFormatId, VideoExportPreset, VideoExportPresetValues, VideoExportStartMode } from '../../types/videoExport';
 import { sendRemoteCommand } from './remoteWindowBridge';
 
 // src/components/remote/useRemoteExportChoices.ts
@@ -44,12 +44,18 @@ export interface RemoteExportChoices {
     saveCustomSize: (width: number, height: number) => void;
     startMode: VideoExportStartMode;
     setStartMode: (mode: VideoExportStartMode) => void;
+    /** `window`: record the main window (with sound); an alpha format: render a transparent video with ffmpeg. */
+    format: RemoteExportFormat;
+    setFormat: (format: RemoteExportFormat) => void;
 }
+
+export type RemoteExportFormat = 'window' | AlphaVideoFormatId;
 
 export const useRemoteExportChoices = (): RemoteExportChoices => {
     const [selectedPresetId, setSelectedPresetId] = useState(DEFAULT_VIDEO_EXPORT_PRESET_ID);
     const [presetValues, setPresetValues] = useState<VideoExportPresetValues>(readStoredPresetValues);
     const [startMode, setStartMode] = useState<VideoExportStartMode>('from-start');
+    const [format, setFormat] = useState<RemoteExportFormat>('window');
     const presets = useMemo(() => createVideoExportPresets(presetValues), [presetValues]);
     const selectedPreset = presets.find(preset => preset.id === selectedPresetId) ?? presets[1];
 
@@ -80,7 +86,7 @@ export const useRemoteExportChoices = (): RemoteExportChoices => {
         sendRemoteCommand({ type: 'resize-main-window', ...nextValues[index] });
     }, [presetValues, presets, selectedPreset.id]);
 
-    return { presets, selectedPreset, selectPreset, saveCustomSize, startMode, setStartMode };
+    return { presets, selectedPreset, selectPreset, saveCustomSize, startMode, setStartMode, format, setFormat };
 };
 
 export type RemoteAspectKind = 'landscape' | 'portrait' | 'square' | 'ultrawide';

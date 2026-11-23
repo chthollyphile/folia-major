@@ -5,11 +5,13 @@ import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsSt
 import type { RemoteLyricMainRow, RemoteLyricSubRow } from '../../../../types/remoteControl';
 import { REMOTE_LYRIC_MAIN_ROWS, REMOTE_LYRIC_SUB_ROWS, withRemoteLyricPairs, withRemoteLyricRow } from '../../../../utils/remoteLyricLayout';
 import { Group, Reveal, Row, Segmented, Select, Toggle, option, type SettingsGroupDef } from '../kit';
+import { ALPHA_EXPORT_OPTIONS, AlphaExportFfmpegGroup } from './videoExport/AlphaExportFfmpegGroup';
 
 // src/components/modal/settings/pages/RemotePage.tsx
 // The Remote Control page (desktop app only): the remote window's own switches, and its lyric rows,
 // one pair or two, each row chosen like the bottom subtitle's rows. The remote window's settings key
-// (top left) opens the dialog here.
+// (top left) opens the dialog here. Its export tab's transparent formats need a full ffmpeg: the
+// group that says which one is used is the last one here.
 
 const WINDOW: SettingsGroupDef = { id: 'remoteControl', titleKey: 'options.remoteControlWindowGroup', electronOnly: true };
 const LYRICS: SettingsGroupDef = { id: 'remoteLyrics', titleKey: 'options.remoteLyricsGroup', electronOnly: true };
@@ -27,7 +29,7 @@ const O = {
     lyricRow4: option(LYRICS, 'remoteLyricRow4', 'options.remoteLyricRow4'),
 };
 
-export const OPTIONS = Object.values(O);
+export const OPTIONS = [...Object.values(O), ...Object.values(ALPHA_EXPORT_OPTIONS)];
 
 const MAIN_ROW_KEYS: Record<RemoteLyricMainRow, string> = {
     original: 'options.remoteLyricSourceOriginal',
@@ -128,6 +130,8 @@ const RemotePage: React.FC = () => {
                     </Row>
                 </Reveal>
             </Group>
+
+            <AlphaExportFfmpegGroup />
         </>
     );
 };

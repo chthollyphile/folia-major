@@ -182,6 +182,9 @@ const createModSystem = ({
     nativePath = null,
     openExternal = null,
     sourceHostOverrides = {},
+    // The ffmpeg the transparent export uses (alphaExport/exportFfmpeg.cjs: the user's choice, then a search
+    // that runs each candidate). Without it (tests, tools) only the fixed slots and PATH are looked in, unchecked.
+    resolveExportFfmpeg = null,
 }) => {
     let store = null;
     try {
@@ -1649,7 +1652,10 @@ ${partition}`;
 
     const probeFfmpeg = () => {
         if (!ffmpegProbePromise) {
-            ffmpegProbePromise = resolveFfmpeg({ appGetAppPath: () => app.getAppPath(), packagedDirName: MODS_RUNTIME_DIR })
+            const resolving = typeof resolveExportFfmpeg === 'function'
+                ? resolveExportFfmpeg()
+                : resolveFfmpeg({ appGetAppPath: () => app.getAppPath(), packagedDirName: MODS_RUNTIME_DIR });
+            ffmpegProbePromise = resolving
                 .then((status) => {
                     ffmpegStatus = status;
                     return status;
@@ -2010,6 +2016,16 @@ ${partition}`;
         confirmModOverride,
         assignSourceClaim,
         probeFfmpeg,
+        // The host's own transparent export (alphaExport/alphaExportIpc.cjs) runs through the same service as a
+        // mod's, so the two can never run at once. `request`: { spec, hostState?, outputPath, onProgress }.
+        runHostExport: (request) => exportService.runExport({
+            modId: null,
+            spec: request.spec,
+            hostState: request.hostState ?? runtimeSnapshot?.internal ?? null,
+            outputPath: request.outputPath,
+            onProgress: request.onProgress,
+        }),
+        cancelExport: () => exportService.cancelActiveExport(),
         registerIpc,
         dispose,
         prepareQuit,

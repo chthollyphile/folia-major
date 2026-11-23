@@ -89,6 +89,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // pages/RemotePage (desktop app only)
     remoteControl: { section: 'remote' },
     remoteLyrics: { section: 'remote' },
+    alphaVideoExport: { section: 'remote' },
 
     // pages/GraphicsPage; the render GPU row only in the Windows desktop app.
     graphicsPerformance: { section: 'graphics' },

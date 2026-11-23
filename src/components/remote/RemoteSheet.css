@@ -105,6 +105,10 @@
   color: rgba(var(--remote-ink), 0.46);
 }
 
+.remote-row__note--error {
+  color: #ff5d73;
+}
+
 .remote-sheet__error {
   position: absolute;
   left: 22px;
