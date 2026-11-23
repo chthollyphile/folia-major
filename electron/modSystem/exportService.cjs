@@ -218,7 +218,8 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
         // editing codec (large MOV, opens almost anywhere); VP9 carries alpha and is ~10x smaller (WebM),
         // but some editors don't import WebM alpha; QuickTime Animation is lossless RLE in a MOV.
         // libx265 in common builds has no alpha layer, so HEVC is not offered.
-        const encoderArgs = [...findAlphaFormat(renderSpec.codec).args];
+        const alphaFormat = findAlphaFormat(renderSpec.codec);
+        const encoderArgs = [...alphaFormat.args, '-f', alphaFormat.muxer];
         const ffmpegArgs = [
             '-hide_banner', '-loglevel', 'error',
             '-y',
@@ -245,6 +246,8 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
         const cancelRequested = new Promise((resolve) => { noteCancelled = resolve; });
 
         const session = {
+            // null for the host's own export (alphaExportIpc.cjs): a cancel names whose export it ends.
+            modId: modId ?? null,
             get cancelled() { return cancelled; },
             cancel: () => {
                 cancelled = true;
@@ -559,8 +562,16 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
 
     const isExportRunning = () => Boolean(activeSession);
 
-    const cancelActiveExport = () => {
+    /*
+     * Cancels the running export. `owner`: 'host' ends only the host's own export, 'mod' only a
+     * mod's, so the cancel of one never ends the other; left out (quit, teardown) it ends either.
+     */
+    const cancelActiveExport = (owner) => {
         if (!activeSession) {
+            return false;
+        }
+        const isHost = activeSession.modId === null;
+        if ((owner === 'host' && !isHost) || (owner === 'mod' && isHost)) {
             return false;
         }
         activeSession.cancel();

@@ -61,7 +61,7 @@ export const useAlphaVideoExport = ({ setExportState, runningRef }: UseAlphaVide
 
         const unsubscribe = electron.onAlphaVideoExportProgress((progress) => {
             if (!activeRef.current) return;
-            if (progress.phase === 'rendering') {
+            if (progress.phase === 'rendering' && !progress.message) {
                 setExportState(prev => ({ ...prev, status: 'recording', progress: Math.min(1, progress.percent / 100) }));
             } else if (progress.phase === 'done') {
                 setExportState(prev => ({ ...prev, status: 'finalizing', progress: 1 }));

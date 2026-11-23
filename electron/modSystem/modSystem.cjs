@@ -1732,7 +1732,8 @@ ${partition}`;
         handle(IPC.setEnabled, (_event, modId, enabled) => setModEnabled(modId, enabled));
         // The panel's reload runs every ordinary mod again, as it always did; unchanged source mods stay.
         handle(IPC.reload, async () => ({ mods: await reloadChanged({ differential: false }) }));
-        handle(IPC.exportCancel, () => ({ ok: exportService.cancelActiveExport() }));
+        // The mods panel's cancel: a mod's export only, never the host's transparent export.
+        handle(IPC.exportCancel, () => ({ ok: exportService.cancelActiveExport('mod') }));
         handle(IPC.rpc, (_event, modId, name, args) => invokeModRpc(modId, name, args));
         handle(IPC.storage, (_event, modId, operation, key, value) => invokeModStorage(modId, operation, key, value));
         handle(IPC.secrets, (_event, modId, operation, key, value) => invokeModSecrets(modId, operation, key, value));
@@ -2025,7 +2026,7 @@ ${partition}`;
             outputPath: request.outputPath,
             onProgress: request.onProgress,
         }),
-        cancelExport: () => exportService.cancelActiveExport(),
+        cancelExport: () => exportService.cancelActiveExport('host'),
         registerIpc,
         dispose,
         prepareQuit,

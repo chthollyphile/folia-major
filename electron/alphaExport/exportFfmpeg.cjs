@@ -71,6 +71,9 @@ const createExportFfmpegResolver = ({
 }) => {
     let status = null;
     let pending = null;
+    // Searches run one after another; the number says which is the latest, the only one that writes `status`.
+    let chain = Promise.resolve();
+    let latest = 0;
 
     const readManualPath = () => {
         const value = store?.get?.(MANUAL_PATH_STORE_KEY);
@@ -135,19 +138,29 @@ const createExportFfmpegResolver = ({
         };
     };
 
+    const startSearch = () => {
+        const id = ++latest;
+        const run = chain.catch(() => {}).then(search).then((next) => {
+            if (id === latest) status = next;
+            return next;
+        });
+        chain = run;
+        pending = run;
+        void run.catch(() => {}).finally(() => {
+            if (pending === run) pending = null;
+        });
+        return run;
+    };
+
+    /*
+     * The cached status, or the search in flight. `refresh` starts a new search even while one runs
+     * (a choice made meanwhile must be seen: that search read the stored path before it changed).
+     */
     const resolve = ({ refresh = false } = {}) => {
-        if (status && !refresh) return Promise.resolve(status);
-        if (!pending) {
-            pending = search()
-                .then((next) => {
-                    status = next;
-                    return next;
-                })
-                .finally(() => {
-                    pending = null;
-                });
-        }
-        return pending;
+        if (refresh) return startSearch();
+        if (pending) return pending;
+        if (status) return Promise.resolve(status);
+        return startSearch();
     };
 
     /** Probes a file the user picked; stores it only when it can export. Returns { ok, problem, status }. */

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const capabilities = require('../../../electron/alphaExport/ffmpegCapabilities.cjs') as {
-    ALPHA_FORMATS: readonly { id: string; encoder: string; extension: string; args: readonly string[] }[];
+    ALPHA_FORMATS: readonly { id: string; encoder: string; extension: string; muxer: string; args: readonly string[] }[];
     parseFfmpegVersion: (stdout: string) => string | null;
     parseCodecList: (stdout: string) => Set<string>;
     describeExportCapabilities: (input: { encoders: Set<string> | string[]; demuxers: Set<string> | string[] }) => {
@@ -136,6 +136,11 @@ describe('ffmpeg output parsing', () => {
             expect(pixFmt, format.id).toMatch(/a/);
             expect(format.args).toContain(format.encoder);
         }
+    });
+
+    it('names the container itself, so a typed file name cannot change it', () => {
+        expect(Object.fromEntries(capabilities.ALPHA_FORMATS.map(format => [format.id, format.muxer])))
+            .toEqual({ prores: 'mov', vp9: 'webm', qtrle: 'mov' });
     });
 });
 
@@ -277,6 +282,31 @@ describe('export ffmpeg resolver', () => {
         const store = memoryStore({ [MANUAL_PATH_STORE_KEY]: '/gone/ffmpeg' });
         const status = await makeResolver({ '/opt/b/ffmpeg': FULL }, store).resolve();
         expect(status).toMatchObject({ available: true, source: 'auto', path: '/opt/b/ffmpeg', manualPath: '/gone/ffmpeg', manualProblem: 'not-found' });
+    });
+
+    it('a choice made while a slow search runs is what the status ends up saying', async () => {
+        const store = memoryStore();
+        const builds: Record<string, FakeBuild> = { '/opt/a/ffmpeg': FULL, '/picked/ffmpeg': FULL };
+        let releaseSlow: () => void = () => {};
+        const slowGate = new Promise<void>(resolve => { releaseSlow = resolve; });
+        const exec = fakeExecFile(builds);
+        const resolver = createExportFfmpegResolver({
+            store, appGetAppPath: () => '/app', platform: 'linux', env: { PATH: '/opt/a' }, homedir: '/home/u', readdir: () => [],
+            exists: (candidate: string) => candidate in builds,
+            // The search's probe of /opt/a waits until the choice below is made.
+            execFileImpl: (file: string, args: string[], options: unknown, callback: (error: Error | null, stdout?: string) => void) => {
+                if (file === '/opt/a/ffmpeg') { void slowGate.then(() => exec(file, args, options, callback)); return; }
+                exec(file, args, options, callback);
+            },
+            logger: { info: () => {}, warn: () => {} },
+        });
+        const startup = resolver.resolve();
+        const choosing = resolver.chooseManual('/picked/ffmpeg');
+        releaseSlow();
+        await startup;
+        const chosen = await choosing;
+        expect(chosen.status).toMatchObject({ source: 'manual', path: '/picked/ffmpeg' });
+        expect(await resolver.resolve()).toMatchObject({ source: 'manual', path: '/picked/ffmpeg' });
     });
 
     it('answers from its cache until asked to search again', async () => {

@@ -32,7 +32,9 @@ const listSystemFfmpegCandidates = ({ platform, env = {}, homedir = '', readdir 
         }
         try {
             const entries = readdir(dir);
-            return Array.isArray(entries) ? entries.map(String).sort() : [];
+            return Array.isArray(entries)
+                ? entries.map(String).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+                : [];
         } catch {
             return [];
         }

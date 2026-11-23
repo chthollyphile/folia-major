@@ -8,13 +8,15 @@
 /**
  * The transparent formats, in the order they are offered. `encoder` must be listed by `-encoders`;
  * `args` follow `-i pipe:0` of a raw BGRA/RGBA stream. The table is the single place that knows
- * which pixel format keeps the alpha plane for each encoder.
+ * which pixel format keeps the alpha plane for each encoder, and which container (`muxer`) carries it:
+ * VP9's alpha lives in WebM's BlockAdditional, so the muxer never follows the file name.
  */
 const ALPHA_FORMATS = Object.freeze([
     Object.freeze({
         id: 'prores',
         encoder: 'prores_ks',
         extension: 'mov',
+        muxer: 'mov',
         // ProRes 4444 carries alpha only in its 4444 profiles, at 10-bit 4:4:4.
         args: Object.freeze(['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le']),
     }),
@@ -22,12 +24,14 @@ const ALPHA_FORMATS = Object.freeze([
         id: 'vp9',
         encoder: 'libvpx-vp9',
         extension: 'webm',
+        muxer: 'webm',
         args: Object.freeze(['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '30', '-row-mt', '1']),
     }),
     Object.freeze({
         id: 'qtrle',
         encoder: 'qtrle',
         extension: 'mov',
+        muxer: 'mov',
         // QuickTime Animation: lossless RLE; argb is the one of its pixel formats with alpha.
         args: Object.freeze(['-c:v', 'qtrle', '-pix_fmt', 'argb']),
     }),

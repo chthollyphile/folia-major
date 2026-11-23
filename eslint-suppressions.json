@@ -917,7 +917,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "electron/modSystem/modProtocol.cjs": {
