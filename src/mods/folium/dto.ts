@@ -352,10 +352,15 @@ const CHORUS_EFFECTS = new Set(['bars', 'circles', 'beams']);
  * left in place keeps its original host Line; a new or edited one is rebuilt
  * from its DTO fields, each checked on the way in. Render hints are never
  * taken from the mod: the host recomputes them from the rebuilt timing, and a
- * word split that no longer joins back to the text is dropped.
+ * word split that no longer joins back to the text is dropped. A rebuilt
+ * chorus line keeps where its chorus came from (Line.chorusOrigin, which mods
+ * do not see) from the original chorus line that started at the same time.
  */
 export const fromFoliumLines = (original: readonly Line[], originalDtos: readonly FoliumLine[], next: readonly FoliumLine[]): Line[] => {
     const indexByDto = new Map(originalDtos.map((dto, index) => [dto, index] as const));
+    const chorusOriginByStart = new Map(original
+        .filter((line) => line.isChorus && line.chorusOrigin)
+        .map((line) => [line.startTime, line.chorusOrigin] as const));
     const lines: Line[] = [];
     next.forEach((dto) => {
         const index = indexByDto.get(dto);
@@ -388,6 +393,9 @@ export const fromFoliumLines = (original: readonly Line[], originalDtos: readonl
             ...optionalNumber('blockIndex', dto.blockIndex),
             ...optionalBoolean('isChorus', dto.isChorus),
             ...(CHORUS_EFFECTS.has(dto.chorusEffect as string) ? { chorusEffect: dto.chorusEffect } : {}),
+            ...(dto.isChorus === true && chorusOriginByStart.has(dto.startTime)
+                ? { chorusOrigin: chorusOriginByStart.get(dto.startTime) }
+                : {}),
             ...(backgroundVocals ? { backgroundVocals } : {}),
             ...(wordSegments ? { wordSegments } : {}),
         };
