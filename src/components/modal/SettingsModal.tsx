@@ -71,6 +71,8 @@ interface SettingsModalProps {
     initialVisualizerSection?: VisualizerSettingsSection | null;
     /** A section inside the subview to land on, rather than its top. */
     initialAnchor?: SettingsModalState['initialAnchor'];
+    /** Changes with every openSettings call: the request is applied again even when it names the same subview. */
+    requestSeq?: number;
     theme?: Theme;
     bgMode: ThemeMode;
     onApplyDefaultTheme: () => void;
@@ -133,6 +135,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     initialSubview = null,
     initialVisualizerSection = null,
     initialAnchor = null,
+    requestSeq = 0,
     theme,
     bgMode,
     onApplyDefaultTheme,
@@ -361,7 +364,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
             setActiveSettingsSection(prev => prev || 'appearance');
         }
-    }, [initialSubview, initialTab]);
+        // requestSeq: a repeated request for the same subview is applied again (see useSettingsModalStore).
+    }, [initialSubview, initialTab, requestSeq]);
 
     // A request for one place in the settings: show the page settingsAnchorModel puts it on, then
     // land on it. Each request has its own seq, so naming the same place again lands again.

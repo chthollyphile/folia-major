@@ -50,7 +50,7 @@ export default {
     "notice_shadowed": "\"{{mod}}\" bawaan kini digantikan oleh \"{{other}}\".",
     "notice_override-running": "\"{{mod}}\" menjalankan v{{version}} dari folder mod sebagai pengganti salinan bawaan.",
     "installLabel": "Pasang mod sumber",
-    "installHint": "Mod yang terpasang dikelola di halaman Mod; Anda juga bisa menjatuhkan zip ke daftarnya.",
+    "installHint": "Mod sumber yang terpasang dikelola bersama mod lain; Anda juga bisa menjatuhkan zip ke daftar mod.",
     "installZipLabel": "Pasang mod sumber dari zip",
     "installZipHint": "Selama mod komunitas mati, hanya mod sumber bertanda tangan resmi yang bisa dipasang.",
     "installZipButton": "Pilih zip",
@@ -1600,7 +1600,7 @@ export default {
     "market": "Pasar mod",
     "openWindow": "Buka",
     "windowTitle": "Mod",
-    "marketRowDesc": "Mod terpasang dan pasar mod, di jendela tersendiri",
+    "marketRowDesc": "Mod terpasang dan pasar mod: pasang, perbarui, copot",
     "updatesTag": "Pembaruan: {{count}}",
     "view": {
       "searchPlaceholder": "Cari mod; saring dengan @installed, @updates…",

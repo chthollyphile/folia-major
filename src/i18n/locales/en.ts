@@ -50,7 +50,7 @@ export default {
     "notice_shadowed": "The built-in \"{{mod}}\" is replaced by \"{{other}}\" now.",
     "notice_override-running": "\"{{mod}}\" runs v{{version}} from the mods folder in place of the built-in copy.",
     "installLabel": "Install a source mod",
-    "installHint": "Installed mods are managed on the Mods page; you can also drop a zip onto its list.",
+    "installHint": "Installed source mods are managed with the other mods; you can also drop a zip onto the mod list.",
     "installZipLabel": "Install a source mod from a zip",
     "installZipHint": "While community mods are off, only officially signed source mods install.",
     "installZipButton": "Choose zip",
@@ -1600,7 +1600,7 @@ export default {
     "market": "Mod market",
     "openWindow": "Open",
     "windowTitle": "Mods",
-    "marketRowDesc": "Installed mods and the mod market, in a window of their own",
+    "marketRowDesc": "Installed mods and the mod market: install, update and uninstall",
     "updatesTag": "Updates: {{count}}",
     "view": {
       "searchPlaceholder": "Search mods; filter with @installed, @updates…",
