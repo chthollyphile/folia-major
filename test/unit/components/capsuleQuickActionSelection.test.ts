@@ -27,6 +27,7 @@ describe('resolveCapsuleQuickActions', () => {
             'playback-shuffle',
             'playback-volume',
             'settings-subtitles',
+            'song-notes-mark-moment',
             'visualizer-picker',
         ]);
     });
@@ -56,7 +57,7 @@ describe('resolveCapsuleQuickActions', () => {
         expect(resolveCapsuleQuickActions(input).map(entry => entry.id)).toContain('playback-volume');
         const touchIds = resolveCapsuleQuickActions({ ...input, touch: true }).map(entry => entry.id);
         expect(touchIds).not.toContain('playback-volume');
-        expect(touchIds).toHaveLength(5);
+        expect(touchIds).toHaveLength(6);
     });
 
     it('已经在槽位里的不重复', () => {
@@ -69,15 +70,16 @@ describe('resolveCapsuleQuickActions', () => {
         expect(result.map(entry => entry.id)).toEqual(['visualizer-picker']);
     });
 
-    it('默认槽位（循环 + 歌词时间轴）下白名单六条全放得下，歌词样式选择器不会被挤掉', () => {
+    it('默认槽位（循环 + 歌词时间轴）下白名单七条全放得下，歌词样式选择器、记下这个时刻都不会被挤掉', () => {
         const result = resolveCapsuleQuickActions({
             commands: COMMAND_PALETTE_COMMANDS,
             slots: ['loop', 'lyrics-timeline'],
             canInvoke: always,
             counts: {},
         });
-        expect(result).toHaveLength(6);
+        expect(result).toHaveLength(7);
         expect(result.map(entry => entry.id)).toContain('visualizer-picker');
+        expect(result.map(entry => entry.id)).toContain('song-notes-mark-moment');
     });
 
     it('用不了的在截断之前去掉，不占名额', () => {

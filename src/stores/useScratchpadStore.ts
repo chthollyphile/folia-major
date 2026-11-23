@@ -154,8 +154,11 @@ const writeEntries = (entries: ScratchpadEntry[]): boolean => {
     }
 };
 
-/** 抽屉的三页：速记簿本身、播放历史（探索页「最近播放」那份记录）、当前的播放队列。 */
-export type ScratchpadTab = 'notes' | 'history' | 'queue';
+/**
+ * 抽屉的四页：速记簿本身、播放历史（探索页「最近播放」那份记录）、当前的播放队列，以及歌曲的本地评论
+ * （标签、评论、时间轴注释；数据单独长期存，见 src/components/song-notes/）。
+ */
+export type ScratchpadTab = 'notes' | 'history' | 'queue' | 'comments';
 
 type ScratchpadState = {
     entries: ScratchpadEntry[];

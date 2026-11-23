@@ -19,12 +19,15 @@ import ScratchpadEdge from './ScratchpadEdge';
 import ScratchpadPanel from './ScratchpadPanel';
 import ScratchpadSheet, { ScratchpadBandActions } from './ScratchpadSheet';
 import ScratchpadOverview from './ScratchpadOverview';
+import ScratchpadComments from './ScratchpadComments';
+import { useSongNotesCount } from '../../song-notes/useSongNotesStore';
 import { NOTE_SPACING } from './canvasLayout';
 import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 import { useSlimOrder } from './scratchpadPaper';
 import './scratchpad.css';
+import './comments.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
 // 速记簿的界面：左缘的把手和从左边滑出的抽屉（设计稿 plan/scratchpad-spec.md）。抽屉非模态——不加遮罩、不抢焦点，
@@ -45,6 +48,8 @@ export type ScratchpadPlayback = {
     enqueueAll: (songs: SongResult[]) => void;
     /** 换掉队列，从第一首播起。 */
     replaceQueue: (songs: SongResult[]) => void;
+    /** 跳到正在播的这首的某个位置（秒）：「评论」页点时间轴注释。 */
+    seek: (time: number) => void;
 };
 
 /** App 交给速记簿「播放队列」页的动作（身份稳定，执行时读最新的队列）。 */
@@ -69,7 +74,7 @@ type ScratchpadHostProps = {
 const TABS = SCRATCHPAD_TABS;
 
 /** 各页的全名（展开整页里那一页区域的名字）。 */
-const PAGE_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
+const PAGE_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue', comments: 'songNotes.title' };
 
 /** 清空的第二下要在这么久之内点，过了就复原。 */
 const CLEAR_CONFIRM_MS = 3000;
@@ -157,6 +162,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     })));
     const groups = useMemo(() => groupScratchpadEntries(entries), [entries]);
     const queueLength = usePlaybackStore(state => state.playQueue.length);
+    // 「评论」页的计数：写过评论或打过标签的歌有几首（库里读，抽屉关着也读——把手不显示它，只在纸上用）。
+    const commentsCount = useSongNotesCount();
     // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
     const showHandle = useScratchpadSettingsStore(state => state.showHandle);
     const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
@@ -490,7 +497,9 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                     animate="center"
                     exit="exit"
                 >
-                    {tab === 'history' ? (
+                    {tab === 'comments' ? (
+                        <ScratchpadComments playback={playback} expanded={isExpanded} onCollapse={collapseCanvas} />
+                    ) : tab === 'history' ? (
                         <>
                             {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>}
                             <ScratchpadHistory playback={playback} expanded={isExpanded} onCollapse={collapseCanvas} />
@@ -583,6 +592,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             tab={tab}
                             notesCount={entries.length}
                             queueCount={queueLength}
+                            commentsCount={commentsCount}
                             slimOrder={slimOrder}
                             onSelectTab={setTab}
                             onClose={() => setOpen(false)}
@@ -590,6 +600,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             expandDisabled={tab === 'notes' && entries.length === 0}
                             onExpand={() => setExpanded(true)}
                             expandRef={toggleCanvasRef}
+                            showIntro={tab !== 'comments'}
                         >
                             {tabPanel}
                         </ScratchpadPanel>
@@ -615,6 +626,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             tab={tab}
                             notesCount={entries.length}
                             queueCount={queueLength}
+                            commentsCount={commentsCount}
                             tilt={tilt}
                             calm={calm}
                             slimOrder={slimOrder}

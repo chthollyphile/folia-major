@@ -9,10 +9,10 @@ import { PLAYER_CONTROL_SLOT_COMMAND_IDS, type PlayerControlSlotActionId } from 
 // 固定不动；放不下时才用使用频次在这几条里决定留谁，留下的仍按原顺序排。
 
 /**
- * 一排最多放几条。等于现在白名单的条数：默认槽位只占掉循环，剩下六条要全放得下，
- * 不然注册表里排最后的歌词样式选择器默认就被挤掉。以后白名单变长才会用到下面的取舍。
+ * 一排最多放几条。等于现在白名单的条数：默认槽位只占掉循环，剩下七条（含「记下这个时刻」）要全放得下，
+ * 不然注册表里排后面的默认就被挤掉。以后白名单变长才会用到下面的取舍。
  */
-export const CAPSULE_QUICK_ACTION_LIMIT = 6;
+export const CAPSULE_QUICK_ACTION_LIMIT = 7;
 
 /** 槽位动作对应的命令 id；歌词时间轴没有命令，得 null。 */
 export const slotCommandId = (actionId: PlayerControlSlotActionId): string | null => (

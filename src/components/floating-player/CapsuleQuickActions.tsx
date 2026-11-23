@@ -134,7 +134,7 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                                 type="button"
                                 data-capsule-action={command.id}
                                 disabled={button.disabled}
-                                onClick={() => button.onActivate()}
+                                onClick={event => button.onActivate(event.currentTarget.getBoundingClientRect())}
                                 className={`rounded-full ${buttonPadding} transition-colors disabled:cursor-not-allowed disabled:opacity-25 ${
                                     button.active ? 'bg-current/12' : 'opacity-70 hover:bg-current/10 hover:opacity-100'
                                 }`}

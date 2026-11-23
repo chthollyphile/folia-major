@@ -272,6 +272,8 @@ exports[`command palette registry contract > keeps the registered command order 
   "scratchpad-collect-current",
   "scratchpad-handle-toggle",
   "settings-scratchpad",
+  "song-notes-mark-moment",
+  "song-notes-write",
   "mods",
   "mods-market",
   "mods-check-updates",

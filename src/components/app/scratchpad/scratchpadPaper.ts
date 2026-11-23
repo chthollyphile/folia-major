@@ -3,10 +3,10 @@ import type { Transition } from 'framer-motion';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
 
 // src/components/app/scratchpad/scratchpadPaper.ts
-// 三页各一条米白的纸：这一页是顶上的信息条，另外两页是底部的细纸带（展开整页的总览里三条都是一行）。左缘面板与展开整页都这么摆
+// 四页各一条米白的纸：这一页是顶上的信息条，另外三页是底部的细纸带（展开整页的总览里四条都是一行）。左缘面板与展开整页都这么摆
 // （用户要的，2026-11-07：面板不再有左边一列页签，好让展开 / 收起时三条纸各自从原位长过去、缩回来）。
 // 这里是两边共用的：面板里三条纸的位置、一条纸这一次怎么动（直接挪过去，或绕一圈从下面上来）、纸里那一面怎么交叉淡入，
-// 以及两条细纸带的上下次序。
+// 以及细纸带的上下次序。
 
 /** 一条纸的框（px）：面板里是窗口坐标，展开整页里是纸上坐标。 */
 export type PaperFrame = { top: number; left: number; width: number; height: number };
@@ -48,9 +48,9 @@ export const panelWidthFor = (viewWidth: number) => Math.min(368, viewWidth - 24
 export const PANEL_BAND_TOP = 40;
 export const PANEL_BAND_HEIGHT = 64;
 const PANEL_PROTRUDE = 36;
-/** 面板底部两格细纸带的上沿离窗口底边多远（上面一格、下面一格；隔 6px，下面一格离底边 16px）。 */
-const PANEL_SLIM_FROM_BOTTOM = [78, 44] as const;
-/** 面板下面那一页给两条细纸带让出来的高度（scratchpad.css 的 .scratchpad-sheet 底边距）。 */
+/** 面板底部三格细纸带的上沿离窗口底边多远（从上往下；隔 6px，最下面一格离底边 16px）。 */
+const PANEL_SLIM_FROM_BOTTOM = [112, 78, 44] as const;
+/** 面板下面那一页给细纸带让出来的高度（scratchpad.css 的 .scratchpad-sheet 底边距）。 */
 export const PANEL_SLIM_ROOM = PANEL_SLIM_FROM_BOTTOM[0];
 /**
  * 细纸带上的字从左边多远起：展开整页里是纸上 186px（纸左边多出来 160px，转过之后约在窗口左边 26px），
@@ -58,11 +58,11 @@ export const PANEL_SLIM_ROOM = PANEL_SLIM_FROM_BOTTOM[0];
  */
 export const PANEL_SLIM_SHIFT = 160;
 
-/** 面板里一条纸的框（窗口坐标）：slot 是 'band'（顶上那条）或细纸带的第几格（0 上、1 下）。 */
+/** 面板里一条纸的框（窗口坐标）：slot 是 'band'（顶上那条）或细纸带的第几格（0 最上）。 */
 export const panelPaperFrame = (slot: 'band' | number, viewWidth: number, viewHeight: number): PaperFrame => {
     const width = panelWidthFor(viewWidth) + PANEL_PROTRUDE;
     if (slot === 'band') return { top: PANEL_BAND_TOP, left: 0, width, height: PANEL_BAND_HEIGHT };
-    return { top: viewHeight - PANEL_SLIM_FROM_BOTTOM[Math.max(0, Math.min(1, slot))], left: 0, width, height: PANEL_SLIM_HEIGHT };
+    return { top: viewHeight - PANEL_SLIM_FROM_BOTTOM[Math.max(0, Math.min(PANEL_SLIM_FROM_BOTTOM.length - 1, slot))], left: 0, width, height: PANEL_SLIM_HEIGHT };
 };
 
 /** 窗口的宽高（跟着窗口变）。 */
@@ -79,7 +79,7 @@ export const useViewSize = () => {
 };
 
 /**
- * 两条细纸带的上下次序像一条传送带（用户定，2026-11-06）：新收下来的那条（从下面上来）落在下面一格，
+ * 细纸带的上下次序像一条传送带（用户定，2026-11-06）：新收下来的那条（从下面上来）落在最下面一格，
  * 原来在下面的往上挪一格让位，已经在上面的不动；谁也不从下面穿过另一条。面板与展开整页共用同一个次序，
  * 展开、收起时每条细纸带落在对面同一格。
  */

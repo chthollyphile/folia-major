@@ -1,8 +1,9 @@
-import { ChartBar, Crosshair, Heart, ListMusic, PanelsTopLeft, Repeat, Shuffle, SkipBack, SkipForward, Timer, Volume2 } from 'lucide-react';
+import { ChartBar, Crosshair, Heart, ListMusic, PanelsTopLeft, Pin, Repeat, Shuffle, SkipBack, SkipForward, Timer, Volume2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlayerControlSlotActionId } from '../../types/playerControlSlots';
 import { noteLoopButtonPress } from '../../services/ponder/loopShuffleHint';
 import { loopModeIcon, loopModeLabelName } from '../shared/loopModeDisplay';
+import { openSongNotePin } from '../song-notes/songNotePin';
 
 // src/components/floating-player/playerControlSlotActions.ts
 // 进度条胶囊右侧两个可自定义槽位的动作清单。
@@ -49,7 +50,8 @@ export type ResolvedPlayerControlSlot = {
     /** 是否处于「已开启」的高亮态（循环非 off、已喜爱）。 */
     active: boolean;
     disabled: boolean;
-    onActivate: () => void;
+    /** anchor 是点下的那个按钮的位置：「记下这个时刻」把小框弹在它上方，其余动作用不上。 */
+    onActivate: (anchor?: DOMRect) => void;
     labelKey: string;
 };
 
@@ -66,6 +68,7 @@ export const PLAYER_CONTROL_SLOT_OPTIONS: readonly { id: PlayerControlSlotAction
     { id: 'song-wall', icon: PanelsTopLeft, labelKey: 'options.playerControlSlotAction_songWall' },
     { id: 'sleep-timer', icon: Timer, labelKey: 'options.playerControlSlotAction_sleepTimer' },
     { id: 'locate', icon: Crosshair, labelKey: 'options.playerControlSlotAction_locate' },
+    { id: 'mark-moment', icon: Pin, labelKey: 'options.playerControlSlotAction_markMoment' },
 ];
 
 /**
@@ -83,6 +86,7 @@ export const PLAYER_CONTROL_SLOT_COMMAND_IDS: Readonly<Record<Exclude<PlayerCont
     'song-wall': 'navigate-lattice',
     'sleep-timer': 'sleep-timer',
     locate: 'locate-playing-song',
+    'mark-moment': 'song-notes-mark-moment',
 };
 
 /** 命令 id 反查槽位动作；不是任何槽位动作的命令返回 null。 */
@@ -196,6 +200,16 @@ export const resolvePlayerControlSlot = (
                 disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.locate),
                 onActivate: () => context.invokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.locate),
                 labelKey: 'options.playerControlSlotAction_locate',
+            };
+        case 'mark-moment':
+            return {
+                icon: Pin,
+                filled: false,
+                active: false,
+                // 和命令同一套判断：没在播、或是外部播放器的舞台歌，就不能记。
+                disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS['mark-moment']),
+                onActivate: anchor => openSongNotePin(anchor),
+                labelKey: 'options.playerControlSlotAction_markMoment',
             };
         case 'lyrics-timeline':
         default:

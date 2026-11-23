@@ -24,22 +24,22 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 
 // src/components/app/scratchpad/ScratchpadSheet.tsx
 // 展开整页（设计稿 F 定稿）：整张纸向右下转 4°（设计稿 6°，用户嫌斜，2026-11-06 改小；降低动态效果时不转，同歌手页），这一页的米白信息条横贯整张纸，
-// 下面是这一页的卡片（宿主交进来的 children：画布、跳到栏与操作提示），另外两页收成两条细纸带压在左下角
+// 下面是这一页的卡片（宿主交进来的 children：画布、跳到栏与操作提示），另外三页收成细纸带压在左下角
 // （右边转出屏幕、被播放胶囊挡住），点它换过去。右上角一块黑色直角三角（不转）：放大的问候与面包屑。
 // 返回（收回左缘的面板）是压在顶上那条信息条左端的一颗墨色大方钮（用户要的，放在左边、显眼）：整页里在这一页的条上，
 // 总览里在第一行的条上，进出总览时跟着条挪。
 // 纸后面是这一页几何体的低可见度大构图（照搜索页的至上主义构图：大空心形、淡色块、实心小形、发丝线、斜线小方块、竖排大字）。
 // 信息条右端的按钮由各页自己画进来（ScratchpadBandActions，经 portal 放进条上的空位）。
-// 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：三条信息条各带一行头几张卡。
+// 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：四条信息条各带一行头几张卡（第四页「评论」2026-11-24 加进来，原来是三行）。
 //
-// 三条信息条一直都在、各自一层（用户要的「整个信息条移动展开」）：总览里是三行 72px 的条，整页里这一页是顶上 120px 的条、
-// 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入；
+// 每页的信息条一直都在、各自一层（用户要的「整个信息条移动展开」）：总览里是一行 72px 的条，整页里这一页是顶上 120px 的条、
+// 另外几条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入；
 // 怎么挪（直接挪，或先从上方出去、再从下面升回底部）与左缘面板共用（scratchpadPaper.ts）。
-// 展开与收回是同一张纸的一次连续动作（用户要的，2026-11-07）：左缘面板也是这三条纸（顶上信息条、底部两条细纸带），
+// 展开与收回是同一张纸的一次连续动作（用户要的，2026-11-07）：左缘面板也是这几条纸（顶上信息条、底部的细纸带），
 // 展开时三条各自从面板里的位置长出去——这一页的条从面板顶上那条（同一个位置、同一个样子，面板那一面，ENTER_*）
-// 一边长到整页那条、一边换成整页的样子；另外两条从面板底部那两格拉长成左下角的细纸带，字不动（--scratchpad-slim-shift 跟着变）。
+// 一边长到整页那条、一边换成整页的样子；另外几条从面板底部各自那一格拉长成左下角的细纸带，字不动（--scratchpad-slim-shift 跟着变）。
 // 纸同时转到 tilt；墙上的纱单独淡入（.scratchpad-f-scrim），面板在纱底下待着再淡掉。收回时倒过来：三条缩回面板里各自那一格
-// （总览里的三行也一样），纱淡掉；面板已经在原位（不再从左边滑进来），条落定的那一刻整页才淡掉，看不出接缝。
+// （总览里的每一行也一样），纱淡掉；面板已经在原位（不再从左边滑进来），条落定的那一刻整页才淡掉，看不出接缝。
 // 降低动态效果时不挪，只淡入淡出。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
@@ -55,8 +55,8 @@ export const ScratchpadBandActions: React.FC<{ children: React.ReactNode }> = ({
 const SHEET_BLEED_X = 160;
 const SHEET_BLEED_Y = 130;
 
-const TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
-const META_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.hint', history: 'scratchpad.historyHint', queue: 'scratchpad.queueHint' };
+const TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue', comments: 'songNotes.title' };
+const META_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.hint', history: 'scratchpad.historyHint', queue: 'scratchpad.queueHint', comments: 'songNotes.hint' };
 
 /** 一条信息条此刻的样子：整页顶上那条、总览里的一行、左下角的细纸带。 */
 type BandMode = 'full' | 'row' | 'slim';
@@ -81,8 +81,8 @@ const ROW_BAND_HEIGHT = 72;
  * 细纸带、卡片区底边离纸底边多远。不倾斜时细纸带整条挪进窗口（窗口底边在纸上 100% − 130px），卡片区让到它们上面；
  * 倾斜时纸的左半边被抬起来，两样都往下压 tiltSink（按 sin(tilt) 算，6° 时 54px）。
  */
-const SLIM_FROM_BOTTOM_FLAT = [214, 172] as const;
-const BODY_FROM_BOTTOM_FLAT = 220;
+const SLIM_FROM_BOTTOM_FLAT = [256, 214, 172] as const;
+const BODY_FROM_BOTTOM_FLAT = 262;
 const tiltSink = (tilt: number): number => Math.round((54 * Math.sin((tilt * Math.PI) / 180)) / Math.sin((6 * Math.PI) / 180));
 /** 卡片区与右边那一列在纸上的右边界（离纸右边多远）：右边那一列 124px 宽、与卡片区隔 26px。 */
 const SIDE_RIGHT = 184;
@@ -117,11 +117,12 @@ type ScratchpadSheetProps = {
     tab: ScratchpadTab;
     notesCount: number;
     queueCount: number;
+    commentsCount: number;
     /** 纸转几度（降低动态效果时 0）。 */
     tilt: number;
     /** 降低动态效果：信息条不挪，只淡入淡出。 */
     calm: boolean;
-    /** 左下角两条细纸带的上下次序（与左缘面板共用，useSlimOrder）。 */
+    /** 左下角细纸带的上下次序（与左缘面板共用，useSlimOrder）。 */
     slimOrder: readonly ScratchpadTab[];
     /** 换到这一页（细纸带、总览里的「展开整页 ›」）。 */
     onOpenPage: (tab: ScratchpadTab) => void;
@@ -156,7 +157,7 @@ const Backdrop: React.FC<{ tab: ScratchpadTab; word: string }> = ({ tab, word })
 };
 
 const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
-    tab, notesCount, queueCount, tilt, calm, slimOrder, onOpenPage, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
+    tab, notesCount, queueCount, commentsCount, tilt, calm, slimOrder, onOpenPage, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
 }) => {
     const { t } = useTranslation();
     // 收回时（整页正在退场）这一页的条换回面板那一面；展开的头一帧也是面板那一面，下一帧再换成整页的（entering）。
@@ -166,7 +167,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         if (entering) setEntering(false);
     }, [entering]);
     const historyCount = useScratchpadHistory().length;
-    const counts: Record<ScratchpadTab, number> = { notes: notesCount, history: historyCount, queue: queueCount };
+    const counts: Record<ScratchpadTab, number> = { notes: notesCount, history: historyCount, queue: queueCount, comments: commentsCount };
     // 每一页的信息条各有一个按钮空位（换页时新旧两条同时在场），这一页的按钮画进这一页的那个。
     const [slots, setSlots] = useState<Partial<Record<ScratchpadTab, HTMLElement | null>>>({});
     const slotRefs = useMemo(() => Object.fromEntries(SCRATCHPAD_TABS.map(id => [id, (element: HTMLElement | null) => {
@@ -328,10 +329,10 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                     const mode = modeOf(id);
                     const frame = frameOf(id);
                     const bandMotion = motionOf(id, mode, frame, wrap);
-                    // 展开时三条各自从面板里那一格长出来（这一页的从顶上那条，另外两条从底部那两格）；收回时缩回去，
-                    // 总览里的三行也缩回各自那一格。
+                    // 展开时每条各自从面板里那一格长出来（这一页的从顶上那条，另外几条从底部各自那一格）；收回时缩回去，
+                    // 总览里的每一行也缩回各自那一格。
                     const origin = fromPanel(panelPaperFrame(id === tab ? 'band' : slimOrder.indexOf(id), sheetWidth - SHEET_BLEED_X * 2, viewHeight));
-                    // 展开的头一帧、收回的一路上是面板里的样子：这一页是面板顶上那条，另外两条是细纸带（见文件头）。
+                    // 展开的头一帧、收回的一路上是面板里的样子：这一页是面板顶上那条，另外几条是细纸带（见文件头）。
                     const faceMode: FaceMode = handoff ? (id === tab ? 'panel' : 'slim') : mode;
                     const faceMotion: PaperMotion = calm
                         ? bandMotion

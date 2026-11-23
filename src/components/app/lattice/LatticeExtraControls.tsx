@@ -22,7 +22,7 @@ export default function LatticeExtraControls({ disabled }: { disabled: boolean }
             const slot = resolvePlayerControlSlot(action, context);
             const Icon = slot.icon;
             return <button key={index} type="button" data-action={action} className={slot.active ? 'is-active' : ''}
-                disabled={disabled || slot.disabled} onClick={() => slot.onActivate()}
+                disabled={disabled || slot.disabled} onClick={event => slot.onActivate(event.currentTarget.getBoundingClientRect())}
                 aria-label={t(slot.labelKey)} title={t(slot.labelKey)}
                 aria-pressed={action === 'loop' || action === 'like' ? slot.active : undefined}>
                 <Icon size={20} fill={slot.filled ? 'currentColor' : 'none'} />

@@ -83,7 +83,7 @@ const PlayerControlSlotButton: React.FC<PlayerControlSlotButtonProps> = ({
                 if (disabled) {
                     return;
                 }
-                slot.onActivate();
+                slot.onActivate(e.currentTarget.getBoundingClientRect());
             }}
             onContextMenu={(e) => {
                 if (!canCustomize) {
