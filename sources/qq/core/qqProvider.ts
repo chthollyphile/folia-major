@@ -33,6 +33,7 @@ import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 import { describeQqLoginFailure, qqAccountHintNote, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
 import { getQqCloudCollection, getQqCloudTracks, getQqListTracks, qqListKindOf } from './qqLists';
+import { readQqMusicuPlaylistPage } from './qqMusicuPlaylist';
 import { createQqExplore } from './qqExplore';
 import { getQqListeningRankCollections, getQqListeningRankTracks } from './qqListeningRank';
 import { areQqSongsLiked, resetQqVipMemory, withQqVipType } from './qqAccount';
@@ -106,32 +107,52 @@ const dataText = (data: FoliumSourceCollection['data'], name: string): string =>
  * 所以判据是 `dissname` 在不在，而不是 `disstid`，也不是 `cdlist` 或 songlist 的长度 —— 真的空歌单
  * 会带着完整的 `dissname` 回来。两者混成同一个空结果，就是用户看到的那个没有报错的「暂无内容」。
  */
-const loadRawPlaylistTracks = async (
+const getPublicPlaylistTracks = async (
     id: string,
+    limit: number,
+    offset: number,
     collection?: FoliumSourceCollection,
-): Promise<{ tracks: unknown[]; total?: number }> => {
-    const response = await requestQq<any>('song_list_detail', { disstid: String(id) });
-    const cdlist = response?.response?.cdlist;
+): Promise<FoliumSourcePage<FoliumSourceSong>> => {
+    const answer = await requestQq<{ response?: {
+        code?: number;
+        subcode?: number;
+        cdlist?: { dissname?: string; songlist?: unknown[]; total_song_num?: number; songnum?: number }[];
+    } } | null>('song_list_detail', { disstid: id });
+    const response = answer?.response;
+    const cdlist = response?.cdlist;
     const detail = Array.isArray(cdlist) ? cdlist[0] : undefined;
-    const dissname = String(detail?.dissname ?? '').trim();
+    const dissname = typeof detail?.dissname === 'string' && detail.dissname.trim();
 
-    if (!detail || typeof detail !== 'object' || !dissname) {
+    if (!detail || !dissname) {
         // 已知不公开时报 `not-public` 而不是 `invalid-response`：这不是协议坏了，是这条匿名
         // 路由没资格读它 —— 后端补上带凭据的歌单路由之后，自建歌单就不会再走到这里。调用方据此
         // 给用户一句能看懂的解释，而不是把协议细节甩到界面上。
         const dirShow = Number(collection?.data?.dirShow);
         const notPublic = Number.isFinite(dirShow) && dirShow !== 1;
+        // 部分公开推荐歌单在旧 CGI 上只回 0/4000、没有详情；musicu 可以按页读到同一张歌单。
+        const dissId = Number(id);
+        if (!notPublic && response?.code === 0 && response.subcode === 4000
+            && Number.isSafeInteger(dissId) && dissId > 0 && String(dissId) === id) {
+            return readQqMusicuPlaylistPage(dissId, limit, offset);
+        }
         throw qqError(
             notPublic ? 'not-public' : 'invalid-response',
             `QQMusicApi song_list_detail could not read playlist ${id}`
             + `${notPublic ? ' (not a public playlist; this anonymous endpoint cannot read it)' : ''}`,
-            response?.response,
+            response,
         );
     }
 
-    const tracks = Array.isArray(detail.songlist) ? detail.songlist : [];
+    const tracks: unknown[] = Array.isArray(detail.songlist) ? detail.songlist : [];
     const total = Number(detail.total_song_num ?? detail.songnum);
-    return { tracks, ...(Number.isFinite(total) && total >= 0 ? { total } : {}) };
+    const items = tracks.slice(offset, offset + Math.max(0, limit)).map(normalizeQqSong);
+    const nextOffset = offset + items.length;
+    return {
+        items,
+        nextOffset,
+        hasMore: nextOffset < tracks.length,
+        ...(Number.isFinite(total) && total >= 0 ? { total } : {}),
+    };
 };
 
 // 后端有没有 `/user/playlist-detail` 只取决于它的版本，一个会话里不会变，所以探到一次 404
@@ -242,17 +263,7 @@ const getPlaylistTracks = async (
     }
 
     // 收藏的、分享链接进来的歌单本来就只能走匿名路由；后端太旧时也回落到这里。
-    const { tracks, total } = await loadRawPlaylistTracks(id, collection);
-    const items = tracks
-        .slice(offset, offset + Math.max(0, limit))
-        .map(normalizeQqSong);
-    const nextOffset = offset + items.length;
-    return {
-        items,
-        ...(total === undefined ? {} : { total }),
-        hasMore: nextOffset < tracks.length,
-        nextOffset,
-    };
+    return getPublicPlaylistTracks(id, limit, offset, collection);
 };
 
 const playCountOf = (value: unknown): number | undefined => {

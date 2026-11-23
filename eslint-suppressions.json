@@ -1737,7 +1737,7 @@
       "count": 1
     },
     "@typescript-eslint/no-explicit-any": {
-      "count": 21
+      "count": 20
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
@@ -1749,13 +1749,13 @@
       "count": 2
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 62
+      "count": 57
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 3
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 86
+      "count": 79
     },
     "@typescript-eslint/only-throw-error": {
       "count": 2
