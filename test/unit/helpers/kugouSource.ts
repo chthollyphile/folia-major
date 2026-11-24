@@ -9,6 +9,8 @@ import { setBuiltinSourceRpc } from './builtinSources';
 // createSource(测试 env) 经适配层注册，测试拿到的是宿主的 provider，走桌面版的 transport。到 main 入口的三个调用由
 // answerKugouRequests 的 vi.fn 接住，照 main/index.ts 的样子答：
 //   - request：回的值当作桥的 data（{ ok: true, data }），抛的错的 message 当作桥的那一行（{ ok: false, message }）；
+//     其中 song_url_new（VIP 的播放地址）另由 songUrlNew 接住，默认照桥在没有 VIP 凭据时那样答（没有地址），
+//     这样 request 的次数和顺序仍是 /song/url 那一串；
 //   - anonymousSearch / legacyPlayInfo：回的值当作酷狗的正文（{ status: 200, bodyText }）；抛的错带 httpStatus 时是酷狗回的
 //     那个状态，不带时是 main 没能问到（{ unreachable: true, message }）。
 // 窗口里的账号 id 提示在页面存储（online_provider:kugou:userid），由 signInKugouHint 写。
@@ -50,15 +52,21 @@ const plainAnswer = async (answer: () => unknown) => {
     }
 };
 
+/** 桥在会话没有 VIP 凭据时给 song_url_new 的回答（kugouApiBridge.cjs）。 */
+export const KUGOU_NO_VIP_CREDENTIAL_ANSWER = { status: 0, data: null, vip_credential: false };
+
 /** 接住 client 到 main 入口的三个调用；交回记下每次参数的 vi.fn。 */
 export const answerKugouRequests = () => {
     const request = vi.fn<(operation: string, params: Record<string, unknown>) => unknown>();
+    const songUrlNew = vi.fn<(params: Record<string, unknown>) => unknown>(() => KUGOU_NO_VIP_CREDENTIAL_ANSWER);
     const anonymousSearch = vi.fn<(keyword: string, page: number, pagesize: number) => unknown>();
     const legacyPlayInfo = vi.fn<(hash: string) => unknown>();
     const off = setBuiltinSourceRpc('kugou', {
         request: async (...args: unknown[]) => {
             try {
-                return { ok: true, data: await request(args[0] as string, (args[1] ?? {}) as Record<string, unknown>) };
+                const params = (args[1] ?? {}) as Record<string, unknown>;
+                const data = args[0] === 'song_url_new' ? await songUrlNew(params) : await request(args[0] as string, params);
+                return { ok: true, data };
             } catch (error) {
                 return { ok: false, message: messageOf(error) };
             }
@@ -66,5 +74,5 @@ export const answerKugouRequests = () => {
         anonymousSearch: (...args: unknown[]) => plainAnswer(() => anonymousSearch(args[0] as string, args[1] as number, args[2] as number)),
         legacyPlayInfo: (...args: unknown[]) => plainAnswer(() => legacyPlayInfo(args[0] as string)),
     });
-    return { request, anonymousSearch, legacyPlayInfo, off };
+    return { request, songUrlNew, anonymousSearch, legacyPlayInfo, off };
 };

@@ -16,7 +16,7 @@ export const KUGOU_OPERATIONS = [
     'register_dev', 'login_qr_key', 'login_qr_create', 'login_qr_check', 'logout',
     'user_detail', 'user_vip_detail', 'youth_union_vip', 'youth_day_vip', 'youth_day_vip_upgrade',
     'user_playlist', 'user_cloud', 'user_cloud_url', 'user_listen', 'search',
-    'audio', 'krm_audio', 'song_url', 'song_climax', 'search_lyric', 'lyric', 'playlist_track_all',
+    'audio', 'krm_audio', 'song_url', 'song_url_new', 'song_climax', 'search_lyric', 'lyric', 'playlist_track_all',
     'playlist_detail',
     'album_detail', 'album_songs', 'artist_detail', 'artist_albums', 'artist_audios',
     'everyday_recommend', 'everyday_history', 'personal_fm', 'top_card_youth', 'playlist_add',
@@ -51,6 +51,7 @@ const ENDPOINTS: Record<KugouOperation, string> = {
     audio: '/audio',
     krm_audio: '/krm/audio',
     song_url: '/song/url',
+    song_url_new: '/song/url/new',
     song_climax: '/song/climax',
     search_lyric: '/search/lyric',
     lyric: '/lyric',
@@ -198,6 +199,11 @@ export interface KugouTransport {
     legacyPlayInfo(hash: string): Promise<unknown>;
     /** Whether a search can go with the account (synchronous: the search picks its way with it). */
     hasAuthenticatedSearchSession(): boolean;
+    /**
+     * Whether the privileged URL endpoint (song_url_new) is worth asking: eligibility, not proof of entitlement. The
+     * desktop says so for any signed-in account (main renews the VIP credential and answers without one itself).
+     */
+    hasVipSession(): boolean;
     /** The signed-in account's id as this window knows it ('' for none). */
     userId(): string;
     /** The web session's token, for the requests that take it as a parameter; the desktop keeps it in main. */
@@ -311,7 +317,7 @@ export const createDesktopKugouTransport = (env: KugouTransportEnv): KugouTransp
         async request<T>(operation: KugouOperation, params: KugouParams = {}): Promise<T> {
             // Drop legacy renderer values at the boundary so an old stored token cannot keep circulating.
             const electronParams = Object.fromEntries(
-                Object.entries(params).filter(([key]) => !['token', 'dfid', 'cookie'].includes(key.toLowerCase())),
+                Object.entries(params).filter(([key]) => !['token', 'vip_token', 'vip_type', 'viptype', 'dfid', 'cookie'].includes(key.toLowerCase())),
             );
             // The desktop side cannot be told to stop: past the limit its answer is no longer waited for.
             // A confirmation that arrives after that is still kept by the main process while the dialog
@@ -342,6 +348,7 @@ export const createDesktopKugouTransport = (env: KugouTransportEnv): KugouTransp
         },
         // The account id is a non-secret hint that lets this synchronous selector choose authenticated search.
         hasAuthenticatedSearchSession: () => Boolean(store.get('userid')),
+        hasVipSession: () => Boolean(store.get('userid')),
         userId: () => store.get('userid') ?? '',
         sessionToken: () => undefined,
         forgetAccount() {
@@ -536,6 +543,8 @@ export const createWebKugouTransport = (env: KugouTransportEnv, web: KugouWebEnv
                 new RegExp(`(?:^|;)\\s*${key}=[^;]+`, 'i').test(cookie)
             ));
         },
+        // The web session has a VIP credential only where the configured service's answers brought one.
+        hasVipSession: () => /(?:^|;)\s*vip_token=[^;\s]+/i.test(getWebSessionCookie()),
         userId: () => store.get('userid') ?? '',
         sessionToken: () => store.get('token') ?? undefined,
         forgetAccount: forgetWebSession,

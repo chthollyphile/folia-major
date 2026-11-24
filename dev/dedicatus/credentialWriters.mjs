@@ -80,6 +80,8 @@ export const CREDENTIAL_WRITERS = {
     'sources/kugou/main/kugouApiBridge.cjs': {
         // 确认的扫码登录（login_qr_check、status 4），整对写入
         adoptConfirmedSignIn: ['token', 'userid'],
+        // 同一会话的续期（login_token，取 VIP 凭据）：账号 id 和发出时的 token 都没变才调用
+        adoptRenewedSession: ['token'],
         // 响应带回的设备 cookie：函数自己挡掉账号 cookie
         rememberDeviceCookie: ['*'],
         // 第一次用时载入存着的会话（或者一套新的设备 cookie）

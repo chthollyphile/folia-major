@@ -578,6 +578,86 @@ const QUALITY_FALLBACKS: Record<FoliumSourceAudioQuality, FoliumSourceAudioQuali
 
 const qualityFallbacks = (quality: FoliumSourceAudioQuality): FoliumSourceAudioQuality[] => QUALITY_FALLBACKS[quality];
 
+const KUGOU_QUALITY_RANK: Record<FoliumSourceAudioQuality, number> = { standard: 0, high: 1, ultra: 1, lossless: 2, hires: 3 };
+// The privileged endpoint asks every quality at once ('128', '320', 'flac', 'high', …): a URL array is positional.
+const KUGOU_INDEXED_QUALITIES: FoliumSourceAudioQuality[] = ['standard', 'high', 'lossless', 'hires'];
+// A full track is never this small; a 30–60 s preview usually is.
+const KUGOU_PREVIEW_MAX_BYTES = 200 * 1024;
+
+/**
+ * The quality an answer actually carries, which can be lower than what was asked (KuGou degrades silently). Its own
+ * `quality` first, then fileSize / timeLength (seconds), then bitRate (bps or kbps); with none of them, the one asked.
+ */
+const actualKugouQuality = (payload: unknown, requested: FoliumSourceAudioQuality): FoliumSourceAudioQuality => {
+    const explicit = String(valueOf(payload, 'quality') ?? '').toLowerCase();
+    const named: Partial<Record<string, FoliumSourceAudioQuality>> = { '128': 'standard', '320': 'high', flac: 'lossless', high: 'hires' };
+    const known = named[explicit];
+    if (known) return known;
+    const size = toFiniteNumber(valueOf(payload, 'fileSize', 'file_size'));
+    const duration = toFiniteNumber(valueOf(payload, 'timeLength', 'time_length'));
+    // A day or longer is a duration in milliseconds, which the size cannot be divided by.
+    let bitrate = size && duration && duration < 86400 ? size * 8 / duration : undefined;
+    if (!bitrate) {
+        bitrate = toFiniteNumber(valueOf(payload, 'bitRate', 'bit_rate'));
+        if (bitrate !== undefined && bitrate > 0 && bitrate < 1000) bitrate *= 1000;
+    }
+    if (!bitrate || bitrate <= 0) return requested;
+    const kbps = bitrate / 1000;
+    const ext = String(valueOf(payload, 'extName', 'extname') ?? '').toLowerCase();
+    // A lossy container is never lossless, whatever its figures say.
+    if (['ogg', 'mp3', 'aac', 'm4a', 'wma'].includes(ext)) return kbps <= 200 ? 'standard' : 'high';
+    if (kbps <= 200) return 'standard';
+    if (kbps <= 500) return 'high';
+    return kbps > 1500 ? 'hires' : 'lossless';
+};
+
+const kugouReplayGain = (payload: unknown): FoliumSourceAudio['replayGain'] => {
+    const trackGain = toFiniteNumber(valueOf(payload, 'volume'));
+    const trackPeak = decibelsToLinearPeak(valueOf(payload, 'volume_peak'));
+    return trackGain === undefined && trackPeak === undefined
+        ? undefined
+        : {
+            ...(trackGain === undefined ? {} : { trackGain }),
+            ...(trackPeak === undefined ? {} : { trackPeak }),
+        };
+};
+
+const isTooSmallForTrack = (payload: unknown): boolean => {
+    const size = toFiniteNumber(valueOf(payload, 'fileSize', 'file_size'));
+    return size !== undefined && size > 0 && size < KUGOU_PREVIEW_MAX_BYTES;
+};
+
+// The privileged answer is trusted only when nothing says it is a preview: any fail_process (buy, pkg…) is one,
+// and KuGou does not always mark it, so a file too small for a track is one too.
+const isKugouPrivilegedPreview = (payload: unknown): boolean => {
+    const failProcess: unknown = valueOf(payload, 'fail_process');
+    if (Array.isArray(failProcess) ? failProcess.length > 0 : Boolean(failProcess)) return true;
+    return isTooSmallForTrack(payload);
+};
+
+// A /song/url answer is a preview when it is marked for purchase or is too small to be the track.
+const isKugouPurchasePreview = (payload: unknown): boolean => {
+    const failProcess: unknown = valueOf(payload, 'fail_process');
+    if (Array.isArray(failProcess) ? failProcess.includes('buy') : failProcess === 'buy') return true;
+    return isTooSmallForTrack(payload);
+};
+
+// KuGou's encrypted containers (the privileged endpoint can answer with them): the player cannot decode these. The
+// answer's extName is read only for a single URL: it says nothing about which entry of an array it describes.
+const KUGOU_ENCRYPTED_EXTENSIONS = new Set(['kgm', 'kgma', 'vpr', 'mflac', 'mgg']);
+const isKugouEncryptedAudio = (url: string, payload: unknown): boolean => {
+    const ext = String(valueOf(payload, 'extName', 'extname') ?? '').toLowerCase();
+    if (KUGOU_ENCRYPTED_EXTENSIONS.has(ext)) return true;
+    const path = url.split(/[?#]/)[0] ?? '';
+    const dot = path.lastIndexOf('.');
+    return dot >= 0 && KUGOU_ENCRYPTED_EXTENSIONS.has(path.slice(dot + 1).toLowerCase());
+};
+
+/** The better of two sources by the quality they carry; the first when they are level. */
+const betterKugouSource = (a: FoliumSourceAudio | undefined, b: FoliumSourceAudio): FoliumSourceAudio => (
+    a && KUGOU_QUALITY_RANK[a.quality ?? 'standard'] >= KUGOU_QUALITY_RANK[b.quality ?? 'standard'] ? a : b
+);
+
 const getId = (value: string | FoliumSourceCollection | FoliumSourceSong) => typeof value === 'object' ? value.id : value;
 
 // Converts KuGou's millisecond climax payload into the shared second-based range model.
@@ -1245,10 +1325,72 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                     // A request that ran out of time stops the remaining /song/url qualities and variants: they would wait
                     // as long. The legacy endpoint is still asked once.
                     let songUrlChainStopped = false;
+                    // The best full track an answer below the quality asked for brought: kept while a better one is
+                    // looked for, returned when none comes.
+                    let bestSource: FoliumSourceAudio | undefined;
+                    // A purchase preview /song/url gave at the standard quality: played as a clip only when nothing
+                    // else gives the full track.
+                    let previewSource: FoliumSourceAudio | undefined;
+                    const resolved = (source: FoliumSourceAudio, requestVariant: string): FoliumSourceAudio => {
+                        console.info('[KugouProvider] playback:url-resolved', {
+                            hash,
+                            requestedQuality: quality,
+                            resolvedQuality: source.quality,
+                            requestVariant,
+                            ...(source.preview ? { preview: true } : {}),
+                        });
+                        return source;
+                    };
+
+                    // The privileged endpoint (/song/url/new) first, for an account that may have a VIP credential:
+                    // it gives full tracks /song/url answers with a preview or no URL for.
+                    if (!isCloud && transport.hasVipSession()) {
+                        try {
+                            const response = await requestKugou('song_url_new', {
+                                hash: hash.toLowerCase(), album_id: albumId, album_audio_id: albumAudioId,
+                            });
+                            const data: unknown = dataOf(response);
+                            const payload: unknown = Array.isArray(data) ? data[0] : data;
+                            const urls: unknown = valueOf(payload, 'url', 'play_url');
+                            const urlList: unknown[] = Array.isArray(urls) ? urls : [urls];
+                            const indexed = urlList.length > 1;
+                            // The asked quality's place, or the nearest lower one with a URL the player can decode.
+                            const playable = (at: number): string | undefined => {
+                                const candidate = audioUrlOf(urlList[at]);
+                                return candidate && !isKugouEncryptedAudio(candidate, indexed ? undefined : payload) ? candidate : undefined;
+                            };
+                            let index = indexed ? Math.min(KUGOU_QUALITY_RANK[quality], urlList.length - 1) : 0;
+                            while (indexed && index > 0 && !playable(index)) index--;
+                            const url = playable(index);
+                            const privilege: unknown = valueOf(payload, 'priv_status');
+                            // Only a positive priv_status says KuGou took the VIP credential; 0 or none is a preview.
+                            const entitled = (toFiniteNumber(privilege) ?? 0) > 0;
+                            if (url && entitled && !isKugouPrivilegedPreview(payload)) {
+                                // A single URL carries its own figures; an array's place says its quality.
+                                const actual = indexed ? KUGOU_INDEXED_QUALITIES[index] : actualKugouQuality(payload, quality);
+                                const replayGain = kugouReplayGain(payload);
+                                const source: FoliumSourceAudio = {
+                                    url: kugouPlaybackUrl(url, transport.runtime),
+                                    quality: actual,
+                                    ...(replayGain ? { replayGain } : {}),
+                                };
+                                if (KUGOU_QUALITY_RANK[actual] >= KUGOU_QUALITY_RANK[quality]) return resolved(source, 'privileged');
+                                bestSource = source;
+                            } else if (urlList.some(entry => audioUrlOf(entry))) {
+                                console.info('[KugouProvider] playback:privileged-refused', { hash, requestedQuality: quality, privilege, decodable: Boolean(url) });
+                            }
+                        } catch (error) {
+                            // A sign-in that has ended is said by /song/url below as well: this optional request does
+                            // not hide the ordinary way.
+                            console.warn('[KugouProvider] playback:privileged-failed', { hash, requestedQuality: quality, ...errorFields(error) });
+                        }
+                    }
 
                     // Tries the preferred KuGou quality first and degrades until a playable URL is returned.
                     for (const candidateQuality of qualities) {
                         if (songUrlChainStopped) break;
+                        // A lower quality cannot beat a full track already found at it or above.
+                        if (bestSource && KUGOU_QUALITY_RANK[candidateQuality] <= KUGOU_QUALITY_RANK[bestSource.quality ?? 'standard']) break;
                         const requestVariants = isCloud
                             ? [{ name: 'cloud', operation: 'user_cloud_url' as const, params: {
                                 hash, id: dataText(song.data, 'fileId'),
@@ -1278,27 +1420,33 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                     valueOf(payload, 'play_url', 'playUrl', 'url')
                                     ?? valueOf(data?.[0], 'url', 'play_url'),
                                 );
+                                const purchasePreview = url !== undefined && !isCloud && isKugouPurchasePreview(payload);
+                                if (url && purchasePreview && candidateQuality !== 'standard') {
+                                    // A preview at this quality: a lower one may be the full track.
+                                    console.info('[KugouProvider] playback:purchase-preview', { hash, candidateQuality, requestVariant: requestVariant.name });
+                                    break;
+                                }
                                 if (url) {
-                                    const trackGain = toFiniteNumber(valueOf(payload, 'volume'));
-                                    const trackPeak = decibelsToLinearPeak(valueOf(payload, 'volume_peak'));
-                                    const replayGain = trackGain === undefined && trackPeak === undefined
-                                        ? undefined
-                                        : {
-                                            ...(trackGain === undefined ? {} : { trackGain }),
-                                            ...(trackPeak === undefined ? {} : { trackPeak }),
-                                        };
-                                    console.info('[KugouProvider] playback:url-resolved', {
-                                        hash,
-                                        requestedQuality: quality,
-                                        resolvedQuality: candidateQuality,
-                                        requestVariant: requestVariant.name,
-                                    });
-                                    return {
+                                    const replayGain = kugouReplayGain(payload);
+                                    const source: FoliumSourceAudio = {
                                         // The upstream candidate, over https on the web (kugouPlaybackUrl).
                                         url: kugouPlaybackUrl(url, transport.runtime),
-                                        quality: candidateQuality,
+                                        quality: isCloud ? candidateQuality : actualKugouQuality(payload, candidateQuality),
                                         ...(replayGain ? { replayGain } : {}),
                                     };
+                                    if (purchasePreview) {
+                                        previewSource ??= { ...source, preview: true };
+                                        break;
+                                    }
+                                    const best = betterKugouSource(bestSource, source);
+                                    // Degraded below what was asked: kept, and the next (lower) quality only asked if it
+                                    // could still be better.
+                                    if (KUGOU_QUALITY_RANK[source.quality ?? 'standard'] < KUGOU_QUALITY_RANK[candidateQuality]) {
+                                        bestSource = best;
+                                        break;
+                                    }
+                                    // The loop's start skips qualities a held source already beats: this one is the better.
+                                    return resolved(best, requestVariant.name);
                                 }
                                 noUrlSeen = {
                                     status: valueOf(data, 'status') ?? valueOf(response, 'status'),
@@ -1312,8 +1460,13 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                     ...noUrlSeen,
                                 });
                             } catch (error) {
+                                // A full track (or a clip) already found plays rather than a failure that stops the chain.
+                                const held = bestSource ?? previewSource;
                                 // A sign-in that has ended is said at once: another quality would be refused the same way.
-                                if ((error as { code?: unknown } | null)?.code === 'auth-required') throw error;
+                                if ((error as { code?: unknown } | null)?.code === 'auth-required') {
+                                    if (held) return resolved(held, 'held');
+                                    throw error;
+                                }
                                 firstFailure ??= error;
                                 console.warn('[KugouProvider] playback:quality-failed', {
                                     hash,
@@ -1326,12 +1479,44 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                 // address): every other request would be answered the same, the legacy one too.
                                 const said = describeKugouFailure('audio', error);
                                 if (said?.case === 'local-service-stopped' || said?.case === 'not-configured'
-                                    || said?.httpStatus === 429 || (error as { retryAfterMs?: unknown } | null)?.retryAfterMs !== undefined) throw error;
+                                    || said?.httpStatus === 429 || (error as { retryAfterMs?: unknown } | null)?.retryAfterMs !== undefined) {
+                                    if (held) return resolved(held, 'held');
+                                    throw error;
+                                }
                                 if (isKugouTimeout(error)) {
                                     songUrlChainStopped = true;
                                     break;
                                 }
                             }
+                        }
+                    }
+
+                    if (bestSource) return resolved(bestSource, 'degraded');
+
+                    // The collection page's context (ppage_id 356753938, the first of the lite client's defaults alone)
+                    // gives some songs the account saved a full track that the default context refuses. KuGouMusicApi reads
+                    // ppage_id only on the lite platform, which the desktop main entry sets; a web service may not.
+                    if (!isCloud && !songUrlChainStopped && transport.runtime === 'electron') {
+                        try {
+                            const response = await requestKugou('song_url', {
+                                hash, quality: qualityValue('standard'), album_id: albumId, album_audio_id: albumAudioId, ppage_id: '356753938',
+                            });
+                            const data: unknown = dataOf(response);
+                            const payload: unknown = Array.isArray(data) ? data[0] : data;
+                            const url = audioUrlOf(valueOf(payload, 'play_url', 'playUrl', 'url'));
+                            if (url) {
+                                const replayGain = kugouReplayGain(payload);
+                                const source: FoliumSourceAudio = {
+                                    url: kugouPlaybackUrl(url, transport.runtime),
+                                    quality: 'standard',
+                                    ...(replayGain ? { replayGain } : {}),
+                                };
+                                if (!isKugouPurchasePreview(payload)) return resolved(source, 'collection');
+                                previewSource ??= { ...source, preview: true };
+                            }
+                        } catch (error) {
+                            firstFailure ??= error;
+                            console.warn('[KugouProvider] playback:collection-failed', { hash, requestedQuality: quality, ...errorFields(error) });
                         }
                     }
 
@@ -1369,6 +1554,9 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                             });
                         }
                     }
+
+                    // Nothing gave the full track: the purchase preview plays as a clip (the host says so and keeps none).
+                    if (previewSource) return resolved(previewSource, 'preview');
 
                     console.warn('[KugouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
                     if (noUrlSeen || firstFailure === undefined) throw kugouNoUrlError(env.error, noUrlSeen, !transport.hasAuthenticatedSearchSession());

@@ -49,6 +49,282 @@ const seedEncryptedCookies = (
 };
 
 describe('Electron KuGou API bridge', () => {
+    it('does not restore a signed-out session when a pending QR response arrives', async () => {
+        const store = createStore();
+        const safeStorage = createSafeStorage();
+        let resolveLogin!: (value: unknown) => void;
+        const pending = new Promise(resolve => { resolveLogin = resolve; });
+        const check = vi.fn(async () => pending);
+        const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+            register_dev: async () => ({ body: {}, cookie: ['dfid=device'] }),
+            login_qr_check: check,
+        }) });
+        const login = bridge.request('login_qr_check', {});
+        await vi.waitFor(() => expect(check).toHaveBeenCalled());
+        await bridge.request('logout');
+        resolveLogin({ body: { data: { status: 4, token: 'old', userid: '9' } }, cookie: [] });
+        await expect(login).rejects.toThrow();
+        expect(bridge.getStatus().authenticated).toBe(false);
+    });
+
+    it('rejects a youth VIP operation for a different signed-in account', async () => {
+        const store = createStore();
+        const safeStorage = createSafeStorage();
+        seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-b', userid: '2' });
+        const claim = vi.fn(async () => ({ body: { status: 1 } }));
+        const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({ youth_day_vip: claim }) });
+        await expect(bridge.request('youth_day_vip', { userid: '1' })).rejects.toThrow();
+        expect(claim).not.toHaveBeenCalled();
+    });
+
+    describe('VIP credential for song_url_new', () => {
+        const renewal = (data: Record<string, unknown>, cookie: string[] = []) => ({ body: { status: 1, data: { userid: '9', ...data } }, cookie });
+
+        it('coalesces concurrent renewals', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+            let finish!: (value: unknown) => void;
+            const refresh = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+            const song = vi.fn(async () => ({ body: { data: {} } }));
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({ login_token: refresh, song_url_new: song }) });
+            const first = bridge.request('song_url_new', { hash: 'a' });
+            const second = bridge.request('song_url_new', { hash: 'b' });
+            await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+            finish(renewal({ vip_token: 'vip' }));
+            await Promise.all([first, second]);
+            expect(refresh).toHaveBeenCalledTimes(1);
+            expect(song).toHaveBeenCalledTimes(2);
+        });
+
+        it('obtains, seals and uses the credential without letting the window supply or see it', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+            const song = vi.fn<(params: Record<string, unknown>) => Promise<unknown>>(async () => ({ body: { data: { url: ['https://example.test'] } } }));
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+                login_token: async () => renewal({ token: 'token-b', t1: 't1-new', vip_token: 'vip-secret', vip_type: 3 }, ['vip_token=vip-secret', 'vip_type=3']),
+                song_url_new: song,
+            }) });
+
+            await bridge.request('song_url_new', { hash: 'abc', vip_token: 'forged' });
+
+            expect(song).toHaveBeenCalledWith(expect.objectContaining({
+                hash: 'abc', token: 'token-b',
+                cookie: expect.objectContaining({ token: 'token-b', t1: 't1-new', vip_token: 'vip-secret', vip_type: '3' }),
+            }));
+            expect(song.mock.calls[0][0].vip_token).toBeUndefined();
+            expect(readEncryptedCookies(store, safeStorage)).toEqual(expect.objectContaining({ token: 'token-b', vip_token: 'vip-secret' }));
+            expect(String(store.get(SESSION_KEY))).not.toContain('vip-secret');
+
+            await bridge.request('logout');
+            const signedOut = readEncryptedCookies(store, safeStorage);
+            expect(signedOut.vip_token).toBeUndefined();
+            expect(signedOut.vip_type).toBeUndefined();
+            expect(signedOut.t1).toBeUndefined();
+        });
+
+        it('answers without asking KuGou while the session has no credential, and renews again only after hours', async () => {
+            vi.useFakeTimers();
+            try {
+                const store = createStore();
+                const safeStorage = createSafeStorage();
+                seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+                // The SDK writes an empty vip_token cookie for an account without one.
+                const refresh = vi.fn(async () => renewal({ token: 'token-a' }, ['vip_token=', 'vip_type=0']));
+                const song = vi.fn(async () => ({ body: { data: {} } }));
+                const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({ login_token: refresh, song_url_new: song }) });
+
+                await expect(bridge.request('song_url_new', { hash: 'a' })).resolves.toMatchObject({ vip_credential: false });
+                await bridge.request('song_url_new', { hash: 'b' });
+                expect(refresh).toHaveBeenCalledTimes(1);
+                expect(song).not.toHaveBeenCalled();
+
+                // Not every ten minutes: a renewal may hand out a new token.
+                vi.advanceTimersByTime(60 * 60 * 1000);
+                await bridge.request('song_url_new', { hash: 'c' });
+                expect(refresh).toHaveBeenCalledTimes(1);
+                vi.advanceTimersByTime(5 * 60 * 60 * 1000 + 1000);
+                await bridge.request('song_url_new', { hash: 'd' });
+                expect(refresh).toHaveBeenCalledTimes(2);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('does not renew a token it just renewed into', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+            const refresh = vi.fn(async () => renewal({ token: 'token-b' }));
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({ login_token: refresh, song_url_new: vi.fn() }) });
+
+            await bridge.request('song_url_new', { hash: 'a' });
+            await bridge.request('song_url_new', { hash: 'b' });
+
+            expect(refresh).toHaveBeenCalledTimes(1);
+        });
+
+        it('uses a stored credential while renewing it once per run, and drops one that lapsed', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9', vip_token: 'vip-old', vip_type: '1' });
+            let finish!: (value: unknown) => void;
+            const refresh = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+            const song = vi.fn<(params: unknown) => Promise<unknown>>(async () => ({ body: { data: {} } }));
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({ login_token: refresh, song_url_new: song }) });
+
+            // The renewal has not answered: the song is asked with the stored credential all the same.
+            await bridge.request('song_url_new', { hash: 'a' });
+            expect(refresh).toHaveBeenCalledTimes(1);
+            expect(song).toHaveBeenCalledWith(expect.objectContaining({ cookie: expect.objectContaining({ vip_token: 'vip-old' }) }));
+
+            finish(renewal({ token: 'token-a' }, ['vip_token=', 'vip_type=0']));
+            await vi.waitFor(() => expect(readEncryptedCookies(store, safeStorage).vip_token).toBeUndefined());
+            const stored = readEncryptedCookies(store, safeStorage);
+            expect(stored.vip_type).toBeUndefined();
+            expect(stored.token).toBe('token-a');
+            await expect(bridge.request('song_url_new', { hash: 'b' })).resolves.toMatchObject({ vip_credential: false });
+            expect(refresh).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps using a stored credential when the renewal cannot be asked', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9', vip_token: 'vip-old' });
+            const song = vi.fn(async () => ({ body: { data: { url: ['https://example.test'] } } }));
+            const warn = vi.fn();
+            const bridge = createKugouApiBridge({ store, safeStorage, warn, apiLoader: () => ({
+                login_token: async () => { throw new Error('login service unavailable'); },
+                song_url_new: song,
+            }) });
+
+            await expect(bridge.request('song_url_new', { hash: 'a' })).resolves.toBeTruthy();
+
+            expect(song).toHaveBeenCalledWith(expect.objectContaining({ cookie: expect.objectContaining({ vip_token: 'vip-old' }) }));
+            await vi.waitFor(() => expect(warn).toHaveBeenCalledWith(expect.stringContaining('[KuGouSession]'), expect.anything()));
+            expect(readEncryptedCookies(store, safeStorage).vip_token).toBe('vip-old');
+        });
+
+        it('does not keep a playback waiting on a renewal that does not answer', async () => {
+            vi.useFakeTimers();
+            try {
+                const store = createStore();
+                const safeStorage = createSafeStorage();
+                seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+                const refresh = vi.fn(() => new Promise(() => undefined));
+                const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({ login_token: refresh, song_url_new: vi.fn() }) });
+
+                const answer = bridge.request('song_url_new', { hash: 'a' });
+                await vi.advanceTimersByTimeAsync(8 * 1000);
+                await expect(answer).resolves.toMatchObject({ vip_credential: false });
+
+                // No answer: asked again after a minute, not before every song.
+                await bridge.request('song_url_new', { hash: 'b' });
+                expect(refresh).toHaveBeenCalledTimes(1);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('does not renew before every song when KuGou refuses or cannot be reached', async () => {
+            vi.useFakeTimers();
+            try {
+                const store = createStore();
+                const safeStorage = createSafeStorage();
+                seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+                // KuGouMusicApi rejects with an answer object both ways: KuGou's body (cookies and all) when KuGou
+                // refuses, and { status: 0, msg: <the Error> } when the request failed (util/request.js).
+                const refusal = { status: 502, body: { status: 0, error_code: 20018 }, cookie: ['token=token-a'] };
+                const unreachable = { status: 502, body: { status: 0, msg: new Error('connect ETIMEDOUT') } };
+                const refresh = vi.fn().mockRejectedValueOnce(refusal).mockRejectedValueOnce(unreachable);
+                const warn = vi.fn();
+                const bridge = createKugouApiBridge({ store, safeStorage, warn, apiLoader: () => ({ login_token: refresh, song_url_new: vi.fn() }) });
+
+                await bridge.request('song_url_new', { hash: 'a' });
+                await bridge.request('song_url_new', { hash: 'b' });
+                expect(refresh).toHaveBeenCalledTimes(1);
+                expect(JSON.stringify(warn.mock.calls)).toContain('error_code=20018');
+                expect(JSON.stringify(warn.mock.calls)).not.toContain('token-a');
+
+                // Refused: asked again after ten minutes. Unreachable: after a minute.
+                vi.advanceTimersByTime(11 * 60 * 1000);
+                await bridge.request('song_url_new', { hash: 'c' });
+                await bridge.request('song_url_new', { hash: 'd' });
+                expect(refresh).toHaveBeenCalledTimes(2);
+                vi.advanceTimersByTime(61 * 1000);
+                await bridge.request('song_url_new', { hash: 'e' });
+                expect(refresh).toHaveBeenCalledTimes(3);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it.each([
+            ['a sign-out', async (bridge: { request: (operation: string, params?: unknown) => Promise<unknown> }) => {
+                await bridge.request('logout');
+            }],
+            ['a sign-in of another account', async (bridge: { request: (operation: string, params?: unknown) => Promise<unknown> }) => {
+                await bridge.request('login_qr_check', { key: 'qr' });
+            }],
+        ])('drops a renewal that answers after %s', async (_label, change) => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+            let finish!: (value: unknown) => void;
+            const refresh = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+                login_token: refresh,
+                song_url_new: vi.fn(async () => ({ body: { data: {} } })),
+                login_qr_check: async () => ({ body: { data: { status: 4, token: 'token-b', userid: '10' } }, cookie: [] }),
+            }) });
+
+            const pending = bridge.request('song_url_new', { hash: 'a' }).catch(() => undefined);
+            await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+            await change(bridge);
+            finish(renewal({ token: 'token-renewed', vip_token: 'vip-a', t1: 't1-a' }));
+            await pending;
+
+            const stored = store.get(SESSION_KEY) === undefined ? {} : readEncryptedCookies(store, safeStorage);
+            expect(stored.token).not.toBe('token-renewed');
+            expect(stored.vip_token).toBeUndefined();
+            expect(stored.t1).toBeUndefined();
+        });
+
+        it('ignores a renewal answered for another account', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9' });
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+                login_token: async () => ({ body: { status: 1, data: { userid: '10', token: 'token-x', vip_token: 'vip-x' } }, cookie: [] }),
+                song_url_new: vi.fn(),
+            }) });
+
+            await bridge.request('song_url_new', { hash: 'a' });
+
+            const stored = readEncryptedCookies(store, safeStorage);
+            expect(stored.token).toBe('token-a');
+            expect(stored.vip_token).toBeUndefined();
+        });
+
+        it('does not carry the previous account\'s credential into a new sign-in', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            seedEncryptedCookies(store, safeStorage, { dfid: 'device', token: 'token-a', userid: '9', vip_token: 'vip-a', vip_type: '1', t1: 't1-a' });
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+                login_qr_check: async () => ({ body: { data: { status: 4, token: 'token-b', userid: '10' } }, cookie: [] }),
+            }) });
+
+            await bridge.request('login_qr_check', { key: 'qr' });
+
+            const stored = readEncryptedCookies(store, safeStorage);
+            expect(stored).toEqual(expect.objectContaining({ token: 'token-b', userid: '10' }));
+            expect(stored.vip_token).toBeUndefined();
+            expect(stored.vip_type).toBeUndefined();
+            expect(stored.t1).toBeUndefined();
+        });
+    });
+
     it('absorbs credentials, returns a sanitized body, and reuses the session', async () => {
         const store = createStore();
         const safeStorage = createSafeStorage();

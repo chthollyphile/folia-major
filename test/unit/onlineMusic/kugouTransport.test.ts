@@ -210,6 +210,29 @@ describe('KuGou transports', () => {
         expect(storage.get('online_provider:kugou:token')).toBeUndefined();
     });
 
+    it('says whether the privileged URL endpoint is worth asking: a signed-in desktop account, a web VIP credential', () => {
+        const { transport: desktopTransport } = desktop();
+        expect(desktopTransport.hasVipSession()).toBe(false);
+        storage.set('online_provider:kugou:userid', '9');
+        expect(desktopTransport.hasVipSession()).toBe(true);
+
+        const webTransport = web();
+        expect(webTransport.hasVipSession()).toBe(false);
+        storage.set('online_provider:kugou:cookie', 'vip_token=;dfid=device');
+        expect(webTransport.hasVipSession()).toBe(false);
+        storage.set('online_provider:kugou:cookie', 'vip_token=secret;dfid=device');
+        expect(webTransport.hasVipSession()).toBe(true);
+    });
+
+    it('keeps VIP credentials out of what the desktop sends main', async () => {
+        const request = vi.fn(() => ({ data: {} }));
+        const { transport } = desktop({ request: bridge(request) });
+
+        await transport.request('song_url_new', { hash: 'abc', vip_token: 'forged', vip_type: 6, token: 'old' });
+
+        expect(request).toHaveBeenCalledWith('song_url_new', { hash: 'abc' });
+    });
+
     it('sends the web anonymous signed search through the lyric proxy without provider cookies', async () => {
         const fetchMock = vi.fn().mockResolvedValue(Response.json({ error_code: 0, data: { lists: [] } }));
         vi.stubGlobal('fetch', fetchMock);

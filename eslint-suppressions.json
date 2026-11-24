@@ -1367,11 +1367,6 @@
       "count": 20
     }
   },
-  "sources/kugou/main/kugouApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 373
-    }
-  },
   "sources/netease/core/netease.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 22
