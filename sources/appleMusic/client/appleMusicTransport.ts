@@ -11,7 +11,7 @@ export type AppleMusicOperation = 'showWindow' | 'hideWindow' | 'logout' | 'acco
 export type AppleMusicParams = Record<string, string | number | boolean | string[] | undefined>;
 export type AppleMusicBridgeResult =
     | { ok: true; data: unknown }
-    | { ok: false; error: string; httpStatus?: number | null; playbackStage?: string };
+    | { ok: false; error: string; httpStatus?: number | null; playbackStage?: string; playerError?: string };
 
 /** What the transport needs of the host: the main entry, and the host's errors. activate (index.ts) hands it in. */
 export interface AppleMusicTransportEnv {
@@ -99,7 +99,11 @@ export async function requestAppleMusic<T>(operation: AppleMusicOperation, param
         // Only fixed stage names enter the error; never forward remote exception text or URLs.
         const stages = ['prepared-queue', 'configure', 'queue', 'play', 'seek'];
         const stage = result.error === 'playback-failed' && stages.includes(result.playbackStage ?? '') ? result.playbackStage : undefined;
-        throw appleMusicError(errorCode(result.error), `Apple Music companion request failed${stage ? ` (stage: ${stage})` : ''}`, result.error, result.httpStatus ?? undefined);
+        // MusicKit's code for why it gave the track up (MEDIA_LICENSE, stopped, …): a bounded word, never its text.
+        const playerError = result.error === 'playback-failed' && typeof result.playerError === 'string'
+            && /^[A-Za-z0-9_.-]{1,64}$/.test(result.playerError) ? result.playerError : undefined;
+        const detail = [stage && `stage: ${stage}`, playerError && `player: ${playerError}`].filter(Boolean).join(', ');
+        throw appleMusicError(errorCode(result.error), `Apple Music companion request failed${detail ? ` (${detail})` : ''}`, result.error, result.httpStatus ?? undefined);
     }
     return result.data as T;
 }

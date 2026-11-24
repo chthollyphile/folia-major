@@ -44,6 +44,15 @@ Linux 入口显示「Linux 暂未支援」，不保留备用浏览器运行时�
   `storefrontId` 改为账号地区，账号有订阅时把 PREVIEW_ONLY 改回 MIXED_CONTENT（#1150、#1151）。被重定向过的地区本次运行不再跳转，
   以免整页重载打断播放。新起播（不复用预备队列）的 `playSong` 应答带 `previewOnly`、实际播放地区与订阅答复 `subscribed`，
   见运行日志的 `[AppleMusic] play started`。
+- 起播失败（#1336）：MusicKit 放弃一首歌时，原因只经 `mediaPlaybackError` 事件告诉页面，`play()` 照样可能成功返回。
+  页面每个播放器只挂一次这个监听：还没出声的起播收到它就算失败，错误码（如 `MEDIA_LICENSE`，只留码不留 Apple 的文字）
+  随 `playbackStatus` 的 `playback-failed` 带回。没有事件、但起播两秒后播放器已停下（state 4）并丢掉载入过的这首
+  （`play()` 已结束时不论载入过没有），或 `play()` 已结束却什么也没载入（state 0），也算失败，码为 `stopped` /
+  `nothing-loaded`，不再显示成一直暂停或转圈。这两种推断出来的失败（事件、停下）先当作起播中保留 3 秒再报出：
+  一报失败，Windows 的可见钉住就解除，渲染进程也会提示失败，而播放器可能自己重试成功。之后真出声就撤回；
+  `play()` 被拒的失败当场报、不撤回。“出声”和可见钉住同一口径：连续两次答复都在播且位置前进，MusicKit 载入前那一下
+  “在播”不算。新起播清掉上一首的错误码。
+  主进程日志各记一次：`[AppleMusic] start failed`（起播失败）与 `[AppleMusic] player error`（出声之后的错误）。
 
 网页不能调用本地控制接口或文件操作；导航仅允许 Apple 音乐与登录主机。退出登录先销毁旧页面再清空宿主会话。
 原生 named store 与旧浏览器资料分开，不复制或删除用户旧凭据。

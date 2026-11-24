@@ -159,4 +159,47 @@ describe('Apple Music companion client', () => {
         client.close();
     });
 
+    // #1336: why MusicKit gave a track up reaches the log once per occurrence, as a bounded code.
+    it('logs a failed start and a player error once each', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            const child = new Child();
+            const replies: unknown[] = [
+                { ok: false, error: 'playback-failed', playbackStage: 'play', playerError: 'MEDIA_LICENSE' },
+                { ok: false, error: 'playback-failed', playbackStage: 'play', playerError: 'MEDIA_LICENSE' },
+                { ok: true, data: { state: 2, isPlaying: true, positionMs: 0, durationMs: 1, playerError: 'MEDIA_KEY', playerErrorAt: 5 } },
+                { ok: true, data: { state: 2, isPlaying: true, positionMs: 1, durationMs: 1, playerError: 'MEDIA_KEY', playerErrorAt: 5 } },
+                { ok: true, data: { state: 2, isPlaying: true, positionMs: 1, durationMs: 1, playerError: 'not a code', playerErrorAt: 9 } },
+            ];
+            child.send = vi.fn((message: unknown, callback: (error?: Error) => void) => {
+                callback();
+                child.emit('message', { id: (message as { id: string }).id, ...(replies.shift() as object) });
+            });
+            const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child });
+            for (let index = 0; index < 5; index++) await client.request('playbackStatus');
+            expect(warn.mock.calls).toEqual([
+                ['[AppleMusic] start failed', { stage: 'play', playerError: 'MEDIA_LICENSE' }],
+                ['[AppleMusic] player error', { playerError: 'MEDIA_KEY' }],
+            ]);
+            // Two starts failing back to back are two lines: the next start resets the once-only guard.
+            warn.mockClear();
+            replies.push(
+                { ok: false, error: 'playback-failed', playbackStage: 'play', playerError: 'MEDIA_LICENSE' },
+                { ok: true, data: {} },
+                { ok: false, error: 'playback-failed', playbackStage: 'play', playerError: 'CONTENT_RESTRICTED' },
+            );
+            await client.request('playbackStatus');
+            await client.request('playSong', { catalogId: '456' });
+            await client.request('playbackStatus');
+            expect(warn.mock.calls.map(call => call[1])).toEqual([
+                { stage: 'play', playerError: 'MEDIA_LICENSE' },
+                { stage: 'play', playerError: 'CONTENT_RESTRICTED' },
+            ]);
+            client.close();
+        } finally {
+            vi.restoreAllMocks();
+        }
+    });
+
 });

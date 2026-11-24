@@ -8,6 +8,9 @@ const { validateRequest } = require('./companionRequests.cjs');
 // host's 3 s budget for onBeforeUnload.
 const CLOSE_WAIT_MS = 2500;
 
+// The page's word for a MusicKit error (its code, such as MEDIA_LICENSE), or null for anything else.
+const playerErrorCode = value => typeof value === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(value) ? value : null;
+
 // Both hosts use a private parent-owned channel; neither opens a network listener.
 // `onRunningChanged(running)` hears when a companion starts and when it goes (closed, exited or lost): the source's
 // main entry holds the app's quit only while one runs.
@@ -19,6 +22,24 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
     // The player's state code last seen in a status answer: a change is logged once (single loop
     // goes round, or ends, by these codes), never every half-second answer.
     let lastPlayerState = null;
+    // When MusicKit last reported an error, as the page stamped it: each one is logged once.
+    let lastPlayerErrorAt = null;
+
+    // Why MusicKit gave a track up, once per occurrence: a failed start (the page keeps answering
+    // with it until the next start) or an error the player reported while a song went on.
+    function logPlayerError(result) {
+        const code = playerErrorCode(result.ok ? result.data?.playerError : result.playerError);
+        if (!result.ok) {
+            if (result.error !== 'playback-failed' || lastPlayerState === 'failed') return;
+            lastPlayerState = 'failed';
+            console.warn('[AppleMusic] start failed', { stage: result.playbackStage ?? null, playerError: code });
+            return;
+        }
+        const at = result.data?.playerErrorAt;
+        if (!code || !Number.isFinite(at) || at === lastPlayerErrorAt) return;
+        lastPlayerErrorAt = at;
+        console.warn('[AppleMusic] player error', { playerError: code });
+    }
 
     // A lost child invalidates every outstanding request without exposing raw process errors.
     function failPending(error) {
@@ -92,6 +113,8 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             // Login is the only visible surface; development follows the same background behavior.
             if (operation === 'hideWindow' && !child?.connected) return { ok: true, data: {} };
             if (pending.size >= 16) return { ok: false, error: 'busy' };
+            // A new start: a failure of it is its own, logged even when the one before failed too.
+            if (lastPlayerState === 'failed' && ['playSong', 'playStation', 'resume'].includes(operation)) lastPlayerState = null;
             const deadline = Date.now() + timeoutMs;
             let result = { ok: false, error: 'runtime-unavailable' };
             for (let attempt = 1; attempt <= 200; attempt++) {
@@ -113,6 +136,7 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
                         const { state, repeatMode, positionMs, durationMs, isPlaying } = result.data;
                         console.info('[AppleMusic] player state', { state, repeatMode, positionMs, durationMs, isPlaying });
                     }
+                    if (operation === 'playbackStatus') logPlayerError(result);
                     const elapsedMs = Date.now() - (deadline - timeoutMs);
                     if (elapsedMs >= 1000) console.info('[AppleMusic] Companion request settled', { operation, elapsedMs, attempts: attempt, ok: result.ok });
                     return result;
