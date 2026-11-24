@@ -4701,6 +4701,33 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_8_0": {
+      "intro": "Welcome to 0.8.0, the Severance Update—a major update. Every music source is now a mod you can switch on and off, and there is a mod market, Folia playlists that mix songs from any source, Moments for writing notes on songs, and a stem mixer.",
+      "sourceMods": {
+        "title": "Music sources are mods now",
+        "description": "All ten built-in sources are now source mods: turn each on or off, see its storage and clear its data in Settings → Sources. On first launch Folia asks which platforms you use. The new LX Music source lets you import a custom source script."
+      },
+      "modMarket": {
+        "title": "Mod market",
+        "description": "Browse, install, update and uninstall mods in the Mods window. The mod system is on by default; third-party community mods need their switch turned on in the Mods page first."
+      },
+      "foliaPlaylists": {
+        "title": "Folia playlists",
+        "description": "One playlist can hold songs from different sources. Save a platform playlist or album as a Folia playlist, update it from the original later, and export or import it. Your old local playlists have moved in, and home tabs now come in two levels."
+      },
+      "moments": {
+        "title": "Moments",
+        "description": "The scratchpad has a fourth page, Moments: tag songs, write comments and leave marks on the timeline, which show up on the progress bar. Comments can be exported and imported."
+      },
+      "stemMixer": {
+        "title": "Stem mixer",
+        "description": "Audio effects has a new stem mixer: your GPU splits the song live into drums, bass, other and vocals, each with its own level, with one-tap karaoke and vocals-only presets."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "The progress bar marks where the chorus starts. The main window can be zoomed as a whole. With a full ffmpeg installed you can export video with a transparent background. Search results load more as you scroll to the end."
+      }
+    },
     "v0_7_29": {
       "intro": "Welcome to 0.7.29, the Feynman Update—a major update. Personal FM gets its own radio wall, there is a new lyric style called Metaphor, and a performance check tells you how much visual quality this computer can handle.",
       "radioWall": {

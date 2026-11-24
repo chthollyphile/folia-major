@@ -4701,6 +4701,33 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_8_0": {
+      "intro": "Selamat datang di 0.8.0, Severance Update—sebuah pembaruan besar. Setiap sumber musik kini adalah mod yang bisa dinyalakan dan dimatikan, dan ada pasar mod, playlist Folia yang mencampur lagu dari sumber mana pun, Momen untuk menulis catatan pada lagu, serta mixer stem.",
+      "sourceMods": {
+        "title": "Sumber musik kini berupa mod",
+        "description": "Kesepuluh sumber bawaan kini menjadi mod sumber: nyalakan atau matikan satu per satu, lihat penyimpanannya, dan hapus datanya di Pengaturan → Sumber. Saat pertama dibuka, Folia menanyakan platform yang kamu pakai. Sumber baru LX Music bisa mengimpor skrip sumber kustom."
+      },
+      "modMarket": {
+        "title": "Pasar mod",
+        "description": "Jelajahi, pasang, perbarui, dan copot mod di jendela Mod. Sistem mod aktif secara default; mod komunitas pihak ketiga perlu dinyalakan dulu sakelarnya di halaman Mod."
+      },
+      "foliaPlaylists": {
+        "title": "Playlist Folia",
+        "description": "Satu playlist bisa berisi lagu dari sumber yang berbeda. Simpan playlist atau album platform sebagai playlist Folia, perbarui dari aslinya nanti, dan ekspor atau impor. Playlist lokal lamamu sudah dipindahkan ke sini, dan tab beranda kini punya dua tingkat."
+      },
+      "moments": {
+        "title": "Momen",
+        "description": "Buku catatan punya halaman keempat, Momen: beri tag pada lagu, tulis komentar, dan tinggalkan tanda di linimasa yang muncul di bilah progres. Komentar bisa diekspor dan diimpor."
+      },
+      "stemMixer": {
+        "title": "Mixer stem",
+        "description": "Efek audio punya mixer stem baru: GPU memisahkan lagu secara langsung menjadi drum, bas, lainnya, dan vokal, masing-masing dengan levelnya sendiri, plus preset karaoke dan hanya vokal sekali ketuk."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Bilah progres menandai awal reff. Jendela utama bisa diperbesar secara keseluruhan. Dengan ffmpeg lengkap terpasang, kamu bisa mengekspor video berlatar transparan. Hasil pencarian memuat lebih banyak saat digulir sampai bawah."
+      }
+    },
     "v0_7_29": {
       "intro": "Selamat datang di 0.7.29, Feynman Update—sebuah pembaruan besar. FM Pribadi kini punya dinding radio sendiri, ada gaya lirik baru bernama Metaphor, dan pemeriksaan performa memberi tahu seberapa tinggi kualitas visual yang sanggup dijalankan komputer ini.",
       "radioWall": {

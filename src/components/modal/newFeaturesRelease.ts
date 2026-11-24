@@ -1,4 +1,4 @@
-import { Atom, Gauge, Radio, Shuffle, Sparkles } from 'lucide-react';
+import { ListMusic, MessageSquareText, Puzzle, SlidersVertical, Sparkles, Store } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // src/components/modal/newFeaturesRelease.ts
@@ -18,13 +18,14 @@ type NewFeaturesRelease = {
 
 // Defines the current release's cards; their localized text lives under i18nKey in every locale.
 export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
-    i18nKey: 'releaseNotes.v0_7_29',
-    majorUpdate: { codename: 'Feynman' },
+    i18nKey: 'releaseNotes.v0_8_0',
+    majorUpdate: { codename: 'Severance' },
     features: [
-        { id: 'radioWall', icon: Radio },
-        { id: 'metaphor', icon: Atom },
-        { id: 'perfCheck', icon: Gauge },
-        { id: 'shuffleSearch', icon: Shuffle },
+        { id: 'sourceMods', icon: Puzzle },
+        { id: 'modMarket', icon: Store },
+        { id: 'foliaPlaylists', icon: ListMusic },
+        { id: 'moments', icon: MessageSquareText },
+        { id: 'stemMixer', icon: SlidersVertical },
         { id: 'moreDetails', icon: Sparkles },
     ],
 };

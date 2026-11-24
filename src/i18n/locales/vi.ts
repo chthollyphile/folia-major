@@ -4701,6 +4701,33 @@ export default {
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
       }
     },
+    "v0_8_0": {
+      "intro": "Chào mừng bạn đến với 0.8.0, Severance Update—một bản cập nhật lớn. Mọi nguồn nhạc giờ đều là mod có thể bật tắt, cùng với kho mod, danh sách phát Folia trộn bài từ mọi nguồn, Khoảnh khắc để ghi chú cho bài hát, và bộ trộn stem.",
+      "sourceMods": {
+        "title": "Nguồn nhạc giờ là mod",
+        "description": "Cả mười nguồn tích hợp giờ là mod nguồn: bật hoặc tắt từng nguồn, xem dung lượng và xóa dữ liệu trong Cài đặt → Nguồn. Lần mở đầu tiên, Folia sẽ hỏi bạn dùng những nền tảng nào. Nguồn mới LX Music cho phép nhập tập lệnh nguồn tùy chỉnh."
+      },
+      "modMarket": {
+        "title": "Kho mod",
+        "description": "Duyệt, cài, cập nhật và gỡ mod trong cửa sổ Mod. Hệ thống mod được bật sẵn; mod cộng đồng của bên thứ ba cần bật công tắc trong trang Mod trước."
+      },
+      "foliaPlaylists": {
+        "title": "Danh sách phát Folia",
+        "description": "Một danh sách phát có thể chứa bài từ nhiều nguồn khác nhau. Lưu danh sách phát hoặc album của nền tảng thành danh sách phát Folia, sau này cập nhật từ bản gốc, và xuất hoặc nhập được. Các danh sách phát cục bộ cũ đã được chuyển vào đây, và các thẻ trang chủ giờ có hai cấp."
+      },
+      "moments": {
+        "title": "Khoảnh khắc",
+        "description": "Sổ ghi nhanh có thêm trang thứ tư, Khoảnh khắc: gắn thẻ cho bài, viết bình luận và để lại dấu trên dòng thời gian, hiện ngay trên thanh tiến trình. Bình luận có thể xuất và nhập."
+      },
+      "stemMixer": {
+        "title": "Bộ trộn stem",
+        "description": "Hiệu ứng âm thanh có bộ trộn stem mới: GPU tách bài hát theo thời gian thực thành trống, bass, khác và giọng hát, mỗi kênh chỉnh mức riêng, kèm cài đặt nhanh karaoke và chỉ giọng hát."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Thanh tiến trình đánh dấu chỗ bắt đầu điệp khúc. Cửa sổ chính có thể phóng to toàn bộ. Khi đã cài ffmpeg bản đầy đủ, bạn có thể xuất video nền trong suốt. Kết quả tìm kiếm tự tải thêm khi cuộn đến cuối."
+      }
+    },
     "v0_7_29": {
       "intro": "Chào mừng bạn đến với 0.7.29, Feynman Update—một bản cập nhật lớn. FM cá nhân có tường radio riêng, có kiểu lời bài hát mới tên Metaphor, và tính năng kiểm tra hiệu năng cho biết máy tính này chạy được chất lượng hình ảnh đến mức nào.",
       "radioWall": {
