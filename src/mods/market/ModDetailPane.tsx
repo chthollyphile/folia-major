@@ -11,7 +11,7 @@ import type { ModNotice } from '../manager/ModStorageUsage';
 import { SignatureBadge } from '../manager/ModSignatureMarks';
 import { translateModError } from '../manager/modErrors';
 import { useModMarketStore } from './useModMarketStore';
-import type { ModViewItem } from './marketModel';
+import { isModOn, type ModViewItem } from './marketModel';
 import { canUninstall, primaryActionOf } from './modActions';
 import { modFeedbackOf } from './modFeedback';
 import { ModIcon, Mark } from './ModListEntry';
@@ -118,8 +118,10 @@ export const ModDetailPane: React.FC<ModDetailPaneProps> = ({ item, narrow, cost
     const owners = market?.owners ?? awesome?.owners ?? [];
     const authorText = mod?.author ?? market?.author ?? null;
 
+    // A source mod is on only when its sources are not all off in Settings → Sources too (isModOn).
+    const modOn = mod ? isModOn(mod) : false;
     const menuItems: MenuItem[] = [
-        ...(mod ? [{ id: 'toggle', label: mod.enabled ? t('mods.view.disable') : t('mods.view.enable'), onSelect: () => ops.toggle(mod.id, !mod.enabled) }] : []),
+        ...(mod ? [{ id: 'toggle', label: modOn ? t('mods.view.disable') : t('mods.view.enable'), onSelect: () => ops.toggle(mod.id, !modOn) }] : []),
         ...(mod?.rangeOverridden ? [{ id: 'revoke', label: t('mods.view.revokeForced'), onSelect: () => ops.revokeRange(mod.id) }] : []),
         ...(feedback.url ? [{ id: 'feedback', label: t('mods.view.reportIssue'), icon: Bug, onSelect: () => { void openOutsideLink(feedback.url as string); } }] : []),
         { id: 'directory', label: t('mods.openDirectory'), onSelect: () => ops.openDirectory() },
@@ -136,8 +138,8 @@ export const ModDetailPane: React.FC<ModDetailPaneProps> = ({ item, narrow, cost
             case 'needsFolia': return <Button disabled onClick={() => {}}>{t('mods.view.needsFolia')}</Button>;
             case 'needsCommunity': return <Button onClick={() => ops.enableCommunity(item.installed ? undefined : item.id)}>{t('mods.view.enableCommunity')}</Button>;
             case 'toggle': return mod ? (
-                <Button variant={mod.enabled ? undefined : 'primary'} onClick={() => ops.toggle(mod.id, !mod.enabled)}>
-                    {mod.enabled ? t('mods.view.disable') : t('mods.view.enable')}
+                <Button variant={modOn ? undefined : 'primary'} onClick={() => ops.toggle(mod.id, !modOn)}>
+                    {modOn ? t('mods.view.disable') : t('mods.view.enable')}
                 </Button>
             ) : null;
             default: return null;
@@ -184,7 +186,7 @@ export const ModDetailPane: React.FC<ModDetailPaneProps> = ({ item, narrow, cost
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         {primary}
                         {action.kind === 'update' && mod ? (
-                            <Button onClick={() => ops.toggle(mod.id, !mod.enabled)}>{mod.enabled ? t('mods.view.disable') : t('mods.view.enable')}</Button>
+                            <Button onClick={() => ops.toggle(mod.id, !modOn)}>{modOn ? t('mods.view.disable') : t('mods.view.enable')}</Button>
                         ) : null}
                         {canUninstall(item) && mod ? <Button variant="quiet" onClick={() => ops.uninstall(mod.id)}>{t('mods.view.uninstall')}</Button> : null}
                         {item.kind === 'mod' ? (

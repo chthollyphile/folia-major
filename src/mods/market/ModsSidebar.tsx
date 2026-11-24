@@ -7,7 +7,7 @@ import { SettingsToggle } from '../../components/modal/settings/SettingsRow';
 import { openOutsideLink } from '../../utils/system/outsideLink';
 import type { ModMarketCategory, ModMarketProgress } from '../types';
 import type { ModManagerClasses } from '../manager/modManagerClasses';
-import type { ModViewItem, ModsSection, ModsSort } from './marketModel';
+import { isModOn, type ModViewItem, type ModsSection, type ModsSort } from './marketModel';
 import { MODS_QUERY_FILTERS, toggleModsQueryToken } from './modsQuery';
 import { primaryActionOf } from './modActions';
 import { ModListEntry } from './ModListEntry';
@@ -42,11 +42,11 @@ const EntryAction: React.FC<{ item: ModViewItem; progress: ModMarketProgress | n
         case 'needsCommunity': return <button type="button" className={PILL_FILL} title={t('mods.view.enableCommunity')} onClick={() => ops.enableCommunity(item.installed ? undefined : item.id)}>{t('mods.view.communityShort')}</button>;
         case 'toggle': return item.installed ? (
             <SettingsToggle
-                checked={item.installed.enabled}
-                onChange={() => ops.toggle(item.id, !item.installed?.enabled)}
+                checked={isModOn(item.installed)}
+                onChange={() => ops.toggle(item.id, !(item.installed && isModOn(item.installed)))}
                 offClass={classes.toggleOff}
                 onColor={theme.secondaryColor}
-                ariaLabel={item.installed.enabled ? t('mods.enabled') : t('mods.disabled')}
+                ariaLabel={isModOn(item.installed) ? t('mods.enabled') : t('mods.disabled')}
             />
         ) : null;
         default: return null;

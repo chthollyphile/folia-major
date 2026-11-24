@@ -32,6 +32,12 @@ export type ModViewItem = {
     searchText: string;
 };
 
+/**
+ * Whether the mod runs as far as its switches go: its own switch, and for a source mod not every one of its sources
+ * switched off in Settings → Sources. The mods window shows this, so the two places agree (modSwitch.ts).
+ */
+export const isModOn = (mod: ModRuntimeInfo): boolean => mod.enabled && !mod.sourcesOff;
+
 export type ModsSort = 'updated' | 'name';
 
 export type ModsSection = {
@@ -160,8 +166,8 @@ export const matchesModsQuery = (item: ModViewItem, query: ModsQuery): boolean =
         switch (filter) {
             case 'installed': if (!item.installed) return false; break;
             case 'updates': if (!item.hasUpdate) return false; break;
-            case 'enabled': if (!item.installed?.enabled) return false; break;
-            case 'disabled': if (!item.installed || item.installed.enabled) return false; break;
+            case 'enabled': if (!item.installed || !isModOn(item.installed)) return false; break;
+            case 'disabled': if (!item.installed || isModOn(item.installed)) return false; break;
             case 'builtin': if (!item.builtin) return false; break;
             case 'source': if (!item.source) return false; break;
             case 'beta': if (!item.beta) return false; break;

@@ -6,6 +6,7 @@ import { SettingsToggle } from '../../components/modal/settings/SettingsRow';
 import { omni } from '@/services/onlineMusic/omni';
 import { openSettings } from '@/stores/useSettingsModalStore';
 import type { ModMarketEntry, ModRuntimeInfo } from '../types';
+import { isModOn } from './marketModel';
 import { ModSurfaceRenderer } from '../manager/ModSurfaceRenderer';
 import { setFoliumFaultNoticeMuted, useFoliumStatusStore } from '../runtime/status';
 import { ModCostLines } from '../manager/ModCostLines';
@@ -36,7 +37,7 @@ export const ModSettingsSection: React.FC<{ mod: ModRuntimeInfo; theme: Theme; i
     if (mod.status === 'loaded') return <ModSurfaceRenderer modId={mod.id} theme={theme} isDaylight={isDaylight} />;
     return (
         <Line>
-            {mod.status === 'skipped' ? t('mods.skippedThisRun') : mod.enabled ? t('mods.notLoaded') : t('mods.modDisabledHint')}
+            {mod.status === 'skipped' ? t('mods.skippedThisRun') : isModOn(mod) ? t('mods.notLoaded') : t('mods.modDisabledHint')}
         </Line>
     );
 };
