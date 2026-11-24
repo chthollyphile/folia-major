@@ -124,7 +124,56 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 pendingStart.cancelled = true;
                 pendingStart.failed = true;
             }
-            if (window.__foliaStart?.failed) return { ok: false, error: 'playback-failed', playbackStage: 'play' };
+            const start = window.__foliaStart;
+            // Sounding is playing on two answers in a row with the position moving, as the Windows
+            // visibility pin counts it (nativeSpawn.cjs): MusicKit says "playing" for a moment before it
+            // loads, and that moment is not the song sounding.
+            let sounding = false;
+            if (start) {
+                const at = Number(mk.currentPlaybackTime);
+                if (mk.isPlaying === true && Number.isFinite(at)) {
+                    sounding = typeof start.heardAt === 'number' && at > start.heardAt;
+                    start.heardAt = at;
+                } else {
+                    start.heardAt = null;
+                }
+            }
+            // A failure read from MusicKit's event or from a stopped player is a guess about what it does
+            // next; one that sounds after all has not failed (a rejected or hung play() stays failed).
+            if (start?.failed && start.recoverable && !start.cancelled && sounding) {
+                start.failed = false;
+                start.recoverable = false;
+                start.pending = false;
+            }
+            if (start && !start.failed && !start.cancelled && !start.played) {
+                // Loaded means this start's own track, not one the player still holds from the song before.
+                const loadedItem = mk.nowPlayingItem;
+                if (start.song && (loadedItem?.attributes?.playParams?.catalogId || loadedItem?.id) === start.song) start.loaded = true;
+                if (sounding) start.played = true;
+                // A start MusicKit gave up without an error event: the track was loaded, then the player
+                // stopped and dropped it (seen on Windows, #1336), or play() settled with nothing loaded.
+                // Either stays that way; waiting on it only shows a song that never sounds as paused. A
+                // stopped player that has not loaded the track yet may still be switching from the last one.
+                else if (start.song && !mk.nowPlayingItem && Date.now() - start.startedAt >= 2000
+                    && ((Number(mk.playbackState) === 4 && (start.loaded || !start.pending))
+                        || (Number(mk.playbackState) === 0 && !start.pending))) {
+                    start.failed = true;
+                    start.recoverable = true;
+                    start.failedAt = Date.now();
+                    start.pending = false;
+                    start.errorCode ||= Number(mk.playbackState) === 4 ? 'stopped' : 'nothing-loaded';
+                }
+            }
+            // A guessed failure is held as a start for a few seconds before it is said: saying it releases
+            // the Windows visibility pin (a hidden page that never played cannot load the retry) and shows
+            // the listener a failure, both wrong for a player that recovers on its own.
+            const holding = start?.failed === true && start.recoverable === true
+                && Date.now() - (start.failedAt || 0) < 3000;
+            if (window.__foliaStart?.failed && !holding) {
+                return { ok: false, error: 'playback-failed', playbackStage: 'play',
+                    ...(window.__foliaStart.errorCode ? { playerError: window.__foliaStart.errorCode } : {}) };
+            }
+            const playerError = window.__foliaPlayerError;
             const item = mk.nowPlayingItem;
             const params = item?.attributes?.playParams || {};
             const liveStation = typeof window.__foliaLiveStation === 'string' ? window.__foliaLiveStation : '';
@@ -141,7 +190,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 ...(liveStation ? { live: true } : {}),
                 catalogId: liveStation || (typeof params.catalogId === 'string' ? params.catalogId : ''),
                 isPlaying: mk.isPlaying === true,
-                ...(window.__foliaStart?.pending && !window.__foliaStart.cancelled ? { starting: true } : {}),
+                ...((window.__foliaStart?.pending && !window.__foliaStart.cancelled) || holding ? { starting: true } : {}),
                 // MusicKit's own state tells "stopped" and "ended" apart from a pause.
                 state: Number.isInteger(state) ? state : null,
                 repeatMode: Number.isInteger(mk.repeatMode) ? mk.repeatMode : null,
@@ -149,6 +198,8 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 queueKeys: queue ? Object.keys(queue).slice(0, 12) : null,
                 positionMs: Number.isFinite(position) && position >= 0 ? Math.round(position * 1000) : 0,
                 durationMs: !liveStation && Number.isFinite(duration) && duration >= 0 ? duration : 0,
+                // The last error MusicKit reported in this page (its code only), for the log.
+                ...(playerError ? { playerError: playerError.code, playerErrorAt: playerError.at } : {}),
             } };
         }
         if (request.operation === 'playStation') {
@@ -196,6 +247,8 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         if (request.operation === 'playSong') {
             if (typeof mk.setQueue !== 'function' || typeof mk.play !== 'function') return { ok: false, error: 'unsupported' };
             window.__foliaStart = null;
+            // An error of the song before is not this one's: the log must not read it as the new song's.
+            window.__foliaPlayerError = null;
             let playbackStage = 'prepared-queue';
             try {
                 const reused = await controlQueue(mk, request.operation, request.params);
@@ -211,7 +264,32 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 await mk.setQueue({ song: request.params.catalogId, startPlaying: false, startTime: request.params.startSec });
                 playbackStage = 'play';
                 console.info('[AppleMusic] Playback stage: play');
-                const attempt = { failed: false, cancelled: false, sought: false, pending: true, startedAt: Date.now() };
+                // MusicKit says why it gave a track up (licence, region, restriction, …) only as an event,
+                // and play() may still resolve. Listen once per player: the code fails a start that has not
+                // sounded yet (as playbackStatus counts sounding), and is kept for the status either way
+                // (a code, never Apple's words).
+                if (window.__foliaErrorHook !== mk && typeof mk.addEventListener === 'function') {
+                    window.__foliaErrorHook = mk;
+                    const events = window.MusicKit?.Events || {};
+                    mk.addEventListener(events.mediaPlaybackError || 'mediaPlaybackError', event => {
+                        const raw = [event?.errorCode, event?.error?.errorCode, event?.name, event?.error?.name]
+                            .find(value => typeof value === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(value));
+                        const code = raw || 'unknown';
+                        window.__foliaPlayerError = { code, at: Date.now() };
+                        const current = window.__foliaStart;
+                        // A rejected play() may have failed the start already; the code still says why.
+                        if (current && !current.cancelled && !current.played) {
+                            if (!current.failed) {
+                                current.failed = true;
+                                current.recoverable = true;
+                                current.failedAt = Date.now();
+                            }
+                            current.errorCode ||= code;
+                        }
+                    });
+                }
+                const attempt = { failed: false, recoverable: false, cancelled: false, sought: false, pending: true, startedAt: Date.now(),
+                    song: request.params.catalogId, played: false, loaded: false, errorCode: '' };
                 window.__foliaStart = attempt;
                 // Buffering may take longer than the IPC budget. Observe completion without holding the control queue.
                 Promise.resolve(mk.play()).then(async () => {
@@ -220,7 +298,10 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                     if (!attempt.sought && request.params.startSec > 0 && typeof mk.seekToTime === 'function'
                         && !(Number(mk.currentPlaybackTime) >= request.params.startSec - 1)) await mk.seekToTime(request.params.startSec);
                 }).catch(() => {
-                    if (window.__foliaStart === attempt && !attempt.cancelled) attempt.failed = true;
+                    if (window.__foliaStart === attempt && !attempt.cancelled) {
+                        attempt.failed = true;
+                        attempt.recoverable = false;
+                    }
                 }).finally(() => { attempt.pending = false; });
             } catch {
                 console.warn('[AppleMusic] Playback command rejected', { operation: request.operation });

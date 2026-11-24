@@ -33,6 +33,14 @@ describe('Apple Music transport', () => {
         await expect(requestAppleMusic('playSong')).rejects.toMatchObject({ message: 'Apple Music companion request failed' });
     });
 
+    it('names the player code of a failed start, and only a bounded one', async () => {
+        const request = vi.fn(async (): Promise<unknown> => ({ ok: false, error: 'playback-failed', playbackStage: 'play', playerError: 'MEDIA_LICENSE' }));
+        off = stubAppleMusicBridge(request);
+        await expect(requestAppleMusic('playbackStatus')).rejects.toMatchObject({ code: 'not-playable', message: 'Apple Music companion request failed (stage: play, player: MEDIA_LICENSE)' });
+        request.mockResolvedValueOnce({ ok: false, error: 'playback-failed', playbackStage: 'play', playerError: 'see https://example.invalid' });
+        await expect(requestAppleMusic('playbackStatus')).rejects.toMatchObject({ message: 'Apple Music companion request failed (stage: play)' });
+    });
+
     it('reports a main entry that does not answer as a failed request', async () => {
         await expect(requestAppleMusic('accountStatus')).rejects.toMatchObject({ code: 'network' });
     });
