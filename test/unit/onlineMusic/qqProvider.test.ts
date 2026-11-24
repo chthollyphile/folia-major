@@ -1523,13 +1523,52 @@ describe('qqProvider', () => {
         });
     });
 
+    it('reads a public playlist page from musicu when the legacy detail returns subcode 4000', async () => {
+        const id = 8322594955;
+        requestMock.mockResolvedValue({ response: { code: 0, subcode: 4000 } });
+        const data = { code: 0, subcode: 0, dirinfo: { id }, total_song_num: 609, songlist: [SEARCH_ITEM] };
+        musicuMock
+            .mockResolvedValueOnce({ playlist: { code: 0, data: { ...data, hasmore: 1 } } })
+            .mockResolvedValueOnce({ playlist: { code: 0, data: { ...data, hasmore: 0 } } });
+
+        await expect(qqProvider.catalog!.getPlaylistTracks!(id, 1, 3)).resolves.toMatchObject({
+            items: [expect.objectContaining({ qqMid: '003rJSwm3TechU' })], nextOffset: 4, hasMore: true, total: 609,
+        });
+        expect(musicuMock).toHaveBeenCalledWith({ playlist: {
+            module: 'music.srfDissInfo.aiDissInfo', method: 'uniform_get_Dissinfo',
+            param: expect.objectContaining({ disstid: id, song_begin: 3, song_num: 1 }),
+        } });
+        await expect(qqProvider.catalog!.getPlaylistTracks!(id, 1, 608)).resolves.toMatchObject({
+            nextOffset: 609, hasMore: false, total: 609,
+        });
+    });
+
+    it('keeps an unreadable musicu playlist page distinct from an empty page', async () => {
+        requestMock.mockResolvedValue({ response: { code: 0, subcode: 4000 } });
+        for (const playlist of [
+            { code: 10006 },
+            { code: 0, data: { code: 0, subcode: 4000, dirinfo: { id: 7 }, songlist: [] } },
+            { code: 0, data: { code: 0, subcode: 0, dirinfo: { id: 8 }, songlist: [] } },
+            { code: 0, data: { code: 0, subcode: 0, dirinfo: { id: 7 } } },
+        ]) {
+            musicuMock.mockResolvedValueOnce({ playlist });
+            await expect(qqProvider.catalog!.getPlaylistTracks!(7, 50, 0)).rejects.toMatchObject({ code: 'invalid-response' });
+        }
+        musicuMock.mockResolvedValueOnce({ playlist: {
+            code: 0, data: { code: 0, subcode: 0, dirinfo: { id: 7 }, songlist: [], total_song_num: 9, hasmore: 1 },
+        } });
+        await expect(qqProvider.catalog!.getPlaylistTracks!(7, 50, 9)).resolves.toMatchObject({
+            items: [], nextOffset: 9, hasMore: false,
+        });
+    });
+
     // 🔴 旧后端 + 不公开的自建歌单，也就是这个 bug 被报上来时的处境：没有带凭据的路由可用，
     // 匿名 CGI 回 `code: 0` 加一个空壳，按长度判断完全看不出问题。空壳是 2026-09-11 用真实账号抓的：
     // `disstid` 照样回声，缺的是 `dissname`。
-    it('fails loudly on the stub a non-public playlist answers with', async () => {
+    it.each([undefined, 4000])('keeps a non-public playlist private on a stub with subcode %s', async subcode => {
         requestMock
             .mockRejectedValueOnce(new OnlineProviderError('unsupported', 'QQMusicApi has no route', 'qq'))
-            .mockResolvedValue({ response: { code: 0, cdlist: [{ disstid: '9777066643', songlist: [] }] } });
+            .mockResolvedValue({ response: { code: 0, subcode, cdlist: [{ disstid: '9777066643', songlist: [] }] } });
         const collection = normalizeQqCollection({ tid: 9777066643, dirId: 1, dirName: '新建歌单1', songNum: 3, dirShow: 2 });
 
         // `not-public` 而不是 `invalid-response`：协议没坏，是这条路由没资格读它。
@@ -1537,6 +1576,7 @@ describe('qqProvider', () => {
             code: 'not-public',
             message: expect.stringContaining('not a public playlist'),
         });
+        expect(musicuMock).not.toHaveBeenCalled();
     });
 
     it('still reports a genuinely empty playlist as an empty page', async () => {
