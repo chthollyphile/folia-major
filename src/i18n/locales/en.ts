@@ -1484,6 +1484,8 @@ export default {
     "generateAITheme": "Generate AI Theme",
     "libraryConfig": "Library & Config",
     "synced": "Synced",
+    "syncing": "Syncing…",
+    "reset": "Reset",
     "source": "Source",
     "lyricsMatchSearch": "Lyrics Match / Search",
     "songIdOrName": "Song ID or Name",

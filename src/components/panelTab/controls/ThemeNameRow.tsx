@@ -82,7 +82,7 @@ const ThemeNameRow: React.FC<ThemeNameRowProps> = ({
                             size="s"
                             filled
                             label={themeSyncState === 'syncing'
-                                ? t('options.syncing')
+                                ? t('ui.syncing')
                                 : themeSyncState === 'complete'
                                     ? t('ui.synced')
                                     : t('commandPalette.commands.sync-now.title')}

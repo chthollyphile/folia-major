@@ -1484,6 +1484,8 @@ export default {
     "generateAITheme": "Buat Tema AI",
     "libraryConfig": "Perpustakaan & Konfigurasi",
     "synced": "Tersinkronisasi",
+    "syncing": "Menyinkronkan…",
+    "reset": "Atur ulang",
     "source": "Sumber",
     "lyricsMatchSearch": "Cocokkan / Cari Lirik",
     "songIdOrName": "ID Lagu atau Nama",

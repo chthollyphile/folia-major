@@ -1484,6 +1484,8 @@ export default {
     "generateAITheme": "Tạo chủ đề AI",
     "libraryConfig": "Thư viện & Cấu hình",
     "synced": "Đã đồng bộ",
+    "syncing": "Đang đồng bộ…",
+    "reset": "Đặt lại",
     "source": "Nguồn",
     "lyricsMatchSearch": "Khớp / Tìm kiếm lời",
     "songIdOrName": "ID hoặc tên bài hát",

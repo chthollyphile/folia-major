@@ -1484,6 +1484,8 @@ export default {
     "generateAITheme": "生成AI主题",
     "libraryConfig": "配置",
     "synced": "已同步",
+    "syncing": "同步中…",
+    "reset": "重置",
     "source": "来源",
     "lyricsMatchSearch": "歌词匹配 / 搜索",
     "songIdOrName": "歌曲ID或名称",
