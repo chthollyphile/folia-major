@@ -309,7 +309,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                     isDaylight ? 'text-black/55' : 'text-white/50'
                                 }`}
                             >
-                                {shown.artist || t('ui.unknownArtist')}
+                                {shown.artist || t('player.unknownArtist')}
                             </div>
                         </motion.div>
                     </motion.button>

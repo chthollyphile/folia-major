@@ -31,8 +31,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => {
     const { t } = useTranslation();
 
-    const defaultConfirmLabel = t('status.confirm') !== 'status.confirm' ? t('status.confirm') : t('ui.confirm');
-    const defaultCancelLabel = t('status.cancel') !== 'status.cancel' ? t('status.cancel') : t('ui.cancel');
+    const defaultConfirmLabel = t('status.confirm');
+    const defaultCancelLabel = t('status.cancel');
     // Focus starts on the answer, so that Enter gives it; on the way out when the answer destroys something.
     const focusOnCancel = confirmVariant === 'danger';
 

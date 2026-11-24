@@ -15,7 +15,8 @@ import { translateModError } from '../manager/modErrors';
 import type { ModManagerClasses } from '../manager/modManagerClasses';
 import type { ModNotice } from '../manager/ModStorageUsage';
 import { useModMarketStore } from './useModMarketStore';
-import { buildModViewItems, isEmptyModsQuery, searchModViewItems, sectionModViewItems, type ModViewItem, type ModsSort } from './marketModel';
+import { switchModOn } from './modSwitch';
+import { buildModViewItems, isModOn, isEmptyModsQuery, searchModViewItems, sectionModViewItems, type ModViewItem, type ModsSort } from './marketModel';
 import { parseModsQuery } from './modsQuery';
 import { ModsSidebar } from './ModsSidebar';
 import { ModDetailPane } from './ModDetailPane';
@@ -175,8 +176,10 @@ export const ModsWorkbench: React.FC<ModsWorkbenchProps> = ({ classes, isDayligh
             uninstall: (modId) => {
                 void market().uninstall(modId).then((answer) => report(answer, 'uninstall-failed', t('mods.view.uninstalled', { id: modId })));
             },
-            toggle: (modId, enabled) => {
-                void toggleMod(modId, enabled).then((answer) => report(answer, 'enable-failed'));
+            toggle: (modId, on) => {
+                const mod = useModsStore.getState().mods.find((entry) => entry.id === modId);
+                if (!mod) return;
+                void switchModOn(mod, on, toggleMod).then((answer) => report(answer, 'enable-failed'));
             },
             tryLoad: (modIds) => {
                 void market().allowExpired(modIds).then((answer) => report(answer, 'range-override-failed'));
@@ -216,7 +219,10 @@ export const ModsWorkbench: React.FC<ModsWorkbenchProps> = ({ classes, isDayligh
 
     const applyBatch = async (enabled: boolean) => {
         for (const modId of checkedIds) {
-            const answer = await toggleMod(modId, enabled);
+            const mod = useModsStore.getState().mods.find((entry) => entry.id === modId);
+            // One already as asked is left alone: switching a source mod's sources would lose how each was set.
+            if (!mod || isModOn(mod) === enabled) continue;
+            const answer = await switchModOn(mod, enabled, toggleMod);
             report(answer, 'enable-failed');
         }
     };

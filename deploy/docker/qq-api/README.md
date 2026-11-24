@@ -233,6 +233,10 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 - 猜你喜欢电台的听歌模式目录 `/user/guess-you-like/modes` 与按模式取歌 `/user/guess-you-like/tracks`（只带 pool，不改账号的模式设置）。后端低于 3.3.6 时，猜你喜欢只有默认一种模式。
 - 后端低于 3.3.6 时，私人 FM 照旧读 `/user/guess-you-like`；每日推荐没有历史日期，点歌曲的不喜欢会提示失败，探索页没有首页 feed 那几栏，歌单里没有听歌排行，其他功能照旧。
 
+3.3.8 起：
+
+- 取播放地址时，上游明确说没给完整文件（104003）的歌，会换官方网页播放器的身份再要一次。想关掉可以设环境变量 `QQ_PLAYBACK_FALLBACK_ENABLED=0`。
+
 排查时先看容器日志：
 
 ```bash

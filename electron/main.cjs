@@ -7786,7 +7786,8 @@ ipcMain.handle('remote-control-toggle', (event) => {
 });
 
 ipcMain.handle('remote-control-close', (event) => {
-  if (!isTrustedRemoteControlContents(event.sender)) {
+  // The remote window closes itself; the main window closes it from Settings → Remote Control.
+  if (!isTrustedRemoteControlContents(event.sender) && !isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to close the remote control window.');
   }
 

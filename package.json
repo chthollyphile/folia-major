@@ -8,7 +8,7 @@
     "email": "chthollyphile@users.noreply.github.com"
   },
   "private": true,
-  "version": "0.7.29",
+  "version": "0.8.0",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "electron/main.cjs",
@@ -273,7 +273,7 @@
     "@google/genai": "^2.24.0",
     "@neteasecloudmusicapienhanced/api": "4.41.1",
     "@xhayper/discord-rpc": "^1.5.1",
-    "@yakult-green-tea/qq-music-api": "3.3.6",
+    "@yakult-green-tea/qq-music-api": "3.3.8",
     "axios": "^1.20.0",
     "bgutils-js": "4.0.3",
     "bodian-music-api": "0.1.2",
