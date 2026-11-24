@@ -129,8 +129,9 @@ describe('fromFoliumLines', () => {
         ]);
         expect(first).toMatchObject({ isChorus: true, chorusOrigin: 'source', translation: 'a' });
         expect(second).toMatchObject({ isChorus: true, chorusOrigin: 'text' });
-        // A chorus line no original line started with: not known to be the source's.
-        expect(added).not.toHaveProperty('chorusOrigin');
+        // A chorus line no original line started with: not known to be the source's, so recorded as guessed
+        // (a chorus line without an origin only ever comes from lyrics cached before origins were kept).
+        expect(added).toMatchObject({ isChorus: true, chorusOrigin: 'text' });
     });
 
     it('drops a word split that no longer joins back to the text', () => {

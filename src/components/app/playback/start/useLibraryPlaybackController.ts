@@ -25,7 +25,7 @@ import {
     getPlaybackSourceRef,
 } from '../../../../utils/appPlaybackGuards';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from '../../../../utils/appNavidromeLyrics';
-import { migrateLyricDataRenderHints } from '../../../../utils/lyrics/renderHints';
+import { readCachedPlaybackLyrics } from '../../../../services/onlineMusic/cachedPlaybackLyrics';
 import { migrateMatchedLyricsCarrierRenderHints } from '../../../../utils/lyrics/storageMigration';
 import { autoMatchBestLyric } from '../../../../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../../../../utils/lyrics/lyricSources';
@@ -36,7 +36,6 @@ import { findNavidromeLyricFallback } from './navidromeLyricFallback';
 import { onlineMutationFailureText } from '../../../../services/onlineMusic/failure/onlineMutationFailure';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
-import { getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
 import { getProviderCacheKey } from '../../../../services/onlineMusic/providerStorage';
 import { getNavidromeConfig, navidromeApi } from '../../../../services/navidromeService';
 import { notifyPlaybackFailed, untransformedLyrics } from '../../../../services/hostExtensionHooks';
@@ -385,7 +384,7 @@ export function useLibraryPlaybackController({
         onlineSong: SongResult,
         fallbackLyrics: LyricData | null = lyrics
     ): Promise<LyricData | null> => {
-        const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', onlineSong, migrateLyricDataRenderHints);
+        const cachedLyrics = await readCachedPlaybackLyrics(onlineSong);
         if (cachedLyrics) return cachedLyrics;
 
         const prefetched = getPrefetchedData(onlineSong, audioQuality);

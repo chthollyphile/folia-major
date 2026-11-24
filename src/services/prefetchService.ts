@@ -6,7 +6,7 @@
  */
 
 import { ReplayGainInfo, SongResult, LyricData, OnlineLyricsState, type LyricProviderSource } from '../types';
-import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
+import { readCachedPlaybackLyrics } from './onlineMusic/cachedPlaybackLyrics';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
@@ -18,7 +18,7 @@ import { nextTransitionSong, queueIndexOf } from '../utils/playbackNeighbors';
 import { omni } from './onlineMusic/omni';
 import { itemTraits, soundsInHost } from './onlineMusic/itemTraits';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
-import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMusic/resourceCache';
+import { hasCachedSongAudio } from './onlineMusic/resourceCache';
 import { toPlayableAudioUrl, toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { ensureTrackProfile, setAnalysisScope } from './automix/profileService';
@@ -374,7 +374,7 @@ const prefetchSong = async (
     if (!data.lyrics && itemTraits(song).lyrics !== 'none') {
         try {
             // Check IndexedDB cache first
-            const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
+            const cachedLyrics = await readCachedPlaybackLyrics(song);
             if (cachedLyrics) {
                 console.log(`[Prefetch] Lyrics in IndexedDB for: ${song.name}`);
                 data.lyrics = cachedLyrics;

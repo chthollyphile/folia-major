@@ -36,7 +36,24 @@ export const resolveProviderLyricsChorus = async (
 
     if (lyrics.lines.some(line => line.isChorus)) {
         console.log(`[ChorusResolver] provider=${options.providerId} song=${options.songId} using existing chorus markers`);
-        return { result: providerResult, mode: 'existing' };
+        // Marks that came without an origin (a Folia document, which may be one exported from guessed marks) are
+        // not vouched for: they count as guessed, as in the lyric setter. Every chorus line leaves here with an
+        // origin, so cached lyrics without one can only be ones saved before origins were kept (cachedLyrics.ts).
+        const unrecorded = lyrics.lines.some(line => line.isChorus && line.chorusOrigin === undefined);
+        return {
+            result: unrecorded
+                ? {
+                    ...providerResult,
+                    lyrics: {
+                        ...lyrics,
+                        lines: lyrics.lines.map(line => (
+                            line.isChorus && line.chorusOrigin === undefined ? { ...line, chorusOrigin: 'text' as const } : line
+                        )),
+                    },
+                }
+                : providerResult,
+            mode: 'existing',
+        };
     }
 
     let chorusRanges = providerResult.chorusRanges ?? [];
