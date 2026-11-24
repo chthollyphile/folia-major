@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '../../../src/types';
-import { canSaveQueueAsLocalPlaylist, moveQueueItem, moveQueueItemToNext } from '../../../src/utils/queueReorder';
+import { canSaveQueueAsPlaylist, moveQueueItem, moveQueueItemToNext } from '../../../src/utils/queueReorder';
 
 // test/unit/utils/queueReorder.test.ts
 // 队列单项移动（拖拽排序与 Electron 舞台 move 共用）、「下一首播放」的挪动与「能不能存成本地歌单」的判定。
@@ -68,16 +68,22 @@ describe('moveQueueItemToNext', () => {
     });
 });
 
-describe('canSaveQueueAsLocalPlaylist', () => {
-    it('needs a local current song and an all-local, non-empty queue', () => {
+describe('canSaveQueueAsPlaylist', () => {
+    it('needs a current song and a non-empty queue', () => {
         const queue = [localSong(1), localSong(2)];
-        expect(canSaveQueueAsLocalPlaylist(queue[0], queue)).toBe(true);
-        expect(canSaveQueueAsLocalPlaylist(queue[0], [])).toBe(false);
-        expect(canSaveQueueAsLocalPlaylist(null, queue)).toBe(false);
-        expect(canSaveQueueAsLocalPlaylist(onlineSong(9), queue)).toBe(false);
+        expect(canSaveQueueAsPlaylist(queue[0], queue)).toBe(true);
+        expect(canSaveQueueAsPlaylist(queue[0], [])).toBe(false);
+        expect(canSaveQueueAsPlaylist(null, queue)).toBe(false);
     });
 
-    it('refuses mixed-source queues', () => {
-        expect(canSaveQueueAsLocalPlaylist(localSong(1), [localSong(1), onlineSong(2)])).toBe(false);
+    it('takes a queue of any source, mixed ones too', () => {
+        expect(canSaveQueueAsPlaylist(onlineSong(9), [onlineSong(9), onlineSong(10)])).toBe(true);
+        expect(canSaveQueueAsPlaylist(localSong(1), [localSong(1), onlineSong(2)])).toBe(true);
+    });
+
+    it('refuses a queue of nothing but stage songs, which belong to no source', () => {
+        const stage = { ...onlineSong(3), isStage: true } as ReturnType<typeof onlineSong>;
+        expect(canSaveQueueAsPlaylist(stage, [stage])).toBe(false);
+        expect(canSaveQueueAsPlaylist(stage, [stage, localSong(1)])).toBe(true);
     });
 });

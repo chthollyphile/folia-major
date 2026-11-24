@@ -22,6 +22,11 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 ## 规则从哪来
 
 - **分层边界**（1xx、2xx）：规则在 [`rules.mjs`](rules.mjs)。代码地图 `docs/CODEMAP.md` 也读这份规则。
+  - Folium 2.0 的音源模组（`sources/<id>/`）三条：D130 不 import 宿主（`src/`、`electron/`、`shared/`），D131 宿主只有
+    `src/services/onlineMusic/web/*` 可以 import `sources/*/core`，D132 音源之间不互相 import。D130、D132 连 `import type` 也算
+    （规则带 `types: true`：它们管的是编译边界，`sources/` 只对着 `mods/folium.d.ts` 和 kit 编译），其余规则只看值导入。
+    D110（界面与状态层不直连平台）同时查 `src/services/onlineMusic/**` 的 Provider / Transport 和 `sources/**`，九家搬的过程中两边都在。
+    包名导入的 kit（`@folia/folium-source-kit`）经模块图的别名进图；`sources/` 里对 npm 包的导入不进图，由构建脚本按声明管（`dev/sources/README.md`）。
 - **目录归属存疑**（D190）的例外：用相对路径 `import.meta.glob` 收集同目录文件的注册表挪不了目录，登记在 [`rules.mjs`](rules.mjs) 的 `GLOB_PINNED_REGISTRIES`，指向它们的边不报 D190（现在只有 `tuningRegistry.ts`）。单测核对登记的文件还在用这种 glob。
 - **循环依赖**（D301）：只看模块加载时就会执行的导入。`import type`、只有动态 `import()` 的边不算。
 - **`@note` 注释被改动**（D506）：拿 diff 和比较基点比。AGENTS.md 规定，没有明确指令时不能删除、改写或翻译 `@note` 注释。保护范围是整条注释，包括 `@note` 那一行和紧跟在后面的注释续行。

@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { Check, ListEnd, ListMusic, ListStart, NotebookPen, Shuffle, Star, Trash2 } from 'lucide-react';
+import { Check, ListEnd, ListMusic, ListStart, NotebookPen, Shuffle, Star, Tag, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { collectToScratchpad, scratchpadGroupKey, useScratchpadStore } from '../../../stores/useScratchpadStore';
+import { collectToScratchpad, useScratchpadStore } from '../../../stores/useScratchpadStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
@@ -22,6 +22,9 @@ import { ScratchpadBandActions } from './ScratchpadSheet';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import type { CanvasEntry } from './ScratchpadCard';
 import { useQueueOrderDraft } from './useQueueOrderDraft';
+import { useSongNoteChipLines } from './useSongNoteChipLines';
+import { openBatchTagger } from './songNoteTagPopoverStore';
+import { openSongComments } from '../../song-notes/songNoteNavigation';
 import type { ScratchpadQueuePort } from './ScratchpadHost';
 import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 
@@ -81,6 +84,7 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
     const displayKey = displaySong ? getPlaybackSongKey(displaySong) : null;
     const playingKey = currentSong ? getPlaybackSongKey(currentSong) : null;
 
+    const noteLines = useSongNoteChipLines();
     const rows = useMemo<CanvasEntry[]>(() => {
         const ids = rowIdsOf(order);
         const currentIndex = displayKey === null ? -1 : order.findIndex(song => getPlaybackSongKey(song) === displayKey);
@@ -92,8 +96,9 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
             // 排在当前这首之前（已经放过）的灰掉（用户定，2026-11-05）：画布上，与面板里点开的那几格胶片。
             isDimmed: currentIndex >= 0 && index < currentIndex,
             position: index + 1,
+            noteLine: noteLines.get(getPlaybackSongKey(song)),
         }));
-    }, [displayKey, order, t]);
+    }, [displayKey, noteLines, order, t]);
     const focusIndex = useMemo(() => rows.findIndex(row => row.isCurrent), [rows]);
     // 面板里的胶片：已经放过的那几首默认收起（设计稿 A 按 F 适配），点开后接在正在播的那首上面。
     const [showPlayed, setShowPlayed] = useState(false);
@@ -174,8 +179,8 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
     const selectionActions = useCallback((selected: CanvasEntry[]): ScratchpadAction[] => {
         const { readOnly: locked, t: translate } = latest.current;
         const songs = selected.map(row => row.song);
-        const sameSource = new Set(songs.map(scratchpadGroupKey)).size === 1;
-        const canSave = sameSource && songs.every(canOpenPlaylistPickerFor);
+        // 选中的歌来源不同也行：收藏框的 Folia 栏收任何来源。
+        const canSave = songs.every(canOpenPlaylistPickerFor);
         const actions: ScratchpadAction[] = [];
         if (!locked) {
             actions.push(
@@ -188,11 +193,11 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
             {
                 id: 'save-to-playlist',
                 label: translate('scratchpad.addToPlaylist'),
-                title: sameSource ? undefined : translate('scratchpad.mixedSourcesHint'),
                 icon: Star,
                 run: () => openAddSongsToPlaylist(songs),
                 disabled: !canSave,
             },
+            { id: 'tag', label: translate('songNotes.batchTag'), icon: Tag, run: () => openBatchTagger(songs) },
         );
         if (!locked) {
             actions.push({ id: 'remove-from-queue', label: translate('scratchpad.removeFromQueue'), icon: Trash2, run: () => runBatch('remove', selected) });
@@ -208,6 +213,7 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
         if (next !== currentOrder) currentDraft.place(next);
     }, []);
     const hold = useCallback(() => latest.current.draft.hold(), []);
+    const commentOn = useCallback((row: CanvasEntry) => openSongComments(row.song), []);
     const resume = useCallback(() => latest.current.draft.resume(), []);
     const remove = useCallback((selected: CanvasEntry[]) => runBatch('remove', selected), [runBatch]);
     // 打乱：没提交的拖动草稿直接作废（打乱以后那个顺序也就没有意义了），交给 App 的打乱（正在播的那首留在最前）。
@@ -276,6 +282,8 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
                     onEscape={onCollapse}
                     spacing={FILM_SPACING}
                     focusKey={focusIndex >= 0 ? rows[focusIndex].key : undefined}
+                    onComment={commentOn}
+                    commentLabel={t('songNotes.openComments')}
                 />
             </>
         );

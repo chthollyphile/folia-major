@@ -32,7 +32,12 @@ import { bindFoliumStageRegistry } from './registries/stageRegistry';
 import { createFoliumLyricsService, createFoliumNetService, createFoliumPlaybackService, createFoliumUiService } from './services';
 import { createFoliumSecrets, declareFoliumSecretKeys } from './secrets';
 import { createFoliumThemeService } from './theme/service';
-import { FOLIUM_HOST_VERSION } from './shared';
+import { FOLIUM_HOST_VERSION, FOLIUM_ONE_VERSION } from './shared';
+import type { FoliumSourceDef, FoliumSourceHandle, FoliumSourcePageStore } from './sources/contract';
+import { createFoliumSourcesService } from './sources/service';
+import { createFoliumI18n } from './sources/i18n';
+import { foliumModTextNamespace } from './registries/sourceText';
+import i18n from '@/i18n/config';
 import { FOLIUM_EVENT_TYPES } from './eventTypes';
 import { addFoliumRpcListener, FOLIUM_RPC_NAME_PATTERN } from './rpcMessages';
 import { createFoliumAccountService } from './account';
@@ -178,6 +183,15 @@ export interface FoliumClientApiOptions {
      * id, so a mod that registers lazily after a reload cannot add to the new generation.
      */
     stopped: FoliumStoppedCheck;
+    /**
+     * Folium 2.0, main window: the sources registry (registries/sources.ts), loaded by the client loader for a
+     * `folium: 2` mod. `register` is bound to this activation; `capability` reads another source's custom capability.
+     */
+    sources?: {
+        register: (def: FoliumSourceDef) => FoliumSourceHandle;
+        capability: (sourceId: string, id: string) => unknown;
+        pageStore: (hostId: string) => FoliumSourcePageStore;
+    };
 }
 
 export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClientApiOptions): FoliumClientApi => {
@@ -281,10 +295,23 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         (name) => `experimental-not-declared:${name} (add it to "experimental" in mod.json)`,
     );
 
+    // Folium 2.0 (plan §9): a `folium: 1` mod reads 1.10 and gets nothing of Folium 2.
+    const foliumTwo = mod.folium === 2;
+    const version = foliumTwo ? FOLIUM_HOST_VERSION : FOLIUM_ONE_VERSION;
+    const omni = createFoliumOmniService(mod, context, stopped, onRelease);
+    const foliumTwoMembers = foliumTwo ? {
+        sources: createFoliumSourcesService(mod, {
+            context,
+            ...(options.sources ? { register: options.sources.register, pageStore: options.sources.pageStore } : {}),
+        }),
+        // A key of the mod's own locale files (the namespace the client loader fills, modLocales.ts) in the UI language now.
+        i18n: createFoliumI18n((key, params) => i18n.t(`${foliumModTextNamespace(mod.id)}:${key}`, { ...params, defaultValue: '' })),
+    } : {};
+
     return Object.freeze({
         modId,
         host: Object.freeze({
-            folium: Object.freeze({ major: FOLIUM_HOST_VERSION.major, minor: FOLIUM_HOST_VERSION.minor }),
+            folium: Object.freeze({ major: version.major, minor: version.minor }),
             folia: typeof __APP_VERSION__ === 'undefined' ? null : __APP_VERSION__,
         }),
         env: Object.freeze({ context }),
@@ -312,14 +339,20 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         // Folium 1.7: only this mod's own `secret` values, like storage only its own data file.
         secrets: createFoliumSecrets(modId, context, onRelease),
         rpc,
-        lyrics: createFoliumLyricsService(context),
+        lyrics: createFoliumLyricsService(context, foliumTwo),
         // Folium 1.10: the theme on screen and a mod's theme over it (theme/service.ts; the main window installs
         // the source, runtime/theme/hostTheme.ts). The font helpers are there in both contexts.
         theme: createFoliumThemeService(mod, context, stopped),
         account: createFoliumAccountService(context),
         // Folium 1.7: the host's online sources through Omni, read only (omni/service.ts; the main window
         // installs the source, runtime/omni/hostOmni.ts).
-        omni: createFoliumOmniService(mod, context, stopped, onRelease),
+        omni: foliumTwo
+            ? Object.freeze({
+                ...omni,
+                // Folium 2: another source's custom capability; null outside the main window, where there are none.
+                capability: (sourceId: string, id: string) => options.sources?.capability(sourceId, id) ?? null,
+            })
+            : omni,
         // Folium 1.7: the host's equalizer (equalizer/service.ts; the main window installs the source,
         // runtime/equalizer/hostEqualizer.ts).
         equalizer: createFoliumEqualizerService(mod, context, stopped),
@@ -329,5 +362,6 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         every: scope.every,
         onDispose: scope.onDispose,
         experimental,
-    });
+        ...foliumTwoMembers,
+    }) as FoliumClientApi;
 };

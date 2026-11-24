@@ -104,6 +104,22 @@ describe('BravaisWallGroup', () => {
         expect(storage.get('library_wall_stack_edges')).toBe('true');
     });
 
+    it('turns the finite home wall on and off again', async () => {
+        gate.isBravaisActive = true;
+        await render();
+        const { useLibraryWallLookStore } = await import('@/stores/useLibraryWallLookStore');
+        const toggle = () => container.querySelector<HTMLButtonElement>('[data-settings-row="bravaisHomeFinite"] [role="switch"]')!;
+
+        expect(toggle().getAttribute('aria-checked')).toBe('false');
+        act(() => toggle().click());
+        expect(useLibraryWallLookStore.getState().homeFinite).toBe(true);
+        expect(storage.get('library_wall_home_finite')).toBe('true');
+        expect(toggle().getAttribute('aria-checked')).toBe('true');
+        act(() => toggle().click());
+        expect(useLibraryWallLookStore.getState().homeFinite).toBe(false);
+        expect(storage.get('library_wall_home_finite')).toBe('false');
+    });
+
     it('shows the three looks with the stored one chosen, and the window counts with their share under partial', async () => {
         gate.isBravaisActive = true;
         await render();

@@ -13,11 +13,12 @@
 
 ## 1. 开始之前
 
-- **先确认接口边界。** 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret`）、登录状态（`folium.account`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及音效（`folium.equalizer`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线）；1.8 加了歌词画布渲染质量（`folium.visualizer`：读写「动画与性能」里 canvas / WebGL 歌词样式默认跟随的全局分辨率与抗锯齿）。其余部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，能力尚不能与应用内置 Omni provider 对等。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；这类实现必然遇到接口缺口，浪费开发者和维护者的时间。
+- **先确认接口边界。** 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret`）、登录状态（`folium.account`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及音效（`folium.equalizer`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线）；1.8 加了歌词画布渲染质量（`folium.visualizer`：读写「动画与性能」里 canvas / WebGL 歌词样式默认跟随的全局分辨率与抗锯齿）。其余部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，能力尚不能与应用内置 Omni provider 对等。完整的音源模组改用 Folium 2 的音源接口，见[写一个音源模组](sources.md)；这套接口和其它稳定接口一样只加不改。
 - **原始音频导出模组不得上架。** 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 - **模组是可信代码，不是沙箱。** `client` 入口运行在主界面的渲染进程里，`main` 入口运行在主进程里、拥有完整的 Node.js 权限。`mod.json` 里的权限是功能开关，不是安全边界。
 - **只在桌面版可用。** 网页版和 PWA 没有模组系统。
-- **默认关闭。** 需要在「设置 → 模组」里开启；开启后每个模组仍默认禁用，启用时会弹出主进程的原生确认窗口。
+- **社区模组要先打开开关。** Folium 2 起模组系统默认开着，但只装、只跑官方签名的音源模组（内置音源和它们的官方覆盖包）。其余模组——包括本页教你写的——都是社区模组，要先在「设置 → 模组」里打开「社区模组」（打开时会确认一次）；关着时「从 zip 安装」会拒绝它们，模组目录里已经有的也不加载，列表里标「需要打开社区模组」。开发版从仓库 `mods/` 加载的模组不受这个开关限制。升级前已经打开模组系统的用户，升级后社区模组视为开。
+- **每个模组仍要单独确认。** 社区模组默认禁用，启用时会弹出主进程的原生确认窗口。
 - **确认绑定到文件内容。** 模组目录里任何文件变化都会让确认失效，模组被自动禁用，需要重新确认。唯一的例外是开发版里仓库 `mods/` 目录中的模组，见[调试循环](#调试循环)。
 - **签名只是标识。** 发布到模组市场的模组带有 Folium 签名，安装后显示「官方认证」（先行测试渠道显示「先行测试」），但启用时同样要确认，权限也不会因此变少。
 
@@ -36,7 +37,7 @@ npm run dev:electron
 
 **用已安装的桌面版**
 
-把模组放进用户模组目录：打开模组面板，点右上角的「打开模组目录」（Windows 上是 `%APPDATA%\Folia\mods`）。也可以把模组的 zip 包拖到模组面板上安装。手动解压 zip 时多出来的一层文件夹不影响加载，直接把解压结果放进模组目录即可。
+先在「设置 → 模组」打开「社区模组」，再把模组放进用户模组目录：打开模组面板，点右上角的「打开模组目录」（Windows 上是 `%APPDATA%\Folia\mods`）。也可以把模组的 zip 包拖到模组面板上安装。手动解压 zip 时多出来的一层文件夹不影响加载，直接把解压结果放进模组目录即可。
 
 **打开模组面板**
 
@@ -293,13 +294,19 @@ const mount = async (container, ctx) => {
 - 为 Folium 1.5 写的模组照旧能用，用到的旧名字在「设置 → 模组」里这个模组那一行各提醒一次，`npm run folium:check` 也会列出来。改成现在的写法见 API 参考的[仍可用的旧名字](api.md#仍可用的旧名字)，Folium 2 起旧名字不再有效。
 - 实验接口（`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions`、`platform.raw`）需要在清单的 `experimental` 里选用，任何 minor 版本都可能变化。`platform.raw` 返回的是平台原始 JSON，跟着宿主钉住的后端库变，按字段防御着读。读歌曲详情、歌词、搜索、专辑与歌手先用稳定的 `folium.omni`（1.7），它给的是宿主的歌曲 DTO，可以直接交给 `playSong` / `enqueue`；`platform.raw` 只留给 `folium.omni` 没有的平台专有接口。
 - 模组更新时提升 `mod.json` 的 `version`（`MAJOR.MINOR.PATCH`）。
+- **`folia` 范围只写下界**，例如 `">=0.7.29"`（写你实际用到的最低版本）。不要写比 Folium 接口冻结承诺更紧的上界：`folium: 1` 的模组在 2.x 的宿主上照旧能跑，写了 `<0.8.0` 的模组到 0.8.0 就不会自动加载，用户只能在模组详情里手动「仍然尝试加载」。`npm run folium:check` 遇到这种上界会提示。
+- **写上 `repository` 和 `bugs`**（Folium 2.1，只在 `"folium": 2` 的清单里认）：用户在「设置 → 模组」的模组详情里会直接看到「源码仓库」「反馈问题」，出了问题就去你的仓库反馈，而不是去 Folia 的仓库。两个都只收 https；没写 `bugs` 时，GitHub、GitLab、Codeberg 的仓库会推出它的 issues 页。`folium: 1` 的模组写不了这两个字段，模组市场按 id 用你登记的源码仓库兜底。
 
 ## 6. 发布到模组市场
 
 官方模组和通过审查的社区模组收录在 [folium-compound](https://github.com/chthollyphile/folium-compound)，发布在 [模组市场](https://folium-compound.cielaniska.top)。收录的模组都带有 Folium 签名，分两个发布渠道：
 
 - **正式发布**：通过安全审查和功能审查，用户安装后显示「官方认证」。
-- **先行测试**：仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作，主要给社区开发者做创意实验。用先行测试密钥签名，用户安装后显示「先行测试」，模组市场只在「先行测试」标签页里列出它们。Folia 0.7.20 起才认识先行测试密钥，更早的版本会把先行测试模组显示为「签名不匹配」。
+- **先行测试**：仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作，主要给社区开发者做创意实验。用先行测试密钥签名，用户安装后显示「先行测试」；模组市场把它们和其它模组列在一起，只加一个「先行测试」角标。Folia 0.7.20 起才认识先行测试密钥，更早的版本会把先行测试模组显示为「签名不匹配」。
+
+用户在 Folia 的「设置 → 模组」里就能浏览模组市场：按分类、关键词和筛选词（`@installed`、`@updates`、`@beta`、`@category:<id>` 等）查找，一键安装、更新、卸载。网站 [folium-compound.cielaniska.top](https://folium-compound.cielaniska.top) 是同一份目录。
+
+**音源模组和外部作品不收进仓库**：第三方音源模组（清单带 `sources`，或选用了实验接口 `omni.providers`）、系统插件、外部程序、开发工具，请在 folium-compound 开 [「Awesome-Folia 登记」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml)，以外部仓库链接的形式登记在 Awesome-Folia。它们同样出现在应用里的模组市场，标「外部链接」，用户点「前往仓库」到你的仓库下载和反馈。folium-compound 不取回、不审查、不签名这些作品；对提交模组的 CI 来说，音源模组会被拒绝并指向这张表单。
 
 提交时在 issue 表单里选择渠道；维护者可以把正式发布的申请降为先行测试。先行测试的模组以后可以开「模组更新」issue 申请转为正式发布。
 
@@ -316,7 +323,7 @@ const mount = async (container, ctx) => {
 
 ### 提交
 
-1. 在 folium-compound 开一个 [「模组提交」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=mod-submission.yml)，填写模组 id、源码仓库、版本（tag、分支或完整 commit）、模组目录、模组说明、逐条的权限说明和许可证。
+1. 在 folium-compound 开一个 [「模组提交」issue](https://github.com/chthollyphile/folium-compound/issues/new?template=mod-submission.yml)，填写模组 id、源码仓库、版本（tag、分支或完整 commit）、模组目录、**分类**、模组说明、逐条的权限说明和许可证。分类决定它在市场里列在哪一组（歌词动画、歌词显示、播放与队列、界面与交互、背景与壁纸、系统集成、数据与统计、AI、开发样例、其他）；标签（Node 入口、联网、嵌入网页、导出等）由清单自动推出，不用填。
 2. CI 会把版本解析成具体的 commit，只取回这一个提交，按收录规则整理并检查，然后在 issue 里回复：
    - 通过：「格式检查通过，请等待维护者审查」，附源码链接、将要签名的完整文件清单和签名摘要；
    - 未通过：列出问题。修改后打新 tag 并编辑 issue 里的版本，会自动重新检查。
@@ -355,7 +362,7 @@ const mount = async (container, ctx) => {
 | 未验证 | 没有签名文件：没有经过 Folium 审查的第三方模组 |
 | 签名不匹配 | 有签名但校验失败，最常见的原因是签名后文件被改动过（包括用户在本地修改了模组） |
 
-没有签名的模组照样可以安装和使用，只是显示「未验证」。签名规则和密钥管理见规范里的「签名与官方认证」。
+没有签名的模组打开「社区模组」后照样可以安装和使用，只是显示「未验证」。「社区模组」关着时只认「官方认证」的**音源模组**：官方认证的其它模组和先行测试模组也要先打开它。签名规则和密钥管理见规范里的「签名与官方认证」。
 
 ## 7. 常见问题
 

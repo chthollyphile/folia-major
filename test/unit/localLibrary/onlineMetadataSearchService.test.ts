@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+// @builtin-sources
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import type { UnifiedSong } from '@/types';
+import type { OnlineMusicProvider } from '@/types/onlineMusic';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import {
     findAutomaticOnlineMetadataCandidate,
@@ -10,8 +12,11 @@ import {
 // test/unit/localLibrary/onlineMetadataSearchService.test.ts
 // Verifies metadata-only provider selection and exact manual query forwarding.
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({ neteaseApi: { cloudSearch: vi.fn() } }));
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn() }));
+// The module's own pure helpers stay real (the source reads songs through them); the search is mocked.
+vi.mock('../../../sources/netease/core/netease', async (importOriginal) => {
+    const original = await importOriginal<{ neteaseApi: object }>();
+    return { ...original, neteaseApi: { ...original.neteaseApi, cloudSearch: vi.fn() } };
+});
 
 const song = {
     id: 'local-song',
@@ -27,7 +32,14 @@ const song = {
 };
 
 describe('onlineMetadataSearchService', () => {
-    beforeEach(() => vi.resetAllMocks());
+    // QQ is a source mod: the metadata search asks its provider's search.searchSongs.
+    let searchQQLyrics: MockInstance<NonNullable<NonNullable<OnlineMusicProvider['search']>['searchSongs']>>;
+    const qqResults = (items: UnifiedSong[]) => ({ items, hasMore: false, nextOffset: items.length });
+
+    beforeEach(() => {
+        vi.resetAllMocks();
+        searchQQLyrics = vi.spyOn(getOnlineMusicProvider('qq')!.search!, 'searchSongs').mockResolvedValue(qqResults([]));
+    });
 
     it('keeps a title-compatible NetEase candidate without querying QQ', async () => {
         vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({ result: { songs: [
@@ -43,16 +55,17 @@ describe('onlineMetadataSearchService', () => {
         vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({ result: { songs: [
             { id: 1, name: 'Completely Unrelated Melody', dt: 200000, ar: [{ name: 'Someone Else' }] },
         ] } });
-        vi.mocked(searchQQLyrics).mockResolvedValue([
+        searchQQLyrics.mockResolvedValue(qqResults([
             {
-                id: 9,
+                id: 'qq-mid',
                 qqMid: 'qq-mid',
                 name: 'Target Song',
                 durationMs: 200000,
                 artists: [{ id: 7, name: 'Target Artist' }],
                 album: { id: 8, name: 'Target Album', coverUrl: 'https://example.test/qq-cover.jpg' },
+                sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'qq-mid', providerData: { songId: 9 } },
             },
-        ]);
+        ]));
         const candidate = await findAutomaticOnlineMetadataCandidate(song);
         expect(candidate).toMatchObject({
             source: 'qq',
@@ -64,7 +77,6 @@ describe('onlineMetadataSearchService', () => {
 
     it('falls back to provider-backed KuGou when NetEase and QQ have no title-compatible candidate', async () => {
         vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({ result: { songs: [] } });
-        vi.mocked(searchQQLyrics).mockResolvedValue([]);
         const kugouProvider = getOnlineMusicProvider('kugou')!;
         vi.spyOn(kugouProvider.search!, 'searchSongs').mockResolvedValue({
             items: [{
@@ -91,11 +103,10 @@ describe('onlineMetadataSearchService', () => {
     });
 
     it('passes a manual query only to the selected source', async () => {
-        vi.mocked(searchQQLyrics).mockResolvedValue([]);
         await searchOnlineMetadata('qq', 'custom user text', {
             title: 'Target Song', artist: '', durationMs: 0,
         });
-        expect(searchQQLyrics).toHaveBeenCalledWith('custom user text', 1, 10);
+        expect(searchQQLyrics).toHaveBeenCalledWith('custom user text', 10, 0);
         expect(neteaseApi.cloudSearch).not.toHaveBeenCalled();
     });
 

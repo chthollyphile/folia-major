@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search } from 'lucide-react';
+import { PackagePlus, Search } from 'lucide-react';
 import type { OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
 import { providerDisplayName } from '../../../i18n/providerName';
 import { Tooltip } from '../../modal/settings/kit';
@@ -13,6 +13,7 @@ import { filterRows } from './loginView';
 // 选中的行左边有一道平台的颜色。一块高亮跟着指针和方向键在行
 // 之间滑。点一行或者在高亮的行上按回车才是选中；方向键只移动高亮，不开始登录。够不着的平台是灰的，
 // 不能选，悬停时说原因。从 12 个平台起上面有搜索框。窗口窄的时候它横在窗口上面，成一排。
+// 桌面版在列的最下面有「安装音源模组」（Folium 2.0 方案 §5.1），一个音源都没有时空状态也指向它。
 
 /** 从这么多个平台起有搜索框。 */
 const SEARCH_FROM = 12;
@@ -75,9 +76,11 @@ type PlatformColumnProps = {
     onChoose: (provider: ProviderAccountSummary) => void;
     /** 'row'：横着一排，左右滚。 */
     lie: 'column' | 'row';
+    /** 「安装音源模组」；没有（网页版）就不画。 */
+    onInstallSourceMod?: () => void;
 };
 
-export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, onChoose, lie }) => {
+export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, onChoose, lie, onInstallSourceMod }) => {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const shown = rows.length >= SEARCH_FROM ? filterRows(rows, query, row => providerDisplayName(t, row)) : rows;
@@ -244,9 +247,23 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                         : <React.Fragment key={row.providerId}>{item}</React.Fragment>;
                 })}
                 {shown.length === 0 && (
-                    <p className="py-6 text-center text-[13px] text-[color:var(--st-t3)]">{t('login.noPlatformMatch')}</p>
+                    // 一个平台都没有（没带音源、全停用了）时说装一个或者去哪儿启用；有平台只是搜不到时说没有匹配的。
+                    <p className="px-3 py-6 text-center text-[13px] text-[color:var(--st-t3)]">
+                        {t(rows.length > 0 ? 'login.noPlatformMatch' : onInstallSourceMod ? 'login.noSourceInstall' : 'login.noSourceEnabled')}
+                    </p>
                 )}
             </div>
+            {onInstallSourceMod && (
+                <button
+                    type="button"
+                    data-login-install-source=""
+                    onClick={onInstallSourceMod}
+                    className={`st-t-fast flex shrink-0 items-center gap-2 rounded-lg text-[12.5px] transition-colors hover:bg-[var(--st-fill)] hover:text-[color:var(--st-t1)] ${rows.length === 0 ? 'text-[color:var(--st-t1)]' : 'text-[color:var(--st-t2)]'} ${lie === 'column' ? 'mt-1.5 h-9 w-full px-2.5' : 'mt-1 h-8 self-start px-2'}`}
+                >
+                    <PackagePlus size={15} className="shrink-0" />
+                    <span className="truncate">{t('login.installSourceMod')}</span>
+                </button>
+            )}
         </div>
     );
 };

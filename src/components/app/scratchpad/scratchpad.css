@@ -169,6 +169,13 @@
 .scratchpad-handle-texture,
 .scratchpad-handle-body { transition: opacity 0.12s ease; }
 
+/* 长按拖动中：标签保持展开、指针抓取（grabbing），纸上的内容保持可见，别被「指针其实不在上面」的
+   瞬间收回去；拖动的位置走行内变量（ScratchpadEdge 实时写 --scratchpad-edge-position），不重渲染。 */
+.scratchpad-edge.is-dragging { pointer-events: none; }
+.scratchpad-edge.is-dragging .scratchpad-handle { pointer-events: auto; cursor: grabbing; }
+.scratchpad-edge.is-dragging .scratchpad-handle-paper { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+.scratchpad-edge.is-dragging :is(.scratchpad-handle-texture, .scratchpad-handle-body) { opacity: 1; }
+
 .scratchpad-edge:not(:hover, :focus-within) :is(.scratchpad-handle-texture, .scratchpad-handle-body) { opacity: 0; }
 
 /* 网点纹理，中段（标题那一截）渐隐掉，不影响读字。 */
@@ -959,7 +966,7 @@
 .scratchpad-root.is-calm .scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: none; }
 
 /* —— 左缘面板的内容区：信息条、问候 ——
-   底下让出两条细纸带的位子（78px，scratchpadPaper.ts 的 PANEL_SLIM_ROOM）。 */
+   底下让出三条细纸带的位子（112px，scratchpadPaper.ts 的 PANEL_SLIM_ROOM）。 */
 
 .scratchpad-sheet {
     position: relative;
@@ -968,7 +975,7 @@
     flex: 1 1 auto;
     flex-direction: column;
     padding-top: 40px;
-    padding-bottom: 78px;
+    padding-bottom: 112px;
 }
 
 .scratchpad-drawer.is-panel .scratchpad-footer { padding-bottom: 16px; }
@@ -1088,7 +1095,7 @@
     isolation: isolate;
 }
 
-/* 条内纹理，标题那一段渐隐：速记簿网点、播放历史 60° 斜线、播放队列上下两排短刻度（与 F 的信息条同一套）。 */
+/* 条内纹理，标题那一段渐隐：速记簿网点、播放历史 60° 斜线、播放队列上下两排短刻度（与 F 的信息条同一套）、评论目录卡的横格。 */
 .scratchpad-band-texture {
     position: absolute;
     inset: 0;
@@ -1101,6 +1108,11 @@
 :is(.scratchpad-panel-paper, .scratchpad-sheet-band)[data-page='history'] .scratchpad-band-texture {
     background: repeating-linear-gradient(60deg, currentColor 0 1px, transparent 1px 9px);
     opacity: 0.12;
+}
+
+:is(.scratchpad-panel-paper, .scratchpad-sheet-band)[data-page='comments'] .scratchpad-band-texture {
+    background: repeating-linear-gradient(180deg, transparent 0 8px, currentColor 8px 9px);
+    opacity: 0.13;
 }
 
 :is(.scratchpad-panel-paper, .scratchpad-sheet-band)[data-page='queue'] .scratchpad-band-texture {
@@ -2025,9 +2037,10 @@
    空白处框选（跟着纸斜的矩形，可以跨行）；选中后的墨色板与展开整页同一种样子。 */
 .scratchpad-overview { position: absolute; inset: 0; outline: none; touch-action: pan-y; }
 .scratchpad-overview-row { position: absolute; right: 0; left: 0; }
-.scratchpad-overview-row:nth-child(1) { z-index: 3; }
-.scratchpad-overview-row:nth-child(2) { z-index: 2; }
-.scratchpad-overview-row:nth-child(3) { z-index: 1; }
+.scratchpad-overview-row:nth-child(1) { z-index: 4; }
+.scratchpad-overview-row:nth-child(2) { z-index: 3; }
+.scratchpad-overview-row:nth-child(3) { z-index: 2; }
+.scratchpad-overview-row:nth-child(4) { z-index: 1; }
 
 .scratchpad-band.is-row { height: 72px; overflow: visible; box-shadow: 0 16px 40px rgb(0 0 0 / 40%); clip-path: none; }
 .scratchpad-band-wrap.is-row { width: 100%; filter: none; }

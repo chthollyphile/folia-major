@@ -30,9 +30,9 @@ export type ScratchpadAction = {
     title?: string;
 };
 
-/** 展开整页右边那一列的操作提示：每页四条（拖空白框选、Ctrl + 点加选，再加这一页能做的两件事）。 */
+/** 展开整页右边那一列的操作提示：每页四条（拖空白框选、Ctrl + 点加选，再加这一页能做的两件事）。「时刻」页单击是打开，加选用 Ctrl + 点。 */
 export const scratchpadTips = (
-    tab: 'notes' | 'history' | 'queue',
+    tab: 'notes' | 'history' | 'queue' | 'comments',
     t: TFunction,
     modifier: string,
     canReorder = true,
@@ -41,5 +41,7 @@ export const scratchpadTips = (
     const common = [tip('tipMarqueeKey', 'tipMarquee'), tip('tipAddKey', 'tipAdd')];
     if (tab === 'notes') return [...common, tip('tipReorderKey', 'tipReorderGroup'), tip('tipEscKey', 'tipEsc')];
     if (tab === 'history') return [...common, tip('tipPlayKey', 'tipPlay'), tip('tipDeleteKey', 'tipDelete')];
+    // 「时刻」页：单击卡片是看这首（不是选它），组头整理标签。
+    if (tab === 'comments') return [...common, tip('tipOpenKey', 'tipOpen'), tip('tipTagKey', 'tipTag')];
     return [...common, ...(canReorder ? [tip('tipReorderKey', 'tipReorder')] : []), tip('tipPlayKey', 'tipPlay')];
 };

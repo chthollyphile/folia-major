@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import { getOnlineMusicProvider, listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistry';
 
@@ -8,9 +9,11 @@ import { getOnlineMusicProvider, listOnlineMusicProviders } from '@/services/onl
 // A member added or removed on purpose changes its row here.
 
 const AUTH_MEMBERS: Record<string, string[]> = {
+    // A source mod since 2026-11-20: the account older builds kept in their own caches is no longer read
+    // (no oldKeptAccount / forgetOldKeptAccount); `localService` is the API in its main entry.
     netease: [
-        'canRunLoginSelfCheck', 'checkLogin', 'createQr', 'describeLoginFailure', 'forgetOldKeptAccount', 'getLoginDiagnostics', 'getLoginStatus', 'getLoginTexts', 'localService',
-        'logout', 'oldKeptAccount', 'runLoginSelfCheck', 'showsKeptAccountAtStart', 'signInRanOut', 'startLogin',
+        'canRunLoginSelfCheck', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginStatus', 'getLoginTexts', 'localService',
+        'logout', 'runLoginSelfCheck', 'showsKeptAccountAtStart', 'signInRanOut', 'startLogin',
     ],
     qq: [
         'canRunLoginSelfCheck', 'cancelLogin', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginMethods', 'getLoginStatus',
@@ -52,11 +55,17 @@ const AUTH_MEMBERS: Record<string, string[]> = {
 };
 
 describe('the sign-in members of each built-in platform', () => {
+    // A member counts where it has a value: the Folium 2.0 adapter (src/mods/folium/registries/sourceAdapter/auth.ts)
+    // reads `localService` and `showsKeptAccountAtStart` live through getters, which answer undefined for a source
+    // mod without them (Bodian since S5): undefined, and false for the flag, the same as a member left out.
     it.each(Object.entries(AUTH_MEMBERS))('%s has exactly these', (providerId, members) => {
-        expect(Object.keys(getOnlineMusicProvider(providerId)!.auth!).sort()).toEqual(members);
+        const auth = getOnlineMusicProvider(providerId)!.auth! as unknown as Record<string, unknown>;
+        expect(Object.keys(auth).filter(member => auth[member] !== undefined && auth[member] !== false).sort()).toEqual(members);
     });
 
     it('has a row for every built-in platform', () => {
-        expect(listOnlineMusicProviders().map(provider => provider.id).sort()).toEqual(Object.keys(AUTH_MEMBERS).sort());
+        // A platform without a sign-in (the LX source) has no auth members and no row.
+        expect(listOnlineMusicProviders().filter(provider => provider.auth).map(provider => provider.id).sort()).toEqual(Object.keys(AUTH_MEMBERS).sort());
+        expect(getOnlineMusicProvider('lxmusic')?.auth).toBeUndefined();
     });
 });

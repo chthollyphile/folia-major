@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, ChevronLeft, ChevronRight, Disc3, FileUp, FolderOpen, ListMusic, ListPlus, Map, Pencil, Play, Plus, RefreshCw, Trash2, User } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Disc3, FolderOpen, ListPlus, Map, Pencil, Play, Plus, RefreshCw, Trash2, User } from 'lucide-react';
 import PonderSurfaceStateLayer, { PonderSurfaceBase, type PonderSurfaceStateRegistrar } from '../PonderSurfaceStateLayer';
 import { getRelativeLuminance } from '../../../../utils/themeColorMath';
 import {
@@ -76,7 +76,6 @@ const PonderLocalGridControlsSurface: React.FC<SurfaceProps> = ({ accent, line, 
                     [FolderOpen, true],
                     [Disc3, false],
                     [User, false],
-                    [ListMusic, false],
                 ].map(([Icon, active], index) => (
                     <span
                         key={index}
@@ -91,9 +90,8 @@ const PonderLocalGridControlsSurface: React.FC<SurfaceProps> = ({ accent, line, 
                     </span>
                 ))}
             </div>
-            <Pill marker="data-ponder-local-grid-import" rect={{ left: 0.6, top: 0.18, width: 0.15, height: 0.32 }} icon={FolderOpen} accent={accent} line={line} outline={outline} />
+            <Pill marker="data-ponder-local-grid-import" rect={C.imports} icon={FolderOpen} accent={accent} line={line} outline={outline} />
             <Pill marker="data-ponder-local-grid-refresh" rect={C.refresh} icon={RefreshCw} accent={accent} line={line} outline={outline} />
-            <Pill marker="data-ponder-local-grid-playlist-import" rect={C.playlistImport} icon={FileUp} accent={accent} line={line} outline={outline} />
         </PonderSurfaceBase>
     </div>
 );

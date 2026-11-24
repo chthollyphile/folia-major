@@ -1,0 +1,85 @@
+{
+    "name": {
+        "short": "QQ音乐",
+        "lyrics": "QQ 音乐"
+    },
+    "login": {
+        "title": "扫码登录QQ音乐",
+        "titleAppScan": "使用 QQ、微信、QQ 音乐三种 App 择一扫码",
+        "note": "请选择与账号一致的登录方式：QQ 扫码或微信扫码",
+        "noteAppScan": "支持 QQ、微信、QQ 音乐 3 种扫码登录方式",
+        "noteWithApp": "请选择与账号一致的登录方式：QQ 扫码或微信扫码；也可以用 QQ 音乐 App 扫码",
+        "method": {
+            "mobile": "QQ 扫码",
+            "wechat": "微信扫码",
+            "qqMusic": "QQ 音乐 App 扫码"
+        },
+        "case": {
+            "restart": "请重启 Folia 后重试",
+            "deviceLimit": "请打开 QQ 音乐 App，进入「设置」，滑到最下面点「设备管理」，移除不用的设备后再扫码",
+            "wrongScanApp": "用 QQ 音乐 App 扫码的话，请改选「QQ 音乐 App 扫码」；也可以用手机 QQ 扫这个二维码",
+            "wrongScanAppMobileOnly": "这里的 QQ 扫码只能用手机 QQ 扫，请用手机 QQ 扫这个二维码",
+            "accountBanned": "这个账号已被封禁，无法登录",
+            "accountRestricted": "这个账号暂时被限制登录",
+            "accountBinding": "这个账号的绑定有问题，请在 QQ 音乐 App 里检查账号绑定"
+        }
+    },
+    "explore": {
+        "radar": "刷歌模式",
+        "dailySongs": "每日推荐",
+        "feedForYou": "为你推荐",
+        "recommendedPlaylists": "推荐歌单",
+        "charts": "排行榜",
+        "newSongs": "新歌速递",
+        "newAlbums": "新碟上架",
+        "similar": "与《{{name}}》相似"
+    },
+    "guessYouLike": {
+        "name": "猜你喜欢",
+        "description": "QQ 音乐的猜你喜欢电台，播放时可以换听歌模式",
+        "suggested": "为你建议",
+        "other": "其他"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "默认",
+            "FAMILIAR": "熟悉",
+            "EXPLORE": "探索",
+            "SCENE_RCMD": "场景"
+        },
+        "category": {
+            "mood": "情绪",
+            "activity": "场景",
+            "genre": "曲风",
+            "language": "语种"
+        }
+    },
+    "listeningRank": {
+        "week": "听歌排行 · 本周",
+        "weekDescription": "QQ 音乐的本周排行，从周一算起，这一周没过完就只算到今天",
+        "year": "听歌排行 · 年榜",
+        "yearDescription": "QQ 音乐的年榜，统计去年一整年（1 月 1 日到 12 月 31 日）"
+    },
+    "cloud": {
+        "name": "云盘",
+        "description": "微云音乐网盘"
+    },
+    "preferences": {
+        "note": "保存在账号上，会影响所有推荐的歌",
+        "familiarity": "歌曲熟悉度",
+        "familiarityExplore": "更探索",
+        "keep": "保持现状",
+        "familiarityFamiliar": "更熟悉",
+        "mood": "音乐情绪",
+        "moodSad": "更伤感",
+        "moodHappy": "更欢快",
+        "coverLive": "翻唱与现场",
+        "instrumental": "纯音乐",
+        "mandarin": "国语",
+        "english": "英语",
+        "japanese": "日语",
+        "korean": "韩语",
+        "cantonese": "粤语",
+        "ai": "AI 歌曲"
+    }
+}

@@ -24,7 +24,7 @@ const NOT_PLATFORM_REQUESTS: Record<string, string> = { 'transcode-fallback-requ
 describe('D605 IPC channels and who may call them', () => {
     it('finds the channels it guards, so the scan still matches something', () => {
         expect(main.length).toBeGreaterThan(100);
-        expect(main.some(entry => entry.channel === 'kugou-api-request' && entry.guarded)).toBe(true);
+        expect(main.some(entry => entry.channel === 'obs-browser-source-get-status' && entry.guarded)).toBe(true);
         for (const name of Object.keys(GUARD_FACTORIES)) {
             expect(main.some(entry => entry.factory === name), `${name} 还在用，扫描认得出它`).toBe(true);
         }
@@ -125,7 +125,7 @@ describe('D606 preload and the main process agree on the channels', () => {
     it('reads what preload calls, so the scan still matches something', () => {
         expect(preload.filter(entry => entry.kind === 'invoke').length).toBeGreaterThan(50);
         expect(preload.some(entry => entry.kind === 'send')).toBe(true);
-        expect(preload.some(entry => entry.channel === 'kugou-api-request')).toBe(true);
+        expect(preload.some(entry => entry.channel === 'perf-check-open')).toBe(true);
     });
 
     it('handles every channel preload invokes or sends', () => {

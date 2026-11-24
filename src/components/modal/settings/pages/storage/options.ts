@@ -28,4 +28,8 @@ export const O = {
     autoScan: option(WATCH, 'localLibraryAutoScan', 'options.localLibraryAutoScan'),
     exportConfig: option(BACKUP, 'exportConfig', 'options.exportThemeLabel'),
     importConfig: option(BACKUP, 'importConfig', 'options.importBtn'),
+    // 速记簿「时刻」的导出、导入（SongNotesTransferRows）。模组那一行只在这台设备上有模组的库时画，搜索也照样列出：
+    // 落到这一组时它不在，落点就是上面那一行。
+    songNotes: option(BACKUP, 'songNotesTransfer', 'songNotes.transferLabel'),
+    musicNotesMod: option(BACKUP, 'musicNotesModImport', 'songNotes.importModLabel'),
 };

@@ -1,15 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createQqCore } from '../helpers/qqSource';
 
 // test/unit/onlineMusic/qqListeningRank.test.ts
 // QQ 的听歌排行：回包形状取自 qq-music-api 3.3.6 的 /user/listening-rank（{ items:[{ track, listenCount }] }）；
-// 数字与名字是虚构示例。
+// 数字与名字是虚构示例。core 由 createQqCore 建出（文字就是模组语言表的键名）。
 
 const requestMock = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({ requestQq: requestMock }));
+vi.mock('../../../sources/qq/core/qqTransport', async (importOriginal) => ({
+    ...await importOriginal<object>(),
+    requestQq: requestMock,
+}));
 
-import { getQqListeningRankCollections, getQqListeningRankTracks } from '@/services/onlineMusic/qq/qqListeningRank';
+import { getQqListeningRankCollections, getQqListeningRankTracks } from '../../../sources/qq/core/qqListeningRank';
 import { OnlineProviderError } from '@/types/onlineMusic';
-import i18n from '@/i18n/config';
 
 const track = (mid: string, id: number) => ({
     mid,
@@ -20,7 +23,7 @@ const track = (mid: string, id: number) => ({
     file: { media_mid: `${mid}-media` },
     interval: 200,
 });
-const user = { id: 9001, nickname: '听者' };
+const user = { id: '9001', nickname: '听者' };
 const answers = (week: unknown[], year: unknown[]) => requestMock.mockImplementation(async (_operation: string, params: { range: string }) => ({
     code: 200,
     range: params.range,
@@ -28,6 +31,10 @@ const answers = (week: unknown[], year: unknown[]) => requestMock.mockImplementa
 }));
 
 describe('QQ listening rank', () => {
+    beforeAll(async () => {
+        await createQqCore();
+    });
+
     beforeEach(() => {
         requestMock.mockReset();
         vi.spyOn(console, 'info').mockImplementation(() => { });
@@ -44,9 +51,8 @@ describe('QQ listening rank', () => {
             ['week', 'listening_rank', 1],
             ['all', 'listening_rank', 1],
         ]);
-        // Named with QQ's own entries; the shared "last week / all time" stay for the other platforms.
-        expect(collections.map(collection => collection.name)).toEqual([i18n.t('listeningRank.qqWeek'), i18n.t('listeningRank.qqYear')]);
-        expect(collections[1].name).not.toBe(i18n.t('listeningRank.all'));
+        // Named with QQ's own entries (the mod's texts); the host's shared "last week / all time" stay for the other platforms.
+        expect(collections.map(collection => collection.name)).toEqual(['listeningRank.week', 'listeningRank.year']);
         expect(collections[0].id).toBe('listening-rank-week-9001');
     });
 
@@ -69,7 +75,7 @@ describe('QQ listening rank', () => {
             { listenCount: 1 },
         ], []);
         const page = await getQqListeningRankTracks('week', 1, 1);
-        expect(page.items.map(song => [song.name, song.listenCount])).toEqual([['歌 w2', 3]]);
+        expect(page.items.map(song => [song.title, song.row?.listenCount])).toEqual([['歌 w2', 3]]);
         expect(page).toMatchObject({ total: 2, hasMore: false, nextOffset: 2 });
         answers([], []);
         requestMock.mockResolvedValueOnce({ code: 200 });

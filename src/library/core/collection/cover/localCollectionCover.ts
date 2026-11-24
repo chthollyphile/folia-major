@@ -135,6 +135,65 @@ export type LocalSongCoverPick = {
 };
 
 /**
+ * 「用一首歌的封面」列表的一首候选歌：本地集合里是曲库的歌，Folia 聚合歌单里还有别的来源的条目（封面是存着的快照里的
+ * 那张）。covers 是原图的候选地址（按偏好排好，第一张是这首歌的封面身份），thumbnail 是列表里显示的那张。
+ */
+export type CollectionCoverSong = {
+    id: string;
+    title: string;
+    covers: string[];
+    thumbnail?: string;
+};
+
+/** 曲库里的一首歌 → 候选歌。 */
+export const toLocalCoverSong = (
+    song: Pick<LocalSong, 'id' | 'title' | 'useOnlineCover' | 'localCoverAssetId' | 'onlineMetadata'>,
+    coverAssetUrl: (assetId: string | undefined, size?: number) => string | null,
+    thumbnailSize: number,
+): CollectionCoverSong => ({
+    id: song.id,
+    title: song.title,
+    covers: resolveLocalSongCoverCandidates(song, coverAssetUrl),
+    thumbnail: resolveLocalSongCoverCandidates(song, coverAssetUrl, thumbnailSize)[0],
+});
+
+/**
+ * Folia 聚合歌单的条目 → 候选歌，按歌单里的顺序：本地歌从曲库取（曲库里已经没有的跳过），别的来源的条目用
+ * coverOf 给的那张（存着的快照里的封面地址）。id 用条目的 key（本地歌的 key 带 `local:` 前缀，不会和别的来源撞）。
+ */
+export const buildFoliaPlaylistCoverSongs = <Song extends { name?: string }>(
+    entries: ReadonlyArray<{ key: string; song: Song }>,
+    localSongOf: (entry: { key: string }) => Pick<LocalSong, 'id' | 'title' | 'useOnlineCover' | 'localCoverAssetId' | 'onlineMetadata'> | null | undefined,
+    isLocalEntry: (entry: { key: string }) => boolean,
+    coverOf: (song: Song) => string | undefined,
+    coverAssetUrl: (assetId: string | undefined, size?: number) => string | null,
+    thumbnailSize: number,
+): CollectionCoverSong[] => entries.flatMap(entry => {
+    if (isLocalEntry(entry)) {
+        const local = localSongOf(entry);
+        return local ? [{ ...toLocalCoverSong(local, coverAssetUrl, thumbnailSize), id: entry.key }] : [];
+    }
+    const cover = coverOf(entry.song);
+    return [{ id: entry.key, title: entry.song.name ?? '', covers: cover ? [cover] : [] }];
+});
+
+/** 候选歌 → 可选的封面，按歌的顺序；没有封面的歌不列，首选的是同一张图的歌合成一项。 */
+export const buildCoverPicks = (songs: readonly CollectionCoverSong[]): LocalSongCoverPick[] => {
+    const picks = new Map<string, LocalSongCoverPick>();
+    songs.forEach(song => {
+        const [identity] = song.covers;
+        if (!identity) return;
+        const existing = picks.get(identity);
+        if (existing) {
+            existing.songCount += 1;
+            return;
+        }
+        picks.set(identity, { songId: song.id, title: song.title, coverUrl: song.thumbnail ?? identity, songCount: 1 });
+    });
+    return [...picks.values()];
+};
+
+/**
  * 集合里的歌 → 可选的封面，按歌在集合里的顺序；没有封面的歌不列。两首歌首选的是同一张图（同一个本地封面资源
  * ——资源按内容寻址，内容相同就是同一个 id——或同一个在线地址）时合成一项。
  */
@@ -142,18 +201,4 @@ export const buildLocalSongCoverPicks = (
     songs: ReadonlyArray<Pick<LocalSong, 'id' | 'title' | 'useOnlineCover' | 'localCoverAssetId' | 'onlineMetadata'>>,
     coverAssetUrl: (assetId: string | undefined, size?: number) => string | null,
     thumbnailSize: number,
-): LocalSongCoverPick[] => {
-    const picks = new Map<string, LocalSongCoverPick>();
-    songs.forEach(song => {
-        const [identity] = resolveLocalSongCoverCandidates(song, coverAssetUrl);
-        if (!identity) return;
-        const existing = picks.get(identity);
-        if (existing) {
-            existing.songCount += 1;
-            return;
-        }
-        const [thumbnail] = resolveLocalSongCoverCandidates(song, coverAssetUrl, thumbnailSize);
-        picks.set(identity, { songId: song.id, title: song.title, coverUrl: thumbnail ?? identity, songCount: 1 });
-    });
-    return [...picks.values()];
-};
+): LocalSongCoverPick[] => buildCoverPicks(songs.map(song => toLocalCoverSong(song, coverAssetUrl, thumbnailSize)));

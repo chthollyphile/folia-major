@@ -124,6 +124,16 @@ const drawer: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readOpen' },
 
+        // 标签本身可以长按拖动上下挪，松手存进设置里的「悬浮标签高度」。
+        { kind: 'highlight', id: 'markHandleDrag', anchor: 'handle', intensity: [0, 0.9], durationMs: 420, keyframe: true },
+        {
+            kind: 'caption', id: 'handleDrag',
+            textKey: 'ponder.captions.scratchpad.handleDrag',
+            pointTo: { anchor: 'handle' }, durationMs: 6600, withPrevious: true,
+        },
+        { kind: 'pause', id: 'readHandleDrag' },
+        { kind: 'highlight', id: 'dimHandleDrag', anchor: 'handle', intensity: [0.9, 0], durationMs: 320, keyframe: true },
+
         { kind: 'highlight', id: 'markGroup', anchor: 'group', intensity: [0, 0.6], durationMs: 420, keyframe: true },
         {
             kind: 'caption', id: 'groups',
@@ -171,6 +181,17 @@ const drawer: PonderSceneScript = {
             pointTo: { anchor: 'drawer' }, durationMs: 8000, withPrevious: true,
         },
         { kind: 'pause', id: 'readHistory' },
+
+        // 不点页签也能换页：Tab 往后、Shift + Tab 往前（四页轮着走）。这里按 Shift + Tab 从播放历史回到速记簿。
+        { kind: 'highlight', id: 'dimHistoryTab', anchor: 'historyTab', intensity: [0.8, 0], durationMs: 300, keyframe: true },
+        { kind: 'keypress', id: 'shiftTabKey', keys: ['Shift Tab'], at: 'bottom', durationMs: 1000, withPrevious: true },
+        { kind: 'surfaceState', id: 'backToNotes', anchor: 'page', state: 'drawer', durationMs: 420 },
+        {
+            kind: 'caption', id: 'tabCycle',
+            textKey: 'ponder.captions.scratchpad.tabCycle',
+            pointTo: { anchor: 'drawer' }, durationMs: 6400, withPrevious: true,
+        },
+        { kind: 'pause', id: 'readTabCycle' },
     ],
 };
 

@@ -1,4 +1,6 @@
 import type { SeamAxis } from '../../../components/wall/seamPlan';
+import type { LibraryHomeTabKey } from '../../core/home/homeModel.contract';
+import { isOnlineHomeTab } from '../../core/home/homeSources';
 import {
     BRAVAIS_SEAM_FULL_WIDTH,
     BRAVAIS_SEAM_ROW_FULL_HEIGHT,
@@ -108,9 +110,17 @@ export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewport
     return seamVariantWidth(variant, axis ?? 'x');
 };
 
+/** 首页各层的 key：`home:<页>`。 */
+const HOME_LAYER_PREFIX = 'home:';
+
 /**
- * 缝里的内容换不换（整条翻不翻）的身份：按层 key。首页换页签（`home:<页签>`）同样整条翻一次（2026-10-09 用户：与原型
- * 一致；之前首页各页签算同一套内容、只翻中段，在线页签的中段常常是空的，看上去是硬切）。同一页签里换二级切换不换层，
- * 不翻。
+ * 缝里的内容换不换（整条翻不翻）的身份：按层 key。首页换一级组（`home:<页>` 的页属于不同的组）同样整条翻一次
+ *（2026-10-09 用户：与原型一致；之前首页各页签算同一套内容、只翻中段，看上去是硬切）。在线组里的几页（歌单 / 电台 /
+ * 探索 / 专辑）各是一层，但在缝里只是二级切换换了选中项：算同一套内容，不翻，只有按钮自己的过渡（2026-11-22 用户：
+ * 和本地组里换行一样）。同一层里换二级切换不换层，本来就不翻。
  */
-export const resolveSeamContentIdentity = (layer: Pick<BravaisLayer, 'key' | 'surface'>) => layer.key;
+export const resolveSeamContentIdentity = (layer: Pick<BravaisLayer, 'key' | 'surface'>) => {
+    if (layer.surface !== 'home' || !layer.key.startsWith(HOME_LAYER_PREFIX)) return layer.key;
+    const tab = layer.key.slice(HOME_LAYER_PREFIX.length);
+    return isOnlineHomeTab(tab as LibraryHomeTabKey) ? `${HOME_LAYER_PREFIX}online` : layer.key;
+};

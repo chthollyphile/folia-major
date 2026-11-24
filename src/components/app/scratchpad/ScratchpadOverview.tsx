@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { ListPlus, NotebookPen, Star, Trash2, X } from 'lucide-react';
 import type { SongResult } from '../../../types';
-import { collectToScratchpad, groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadTab } from '../../../stores/useScratchpadStore';
+import { collectToScratchpad, groupScratchpadEntries, useScratchpadStore, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
@@ -13,16 +13,18 @@ import { forgetPlays } from '../home/explore/recentPlays';
 import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadShape from './ScratchpadShape';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
-import { FILM_ROW_SPACING, NOTE_ROW_SPACING, PHOTO_ROW_SPACING, cardSize, overviewBottomInset, overviewRowTops, rectFromPoints, rectsIntersect, type Point, type Rect, type Spacing } from './canvasLayout';
+import { useRecentSongNotes, useSongNoteTags } from '../../song-notes/useSongNotesStore';
+import { catalogCardFields } from './commentCards';
+import { CATALOG_ROW_SPACING, FILM_ROW_SPACING, NOTE_ROW_SPACING, PHOTO_ROW_SPACING, cardSize, overviewBottomInset, overviewRowTops, rectFromPoints, rectsIntersect, type Point, type Rect, type Spacing } from './canvasLayout';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 import { clientToLocal } from './scratchpadTilt';
 import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
 
 // src/components/app/scratchpad/ScratchpadOverview.tsx
-// 三行总览（设计稿 F 的 Rows）里的三行卡：三条信息条（ScratchpadSheet 画，进出总览时挪动、长高）每条下面一行这一页的头几张卡（速记簿的头几首、最近放的几首、
-// 正在播的那首起的几格胶片），行尾一块「还有几首 · 展开整页 ›」。在空白处拖出框选（跟着纸斜的矩形，可以跨行），Ctrl 点加选；
-// 选中后在卡片下面浮出一块墨色的板：加入队列、加入歌单（同一来源时）、加入速记簿（选了历史或队列里的歌时）、移除
-// （速记簿里的移出、历史里的删记录；队列里的歌要到播放队列那一页移出）。双击播放。不能在这里拖动重排（各页展开整页里拖）。
+// 总览（设计稿 F 的 Rows，2026-11-24 照 G 组加成四行）里的四行卡：每页的信息条（ScratchpadSheet 画，进出总览时挪动、长高）下面一行这一页的头几张卡
+// （速记簿的头几首、最近放的几首、正在播的那首起的几格胶片、最近评论过的几首的目录卡），行尾一块「还有几首 · 展开整页 ›」。在空白处拖出框选（跟着纸斜的矩形，可以跨行），Ctrl 点加选；
+// 选中后在卡片下面浮出一块墨色的板：加入队列、加入歌单（同一来源时）、加入速记簿（选了历史、队列或评论里的歌时）、移除
+// （速记簿里的移出、历史里的删记录；队列里的歌要到播放队列那一页移出，评论不在这里删）。双击播放。不能在这里拖动重排（各页展开整页里拖）。
 // 纸的倾斜由 ScratchpadSheet 给；坐标换算与展开整页的画布同一套（scratchpadTilt）。
 
 /** 纸比窗口上边多出来的那一截：行的顶边（窗口坐标，overviewRowTops）加上它才是纸上的位置。 */
@@ -32,10 +34,10 @@ const CARDS_LEFT = 196;
 const CARDS_BELOW_BAND = 84;
 const RIGHT_ROOM = 184 + 170;
 
-const ROW_SPACING: Record<ScratchpadTab, Spacing> = { notes: NOTE_ROW_SPACING, history: PHOTO_ROW_SPACING, queue: FILM_ROW_SPACING };
-const ROW_VARIANT: Record<ScratchpadTab, CardVariant> = { notes: 'note', history: 'photo', queue: 'film' };
+const ROW_SPACING: Record<ScratchpadTab, Spacing> = { notes: NOTE_ROW_SPACING, history: PHOTO_ROW_SPACING, queue: FILM_ROW_SPACING, comments: CATALOG_ROW_SPACING };
+const ROW_VARIANT: Record<ScratchpadTab, CardVariant> = { notes: 'note', history: 'photo', queue: 'film', comments: 'catalog' };
 /** 每行最多几张。 */
-const ROW_CAP: Record<ScratchpadTab, number> = { notes: 10, history: 6, queue: 10 };
+const ROW_CAP: Record<ScratchpadTab, number> = { notes: 10, history: 8, queue: 10, comments: 8 };
 
 /** 一张卡：哪一行的，以及它在那一行的什么歌。 */
 type OverviewEntry = CanvasEntry & { tab: ScratchpadTab; sourceKey: string };
@@ -59,6 +61,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
     const notes = useScratchpadStore(state => state.entries);
     const plays = useScratchpadHistory();
     const { playQueue, displaySong } = usePlaybackStore(useShallow(state => ({ playQueue: state.playQueue, displaySong: selectDisplaySong(state) })));
+    const commented = useRecentSongNotes(ROW_CAP.comments);
+    const tagNames = useSongNoteTags();
     const rootRef = useRef<HTMLDivElement>(null);
     const rowRefs = useRef(new Map<ScratchpadTab, HTMLDivElement>());
     const marqueeRef = useRef<HTMLDivElement>(null);
@@ -89,12 +93,18 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
             position: queueFrom + offset + 1,
             isCurrent: queueFrom + offset === currentIndex,
         }));
+        const commentsRow = commented.rows.slice(0, fit('comments')).map((row, index) => make('comments', row.key, row.song, {
+            ...catalogCardFields(row, tagNames, t),
+            catalogNumber: t('songNotes.catalogNumber', { number: String(index + 1).padStart(2, '0') }),
+            isCurrent: row.key === displayKey,
+        }));
         return {
             notes: { entries: notesRow, more: flatNotes.length - notesRow.length, total: flatNotes.length },
             history: { entries: historyRow, more: plays.length - historyRow.length, total: plays.length },
             queue: { entries: queueRow, more: playQueue.length - queueFrom - queueRow.length, total: playQueue.length },
+            comments: { entries: commentsRow, more: commented.total - commentsRow.length, total: commented.total },
         };
-    }, [displaySong, i18n.language, notes, playQueue, plays, sheetWidth]);
+    }, [commented, displaySong, i18n.language, notes, playQueue, plays, sheetWidth, t, tagNames]);
     const all = useMemo(() => SCRATCHPAD_TABS.flatMap(tab => rows[tab].entries), [rows]);
     // 与信息条（ScratchpadSheet）同一套排法：纸斜着时行的右端低一截，底下让出来。
     const tops = useMemo(() => overviewRowTops(viewHeight, overviewBottomInset(sheetWidth, tilt)), [sheetWidth, tilt, viewHeight]);
@@ -209,11 +219,13 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
 
     // —— 选中后的动作 ——
     const songs = selectedEntries.map(entry => entry.song);
-    const sameSource = new Set(songs.map(scratchpadGroupKey)).size === 1;
+    // 选中的全是速记簿里的歌时，这一批算「速记簿存成歌单」（成功提示里带清空速记簿）。
+    const fromNotesOnly = selectedEntries.length > 0 && selectedEntries.every(entry => entry.tab === 'notes');
     const fromQueue = selectedEntries.some(entry => entry.tab === 'queue');
+    const fromComments = selectedEntries.some(entry => entry.tab === 'comments');
     const collectable = selectedEntries.filter(entry => entry.tab !== 'notes');
     const remove = () => {
-        if (fromQueue) return;
+        if (fromQueue || fromComments) return;
         const noteKeys = selectedEntries.filter(entry => entry.tab === 'notes').map(entry => entry.sourceKey);
         const historyKeys = selectedEntries.filter(entry => entry.tab === 'history').map(entry => entry.sourceKey);
         if (noteKeys.length > 0) useScratchpadStore.getState().remove(noteKeys);
@@ -225,8 +237,10 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
     const collect = () => {
         const history = collectable.filter(entry => entry.tab === 'history').map(entry => entry.song);
         const queued = collectable.filter(entry => entry.tab === 'queue').map(entry => entry.song);
+        const commentedSongs = collectable.filter(entry => entry.tab === 'comments').map(entry => entry.song);
         if (history.length > 0) collectToScratchpad(history, { label: t('scratchpad.originHistory') });
         if (queued.length > 0) collectToScratchpad(queued, { label: t('scratchpad.originQueue') });
+        if (commentedSongs.length > 0) collectToScratchpad(commentedSongs, { label: t('songNotes.title') });
     };
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -262,7 +276,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
             const left = Math.min(...boxes.map(box => box.left));
             const top = Math.min(...boxes.map(box => box.top));
             const bottom = Math.max(...boxes.map(box => box.bottom));
-            const below = selectedEntries.every(entry => entry.tab !== 'queue');
+            const below = selectedEntries.every(entry => entry.tab !== SCRATCHPAD_TABS[SCRATCHPAD_TABS.length - 1]);
             menuStyle = below ? { left, top: bottom + 14 } : { left, top: top - 14, transform: 'translateY(-100%)' };
         }
     }
@@ -354,9 +368,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
                     <button
                         type="button"
                         className="scratchpad-menu-button"
-                        title={sameSource ? undefined : t('scratchpad.mixedSourcesHint')}
-                        disabled={!sameSource || !songs.every(canOpenPlaylistPickerFor)}
-                        onClick={() => openAddSongsToPlaylist(songs)}
+                        disabled={!songs.every(canOpenPlaylistPickerFor)}
+                        onClick={() => openAddSongsToPlaylist(songs, fromNotesOnly ? 'scratchpad' : undefined)}
                     >
                         <Star aria-hidden="true" /><span>{t('scratchpad.addToPlaylist')}</span>
                     </button>
@@ -368,8 +381,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
                     <button
                         type="button"
                         className="scratchpad-menu-button"
-                        title={fromQueue ? t('scratchpad.overviewRemoveQueueHint') : undefined}
-                        disabled={fromQueue}
+                        title={fromQueue ? t('scratchpad.overviewRemoveQueueHint') : fromComments ? t('songNotes.overviewRemoveHint') : undefined}
+                        disabled={fromQueue || fromComments}
                         onClick={remove}
                     >
                         <Trash2 aria-hidden="true" /><span>{t('scratchpad.overviewRemove')}</span>

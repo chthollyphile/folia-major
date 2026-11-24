@@ -1,0 +1,21 @@
+{
+    "name": {
+        "short": "Qishui",
+        "lyrics": "Qishui Music"
+    },
+    "login": {
+        "title": "Đăng nhập Qishui Music bằng Douyin",
+        "note": "Quét mã bằng ứng dụng Douyin và xác nhận ủy quyền"
+    },
+    "recentPlayed": "Gần đây đã phát trên Qishui",
+    "recommended": "Được đề xuất cho bạn",
+    "previewNotice": "Trình phát bên thứ ba tạm thời không thể lấy bản đầy đủ của bài hát VIP",
+    "fm": {
+        "mode": {
+            "DEFAULT": "Mặc định",
+            "FAMILIAR": "Quen thuộc",
+            "EXPLORE": "Khám phá",
+            "SCENE_RCMD": "Bối cảnh"
+        }
+    }
+}

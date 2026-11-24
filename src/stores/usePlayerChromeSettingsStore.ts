@@ -12,19 +12,24 @@
 import { create } from 'zustand';
 import i18n from '../i18n/config';
 import {
+    DEFAULT_CAPSULE_ISLAND,
     DEFAULT_PLAYER_CONTROL_SLOT_PRIMARY,
     DEFAULT_PLAYER_CONTROL_SLOT_SECONDARY,
     isPlayerControlSlotActionId,
+    normalizeCapsuleIsland,
+    placePlayerControl,
+    type PlayerControlLayout,
     type PlayerControlSlotActionId,
 } from '../types/playerControlSlots';
 import { NATIVE_BLUR_SUPPORTED } from '../utils/nativeBlurSupport';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX } from '../utils/playerBottomBarLayout';
-import { getStoredBoolean, setStoredBoolean, getStoredString, setStoredString } from './storagePrimitives';
+import { getStoredBoolean, setStoredBoolean, getStoredString, readStoredString, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 
 const PLAYER_BOTTOM_BAR_OFFSET_STORAGE_KEY = 'player_bottom_bar_offset';
 const PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY = 'player_control_slot_primary';
 const PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY = 'player_control_slot_secondary';
+const PLAYER_CAPSULE_ISLAND_STORAGE_KEY = 'player_capsule_island';
 
 /** All platforms default to the right; explicit choices are kept and malformed values ignored. */
 const readTitlebarSide = (): 'left' | 'right' => {
@@ -59,11 +64,47 @@ const readStoredPlayerControlSlot = (
     return isPlayerControlSlotActionId(saved) ? saved : fallback;
 };
 
+/** 浮岛清单（JSON 数组）；没存过、坏了都用默认。槽位里已有的去掉。 */
+const readStoredCapsuleIsland = (slots: readonly PlayerControlSlotActionId[]): PlayerControlSlotActionId[] => {
+    const raw = readStoredString(PLAYER_CAPSULE_ISLAND_STORAGE_KEY);
+    if (raw === null) {
+        return normalizeCapsuleIsland(DEFAULT_CAPSULE_ISLAND, slots);
+    }
+    try {
+        return normalizeCapsuleIsland(JSON.parse(raw), slots);
+    } catch {
+        return normalizeCapsuleIsland(DEFAULT_CAPSULE_ISLAND, slots);
+    }
+};
+
+const writeStoredPlayerControlLayout = (layout: PlayerControlLayout) => {
+    setStoredString(PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY, layout.primary);
+    setStoredString(PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY, layout.secondary);
+    setStoredString(PLAYER_CAPSULE_ISLAND_STORAGE_KEY, JSON.stringify(layout.island));
+};
+
+const initialSlotPrimary = readStoredPlayerControlSlot(
+    PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY,
+    DEFAULT_PLAYER_CONTROL_SLOT_PRIMARY,
+);
+// 两个槽位存成同一个（旧版本手改过存储）时，右边那个回到默认，不让一个控件出现两次。
+const storedSlotSecondary = readStoredPlayerControlSlot(
+    PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY,
+    DEFAULT_PLAYER_CONTROL_SLOT_SECONDARY,
+);
+const initialSlotSecondary = storedSlotSecondary !== initialSlotPrimary
+    ? storedSlotSecondary
+    : initialSlotPrimary === DEFAULT_PLAYER_CONTROL_SLOT_SECONDARY ? DEFAULT_PLAYER_CONTROL_SLOT_PRIMARY : DEFAULT_PLAYER_CONTROL_SLOT_SECONDARY;
+
 export type PlayerChromeSettingsState = {
     hidePlayerProgressBar: boolean;
+    /** A small notch in the progress bar where the chorus starts, for lyrics whose source marked it. */
+    progressBarChorusMarker: boolean;
     playerBottomBarOffset: number;
     playerControlSlotPrimary: PlayerControlSlotActionId;
     playerControlSlotSecondary: PlayerControlSlotActionId;
+    /** 指针停在胶囊上浮出的那一排，按用户摆的顺序（不含两个槽位里的）。 */
+    playerCapsuleIsland: readonly PlayerControlSlotActionId[];
     hidePlayerRightPanelButton: boolean;
     alwaysShowPlayerBackButton: boolean;
     alwaysShowTrackSwitchButtons: boolean;
@@ -84,8 +125,13 @@ export type PlayerChromeSettingsState = {
     setTransparentPlayerBackgroundFromSystem: (enabled: boolean) => void;
     handleTogglePlayerPageNativeBlur: (enable: boolean) => void;
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
+    handleToggleProgressBarChorusMarker: (enable: boolean) => void;
     handleSetPlayerBottomBarOffset: (offsetPx: number) => void;
+    /** 放进一个槽位；原来的那个和它互换位置（它从另一个槽位、从浮岛来时），从池子里来的则把原来的换回池子。 */
     handleSetPlayerControlSlot: (slot: 'primary' | 'secondary', actionId: PlayerControlSlotActionId) => void;
+    /** 两个槽位和浮岛一次换成这个样子（设置里的摆放编辑器）。 */
+    handleSetPlayerControlLayout: (layout: PlayerControlLayout) => void;
+    handleResetPlayerControlLayout: () => void;
     handleToggleHidePlayerRightPanelButton: (enable: boolean) => void;
     handleToggleAlwaysShowPlayerBackButton: (enable: boolean) => void;
     handleToggleAlwaysShowTrackSwitchButtons: (enable: boolean) => void;
@@ -104,15 +150,11 @@ export type PlayerChromeSettingsState = {
 
 export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((set, get) => ({
     hidePlayerProgressBar: getStoredBoolean('hide_player_progress_bar', false),
+    progressBarChorusMarker: getStoredBoolean('progress_bar_chorus_marker', true),
     playerBottomBarOffset: readStoredPlayerBottomBarOffset(),
-    playerControlSlotPrimary: readStoredPlayerControlSlot(
-        PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY,
-        DEFAULT_PLAYER_CONTROL_SLOT_PRIMARY,
-    ),
-    playerControlSlotSecondary: readStoredPlayerControlSlot(
-        PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY,
-        DEFAULT_PLAYER_CONTROL_SLOT_SECONDARY,
-    ),
+    playerControlSlotPrimary: initialSlotPrimary,
+    playerControlSlotSecondary: initialSlotSecondary,
+    playerCapsuleIsland: readStoredCapsuleIsland([initialSlotPrimary, initialSlotSecondary]),
     hidePlayerRightPanelButton: getStoredBoolean('hide_player_right_panel_button', false),
     alwaysShowPlayerBackButton: getStoredBoolean('always_show_player_back_button', false),
     alwaysShowTrackSwitchButtons: getStoredBoolean('always_show_track_switch_buttons', false),
@@ -175,6 +217,14 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
             text: i18n.t('notifications.' + (enable ? 'progressBarHidden' : 'progressBarShown')),
         });
     },
+    handleToggleProgressBarChorusMarker: (enable) => {
+        setStoredBoolean('progress_bar_chorus_marker', enable);
+        set({ progressBarChorusMarker: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'progressBarChorusMarkerOn' : 'progressBarChorusMarkerOff')),
+        });
+    },
     handleSetPlayerBottomBarOffset: (offsetPx) => {
         const next = Number.isFinite(offsetPx)
             ? Math.max(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, Math.round(offsetPx))
@@ -188,15 +238,39 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
         if (!isPlayerControlSlotActionId(actionId)) {
             return;
         }
-        const key = slot === 'primary'
-            ? PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY
-            : PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY;
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(key, actionId);
+        const state = get();
+        const next = placePlayerControl({
+            primary: state.playerControlSlotPrimary,
+            secondary: state.playerControlSlotSecondary,
+            island: state.playerCapsuleIsland,
+        }, actionId, { kind: 'slot', slot });
+        if (next) {
+            get().handleSetPlayerControlLayout(next);
         }
-        set(slot === 'primary'
-            ? { playerControlSlotPrimary: actionId }
-            : { playerControlSlotSecondary: actionId });
+    },
+    handleSetPlayerControlLayout: (layout) => {
+        if (!isPlayerControlSlotActionId(layout.primary) || !isPlayerControlSlotActionId(layout.secondary)
+            || layout.primary === layout.secondary) {
+            return;
+        }
+        const next: PlayerControlLayout = {
+            primary: layout.primary,
+            secondary: layout.secondary,
+            island: normalizeCapsuleIsland(layout.island, [layout.primary, layout.secondary]),
+        };
+        writeStoredPlayerControlLayout(next);
+        set({
+            playerControlSlotPrimary: next.primary,
+            playerControlSlotSecondary: next.secondary,
+            playerCapsuleIsland: next.island,
+        });
+    },
+    handleResetPlayerControlLayout: () => {
+        get().handleSetPlayerControlLayout({
+            primary: DEFAULT_PLAYER_CONTROL_SLOT_PRIMARY,
+            secondary: DEFAULT_PLAYER_CONTROL_SLOT_SECONDARY,
+            island: DEFAULT_CAPSULE_ISLAND,
+        });
     },
     handleToggleAlwaysShowPlayerBackButton: (enable) => {
         setStoredBoolean('always_show_player_back_button', enable);
@@ -291,9 +365,11 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
  */
 export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsState) => ({
     hidePlayerProgressBar: state.hidePlayerProgressBar,
+    progressBarChorusMarker: state.progressBarChorusMarker,
     playerBottomBarOffset: state.playerBottomBarOffset,
     playerControlSlotPrimary: state.playerControlSlotPrimary,
     playerControlSlotSecondary: state.playerControlSlotSecondary,
+    playerCapsuleIsland: state.playerCapsuleIsland,
     hidePlayerRightPanelButton: state.hidePlayerRightPanelButton,
     alwaysShowPlayerBackButton: state.alwaysShowPlayerBackButton,
     alwaysShowTrackSwitchButtons: state.alwaysShowTrackSwitchButtons,
@@ -312,8 +388,11 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     hideCursorWhenIdle: state.hideCursorWhenIdle,
     showOpenPanelCloseButton: state.showOpenPanelCloseButton,
     handleToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
+    handleToggleProgressBarChorusMarker: state.handleToggleProgressBarChorusMarker,
     handleSetPlayerBottomBarOffset: state.handleSetPlayerBottomBarOffset,
     handleSetPlayerControlSlot: state.handleSetPlayerControlSlot,
+    handleSetPlayerControlLayout: state.handleSetPlayerControlLayout,
+    handleResetPlayerControlLayout: state.handleResetPlayerControlLayout,
     handleToggleHidePlayerRightPanelButton: state.handleToggleHidePlayerRightPanelButton,
     handleToggleAlwaysShowPlayerBackButton: state.handleToggleAlwaysShowPlayerBackButton,
     handleToggleAlwaysShowTrackSwitchButtons: state.handleToggleAlwaysShowTrackSwitchButtons,

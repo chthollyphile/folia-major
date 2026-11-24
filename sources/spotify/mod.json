@@ -1,0 +1,36 @@
+{
+  "folium": 2,
+  "id": "spotify",
+  "name": "Spotify",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的 Spotify 音源（仅桌面端）：在系统浏览器里授权登录、搜索、整首播放（librespot，或 Spotify 官方的 Soloist 程序）、按行计时的歌词、曲库、歌单改动、探索页与电台，经主进程里的 Spotify 查询服务请求。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "native": ["librespot"],
+  "sources": [
+    {
+      "id": "spotify",
+      "name": {
+        "zh-CN": "Spotify",
+        "en": "Spotify",
+        "in": "Spotify",
+        "vi": "Spotify"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "playback.external@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "explore@1",
+        "recommendations@1",
+        "mutations@1"
+      ]
+    }
+  ]
+}

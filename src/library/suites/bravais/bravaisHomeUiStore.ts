@@ -31,7 +31,7 @@ export const setBravaisHomeOpenRequest = (request: BravaisHomeOpenRequest | null
     if (useBravaisHomeUiStore.getState().openRequest !== request) useBravaisHomeUiStore.setState({ openRequest: request });
 };
 
-/** 开一个弹层（另一个随之收起），或收起全部（null）。 */
+/** 开一个弹层，或收起（null）。 */
 export const setBravaisHomePopover = (popover: BravaisHomePopover | null) => {
     if (useBravaisHomeUiStore.getState().popover !== popover) useBravaisHomeUiStore.setState({ popover });
 };

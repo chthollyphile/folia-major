@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const cachedAudioMock = vi.hoisted(() => vi.fn());
@@ -30,6 +31,8 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         getAlternateArtistName: otherArtistNameMock,
         resolveAudioQuality: (_providerId: string, preference: string) => preference,
         isPreviewAudioSource: () => false,
+        // Every source here is enabled (Folium 2.0 §5.3: a source used only for matching does not play).
+        isSourceSwitchedOn: () => true,
         prefersOwnWordByWordLyrics: prefersOwnWordByWordMock,
     },
 }));

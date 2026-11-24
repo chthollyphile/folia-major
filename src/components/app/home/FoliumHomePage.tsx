@@ -54,7 +54,10 @@ export function FoliumHomePage({ entry, extraTabs, account, surfaceProps }: Foli
     const { t, i18n } = useTranslation();
     const { theme, user, playlists, cloudPlaylist, navidromeEnabled } = surfaceProps;
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
-    const nativeSources = useLibraryHomeSources({ account, user, playlists, cloudPlaylist, navidromeEnabled });
+    // 首页是两级页签的 suite（网格、Bravais：页签句柄交出了 groups）时，页头里列的是一级的组，与它的首页一致；
+    // 点一个组去它记住的那一页。别的 suite（TUI）照旧一页一个。
+    const twoLevel = Boolean(useLibraryHomeSurfaceStore(state => state.tabs)?.getState().groups);
+    const nativeSources = useLibraryHomeSources({ account, user, playlists, cloudPlaylist, navidromeEnabled, folia: twoLevel });
     const ctx = useFoliumPanelContext(theme, isDaylight, i18n.language);
     const foliumTheme = useMemo(() => toFoliumTheme(theme, isDaylight), [theme, isDaylight]);
     const label = resolveFoliumLabel(entry.def.label, i18n.language, entry.name);
@@ -110,7 +113,12 @@ export function FoliumHomePage({ entry, extraTabs, account, surfaceProps }: Foli
                 <ChevronLeft size={20} />
             </button>
             <nav className="flex flex-1 flex-wrap items-center gap-1" aria-label={t('mods.homePageNavigation')}>
-                {nativeSources.tabs.map(tab => <button key={tab.key} type="button" disabled={Boolean(tab.disabledReason)}
+                {twoLevel ? nativeSources.groups.map(group => <button key={group.key} type="button" disabled={group.target === null}
+                    title={group.disabledReason || group.label} data-home-group={group.key}
+                    onClick={() => { if (group.target) selectNativeHomeTabFromPage(group.target, nativeSources.setTab); }}
+                    className="max-w-[10rem] truncate rounded-full px-3 py-1.5 text-sm opacity-70 hover:opacity-100 disabled:opacity-30">
+                    {group.label}
+                </button>) : nativeSources.tabs.map(tab => <button key={tab.key} type="button" disabled={Boolean(tab.disabledReason)}
                     title={tab.disabledReason || tab.label} onClick={() => { selectNativeHomeTabFromPage(tab.key, nativeSources.setTab); }}
                     className="rounded-full px-3 py-1.5 text-sm opacity-70 hover:opacity-100 disabled:opacity-30">
                     {tab.label}

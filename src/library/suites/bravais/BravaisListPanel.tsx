@@ -57,7 +57,7 @@ const ListRow = ({ index, style, items, highlightKey, nowPlayingKey, actions }: 
             <span className="bravais-list-badge">{item.badge}</span>
             <span className="bravais-list-text">
                 <strong>{item.title}</strong>
-                {item.subtitle && <small>{item.subtitle}</small>}
+                {item.subtitle && <small title={item.subtitleHint}>{item.subtitle}</small>}
             </span>
             {item.durationLabel && <span className="bravais-list-time">{item.durationLabel}</span>}
         </div>

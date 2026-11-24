@@ -10,6 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Folium 2.0：dev/sources/build.mjs 从 sources/ 构建出的内置音源模组（开发版的内置目录，打包时放进 resources/builtin-mods）
+dist-mods/
+# dev/sources/pack.mjs（npm run sources:pack）打出的音源模组 zip
+dist-mod-packs/
 *.local
 
 # Editor directories and files

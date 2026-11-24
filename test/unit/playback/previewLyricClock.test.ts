@@ -50,7 +50,8 @@ vi.mock('@/services/automix/transitionCue', () => ({ getTransitionHandoffProgres
 
 const lyrics: LyricData = { lines: [{ fullText: 'clip', startTime: 30, endTime: 90, words: [] }] };
 const audio = (url: string, time = 2) => ({ currentSrc: url, currentTime: time, paused: false, ended: false }) as HTMLAudioElement;
-const mount = (incoming: HTMLAudioElement, displayed: HTMLAudioElement | null = null) => {
+type BridgeParams = Parameters<typeof usePlaybackVisualizerBridge>[0];
+const mount = (incoming: HTMLAudioElement, displayed: HTMLAudioElement | null = null, overrides: Partial<BridgeParams> = {}) => {
     usePlaybackVisualizerBridge({
         audioRef: { current: incoming }, analyserRef: { current: null }, animationFrameRef: { current: 0 },
         effectiveLoopMode: 'off', isNowPlayingStageActive: false, isPlayerCapStageActive: false,
@@ -60,6 +61,7 @@ const mount = (incoming: HTMLAudioElement, displayed: HTMLAudioElement | null = 
         getNowPlayingDisplayTime: () => 0, getPlayerCapDisplayTime: () => 0, syncNowPlayingClock: vi.fn(),
         lyricTimelineOffsetMs: 500, incomingLyricTimelineOffsetMs: 1000,
         isTransitionAudible: () => displayed !== null, getDisplayElement: () => displayed,
+        ...overrides,
     });
     for (const effect of env.effects.splice(0)) {
         const cleanup = effect();
@@ -236,6 +238,30 @@ describe('preview lyric clock consumers', () => {
         lyricCurrentTime.set(-0.5);
         dispatch('loadedmetadata', deck);
         expect(lyricCurrentTime.get()).toBe(-0.5);
+    });
+
+    it('moves the lyric read-head with a pushed stage lyrics session, and back to its start on a replay (#1325)', () => {
+        env.state = { ...env.state, activePlaybackContext: 'stage' };
+        let sessionTime = 35;
+        const clock = { startTimeSec: 0, endTimeSec: 120, baseTimeSec: 0, startedAtMs: 0 };
+        const stage: Partial<BridgeParams> = {
+            stageActiveEntryKind: 'lyrics',
+            stageLyricsSession: {} as BridgeParams['stageLyricsSession'],
+            stageLyricsClockRef: { current: clock },
+            getSyntheticStageLyricsTime: () => sessionTime,
+            effectiveLoopMode: 'one',
+        };
+        mount(pausedAudio(''), null, stage);
+        lyricCurrentTime.set(-0.5);
+        frame();
+        // The session's own clock, with no song offset taken off: the same time the line is found at.
+        expect(currentTime.get()).toBe(35);
+        expect(lyricCurrentTime.get()).toBe(35);
+        expect(setCurrentLineIndex).toHaveBeenLastCalledWith(0);
+        sessionTime = 120;
+        frame();
+        expect(currentTime.get()).toBe(0);
+        expect(lyricCurrentTime.get()).toBe(0);
     });
 
     it('ignores the other deck, a held blend, a playing deck and a stage clock', () => {

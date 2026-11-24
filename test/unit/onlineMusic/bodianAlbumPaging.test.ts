@@ -1,9 +1,13 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
-import { bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodian/bodianLibrary';
+import { clearBodianLibraryCache } from '../../../sources/bodian/client/bodianLibrary';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { lazyBodian } from '../helpers/bodianSource';
 
 // test/unit/onlineMusic/bodianAlbumPaging.test.ts — real package and Folia adapters over mixed collection pages.
+// The source mod (sources/bodian/) is registered by the unit setup; its main entry's `request` is the package here.
 
 const require = createRequire(import.meta.url);
 const { createWire } = require('../../helpers/bodianWire.cjs');
@@ -22,11 +26,12 @@ function setup(items: unknown[]) {
     const api = createBodianApi({ deviceId: 'a'.repeat(32), requestFactory: wire.factory,
         sessions: { revision: 0, get: () => ({ uid: '123', token: 'fixture', user: { id: '123', nickname: 'Fixture', avatarUrl: '' } }),
             set: vi.fn(), clear: vi.fn() } });
-    vi.stubGlobal('window', { electron: { bodianRequest: api.request } });
+    setBuiltinSourceRpc('bodian', { request: (operation, params) => api.request(operation as never, params as never) });
     return wire;
 }
 
-afterEach(() => { vi.unstubAllGlobals(); clearBodianLibraryCache(); });
+const bodianLibrary = lazyBodian(provider => provider.library);
+afterEach(() => { clearBodianLibraryCache(); });
 describe('mixed Bodian collections through the public package', () => {
     it('reads an album after a playlist-only page', async () => {
         setup([playlist, album]);

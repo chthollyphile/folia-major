@@ -7,6 +7,7 @@ import type { TFunction } from 'i18next';
 import ScratchpadGroupHeader from './ScratchpadGroupHeader';
 import type { ScratchpadAction } from './scratchpadModel';
 import ScratchpadRow, { type ScratchpadRowActions, type ScratchpadRowLabels } from './ScratchpadRow';
+import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 
 // src/components/app/scratchpad/ScratchpadList.tsx
 // 速记簿收起状态（抽屉）里的分组列表：每个来源一组，组头带整组动作，组内一行一首。
@@ -39,9 +40,11 @@ type ScratchpadListProps = {
     freshKeys: ReadonlySet<string>;
     actions: ScratchpadPanelActions;
     listRef: React.Ref<HTMLDivElement>;
+    /** 歌的 key → 那一小行标签与评论数（useSongNoteChipLines）。 */
+    noteLines?: ReadonlyMap<string, string>;
 };
 
-const ScratchpadList: React.FC<ScratchpadListProps> = ({ groups, freshKeys, actions, listRef }) => {
+const ScratchpadList: React.FC<ScratchpadListProps> = ({ groups, freshKeys, actions, listRef, noteLines }) => {
     const { t } = useTranslation();
     // 身份稳定，行不因为它重渲染（actions 本身由宿主保持稳定）。
     const rowActions = useMemo<ScratchpadRowActions>(() => ({
@@ -78,6 +81,7 @@ const ScratchpadList: React.FC<ScratchpadListProps> = ({ groups, freshKeys, acti
                                     entry={entry}
                                     canAddToPlaylist={canAdd}
                                     isFresh={freshKeys.has(entry.key)}
+                                    noteLine={noteLines?.get(getPlaybackSongKey(entry.song))}
                                     actions={rowActions}
                                     labels={rowLabels}
                                 />

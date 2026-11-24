@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 // 网易云工作线程先试 IPv4（#1068）：设到的值、只影响本线程，以及 IPv6 上请求途中被重置时真的绕开它。
 
 const require = createRequire(import.meta.url);
-const modulePath = require.resolve('../../../electron/netease/upstreamAddressOrder.cjs');
+const modulePath = require.resolve('../../../sources/netease/main/upstreamAddressOrder.cjs');
 const { UPSTREAM_ATTEMPT_TIMEOUT_MS, UPSTREAM_RESULT_ORDER, preferIpv4Upstream } = require(modulePath) as {
     UPSTREAM_ATTEMPT_TIMEOUT_MS: number;
     UPSTREAM_RESULT_ORDER: string;

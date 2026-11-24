@@ -188,9 +188,16 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
         pausedSyncOffset = null;
         loading = true;
         reusableUntil = 0;
+        // 重读之前手上是不是整张读完的那份（同一版本、没有在补页、没有补页中断；上一次重读失败时留下的也算）：
+        // 这次再失败，曲目没动，列表还是全的。
+        const before = state.get();
+        const keepsWhole = before.revision === collectionRevision(collection)
+            && before.sync.status === 'none'
+            && ((before.status === 'ready' && before.error === null) || (before.status === 'error' && before.tracksWhole === true));
         state.set({
             status: 'loading',
             error: null,
+            tracksWhole: false,
             sync: { status: 'none' },
             generation,
             revision: collectionRevision(collection),
@@ -262,7 +269,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             if (stale()) return;
             logOnlineFailure(onlineFailureOf({ operation: 'collection', providerId: collection.providerId }, { error }), error);
             loading = false;
-            state.set({ status: 'error', error: toLoadError(error) }, 'urgent');
+            state.set({ status: 'error', error: toLoadError(error), tracksWhole: keepsWhole }, 'urgent');
         }
     };
 

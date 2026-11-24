@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 // The host owns IPC, OS encryption and media registration; protocol tests live with the npm package.
 const require = createRequire(import.meta.url);
-const { createQishuiApiBridge } = require('../../../electron/qishui/qishuiApiBridge.cjs');
-const { createSessionRepository, SESSION_KEY, DEVICE_KEY } = require('../../../electron/qishui/session.cjs');
-const { createQishuiMediaPolicy } = require('../../../electron/qishui/mediaCors.cjs');
+const { createQishuiApiBridge } = require('../../../sources/qishui/main/qishuiApiBridge.cjs');
+const { createSessionRepository, SESSION_KEY, DEVICE_KEY } = require('../../../sources/qishui/main/session.cjs');
+const { createQishuiMediaPolicy } = require('../../../sources/qishui/main/mediaCors.cjs');
 const store = () => {
     const values = new Map<string, unknown>();
     return { get: (key: string) => values.get(key), set: (key: string, value: unknown) => values.set(key, value), delete: (key: string) => values.delete(key) };
@@ -223,5 +223,113 @@ describe('Qishui media CORS policy', () => {
         for (const url of ['http://p3.byteimg.com/cover.jpg', 'https://user:pass@p3.byteimg.com/cover.jpg']) {
             expect(policy.allows(image(url))).toBe(false);
         }
+    });
+});
+
+// Folium 2.0 S5: the three files above run behind the source mod's main entry (sources/qishui/main/index.ts), on the
+// host's api instead of main.cjs's store, safeStorage, net.fetch and webRequest. The entry is driven here with a
+// stand-in api.
+describe('Qishui main entry (source mod)', async () => {
+    const { default: activate } = await import('../../../sources/qishui/main/index');
+    const { createMediaRules } = require('../../../electron/modSystem/mediaRules.cjs') as {
+        createMediaRules: () => { allow: (modId: string, rule: unknown) => (() => void) & { add: (url: string) => boolean }; allows: (details: unknown) => boolean };
+    };
+    const CLAIMED = new Set([SESSION_KEY, DEVICE_KEY]);
+
+    const launch = (respond: (url: string, init?: Record<string, unknown>) => Response, values = new Map<string, unknown>()) => {
+        const safeStorage = cipher();
+        const handlers = new Map<string, (...args: unknown[]) => unknown>();
+        const fetches: Array<{ url: string; init?: Record<string, unknown> }> = [];
+        const mediaRules = createMediaRules();
+        const given: unknown[] = [];
+        const claimed = (key: string) => {
+            if (!CLAIMED.has(key)) throw new Error(`legacy-key-not-claimed:${key}`);
+        };
+        const api = {
+            legacy: { store: {
+                get: (key: string) => { claimed(key); return values.get(key); },
+                set: (key: string, value: unknown) => { claimed(key); values.set(key, value); },
+                has: (key: string) => { claimed(key); return values.has(key); },
+                delete: (key: string) => { claimed(key); values.delete(key); },
+            } },
+            // api.seal: base64 of safeStorage's sealed bytes, as sourceApi.cjs makes it.
+            seal: {
+                available: () => true,
+                seal: (text: string) => safeStorage.encryptString(text).toString('base64'),
+                open: (sealed: string) => safeStorage.decryptString(Buffer.from(sealed, 'base64')),
+            },
+            net: {
+                fetch: async (url: string, init?: Record<string, unknown>) => {
+                    fetches.push({ url, init });
+                    return respond(url, init);
+                },
+            },
+            media: { allow: (rule: unknown) => { given.push(rule); const remove = mediaRules.allow('qishui', rule); return Object.assign(() => remove(), { add: remove.add }); } },
+            rpc: { handle: (name: string, handler: (...args: unknown[]) => unknown) => { handlers.set(name, handler); } },
+        };
+        activate(api as never);
+        return { handlers, fetches, given, mediaRules, values };
+    };
+
+    it('keeps its device id and a sign-in stored before the move under the claimed keys, sealed the same way', async () => {
+        const values = new Map<string, unknown>();
+        // What main.cjs's bridge stored with Electron's safeStorage before the move.
+        const kept = { get: (key: string) => values.get(key), set: (key: string, value: unknown) => values.set(key, value), delete: (key: string) => values.delete(key) };
+        const before = createSessionRepository({ store: kept, safeStorage: cipher() });
+        before.set({ ...account, deviceId: before.deviceId });
+        const { handlers, fetches } = launch(() => Response.json({}), values);
+        expect(values.get(DEVICE_KEY)).toBe(before.deviceId);
+        expect([...values.keys()].sort()).toEqual([DEVICE_KEY, SESSION_KEY].sort());
+        // The entry's seal opens what safeStorage sealed: signing out through it clears that very sign-in.
+        expect(createSessionRepository({ store: kept, safeStorage: cipher() }).get()).toMatchObject(account);
+        expect(await handlers.get('request')!('logout')).toEqual({ ok: true, data: null });
+        expect(values.has(SESSION_KEY)).toBe(false);
+        expect(await handlers.get('request')!('login_status')).toEqual({ ok: true, data: null });
+        expect(fetches).toHaveLength(0);
+    });
+
+    it('sends the package’s requests through api.net.fetch without cookies, and only its operations', async () => {
+        const { handlers, fetches } = launch(() => Response.json({ err_no: 0, client_token: 'fixture-token' }));
+        await handlers.get('request')!('search', { query: 'x', limit: 1 });
+        expect(fetches.length).toBeGreaterThan(0);
+        for (const { init } of fetches) {
+            expect(init?.credentials).toBe('omit');
+            expect(init).not.toHaveProperty('session');
+        }
+        const count = fetches.length;
+        expect(await handlers.get('request')!('fetch', {})).toMatchObject({ ok: false, error: { code: 'unsupported' } });
+        expect(fetches).toHaveLength(count);
+    });
+
+    it('lets its media through the host’s one listener by the policy it had: issued addresses and the image hosts', async () => {
+        const url = 'https://v3-dy-o.zjcdn.com/audio?fixture=1';
+        const { handlers, given, mediaRules } = launch((raw) => {
+            const path = new URL(raw).pathname;
+            if (path.endsWith('/client/token/get/')) return Response.json({ client_token: 'fixture-client-token' });
+            return Response.json({ data: { media_list: [{ media_id: '123', track_entity: {
+                player_info: { full: { video_model_info: { video_model: { video_list: [{ main_url: url }] } } } },
+            } }] } });
+        });
+        const read = (address: string, resourceType = 'media', responseHeaders: Record<string, string[]> = {}) => (
+            mediaRules.allows({ url: address, method: 'GET', resourceType, responseHeaders })
+        );
+        expect(given).toEqual([
+            { followRedirects: true, ttlMs: 2 * 60 * 60 * 1000 },
+            expect.objectContaining({
+                hosts: ['byteimg.com', '*.byteimg.com', 'douyinpic.com', '*.douyinpic.com', 'douyinstatic.com', '*.douyinstatic.com', 'pstatp.com', '*.pstatp.com'],
+                followRedirects: true, ttlMs: 2 * 60 * 60 * 1000,
+            }),
+        ]);
+        expect(read(url)).toBe(false);
+        expect(await handlers.get('request')!('audio', { id: '123', quality: 'standard' })).toMatchObject({ ok: true, data: { url } });
+        // The issued address only once the package handed it out (the bridge's onAudioSource), as before.
+        expect(read(url)).toBe(true);
+        expect(read('https://v3-dy-o.zjcdn.com/unissued')).toBe(false);
+        expect(read('https://p3-luna.douyinpic.com/img/scene.png', 'image')).toBe(true);
+        expect(read('https://p3.byteimg.com/cover', 'xhr', { 'content-type': ['image/webp'] })).toBe(true);
+        expect(read('https://p3.byteimg.com/cover', 'xhr', { 'content-type': ['application/json'] })).toBe(false);
+        // An image host is never opened for media.
+        expect(read('https://p3.byteimg.com/cover.jpg', 'media')).toBe(false);
+        expect(read('https://example.com/cover.jpg', 'image')).toBe(false);
     });
 });

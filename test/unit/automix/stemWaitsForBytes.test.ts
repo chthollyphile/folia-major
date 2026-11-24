@@ -1,5 +1,7 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 
 // test/unit/automix/stemWaitsForBytes.test.ts
 // Separation may read cached bytes and never download any, so for an online track it is asked at
@@ -24,6 +26,7 @@ const { listeners, getCachedAudioBlob } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/audioCache', () => ({
+    announceCacheLimit: async () => {},
     onAudioCached: (listener: (cacheKey: string, keptUrl?: string) => void) => {
         listeners.add(listener);
         return () => listeners.delete(listener);
@@ -126,14 +129,14 @@ describe('a window whose bytes are not cached yet', () => {
 
     // Spotify's files never enter the media cache: the desktop side keeps them, encrypted, and
     // reading the song's URL reads the kept file. Until one is kept the URL is a download like any
-    // other online URL, and separation does not make it.
+    // other online URL, and separation does not make it. (The Spotify source mod asks its main entry,
+    // answered here through the test's rpc.)
     it('reads the URL of a song its provider keeps on this machine, and only once the file is kept', async () => {
         const song = { id: '4cOdK2wGLETKBW3PvgPWqT', name: 'kept track',
             sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '4cOdK2wGLETKBW3PvgPWqT' } } as unknown as SongResult;
-        const audioUrl = 'folia-spotify://audio/4cOdK2wGLETKBW3PvgPWqT?k=1';
+        const audioUrl = 'folia-mod://spotify/_media/audio/4cOdK2wGLETKBW3PvgPWqT?once=1';
         let kept = false;
-        (globalThis as unknown as { window: { electron: Record<string, unknown> } }).window.electron.spotifyRequest
-            = async (operation: string) => ({ ok: true, data: operation === 'audio_kept' && kept });
+        const off = setBuiltinSourceRpc('spotify', { request: async (operation: unknown) => ({ ok: true, data: operation === 'audio_kept' && kept }) });
         const read = vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
         vi.stubGlobal('fetch', read);
         setWantedStems([stemWindowKey(song, 'tail')]);
@@ -146,6 +149,7 @@ describe('a window whose bytes are not cached yet', () => {
         announce(`audio_online:spotify:${song.id}`);
         await vi.waitFor(() => expect(read).toHaveBeenCalledWith(audioUrl));
         vi.unstubAllGlobals();
+        off();
     });
 
     // The next song is asked for as soon as the current one starts, often before it has a URL.
@@ -154,9 +158,8 @@ describe('a window whose bytes are not cached yet', () => {
     it('reads a provider-kept song by the URL the announcement brings, when it was asked before the song had one', async () => {
         const song = { id: '1111111111111111111111', name: 'next track',
             sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '1111111111111111111111' } } as unknown as SongResult;
-        const audioUrl = 'folia-spotify://audio/1111111111111111111111?k=2';
-        (globalThis as unknown as { window: { electron: Record<string, unknown> } }).window.electron.spotifyRequest
-            = async (operation: string) => ({ ok: true, data: operation === 'audio_kept' });
+        const audioUrl = 'folia-mod://spotify/_media/audio/1111111111111111111111?once=2';
+        const off = setBuiltinSourceRpc('spotify', { request: async (operation: unknown) => ({ ok: true, data: operation === 'audio_kept' }) });
         const read = vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
         vi.stubGlobal('fetch', read);
         setWantedStems([stemWindowKey(song, 'head')]);
@@ -167,5 +170,6 @@ describe('a window whose bytes are not cached yet', () => {
         announce(`audio_online:spotify:${song.id}`, audioUrl);
         await vi.waitFor(() => expect(read).toHaveBeenCalledWith(audioUrl));
         vi.unstubAllGlobals();
+        off();
     });
 });

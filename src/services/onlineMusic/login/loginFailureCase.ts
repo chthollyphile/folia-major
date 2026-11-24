@@ -1,7 +1,7 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { LoginCaseId, LoginFailureDetail, LoginStep, ProviderErrorCode } from '../../../types/onlineMusic';
 import type { LoginCase, LoginCaseAction, LoginCaseKind, LoginFailureFacts } from '../../../types/loginFailure';
-import { LoginRequestTimeout } from './loginRequestLimit';
+import { isLoginRequestTimeout } from '@folia/folium-source-kit';
 import { codeText } from '../../../utils/errorText';
 
 // src/services/onlineMusic/login/loginFailureCase.ts
@@ -86,7 +86,7 @@ export const loginFailureFacts = (
     const detail = source.detail ?? (typeof error === 'object' && error !== null ? describedErrors.get(error) : undefined) ?? {};
     // provider 没有点名时，撞上登录请求时限的错是「没有回应」；点的名不在表里就是原因不明。
     const named = detail.case === undefined
-        ? (error instanceof LoginRequestTimeout ? 'no-answer' as const : undefined)
+        ? (isLoginRequestTimeout(error) ? 'no-answer' as const : undefined)
         : Object.hasOwn(CASES, detail.case) ? detail.case : 'unknown' as const;
     const wait = detail.retryAfterMs;
     const facts = {

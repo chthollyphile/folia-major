@@ -3,10 +3,12 @@ import type { TFunction } from 'i18next';
 import type { OmniProviderCapabilities, ProviderAccountSummary, ProviderCollection } from '@/types/onlineMusic';
 import {
     cycleIndex,
+    homeGroupOfTab,
     homeScanPercent,
     isHomeImportBusy,
     isOnlineHomeTab,
     onlineHomeTitleKey,
+    resolveHomeGroups,
     resolveHomeOnlineSource,
     resolveHomeTabs,
     resolveLocalUnavailableReason,
@@ -54,8 +56,6 @@ const source = (patch: Partial<Parameters<typeof resolveHomeOnlineSource>[0]> = 
     providerId: 'p',
     capabilities: ALL,
     fallbackLabel: 'fallback',
-    fallbackUser: null,
-    fallbackPlaylists: [],
     platformAvailable: true,
     ...patch,
 });
@@ -68,18 +68,13 @@ describe('resolveHomeOnlineSource', () => {
         expect(online).toMatchObject({ providerId: 'p', providerLabel: 'P', user, collections: [owned], accountView: 'authenticated', needsRelogin: false });
     });
 
-    it('falls back to the app account and playlists (cloud last) only for netease', () => {
-        const user = { id: 1, nickname: 'N' };
-        const playlists = [collection('a'), collection('b')];
-        const cloud = collection('cloud', 'cloud');
-        const netease = source({ providerId: 'netease', fallbackUser: user, fallbackPlaylists: playlists, fallbackCloud: cloud });
-        expect(netease.user).toBe(user);
-        expect(netease.collections.map(item => item.id)).toEqual(['a', 'b', 'cloud']);
+    // Folium 2.0 方案 §7：网易云不再有「应用传入的旧账户」这条退路，账户只走账号层。
+    it('has no account without the provider summary, NetEase like any other', () => {
+        const netease = source({ providerId: 'netease' });
+        expect(netease.user).toBeNull();
+        expect(netease.collections).toEqual([]);
         expect(netease.providerLabel).toBe('fallback');
-
-        const other = source({ providerId: 'other', fallbackUser: user, fallbackPlaylists: playlists, fallbackCloud: cloud });
-        expect(other.user).toBeNull();
-        expect(other.collections).toEqual([]);
+        expect(netease.accountView).not.toBe('authenticated');
     });
 
     it('maps capabilities onto the three online tabs', () => {
@@ -102,7 +97,7 @@ describe('home tabs', () => {
 
     it('lists playlist, radio, albums, local and navidrome in that order', () => {
         const tabs = resolveHomeTabs({
-            visibility: { playlist: true, radio: true, explore: false, albums: true, local: true },
+            visibility: { folia: false, playlist: true, radio: true, explore: false, albums: true, local: true },
             navidromeEnabled: true,
             online,
             localAvailability: supported,
@@ -114,7 +109,7 @@ describe('home tabs', () => {
 
     it('hides the tabs the layout settings turn off and Navidrome when it is disabled', () => {
         const tabs = resolveHomeTabs({
-            visibility: { playlist: true, radio: false, explore: false, albums: true, local: false },
+            visibility: { folia: false, playlist: true, radio: false, explore: false, albums: true, local: false },
             navidromeEnabled: false,
             online,
             localAvailability: supported,
@@ -123,7 +118,7 @@ describe('home tabs', () => {
     });
 
     it('shows explore after radio only when the provider has a page of its own and the setting is on', () => {
-        const visibility = { playlist: true, radio: true, explore: true, albums: true, local: false };
+        const visibility = { folia: false, playlist: true, radio: true, explore: true, albums: true, local: false };
         const withPage = source({ capabilities: { ...ALL, explore: true } });
         const keysOf = (online: ReturnType<typeof source>, shown = visibility) => resolveHomeTabs({
             visibility: shown,
@@ -138,7 +133,7 @@ describe('home tabs', () => {
 
     it('gives each unavailable tab its reason, naming the provider', () => {
         const tabs = translateHomeTabs(resolveHomeTabs({
-            visibility: { playlist: true, radio: true, explore: false, albums: true, local: true },
+            visibility: { folia: false, playlist: true, radio: true, explore: false, albums: true, local: true },
             navidromeEnabled: false,
             online: source({ capabilities: NONE }),
             localAvailability: { supported: false, reason: 'insecure-http' },
@@ -168,6 +163,79 @@ describe('home tabs', () => {
         expect(onlineHomeTitleKey('radio')).toBe('home.radioTab');
         expect(onlineHomeTitleKey('explore')).toBe('home.explore');
         expect(resolveOnlineTabUnavailableReason(online, 'radio')).toBeUndefined();
+    });
+});
+
+describe('home groups (two-level tabs)', () => {
+    const supported = { supported: true, reason: null } as const;
+    const everything = { folia: true, playlist: true, radio: true, explore: true, albums: true, local: true };
+    const pages = (online = source({ capabilities: { ...ALL, explore: true } }), visibility = everything, navidromeEnabled = true) => (
+        translateHomeTabs(resolveHomeTabs({ visibility, navidromeEnabled, online, localAvailability: supported }), t)
+    );
+    const groupsOf = (options: Partial<Parameters<typeof resolveHomeGroups>[0]> = {}) => resolveHomeGroups({
+        tabs: pages(),
+        active: 'playlist',
+        onlineLabel: 'Source',
+        rememberedOnlineTab: 'playlist',
+        ...options,
+    });
+
+    it('every page a version before two-level tabs could store belongs to a group', () => {
+        expect((['playlist', 'radio', 'albums', 'explore', 'local', 'navidrome', 'folia'] as const).map(homeGroupOfTab))
+            .toEqual(['online', 'online', 'online', 'online', 'local', 'navidrome', 'folia']);
+    });
+
+    it('puts Folia first among the pages when the suite has it and the setting shows it', () => {
+        expect(pages().map(tab => tab.key)).toEqual(['folia', 'playlist', 'radio', 'explore', 'albums', 'local', 'navidrome']);
+        expect(pages(undefined, { ...everything, folia: false }).map(tab => tab.key)).toEqual(['playlist', 'radio', 'explore', 'albums', 'local', 'navidrome']);
+    });
+
+    it('orders the groups Folia, online, local, Navidrome and names the online one after the source', () => {
+        const groups = groupsOf();
+        expect(groups.map(group => [group.key, group.label, group.tabs.map(tab => tab.key)])).toEqual([
+            ['folia', 'home.foliaTab', ['folia']],
+            ['online', 'Source', ['playlist', 'radio', 'explore', 'albums']],
+            ['local', 'localMusic.folder', ['local']],
+            ['navidrome', 'navidrome.title', ['navidrome']],
+        ]);
+        expect(groups.map(group => group.active)).toEqual([false, true, false, false]);
+    });
+
+    it('leaves out a group with no page shown', () => {
+        const tabs = pages(undefined, { folia: false, playlist: false, radio: false, explore: false, albums: false, local: true }, false);
+        expect(groupsOf({ tabs, active: 'local' }).map(group => group.key)).toEqual(['local']);
+    });
+
+    it('the online group goes back to the page it was last on, or stays on the current one', () => {
+        const online = (options: Partial<Parameters<typeof resolveHomeGroups>[0]>) => groupsOf(options).find(group => group.key === 'online')?.target;
+        expect(online({ active: 'local', rememberedOnlineTab: 'radio' })).toBe('radio');
+        expect(online({ active: 'albums', rememberedOnlineTab: 'radio' })).toBe('albums');
+    });
+
+    it('a remembered page that is gone or unavailable gives way to the first available one', () => {
+        // Explore is not a page of this source; the playlists are not available either.
+        const tabs = pages(source({ capabilities: { ...ALL, playlists: false } }));
+        const online = groupsOf({ tabs, active: 'local', rememberedOnlineTab: 'explore' }).find(group => group.key === 'online');
+        expect(online?.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums']);
+        expect(online?.target).toBe('radio');
+    });
+
+    it('the online group stays selectable with no page available: its page says why', () => {
+        const online = groupsOf({ tabs: pages(source({ capabilities: NONE })), active: 'local' }).find(group => group.key === 'online');
+        expect(online?.target).toBe('playlist');
+        expect(online?.disabledReason).toBeUndefined();
+    });
+
+    it('another group with its only page unavailable is disabled with that page\'s reason', () => {
+        const tabs = translateHomeTabs(resolveHomeTabs({
+            visibility: everything,
+            navidromeEnabled: false,
+            online: source(),
+            localAvailability: { supported: false, reason: 'insecure-http' },
+        }), t);
+        const local = groupsOf({ tabs }).find(group => group.key === 'local');
+        expect(local?.target).toBeNull();
+        expect(local?.disabledReason).toBe('localMusic.insecureHttpDisabled');
     });
 });
 

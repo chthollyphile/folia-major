@@ -4,7 +4,7 @@ import { foliumOldNameAdvice, type FoliumOldName } from './oldNames';
 // src/mods/folium/deprecated/warnings.ts
 // Folium 1.6 only: the old names each mod's client used in this window, one
 // line each ("ctx.subscribe: removed in Folium 2, use ctx.onChange"), for the
-// mod's row in Settings (ModListItem.tsx shows them with the main side's
+// mod's detail in Settings (market/ModDetailSections.tsx shows them with the main side's
 // `mod.warnings`). index.ts writes them, once per name, and so does
 // sayFoliumOldNameOnce for omni providers (registries/omniProviders.ts); clientLoader.ts
 // empties a mod's list when it starts the mod's client, also a start that then

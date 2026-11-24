@@ -6,7 +6,7 @@ import type { PersonalFmLaunch, PersonalFmSelection } from '../../types/personal
 import { translateHomeMessage } from '../core/home/homeSources';
 import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../../services/localMusicService';
 import { getLocalLibraryAvailability } from '../../services/localLibraryAvailability';
-import { importLocalPlaylistFile } from '../../services/localPlaylistFileService';
+import { requestFoliaPlaylistImport } from '../../components/folia-playlists/foliaPlaylistDialogStore';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
 import { isSamePersonalFmSelection, normalizePersonalFmSelection, toPersonalFmRequestOptions } from '../../services/onlineMusic/fmModes';
@@ -38,13 +38,10 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
         localAvailability: () => getLocalLibraryAvailability(),
         importFolder: async () => (await importFolder()).length,
         resyncAllFolders: async () => (await resyncAllFolders())?.length ?? 0,
+        // 交给宿主的导入对话框：它读文件（JSON 与 M3U 都认）、给预览、确认后才写，结果也是它来说。
         importPlaylistFile: async (file) => {
-            const result = await importLocalPlaylistFile(file, getSurface().localSongs);
-            return {
-                playlistName: result.playlist?.name ?? null,
-                matchedCount: result.matchedSongIds.length,
-                skippedCount: result.unmatchedPaths.length + result.ambiguousPaths.length,
-            };
+            const outcome = await requestFoliaPlaylistImport(file);
+            return { playlistName: outcome.playlistName, matchedCount: outcome.count, skippedCount: 0, reported: true };
         },
         refreshLocalSongs: () => getSurface().onRefreshLocalSongs(),
         subscribeScanProgress: (listener) => {

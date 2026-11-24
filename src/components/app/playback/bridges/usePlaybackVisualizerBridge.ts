@@ -375,6 +375,9 @@ export function usePlaybackVisualizerBridge({
 
             currentTime.set(nextTime);
 
+            // The pushed session's lyrics are timed on its own clock: no song offset is taken off, as the line
+            // below takes none. Without this the visualizers' read-head stood at the start while the line moved (#1325).
+            showLyricTime(nextTime);
             showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, nextTime) : -1);
 
             if (hasReachedEnd) {
@@ -382,6 +385,7 @@ export function usePlaybackVisualizerBridge({
                 if (!stageLyricsSession.clock && (effectiveLoopMode === 'one' || effectiveLoopMode === 'all')) {
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
+                    showLyricTime(clock.startTimeSec);
                     showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec) : -1);
                 } else {
                     syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);

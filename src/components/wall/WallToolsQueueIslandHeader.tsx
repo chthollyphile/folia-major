@@ -16,14 +16,14 @@ import { openScratchpadQueueCanvas } from '../../stores/useScratchpadStore';
 import type { WallToolsHost } from './wallToolsHost';
 
 // src/components/wall/WallToolsQueueIslandHeader.tsx
-// 队列浮岛（WallToolsQueueIsland）的头部：「播放队列 · N 首」、在速记簿里展开、搜索、存为本地歌单、清空。
+// 队列浮岛（WallToolsQueueIsland）的头部：「播放队列 · N 首」、在速记簿里展开、搜索、存为歌单、清空。
 // - 在速记簿里展开：打开速记簿的播放队列页、展开成画布（卡片、框选、整块拖动），同时收起面板与浮岛（onOpenScratchpad）。
 // - 搜索：放大镜按钮展开成盖住整个头部的拱门形搜索框（自动聚焦，关闭按钮在框里），开着时不给存歌单与清空（免得以为只作用于
 //   筛出的歌）；筛选本身、搜索框里的 ↓ / Enter 由浮岛处理。关闭（× 或 Esc）清掉搜索词，焦点回到放大镜按钮。
 //   展开 / 收起：搜索框叠在头部那一行上面（绝对定位），clip-path 从放大镜按钮那一小块胶囊长到整个拱门、收起时缩回去；
 //   底下那一行（标题与按钮）同时淡出 / 淡入，淡出后 visibility: hidden，不留在 Tab 顺序里。收起时的落点在关闭那一刻重新量
 //   （经 AnimatePresence 的 custom 交给正在退场的框）。降级动效（uiMicroMotion）时直接出现、消失。
-// - 存为本地歌单用头部内联输入框（不用 TextInputDialog：它没有 portal、z-[200]，会卡在 dock 的层级里，还会和点外部关闭、
+// - 存为歌单用头部内联输入框（不用 TextInputDialog：它没有 portal、z-[200]，会卡在 dock 的层级里，还会和点外部关闭、
 //   Esc 冲突）：Enter 保存并弹提示，失败也提示、焦点回到输入框（保存中输入框禁用会丢焦点）；Esc 取消。
 // - 清空两步确认：第一次点后 3 秒内按钮变成「再点一次清空」并经浮岛的 aria-live 播报，再点才清空；Esc 撤回。
 //   进入确认态后 400ms 内的点击、以及双击里的第二击（event.detail > 1）都不算「再点一次」：双击不能绕过确认。
@@ -61,7 +61,7 @@ type WallToolsQueueIslandHeaderProps = {
     host: WallToolsHost;
     count: number;
     readOnly: boolean;
-    /** 当前队列能不能存成本地歌单（utils/queueReorder 的 canSaveQueueAsLocalPlaylist）。 */
+    /** 当前队列能不能存成歌单（utils/queueReorder 的 canSaveQueueAsPlaylist）。 */
     canSave: boolean;
     /** 经浮岛的 aria-live 播报一句。 */
     announce: (text: string) => void;
@@ -128,7 +128,7 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
         }, CLEAR_CONFIRM_MS);
     };
 
-    /** 收起内联输入，焦点回到「存为本地歌单」按钮。 */
+    /** 收起内联输入，焦点回到「存为歌单」按钮。 */
     const stopNaming = useCallback(() => {
         setNaming(false);
         setDraftName('');
@@ -144,7 +144,7 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
             setStatusMessage({ type: 'success', text: t('wallTools.queueSaved', { name }), nonce: Date.now() });
             stopNaming();
         } catch (error) {
-            console.error('[WallToolsQueueIsland] Failed to save the queue as a local playlist', error);
+            console.error('[WallToolsQueueIsland] Failed to save the queue as a playlist', error);
             setStatusMessage({ type: 'error', text: t('wallTools.queueSaveFailed'), nonce: Date.now() });
         } finally {
             setSaving(false);

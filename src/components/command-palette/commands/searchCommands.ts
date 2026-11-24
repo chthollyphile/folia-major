@@ -1,4 +1,6 @@
 import { History, Search } from 'lucide-react';
+import i18n from '../../../i18n/config';
+import { omni } from '../../../services/onlineMusic/omni';
 import type { SearchSource } from '../../../stores/useSearchNavigationStore';
 import type { CommandPaletteCommand, CommandPaletteContext, CommandPaletteMatch, CommandPaletteSearchSource } from '../types';
 import type { CommandPaletteSurface } from '../surfaces/types';
@@ -6,6 +8,9 @@ import { normalizeSearchHistoryQuery } from '../../../utils/searchHistory';
 
 // src/components/command-palette/commands/searchCommands.ts
 // Commands in the `search` group: run a query against one music source and navigate to results.
+// The online sources' own commands (`search-<source id>`) are not in the static list: there is no default
+// platform, so they are built from the registered sources (buildProviderSearchCommands) and installed when
+// the sources change (providerSearchCommandsInstaller.ts). Folium 2.0 plan §7.
 // While a search command is open, the words searched before are listed under its own row (newest
 // first, narrowed by what is typed); picking one searches it again in the same source.
 
@@ -16,7 +21,7 @@ const getSearchSourceLabel = (sourceTab: SearchSource, context: CommandPaletteCo
     if (sourceTab === 'navidrome') {
         return context.shared.t('commandPalette.sourceNavidrome', 'Navidrome');
     }
-    return context.shared.t('commandPalette.sourceNetease', 'NetEase Cloud Music');
+    return omni.getProviderLabel(sourceTab);
 };
 
 const buildSearchPreview = (
@@ -164,5 +169,28 @@ export const searchCommands: CommandPaletteCommand[] = [
     createSearchCommand('search-current', 'Search songs', 'Search songs in the current source', ['search', 'find', 'song', '搜索', '搜歌'], context => context.search.currentSearchSourceTab, { executeShortcut: 'f' }),
     createSearchCommand('search-local', 'Search local songs', 'Search local library', ['local', 'local search', 'search local', '本地', '本地音乐'], () => 'local'),
     createSearchCommand('search-navidrome', 'Search Navidrome songs', 'Search Navidrome library', ['navi', 'navidrome', 'search navidrome', '导航', '服务器'], () => 'navidrome'),
-    createSearchCommand('search-netease', 'Search NetEase songs', 'Search NetEase Cloud Music', ['netease', 'cloud', 'search netease', '网易云', '网抑云'], () => 'netease'),
 ];
+
+/**
+ * One search command per registered online source, in registration order: `search-<source id>` (a source that
+ * had a command before keeps its id, which pinned commands and shortcuts store). Like the local and Navidrome
+ * ones, they are not offered in the app, where `search-current` searches the source in force; they stay
+ * reachable for callers that match without a context. Their text is the source's name, read when shown.
+ */
+export const buildProviderSearchCommands = (providerIds: readonly string[]): CommandPaletteCommand[] => providerIds.map(providerId => {
+    const label = () => omni.getProviderLabel(providerId);
+    const command = createSearchCommand(
+        `search-${providerId}`,
+        '',
+        '',
+        [providerId, `search ${providerId}`, label()],
+        () => providerId,
+    );
+    // The command itself gets the runtime text, not a copy of it: its surface lists `command` as the first row
+    // (buildSearchMatches), and a copy would leave that row with the empty title given above.
+    command.textSource = 'runtime';
+    return Object.defineProperties(command, {
+        title: { get: () => i18n.t('commandPalette.searchProviderTitle', { provider: label(), defaultValue: 'Search {{provider}} songs' }), enumerable: true },
+        description: { get: () => i18n.t('commandPalette.searchProviderDescription', { provider: label(), defaultValue: 'Search songs on {{provider}}' }), enumerable: true },
+    });
+});

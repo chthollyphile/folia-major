@@ -80,6 +80,7 @@ export default function LatticePlaybackControls({
                     secondaryColor="var(--lattice-chrome-ink)"
                     trackColor="color-mix(in srgb, var(--lattice-chrome-ink) 20%, transparent)"
                     disabled={!canControlCurrent}
+                    chorusMarker={canControlCurrent}
                     edgeStyle="square"
                 />
             </div>

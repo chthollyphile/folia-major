@@ -23,6 +23,7 @@ import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { saveLyricCacheSongMetadata } from './lyricExport/lyricCacheMetadata';
 import { errorFields } from '../utils/errorText';
+import { itemTraits } from './onlineMusic/itemTraits';
 
 // How long playback waits for a stored copy's header to give its play length (`wholeCopy`). Past
 // it the copy plays untested: the check must not hold up a song that starts from the cache.
@@ -59,6 +60,14 @@ export async function loadOnlineSongAudioSource(
     // means for this song's provider, or at an unknown one. A copy of another level is passed
     // over for a URL of the level asked for: the option decides what plays, cached or not.
     const providerId = getOnlineProviderIdForSong(song) ?? undefined;
+    // A song of a source switched to "used only for matching" or off (Folium 2.0 plan §5.3) does not play: its
+    // platform is not asked, and a copy kept of it is not played either. It stays where it is, marked, and
+    // plays again once its source is enabled.
+    if (providerId && !omni.isSourceSwitchedOn(providerId)) {
+        const failure = onlineFailureOf({ operation: 'audio', providerId }, { detail: { case: 'no-audio' } });
+        logOnlineFailure(failure);
+        return { kind: 'unavailable', failure };
+    }
     const level = providerId ? omni.resolveAudioQuality(providerId, audioQuality) : undefined;
     // A copy that failed to decode earlier in this session, or that the caller passes over, is not
     // read; a copy that cannot be read is logged and passed over: the platform is asked instead.
@@ -194,6 +203,16 @@ export async function loadOnlineSongLyrics(
     }
 ): Promise<void> {
     const { isCurrent, onLyrics, onPureMusicChange, onStateChange, onAutoMatchStart, onAutoMatchError, onDone } = callbacks;
+    // An item of a kind with no lyrics (a video, say: plan §4.4) is never asked for any, nor matched.
+    const itemLyrics = itemTraits(song).lyrics;
+    if (itemLyrics === 'none') {
+        onStateChange?.(null);
+        onLyrics(null);
+        onDone();
+        return;
+    }
+    // `own`: only its source's own lyrics; another source's are never matched in for it.
+    const mayMatchOthers = itemLyrics === 'match';
     const lyricCacheKey = getSongResourceCacheKey('lyric', song);
     const onlineLyricsState = await loadOnlineLyricsState(song);
   const initialSettingsLyricSettings = useLyricSettingsStore.getState();
@@ -239,7 +258,7 @@ export async function loadOnlineSongLyrics(
         const effectiveLyrics = preferredPrefetchedLyrics ?? prefetched.lyrics;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+        const shouldAutoMatch = mayMatchOthers && settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
             && !keepsOwnWordByWord(effectiveLyrics);
 
         if (!shouldAutoMatch) {
@@ -285,7 +304,7 @@ export async function loadOnlineSongLyrics(
     let finalState = onlineLyricsState;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+    const shouldAutoMatch = mayMatchOthers && settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
         && !keepsOwnWordByWord(parsedLyrics);
 
     if (shouldAutoMatch) {

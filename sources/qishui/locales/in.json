@@ -1,0 +1,21 @@
+{
+    "name": {
+        "short": "Qishui",
+        "lyrics": "Qishui Music"
+    },
+    "login": {
+        "title": "Masuk ke Qishui Music dengan Douyin",
+        "note": "Pindai dengan aplikasi Douyin dan konfirmasi otorisasi"
+    },
+    "recentPlayed": "Terakhir diputar di Qishui",
+    "recommended": "Rekomendasi untuk Anda",
+    "previewNotice": "Pemutar pihak ketiga untuk sementara tidak dapat memperoleh lagu VIP lengkap",
+    "fm": {
+        "mode": {
+            "DEFAULT": "Bawaan",
+            "FAMILIAR": "Familier",
+            "EXPLORE": "Jelajah",
+            "SCENE_RCMD": "Suasana"
+        }
+    }
+}

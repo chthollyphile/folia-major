@@ -3,11 +3,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { PlaybackEntryViewOptions } from './PlaybackEntryViewOptions';
 import { LibrarySuiteOnboardingOptions } from './LibrarySuiteOnboardingOptions';
+import { SourcesOnboardingOptions } from './SourcesOnboardingOptions';
+import { submitSourcesOnboarding } from './sourcesOnboarding';
 import { usePlaybackEntryViewStore, type StartupPromptPage } from '../../../stores/usePlaybackEntryViewStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { resolveReducedMotion, useMotionSettingsStore } from '../../../stores/useMotionSettingsStore';
 import { confirmOnboardingLibrarySuite } from '../../../library/app/librarySuiteChoice';
 import { OVERLAY_CALM_TRANSITION, OVERLAY_TRANSITION } from '../../shared/overlayEntranceMotion';
+import { openSettings } from '../../../stores/useSettingsModalStore';
+import { settingsAnchorSubview } from '../../../utils/settingsAnchorModel';
 import type { Theme } from '../../../types';
 
 // src/components/modal/playback-entry-view/PlaybackEntryViewPrompt.tsx
@@ -21,9 +25,14 @@ import type { Theme } from '../../../types';
 // question, when that has not been chosen yet. Each card writes its preference the moment it is picked, through
 // the same path as the options page, so Back / Next never lose a choice.
 //
+// A fresh desktop profile also gets a sources page first (Folium 2.0 plan §5.3, sourcesOnboarding.ts): which
+// platforms it listens on, nothing ticked to begin with. Its ticks are only kept until the dialog closes; then the
+// whole answer goes to the main process at once (submitSourcesOnboarding).
+//
 // It closes as answered whichever way it is dismissed, including the backdrop: both preferences have working
 // defaults, so a listener who does not care must not be asked a second time. Closing a dialog that showed page 1
-// also records the suite in effect as the listener's choice (confirmOnboardingLibrarySuite).
+// also records the suite in effect as the listener's choice (confirmOnboardingLibrarySuite); one that showed the
+// sources page hands its ticks over, ticked or not.
 
 type PromptPage = StartupPromptPage;
 
@@ -44,7 +53,9 @@ export const PlaybackEntryViewPrompt: React.FC<{ theme?: Theme | null }> = ({ th
     const pages = usePlaybackEntryViewStore(state => state.promptPages);
     const closeStoredPrompt = usePlaybackEntryViewStore(state => state.closePlaybackEntryViewPrompt);
     const closePrompt = useCallback(() => {
-        if (usePlaybackEntryViewStore.getState().promptPages.includes('library-suite')) confirmOnboardingLibrarySuite();
+        const shownPages = usePlaybackEntryViewStore.getState().promptPages;
+        if (shownPages.includes('library-suite')) confirmOnboardingLibrarySuite();
+        if (shownPages.includes('sources')) void submitSourcesOnboarding();
         closeStoredPrompt();
     }, [closeStoredPrompt]);
 
@@ -95,7 +106,7 @@ const PromptPanel: React.FC<{ theme?: Theme | null; pages: readonly PromptPage[]
     const secondaryBtnClass = isDaylight
         ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
         : 'bg-white/[0.06] hover:bg-white/10 text-zinc-200';
-    const namespace = page === 'library-suite' ? 'librarySuiteOnboarding' : 'playbackEntryView';
+    const namespace = page === 'sources' ? 'sourcesOnboarding' : page === 'library-suite' ? 'librarySuiteOnboarding' : 'playbackEntryView';
     const motionContext: PageMotionContext = { direction, calm };
 
     return (
@@ -130,7 +141,18 @@ const PromptPanel: React.FC<{ theme?: Theme | null; pages: readonly PromptPage[]
                     </div>
 
                     <div className="mt-5">
-                        {page === 'library-suite' ? (
+                        {page === 'sources' ? (
+                            <SourcesOnboardingOptions
+                                isDaylight={isDaylight}
+                                accentColor={accentColor}
+                                // Navidrome (not a source mod): the dialog closes as answered (these ticks go to the main
+                                // process, the other pages keep their defaults) and its connection in Settings opens.
+                                onOpenNavidrome={() => {
+                                    onClose();
+                                    openSettings('options', settingsAnchorSubview('navidrome'), null, 'navidrome');
+                                }}
+                            />
+                        ) : page === 'library-suite' ? (
                             <LibrarySuiteOnboardingOptions isDaylight={isDaylight} accentColor={accentColor} />
                         ) : (
                             <PlaybackEntryViewOptions

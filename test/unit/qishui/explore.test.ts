@@ -1,17 +1,20 @@
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { qishuiExplore, clearQishuiExplore } from '@/services/onlineMusic/qishui/qishuiExplore';
-import { clearQishuiRecommendations, getQishuiFmCatalog } from '@/services/onlineMusic/qishui/qishuiRecommendations';
-import { clearQishuiPlayback, readQishuiSongs } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { createQishuiSceneCover } from '@/services/onlineMusic/qishui/qishuiSceneCover';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
-import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { clearQishuiExplore } from '../../../sources/qishui/client/qishuiExplore';
+import { clearQishuiRecommendations } from '../../../sources/qishui/client/qishuiRecommendations';
+import { clearQishuiPlayback, readQishuiSongs } from '../../../sources/qishui/client/qishuiPlayback';
+import { createQishuiSceneCover } from '../../../sources/qishui/client/qishuiSceneCover';
+import { readQishuiSceneIcon, requestQishui } from '../../../sources/qishui/client/qishuiTransport';
 import type { ProviderExploreItem } from '@/types/onlineMusic';
+import { hostQishuiSong, lazyQishui, qishuiProvider } from '../helpers/qishuiSource';
 import { track } from './fixtures';
 
 // The explore stream across its "more" batches, what a sign-in that ran out drops, and scene artwork
-// whose icon could not be read; the bridge is replaced by a stand-in.
-vi.mock('@/services/onlineMusic/qishui/qishuiTransport', async original => ({
-    ...await original<typeof import('@/services/onlineMusic/qishui/qishuiTransport')>(),
+// whose icon could not be read; the bridge is replaced by a stand-in. Read through the registered source mod.
+const qishuiExplore = lazyQishui(provider => provider.explore);
+const getQishuiFmCatalog = () => qishuiProvider().recommendations!.getPersonalFmCatalog!();
+vi.mock('../../../sources/qishui/client/qishuiTransport', async original => ({
+    ...await original<typeof import('../../../sources/qishui/client/qishuiTransport')>(),
     requestQishui: vi.fn(),
     readQishuiSceneIcon: vi.fn(),
 }));
@@ -74,14 +77,15 @@ describe('Qishui sign-in that ran out', () => {
         });
         const [section] = (await qishuiExplore.getFeed()).sections;
         await getQishuiFmCatalog();
-        const [song] = await readQishuiSongs([track('1')]);
-        expect(qishuiProvider.playback!.getAvailability!(song)).toEqual({ state: 'playable' });
+        await readQishuiSongs([track('1')]);
+        const song = hostQishuiSong(track('1'));
+        expect(qishuiProvider().playback!.getAvailability!(song)).toEqual({ state: 'playable' });
         request.mockClear();
         await getQishuiFmCatalog();
         expect(request).not.toHaveBeenCalled();
 
-        await qishuiProvider.auth!.signInRanOut!();
-        expect(qishuiProvider.playback!.getAvailability!(song)).toEqual({ state: 'unknown' });
+        await qishuiProvider().auth!.signInRanOut!();
+        expect(qishuiProvider().playback!.getAvailability!(song)).toEqual({ state: 'unknown' });
         expect(await qishuiExplore.getSectionItems!(section.moreCursor!)).toEqual({ items: [] });
         await getQishuiFmCatalog();
         expect(request).toHaveBeenCalledExactlyOnceWith('feed_modes');
@@ -89,8 +93,8 @@ describe('Qishui sign-in that ran out', () => {
     it('does not hand out radio cards from a scene catalogue read under the account before', async () => {
         let finish!: (rows: unknown) => void;
         request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
-        const cards = qishuiProvider.recommendations!.getRecommendedCollections!(10);
-        await qishuiProvider.auth!.signInRanOut!();
+        const cards = qishuiProvider().recommendations!.getRecommendedCollections!(10);
+        await qishuiProvider().auth!.signInRanOut!();
         finish([{ id: '7', name: 'Drive', group: 'Scenes' }]);
         expect(await cards).toEqual([]);
     });

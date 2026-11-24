@@ -4,7 +4,7 @@ import type {
     LibraryDirectoryNodeSelection,
     LibraryDirectoryVisibilityMode,
 } from '../../core/directory/directory.contract';
-import type { LibraryHomeCard, LibraryHomeTabView } from '../../core/home/homeModel.contract';
+import type { LibraryHomeCard, LibraryHomeGroupView, LibraryHomeTabView } from '../../core/home/homeModel.contract';
 import { homeCardToDirectoryItem } from '../../core/directory/directoryItems';
 import { isDirectoryItemHidden, isHideableDirectoryItem } from '../../core/directory/directoryVisibility';
 import {
@@ -25,7 +25,8 @@ import { homeCardItemKey, projectHomeCardItem, type HomeCardLabels } from './bra
 // 首页的纯投影（设计稿 §10.5、§5「目录树 = GridMap 的批量模式」）：
 // - 首页卡片 → 目录条目（与 GridMap、TUI 同一个映射）→ 墙上的磁贴，带上眼睛按钮、管理隐藏视图里的已隐藏、
 //   批量模式里的选中 / 未选中（灰度 + 半透明）；
-// - 墙的模式与过滤身份：批量模式与「只看隐藏」怕重复，退化为以缝为中心的有限拼贴；浏览与「管理隐藏」是无限拼贴。
+// - 墙的模式与过滤身份：批量模式与「只看隐藏」怕重复，退化为以缝为中心的有限拼贴；浏览与「管理隐藏」平常是无限拼贴，
+//   设置「首页只用有限墙」（useLibraryWallLookStore 的 homeFinite）开着时也是有限拼贴；
 //   过滤身份（wall.filterKey）里带上二级切换的 section，所以切本地四行、进出管理隐藏 / 批量都从缝的两侧边缘整面翻；
 // - 目录树面板的行：core 的 resolveDirectoryRows 排树，三态与「仅本层」沿用 resolveDirectoryNodeSelection /
 //   resolveNextDirectoryNodeSelectionTarget（与 GridMap 的批量面板同一套）；
@@ -50,6 +51,7 @@ export const resolveHomeWallMode = ({
     visibilityMode,
     batch,
     query,
+    finiteOnly = false,
 }: {
     /** 二级切换的 section（在线页签给页签自己）。 */
     section: string;
@@ -58,14 +60,18 @@ export const resolveHomeWallMode = ({
     batch: boolean;
     /** 这一页的过滤词（目录会话的 query；浏览、管理隐藏、批量模式里都生效）。 */
     query: string;
+    /** 首页只用有限墙（设置开关；首页 Folia 的标签页签一直这样）：浏览与「管理隐藏」也给有限拼贴，不循环重复。 */
+    finiteOnly?: boolean;
 }): BravaisHomeWallMode => {
     const text = query.trim();
     if (batch) return { mode: 'finite', filterKey: `${section}|batch|${text}` };
     // 当前页过滤（设计稿 §7.6 / §4）：过滤中退化为以缝为中心的有限拼贴（不重复）；过滤身份带上词，换词就从缝的两侧翻。
     if (visibilityMode === 'manage-hidden-only') return { mode: 'finite', filterKey: `${section}|hidden-only${text ? `|${text}` : ''}` };
     if (text) return { mode: 'finite', filterKey: `${section}|${visibilityMode}|filter|${text}` };
-    if (visibilityMode === 'manage') return { mode: 'infinite', filterKey: `${section}|manage` };
-    return { mode: 'infinite', filterKey: section };
+    // 换开关时 mode 变了，stage 照样整面翻（bravaisDisplayUpdate 比 mode），过滤身份不用另带标记。
+    const mode = finiteOnly ? 'finite' : 'infinite';
+    if (visibilityMode === 'manage') return { mode, filterKey: `${section}|manage` };
+    return { mode, filterKey: section };
 };
 
 type HomeItemFlags = Pick<BravaisItem, 'hideable' | 'hidden' | 'selected' | 'dimmed' | 'direct'>;
@@ -285,21 +291,21 @@ export const cycleHomeTab = (
 };
 
 /**
- * 缝里的一级页签：原生页签，后面接宿主交来的扩展页签（模组的首页页面；id 带模组前缀 `modid:name`，不会与原生的
- * key 撞上）。选中态以宿主为准：扩展页签开着时原生页签都不算选中，aria-selected 与高亮跟着走。
+ * 首页两级页签的一级那一排：组（Folia、当前在线音源、本地、Navidrome）在前，扩展页签在后；key 是组的 key。
+ * 有扩展页签开着时组都不算选中。
  */
-export const projectHomeSeamTabs = (
-    tabs: readonly LibraryHomeTabView[],
-    active: string,
+export const projectHomeSeamGroups = (
+    groups: readonly LibraryHomeGroupView[],
     extraTabs: readonly Pick<LibraryHomeExtraTab, 'id' | 'label' | 'active'>[] = [],
 ): BravaisSeamTab[] => {
     const extraActive = extraTabs.some(tab => tab.active);
     return [
-        ...tabs.map(candidate => ({
-            key: candidate.key,
-            label: candidate.label,
-            active: !extraActive && candidate.key === active,
-            disabled: Boolean(candidate.disabledReason),
+        ...groups.map(group => ({
+            key: group.key,
+            label: group.label,
+            active: !extraActive && group.active,
+            disabled: group.target === null,
+            ...(group.disabledReason ? { title: group.disabledReason } : {}),
         })),
         ...extraTabs.map(entry => ({ key: entry.id, label: entry.label, active: entry.active, disabled: false })),
     ];

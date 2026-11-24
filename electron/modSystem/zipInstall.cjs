@@ -7,11 +7,14 @@
 'use strict';
 
 const crypto = require('crypto');
-const fs = require('fs');
+// original-fs: a .asar file in a mod directory is a file here, not a directory (rawFs.cjs).
+const { rawFs: fs } = require('./rawFs.cjs');
 const path = require('path');
 const { unzipSync } = require('fflate');
 
 const { validateManifest } = require('./manifest.cjs');
+const { verifyModSignature, computeSignedDigest } = require('./modSignature.cjs');
+const { isAllowedWithoutCommunity } = require('./communityMods.cjs');
 
 // Staged installs and their rollback copies live under this directory inside
 // the user mods folder; discovery skips it (and every other dot-directory).
@@ -21,22 +24,25 @@ const STAGING_DIRECTORY = '.staging';
  * Install guards. A .zip is untrusted input: it is size-checked before it is
  * read, entry-checked against its declared uncompressed sizes before anything
  * is inflated, and checked again against the real inflated bytes. The caps
- * match modDigest's, so anything installable is also verifiable.
+ * match modDigest's, so anything installable is also verifiable. One file and
+ * the total are Folium 2.0's (plan §6.2): a source mod's dependency archive is
+ * one file (the largest about 49 MiB) and the mod about as large.
  */
 const INSTALL_LIMITS = {
-    maxArchiveBytes: 64 * 1024 * 1024,
+    maxArchiveBytes: 96 * 1024 * 1024,
     maxEntries: 2000,
-    maxTotalBytes: 64 * 1024 * 1024,
-    maxFileBytes: 32 * 1024 * 1024,
+    maxTotalBytes: 96 * 1024 * 1024,
+    maxFileBytes: 64 * 1024 * 1024,
 };
 
 /*
  * `app` is Electron's (where the user's data lives). The rest is the loader's:
  * `isModSystemEnabled` (nothing is installed while mods are switched off),
+ * `isCommunityModsEnabled` (while community mods are off, only an official source mod is installed; absent: any),
  * `loadAll` (run once the new files are in place), `emitLog`, and
  * `serializeError` (a failure as the text the mods page shows).
  */
-const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serializeError }) => {
+const createZipInstall = ({ app, isModSystemEnabled, isCommunityModsEnabled = () => true, loadAll, emitLog, serializeError }) => {
     // The per-user writable mod directory (the packaged app's own tree is read-only).
     const getUserModsDirectory = () => path.join(app.getPath('userData'), 'mods');
 
@@ -163,8 +169,13 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
      *
      * A replaced mod's stored approval no longer matches the new content
      * digest, so an upgrade always lands disabled and must be confirmed again.
+     *
+     * `expect` ({ id, version, digest, channel }) is the mod market's (market.cjs), never the window's: the staged
+     * files must be that mod at that version (an altered catalog cannot pass an older signed package off as the
+     * update it announces), signed by a key this app trusts for that channel, with that signed digest.
+     * The catalog is only a list; the signature checked here is what vouches for the files.
      */
-    const installModFromZip = async (zipPath) => {
+    const installModFromZip = async (zipPath, { expect = null } = {}) => {
         if (!isModSystemEnabled()) {
             return { ok: false, error: 'mod-system-disabled' };
         }
@@ -236,6 +247,31 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
             if (validation.value.client && !fs.existsSync(path.join(stagingDir, validation.value.client))) {
                 throw new Error('install-client-missing');
             }
+            // Folium 2.0, community mods off: the staged files must be an official source mod (communityMods.cjs).
+            // Checked on the staged tree, the files that would run, before anything replaces a working install.
+            const signature = verifyModSignature(stagingDir, validation.value);
+            if (!isCommunityModsEnabled() && !isAllowedWithoutCommunity({
+                tier: 'user',
+                manifest: validation.value,
+                signature,
+            })) {
+                throw new Error('install-community-off');
+            }
+            if (expect) {
+                if (modId !== expect.id) {
+                    throw new Error('market-id-mismatch');
+                }
+                if (expect.version !== undefined && validation.value.version !== expect.version) {
+                    throw new Error('market-version-mismatch');
+                }
+                const wanted = expect.channel === 'beta' ? 'beta' : 'verified';
+                if (signature.status !== wanted) {
+                    throw new Error(signature.status === 'invalid' ? `market-signature-invalid:${signature.reason ?? 'invalid'}` : `market-signature:${signature.status}`);
+                }
+                if (computeSignedDigest(stagingDir) !== expect.digest) {
+                    throw new Error('market-digest-mismatch');
+                }
+            }
 
             // Atomic-ish swap: move the old copy aside, move the new one in, and
             // put the old one back if the second rename fails.
@@ -255,7 +291,7 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
             removeQuietly(backupDir);
             backupTaken = false;
 
-            const modsAfterInstall = loadAll();
+            const modsAfterInstall = await loadAll();
             emitLog(modId, 'info', `installed mod ${modId} from zip`);
             return { ok: true, id: modId, mods: modsAfterInstall };
         } catch (error) {

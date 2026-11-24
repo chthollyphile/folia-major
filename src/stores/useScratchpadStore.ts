@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import i18n from '../i18n/config';
-import type { SongResult, UnifiedSong } from '../types';
-import { getPlaybackSongKey, getPlaybackSourceRef, isStagePlaybackSong, normalizePlaybackSongSource } from '../utils/appPlaybackGuards';
+import type { SongResult } from '../types';
+import { getPlaybackSongKey, getPlaybackSourceRef, isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import { toStoredSongSnapshot } from '../utils/songSnapshot';
 import { getStoredString, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 
@@ -38,14 +39,8 @@ export type ScratchpadAddResult = {
     unsaved?: boolean;
 };
 
-/** 存下来的样子：本地歌只留 songId 引用（blob、文件句柄都不跨启动），舞台歌不收。 */
-export const toScratchpadSong = (song: SongResult): SongResult => {
-    const unified = normalizePlaybackSongSource(song) as UnifiedSong & { localData?: { id?: string } };
-    const localSongId = unified.localRef?.songId || unified.localData?.id;
-    if (!localSongId) return unified;
-    const { localData: _legacyLocalData, ...snapshot } = unified;
-    return { ...snapshot, isLocal: true, localRef: { songId: localSongId } } as UnifiedSong;
-};
+/** 存下来的样子（和 Folia 聚合歌单的条目同一个函数）：本地歌只留 songId 引用，舞台歌不收。 */
+export const toScratchpadSong = toStoredSongSnapshot;
 
 /** 把 songs 追加到 entries 后面：已在里面的、舞台歌、超出容量的都不收。纯函数，单测直接测它。 */
 export const appendScratchpadEntries = (
@@ -159,8 +154,11 @@ const writeEntries = (entries: ScratchpadEntry[]): boolean => {
     }
 };
 
-/** 抽屉的三页：速记簿本身、播放历史（探索页「最近播放」那份记录）、当前的播放队列。 */
-export type ScratchpadTab = 'notes' | 'history' | 'queue';
+/**
+ * 抽屉的四页：速记簿本身、播放历史（探索页「最近播放」那份记录）、当前的播放队列，以及歌曲的本地评论
+ * （标签、评论、时间轴注释；数据单独长期存，见 src/components/song-notes/）。
+ */
+export type ScratchpadTab = 'notes' | 'history' | 'queue' | 'comments';
 
 type ScratchpadState = {
     entries: ScratchpadEntry[];

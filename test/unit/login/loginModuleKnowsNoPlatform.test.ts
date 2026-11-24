@@ -1,8 +1,10 @@
+// @builtin-sources
 import { readdir, readFile } from 'node:fs/promises';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistry';
-import { useNeteaseApiStatusStore } from '@/services/onlineMusic/netease/useNeteaseApiStatusStore';
+import { noteNeteaseBackendStatus } from '../../../sources/netease/core';
+import { answerNeteaseBackend } from '../helpers/neteaseSource';
 
 // test/unit/login/loginModuleKnowsNoPlatform.test.ts
 // One platform's rule stays with the platform. The sign-in window (src/components/login/) names
@@ -44,26 +46,30 @@ describe('what each platform declares for the sign-in window', () => {
             spotify: { letter: 'S', color: '#22c55e' },
             qishui: { letter: '汽', color: '#19a58c' },
             appleMusic: { letter: 'A', color: '#fa243c' },
+            lxmusic: { letter: '洛', color: '#2f9e6e' },
         });
     });
 
     it('its title and note, as text keys', () => {
         // The second lines a platform declares for single cases are pinned in loginView.test.ts.
-        const texts = Object.fromEntries(listOnlineMusicProviders().map(provider => {
-            const { title, note } = omni.getLoginTexts(provider.id)!;
-            return [provider.id, { title, note }];
+        // A source without a sign-in (the LX source: it has no account) declares no texts and is not in the list.
+        const texts = Object.fromEntries(listOnlineMusicProviders().flatMap(provider => {
+            const declared = omni.getLoginTexts(provider.id);
+            return declared ? [[provider.id, { title: declared.title, note: declared.note }]] : [];
         }));
+        expect(omni.getLoginTexts('lxmusic')).toBeNull();
         expect(texts).toEqual({
-            netease: { title: 'home.loginTitle', note: 'home.loginNote' },
-            kugou: { title: 'home.loginTitleKugou', note: 'home.loginNoteKugou' },
-            qq: { title: 'home.loginTitleQq', note: 'home.loginNoteQq' },
-            bodian: { title: 'home.loginTitleBodian', note: 'home.loginNoteBodian' },
-            fnmusic: { title: 'home.loginTitleFnMusic', note: 'home.loginNoteFnMusic' },
+            netease: { title: 'folium-mod/netease:login.title', note: 'folium-mod/netease:login.note' },
+            kugou: { title: 'folium-mod/kugou:login.title', note: 'folium-mod/kugou:login.note' },
+            qq: { title: 'folium-mod/qq:login.title', note: 'folium-mod/qq:login.note' },
+            // Folium 2.0 S5: a source mod's texts are keys of its own locale files (folium-mod/<mod id>).
+            bodian: { title: 'folium-mod/bodian:login.title', note: 'folium-mod/bodian:login.note' },
+            fnmusic: { title: 'folium-mod/fnmusic:login.title', note: 'folium-mod/fnmusic:login.note' },
             // The test runs where no browser tells the system: the note is the one for Windows and Linux.
-            ytm: { title: 'home.loginTitleYtm', note: 'home.loginNoteYtmBrowser' },
-            spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
-            qishui: { title: 'home.loginTitleQishui', note: 'home.loginNoteQishui' },
-            appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },
+            ytm: { title: 'folium-mod/ytm:login.title', note: 'folium-mod/ytm:login.note' },
+            spotify: { title: 'folium-mod/spotify:login.title', note: 'folium-mod/spotify:login.note' },
+            qishui: { title: 'folium-mod/qishui:login.title', note: 'folium-mod/qishui:login.note' },
+            appleMusic: { title: 'folium-mod/apple-music:login.title', note: 'folium-mod/apple-music:login.note' },
         });
     });
 
@@ -79,40 +85,48 @@ describe('what each platform declares for the sign-in window', () => {
     });
 });
 
+// NetEase's local service is the API in its main entry's worker (sources/netease/main): its state comes from the main
+// entry, pushed on every change (noteNeteaseBackendStatus) or asked through rpc `status` / `restart`.
 describe('the local service of a platform, as the sign-in window sees it', () => {
-    const service = omni.getLoginLocalService('netease')!;
-    const store = useNeteaseApiStatusStore;
-
-    it('is failed only in the desktop app, when the service reports an error; its own words come with it', () => {
-        store.setState({ supported: false, status: { status: 'error', error: 'xeapi key missing' } as never, restarting: false });
-        expect(service.getStatus()).toEqual({ failed: false, error: null, restarting: false });
-        store.setState({ supported: true });
-        expect(service.getStatus()).toEqual({ failed: true, error: 'xeapi key missing', restarting: false });
-        store.setState({ status: { status: 'running', error: null } as never });
-        expect(service.getStatus()).toEqual({ failed: false, error: null, restarting: false });
+    const service = () => omni.getLoginLocalService('netease')!;
+    let off: (() => void) | null = null;
+    afterEach(() => {
+        off?.();
+        off = null;
+        noteNeteaseBackendStatus(null);
     });
 
-    it('hands out the same object until something changes, and tells its listeners', () => {
-        store.setState({ supported: true, status: { status: 'error', error: null } as never, restarting: false });
-        const first = service.getStatus();
-        expect(service.getStatus()).toBe(first);
+    it('is failed when the service reports an error; its own words come with it', () => {
+        noteNeteaseBackendStatus({ status: 'error', port: null, error: 'xeapi key missing', updatedAt: 1 });
+        expect(service().getStatus()).toEqual({ failed: true, error: 'xeapi key missing', restarting: false });
+        noteNeteaseBackendStatus({ status: 'running', port: 3000, error: null, updatedAt: 2 });
+        expect(service().getStatus()).toEqual({ failed: false, error: null, restarting: false });
+    });
+
+    it('hands out the same object until something changes, asks the state when first watched, and tells its listeners', async () => {
+        const backend = answerNeteaseBackend({ status: 'error', port: null, error: null });
+        off = backend.off;
+        noteNeteaseBackendStatus({ status: 'error', port: null, error: null, updatedAt: 3 });
+        const first = service().getStatus();
+        expect(service().getStatus()).toBe(first);
         let told = 0;
-        const stop = service.subscribe(() => { told += 1; });
-        store.setState({ restarting: true });
-        expect(told).toBe(1);
-        expect(service.getStatus()).toEqual({ failed: true, error: null, restarting: true });
+        const stop = service().subscribe(() => { told += 1; });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(backend.status).toHaveBeenCalledTimes(1);
+        const before = told;
+        noteNeteaseBackendStatus({ status: 'running', port: 3000, error: null, updatedAt: 4 });
+        expect(told).toBe(before + 1);
         stop();
-        store.setState({ restarting: false });
-        expect(told).toBe(1);
+        noteNeteaseBackendStatus({ status: 'error', port: null, error: null, updatedAt: 5 });
+        expect(told).toBe(before + 1);
     });
 
     it('restarts, and says whether the service runs again', async () => {
-        const restart = (next: string) => store.setState({
-            restart: async () => { store.setState({ status: { status: next, error: null } as never }); },
-        });
-        restart('running');
-        await expect(service.restart()).resolves.toBe(true);
-        restart('error');
-        await expect(service.restart()).resolves.toBe(false);
+        const backend = answerNeteaseBackend();
+        off = backend.off;
+        await expect(service().restart()).resolves.toBe(true);
+        backend.restart.mockReturnValue({ status: 'error', port: null, error: 'port in use', updatedAt: 6 });
+        await expect(service().restart()).resolves.toBe(false);
+        expect(service().getStatus()).toEqual({ failed: true, error: 'port in use', restarting: false });
     });
 });

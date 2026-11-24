@@ -117,6 +117,22 @@ describe('fromFoliumLines', () => {
         expect(second.renderHints).toEqual(buildLineRenderHints(second));
     });
 
+    it('keeps where the chorus of a rebuilt chorus line came from, which mods do not see', () => {
+        const fromSource = line({ startTime: 3, endTime: 4, isChorus: true, chorusOrigin: 'source' });
+        const guessed = line({ startTime: 5, endTime: 6, isChorus: true, chorusOrigin: 'text' });
+        const dtos = toFoliumLines([fromSource, guessed]);
+        expect(dtos[0]).not.toHaveProperty('chorusOrigin');
+        const [first, second, added] = fromFoliumLines([fromSource, guessed], dtos, [
+            { ...dtos[0], translation: 'a' },
+            { ...dtos[1], translation: 'b' },
+            { ...dtos[0], startTime: 7, endTime: 8 },
+        ]);
+        expect(first).toMatchObject({ isChorus: true, chorusOrigin: 'source', translation: 'a' });
+        expect(second).toMatchObject({ isChorus: true, chorusOrigin: 'text' });
+        // A chorus line no original line started with: not known to be the source's.
+        expect(added).not.toHaveProperty('chorusOrigin');
+    });
+
     it('drops a word split that no longer joins back to the text', () => {
         const source = line();
         const dtos = toFoliumLines([source]);
@@ -165,6 +181,13 @@ describe('folium.lyrics helpers', () => {
         expect(FOLIUM_LYRICS_HELPERS.getUpcomingLine(lines, -1, 3.5)).toBe(lines[2]);
         expect(FOLIUM_LYRICS_HELPERS.getUpcomingLines(lines, 0)).toEqual([lines[1], lines[2]]);
         expect(FOLIUM_LYRICS_HELPERS.getRecentCompletedLine(lines, -1, 3.9)).toBe(lines[1]);
+    });
+
+    // Folium 2: a source marks its lyrics instrumental by the host's own rule (Bodian's lyrics@1).
+    it('tells the instrumental notice by the host’s rule', () => {
+        expect(FOLIUM_LYRICS_HELPERS.isPureMusicText('[00:00.000]纯音乐，请欣赏')).toBe(true);
+        expect(FOLIUM_LYRICS_HELPERS.isPureMusicText('[00:01.00]歌里唱到纯音乐，请欣赏也没关系\n[00:02.00]第二句')).toBe(false);
+        expect(FOLIUM_LYRICS_HELPERS.isPureMusicText(null)).toBe(false);
     });
 
     it('segments words with the saved split first', () => {

@@ -81,6 +81,9 @@ node skills/run-desktop/driver.mjs quit
 | `main-eval <js>` | 在主进程求值，作用域里有 `electron`（如 `electron.app.getPath('userData')`） |
 | `click <selector>` / `click-text <text>` | Playwright 点击；`click-text` 先按按钮可访问名精确匹配，再按文字 |
 | `fill <selector> <value>` | 填输入框 |
+| `hover <selector>` | 把指针移到元素上（悬停才出现的按钮先悬停再点） |
+| `upload <selector> <file>` | 给 `<input type=file>` 选一个文件（隐藏的也行），页面读到的是真实文件 |
+| `drag <from> <to>` | 按住第一个选择器的中心，分步挪到第二个的中心再松开（指针拖动的排序） |
 | `type <text>` / `press <key>` | 键盘；`press` 用 Playwright 键名：`ControlOrMeta+k`（macOS 上是 Cmd，应用在 mac 只认 Cmd）、`Escape`、`Enter` |
 | `text [selector]` | 读 innerText，默认 body |
 | `wait <selector> [ms]` | 等元素可见，默认 10 秒 |
@@ -105,10 +108,16 @@ node skills/run-desktop/driver.mjs quit
 - **全新 profile 有两道首启门槛**：思索模式引导、「资料库用哪种界面？」选择弹窗。后者会盖在设置面板上。
   驱动启动时写入 `folia_last_seen_ponder_onboarding_version` 和 `library_suite_prompt_seen`
   （与 `test/component/fixtures.ts` 相同）后 reload；直接 `eval` 改这些键要再 `reload` 才生效。
+- **全新 profile 在答完开箱引导的「你用哪些平台听歌？」之前不运行任何音源模组**（Folium 2.0 方案 §5.3：没勾的不能先联网）：
+  这时 `window.electron.mods.getSourceStates()` 里音源行都是 `loaded: false`，注册表里没有这些平台。要测在线音源，先在
+  引导里勾上要用的几家（或一个不勾走完：网易云、QQ 只用于匹配，其余停用），再到「设置 → 音源」开。跳过引导的
+  `?skipStartup` 不会替你回答这一页；这时在「设置 → 音源」切任意一家就算答过，其余没切过的按启用运行。
 - **要一首能放的歌**：`eval "window.__foliaDev.playMockSong().then(s => s.filePath)"`，导入并播放开发用的 mock 歌
   （合成音频 + 逐字歌词 + 封面，不用网络和登录）。细节见 `testing-strategy` 的“开发服务器已经在跑”。
-- **主窗口地址写死 `http://localhost:3000`**（`electron/main.cjs` 的 `loadAppEntry`），Vite 必须就在 3000。
-  驱动自己起的 Vite 带 `--strictPort`，3000 被别的程序占着时宁可启动失败也不换端口。
+- **主窗口地址默认是 `http://localhost:3000`**（`electron/main.cjs` 的 `loadAppEntry`），驱动会复用已经在 3000 上的 Vite。
+  3000 上跑着的是别的工作树的 dev 版时，那不是你的代码：给 `serve` 设环境变量 `FOLIA_DEV_SERVER_PORT=<端口>`（驱动自己的
+  命令端口用 `FOLIA_DRIVER_PORT` 换，之后每条命令也带上它），驱动在那个端口起自己的 Vite（`--strictPort`，被占着就启动失败）
+  并让 Electron 连它。
 - **开发模式会多开一个 DevTools 窗口**，`app.windows()` 第一个往往是 `devtools://`。
   驱动按 URL 选 localhost 那个；`windows` 里带 `*` 的是当前目标。
 - **`main-eval` 拿不到 `electron/main.cjs` 里的模块级变量**（`store`、`aiCredentials` 等）。

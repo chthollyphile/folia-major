@@ -625,6 +625,8 @@ test('歌词样式：莫奈三件部件先在、再一起关掉', async ({ page 
     await expect(stage).toBeVisible();
     const monet = stage.locator('[data-ponder-surface-state="preview-monet"]');
     await expect(monet).toHaveCSS('opacity', '1', { timeout: 6000 });
+    // 骨架的入场动画（ponder-skeleton-in）还在放时锚点带着缩放，量出来差几个像素：等它放完再量。
+    await settled(stage);
     await expectAligned(stage, 'monetDescription', '[data-ponder-lyric-style-monet-description]');
     await expectAligned(stage, 'monetHanger', '[data-ponder-lyric-style-monet-hanger]');
     await expectAligned(stage, 'monetAudio', '[data-ponder-lyric-style-monet-audio]');

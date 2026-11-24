@@ -104,13 +104,6 @@ export type CommandPaletteCommand = {
     settingsTarget?: { subview: SettingsSubviewId; anchorId?: SettingsAnchorId };
     /** Successful execution closes the palette unless the command opts out. */
     closeAfterExecute?: boolean;
-    /**
-     * Offered in the row that floats above the player bar. Only for things done to what is playing
-     * right now (like, shuffle, volume, the lyric style…), never settings or navigation: the row is
-     * not the palette's frequent list. The command declares it itself, so there is no list to keep.
-     * 'mouse-only' leaves it out of the row a finger opens (volume: a phone has its own volume keys).
-     */
-    capsuleAction?: boolean | 'mouse-only';
     execute: (input: string, context: CommandPaletteContext) => Promise<boolean> | boolean;
 };
 
@@ -306,6 +299,8 @@ export type CommandPaletteSettingsContext = {
     libraryWallWindowsPerBlock: () => number;
     /** Clamps to 1–6 before storing. */
     setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
+    /** bravais home wall finite only, never repeating (useLibraryWallLookStore.homeFinite): flips the stored value. */
+    toggleLibraryWallHomeFinite: () => void;
     /** bravais collection tiles' stack edges (useLibraryWallLookStore.collectionStackEdges): flips the stored value. */
     toggleLibraryWallStackEdges: () => void;
     /** bravais collection pages' tilt (useLibraryWallLookStore.collectionTilt): flips the stored value. */
@@ -357,6 +352,7 @@ export type CommandPaletteSettingsContext = {
     toggleAlwaysShowTrackSwitchButtons: () => void;
     toggleAlwaysShowMainWindowTitlebar: () => void;
     togglePlayerHeaderBlur: () => void;
+    toggleProgressBarChorusMarker: () => void;
     toggleTitlebarSide: () => void;
     toggleHideFullscreenButton: () => void;
     toggleNativeMacFullscreenButton: () => void;
@@ -389,8 +385,10 @@ export type CommandPaletteSettingsContext = {
     toggleAutoAiLyricSegmentation: () => void;
     toggleKeepProviderWordTiming: () => void;
     voiceInputPauseSupported: boolean;
-    /** Lab switch for the experimental mod system; gates the `mods` command. */
+    /** The mod system's master switch (on by default since Folium 2.0); gates the `mods` command. */
     modSystemEnabled: boolean;
+    /** Folium 2.0: flips the community mods switch; the main process confirms turning it on. */
+    toggleCommunityMods: () => void;
     toggleVoiceInputPause: () => void;
     togglePreventDisplaySleepDuringPlayback: () => void;
     /** 后台节流: throttle the window and hold the lyric animation while it is minimised or hidden (main process applies it). */

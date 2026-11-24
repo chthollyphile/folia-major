@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 // album), and what the save buttons of a list's page say.
 
 const require = createRequire(import.meta.url);
-const tiles = require('../../../electron/ytm/tiles.cjs');
-const catalog = require('../../../electron/ytm/catalog.cjs');
+const tiles = require('../../../sources/ytm/main/tiles.cjs');
+const catalog = require('../../../sources/ytm/main/catalog.cjs');
 
 describe('YouTube Music catalog nodes', () => {
     const artist = { name: 'YOASOBI', channel_id: 'UCI6B8NkZKqlFWoiC_xE-hzA' };

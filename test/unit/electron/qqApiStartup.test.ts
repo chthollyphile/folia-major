@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/qqApiStartup.test.ts
 
-const { QQ_API_MODULE, isModuleNotFound, startQqApi } = require('../../../electron/qq/qqApiStartup.cjs') as {
+const { QQ_API_MODULE, isModuleNotFound, inEnvWindow, startQqApi } = require('../../../sources/qq/main/qqApiStartup.cjs') as {
     QQ_API_MODULE: string;
+    inEnvWindow: <T>(run: () => T | Promise<T>, waitMs?: number) => Promise<T>;
     isModuleNotFound: (error: unknown) => boolean;
     startQqApi: (options: Record<string, unknown>) => Promise<{
         port: number;
@@ -140,7 +141,8 @@ describe('QQ API startup', () => {
             env: {},
         });
 
-        server.failToBind(new Error('listen EADDRINUSE: address already in use :::45123'));
+        // The listen fails on a later tick, as a real one does (the package may also be loaded with a dynamic import).
+        setImmediate(() => server.failToBind(new Error('listen EADDRINUSE: address already in use :::45123')));
 
         await expect(pending).rejects.toThrow('EADDRINUSE');
     });
@@ -215,6 +217,48 @@ describe('QQ API startup', () => {
 
         expect(env.PORT).toBe('3000');
         expect(env.AUTO_OPEN_EXPLORER).toBeUndefined();
+    });
+
+    // The load is awaited, so two starts (an old copy of the mod and its reloaded copy) could overlap: each would save the
+    // other's PORT as "previous" and leave it behind. The windows are taken one at a time instead.
+    it('takes overlapping starts one at a time, so neither leaves its port in the environment', async () => {
+        const env: Record<string, string | undefined> = {};
+        const seen: string[] = [];
+        const slowLoad = (server: FakeServer) => async () => {
+            seen.push(`load ${env.PORT}`);
+            await new Promise(resolve => setTimeout(resolve, 5));
+            seen.push(`loaded ${env.PORT}`);
+            setImmediate(() => server.bind());
+            return { server };
+        };
+
+        await Promise.all([
+            startQqApi({ port: 41001, loadModule: slowLoad(new FakeServer()), env }),
+            startQqApi({ port: 41002, loadModule: slowLoad(new FakeServer()), env }),
+        ]);
+
+        expect(seen).toEqual(['load 41001', 'loaded 41001', 'load 41002', 'loaded 41002']);
+        expect(env.PORT).toBeUndefined();
+        expect(env.AUTO_OPEN_EXPLORER).toBeUndefined();
+    });
+
+    it('lets the next start in after one whose load threw', async () => {
+        const env: Record<string, string | undefined> = {};
+        const server = new FakeServer();
+
+        const failing = startQqApi({ port: 41003, loadModule: () => { throw new Error('listen EADDRINUSE'); }, env });
+        const next = startQqApi({ port: 41004, loadModule: moduleThatBinds(server), env });
+
+        await expect(failing).rejects.toThrow('listen EADDRINUSE');
+        await expect(next).resolves.toMatchObject({ port: 41004 });
+        expect(env.PORT).toBeUndefined();
+    });
+
+    it('lets the next start in once a window that never ends has been waited for long enough', async () => {
+        const order: string[] = [];
+        void inEnvWindow(() => new Promise<void>(() => { order.push('stuck'); }), 10);
+        await expect(inEnvWindow(() => { order.push('next'); return 'next'; }, 10)).resolves.toBe('next');
+        expect(order).toEqual(['stuck', 'next']);
     });
 
     // A build shipped without the dependency can never recover, so the caller reports it as

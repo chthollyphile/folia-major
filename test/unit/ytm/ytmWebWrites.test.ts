@@ -7,10 +7,10 @@ import { describe, expect, it, vi } from 'vitest';
 // to hold on 2026-10-09. Every cookie, name, title and id in this file is made up.
 
 const require = createRequire(import.meta.url);
-const { createYtmApiBridge, YTM_OPERATIONS } = require('../../../electron/ytm/ytmApiBridge.cjs');
-const { publicAccountId } = require('../../../electron/ytm/session.cjs');
-const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../electron/ytm/webSignIn.cjs');
-const webSaves = require('../../../electron/ytm/webSaves.cjs');
+const { createYtmApiBridge, YTM_OPERATIONS } = require('../../../sources/ytm/main/ytmApiBridge.cjs');
+const { publicAccountId } = require('../../../sources/ytm/main/session.cjs');
+const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../sources/ytm/main/webSignIn.cjs');
+const webSaves = require('../../../sources/ytm/main/webSaves.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const ALBUM = 'MPREb_fixture01';

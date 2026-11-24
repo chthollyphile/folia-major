@@ -1,5 +1,5 @@
 import type { SongResult } from '../types';
-import { getPlaybackSongSource, hasMixedPlaybackSources, isLocalPlaybackSong } from './appPlaybackGuards';
+import { isStagePlaybackSong } from './appPlaybackGuards';
 
 // src/utils/queueReorder.ts
 // 播放队列的纯变换与判定：单项移动（墙面工具的队列浮岛拖拽、Electron 舞台的 move 请求共用）、「下一首播放」的挪动，
@@ -33,12 +33,9 @@ export const moveQueueItemToNext = <T>(queue: readonly T[], index: number, curre
 };
 
 /**
- * 当前队列能不能存成本地歌单：正在播放的是本地歌，队列非空、全部是本地歌（不混来源）。
- * TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
+ * 当前队列能不能存成一张 Folia 歌单：有正在播放的歌，队列里至少有一首有来源的歌（本地、Navidrome、任何在线音源，
+ * 混着也行）。舞台歌没有来源，进不了歌单；整个队列都是它时不能存。
  */
-export const canSaveQueueAsLocalPlaylist = (currentSong: SongResult | null | undefined, queue: readonly SongResult[]): boolean => (
-    isLocalPlaybackSong(currentSong)
-    && queue.length > 0
-    && !hasMixedPlaybackSources(queue as SongResult[])
-    && queue.every(song => getPlaybackSongSource(song) === 'local')
+export const canSaveQueueAsPlaylist = (currentSong: SongResult | null | undefined, queue: readonly SongResult[]): boolean => (
+    Boolean(currentSong) && queue.some(song => !isStagePlaybackSong(song))
 );

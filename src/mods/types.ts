@@ -40,9 +40,11 @@ export interface ModLabelMap {
  *   - verified: signed by a Folium key over exactly the files on disk;
  *   - beta:     the same, by a preview-channel key: security-reviewed only, may not work;
  *   - unsigned: no signature (an unreviewed third-party mod);
- *   - invalid:  a signature that does not check out (see `reason`).
+ *   - invalid:  a signature that does not check out (see `reason`);
+ *   - builtin:  Folium 2.0, a built-in copy (resources/builtin-mods): it carries no signature and none is
+ *               checked, since the installation vouches for it (plan §5.2).
  */
-export type ModSignatureStatus = 'verified' | 'beta' | 'unsigned' | 'invalid';
+export type ModSignatureStatus = 'verified' | 'beta' | 'unsigned' | 'invalid' | 'builtin';
 
 export type ModSignatureInvalidReason =
     | 'malformed'
@@ -60,6 +62,100 @@ export interface ModSignatureInfo {
     keyId: string | null;
     keyLabel: string | null;
     signedAt: string | null;
+}
+
+/**
+ * Folium 2.0 (plan §5.1): where a mod's copy comes from. 'builtin': resources/builtin-mods (dist-mods/ in a
+ * development build); 'override': a signed, newer copy in the user's folder running instead of a built-in one
+ * (or a claim that replaces a carried built-in source); 'user': userData/mods; 'repo': the source tree's mods/
+ * (development builds); 'resources': resources/mods.
+ */
+export type ModTier = 'builtin' | 'override' | 'user' | 'repo' | 'resources';
+
+/** Folium 2.0 (plan §5.3): how a source is switched. */
+export type ModSourceState = 'enabled' | 'matching' | 'disabled';
+
+/** Folium 2.0: one source a source mod provides, as the main process resolved it (electron/modSystem/sourceOwnership.cjs). */
+export interface ModSourceInfo {
+    /** The id the host knows it by: a short id of a built-in source or `folium.<mod id>.<name>`. */
+    id: string;
+    /** Its id inside the mod's manifest. */
+    localId: string;
+    name: string | Record<string, string>;
+    state: ModSourceState;
+    /** A built-in source that a new install keeps for matching when it is not picked (`sources[].keepForMatching`). */
+    keepForMatching: boolean;
+    /** Takes over a source this installation does not carry (the compliance plan). */
+    takeover: boolean;
+    requires: string[];
+    /** The short id its manifest claims (`sources[].claims.id`), held or not; null without a claim. Absent from an older main process. */
+    claims?: string | null;
+}
+
+/** Folium 2.0: where a mod's Node entry stands (a source used only for matching starts it like an enabled one). */
+export type ModMainState = 'none' | 'activating' | 'ready';
+
+/** Folium 2.0: one row of the source states (folia-mods:source-states). A source the host registers itself has no mod. */
+export interface ModSourceStateRow {
+    sourceId: string;
+    modId: string | null;
+    tier: ModTier | 'host';
+    state: ModSourceState;
+    /** The name its mod's manifest gives it (`sources[].name`), for a list that shows it while it is not registered; null for the host's. Absent from an older main process. */
+    name?: string | Record<string, string> | null;
+    keepForMatching: boolean;
+    /** What its manifest says where it is switched on (`sources[].enableNotice`: one text, or one per language). Absent from an older main process. */
+    enableNotice?: string | Record<string, string> | null;
+    takeover: boolean;
+    /** Its manifest says it accepts a self-signed certificate from a server the user enters (`sources[].selfSignedUserServers`). Absent from an older main process. */
+    selfSignedUserServers?: boolean;
+    loaded: boolean;
+    mainState: ModMainState;
+}
+
+export interface ModSourceStatesPayload {
+    /** Every known source's state (no record reads as enabled). */
+    states: Record<string, ModSourceState>;
+    sources: ModSourceStateRow[];
+}
+
+/** Folium 2.0: what "clear data" of a source removes (folia-mods:source-data). */
+export interface ModSourceDataResult {
+    ok: boolean;
+    error?: string;
+    sourceId?: string;
+    modId?: string;
+    storeKeys?: string[];
+    partitions?: string[];
+    userDataDirs?: string[];
+    /** Folders under the media cache folder the platform kept its cache in before it was a mod. */
+    cacheDirs?: string[];
+    modData?: string;
+    modCache?: string;
+    /** localStorage key prefixes the window clears itself (`online_provider:<id>:`, `online_provider_<id>_`). */
+    pageStorePrefixes?: string[];
+}
+
+/**
+ * Folium 2.0: how much one source keeps on disk (folia-mods:source-usage), in bytes, for its row in "Settings →
+ * Sources". Counted from what its "clear data" removes: `data` is its mod data folder, the userData folders and old
+ * store keys its row or claims name, and its on-disk partitions less Chromium's caches; `cache` is its mod cache
+ * folder, its old folders under the media cache folder and those caches. Not ok when a folder could not be read.
+ * Not counted: the renderer's page store entries (the prefixes clear data hands back), which live in the page's own
+ * storage. Per source, not per mod: the sources of a mod that declares several each count the shared mod folders.
+ */
+export interface ModSourceUsageResult {
+    ok: boolean;
+    error?: string;
+    data?: number;
+    cache?: number;
+}
+
+export interface ModClearSourceDataResult {
+    ok: boolean;
+    error?: string;
+    failed?: string[];
+    pageStorePrefixes?: string[];
 }
 
 export interface ModRuntimeInfo {
@@ -101,6 +197,32 @@ export interface ModRuntimeInfo {
      * Folium 2 removes, one line each, e.g. "api.storage.data: removed in Folium 2, use api.storage".
      */
     warnings?: string[];
+    /** Folium 2.0 fields below; a list from an older main process has none of them. */
+    folium?: 1 | 2;
+    tier?: ModTier;
+    /** 'source' for a `folium: 2` mod with `sources` (plan §5.2). */
+    kind?: 'standard' | 'source';
+    /** Where the client runs (manifest `contexts`); null for everywhere. */
+    contexts?: Array<'main' | 'export'> | null;
+    /** The folder of the mod's own locale files (manifest `locales`, Folium 2); null without one. */
+    locales?: string | null;
+    sources?: ModSourceInfo[];
+    /** Every source of this source mod is disabled: nothing of it runs (plan §5.3). */
+    sourcesOff?: boolean;
+    mainState?: ModMainState;
+    /** The other copy of the same id (a built-in one and one from the user's folder), and why it is not the one running. */
+    alternate?: { tier: ModTier; version: string | null; dirPath: string | null; reason: string | null; signature?: ModSignatureInfo } | null;
+    /** A built-in copy that a claiming override replaces: that mod's id. */
+    shadowedBy?: string | null;
+    /** Reasons that do not stop the mod, e.g. 'claim-signature-invalid'. */
+    notes?: string[];
+    /** Folium 2.1 (manifest `repository` / `bugs`): the mod's source repository and where to report problems. */
+    repository?: string | null;
+    bugs?: string | null;
+    /** Its `folia` range ran out above, and the user let it load anyway (bound to these files). */
+    rangeOverridden?: boolean;
+    /** It sits in the user mods folder, so the panel can uninstall it (a list from an older main process has no such field). */
+    uninstallable?: boolean;
 }
 
 /*
@@ -240,4 +362,98 @@ export interface ModRuntimeSnapshot {
     capturedAt: number;
     public: FoliumPlaybackSnapshot;
     internal: ModExportHostState;
+}
+
+// ---- The mod market (electron/modSystem/market.cjs): the catalog as the main process normalized it. ----
+
+export interface ModMarketOwner {
+    login: string;
+    /** The owner's page (https), or null. */
+    url: string | null;
+}
+
+export interface ModMarketEntry {
+    id: string;
+    name: string;
+    version: string;
+    author: string | null;
+    description: string | null;
+    origin: 'official' | 'community';
+    channel: 'release' | 'beta';
+    kind: 'standard' | 'source';
+    category: string | null;
+    tags: string[];
+    permissions: string[];
+    experimental: string[];
+    embedOrigins: string[];
+    depends: string[];
+    folia: string | null;
+    hasMain: boolean;
+    owners: ModMarketOwner[];
+    source: string | null;
+    repository: string | null;
+    bugs: string | null;
+    readmeUrl: string | null;
+    keyLabel: string | null;
+    keyId: string | null;
+    signedAt: string | null;
+    addedAt: string | null;
+    updatedAt: string | null;
+    digest: string;
+    download: { url: string; sha256: string; size: number | null };
+    preview: { url: string; width: number | null; height: number | null } | null;
+    /** The mod's page on the market site. */
+    page: string;
+    /** How its `folia` range reads on this Folia (the main process's classifyHostRange). */
+    hostRange: ModHostRangeState;
+    /** The community mods switch is off and keeps this one out. */
+    communityBlocked: boolean;
+}
+
+export type ModHostRangeState = 'ok' | 'too-old' | 'expired' | 'invalid';
+
+export type ModAwesomeKind = 'source' | 'plugin' | 'app' | 'tool' | 'other';
+
+/** An Awesome-Folia entry: a work kept elsewhere, offered as a link only. */
+export interface ModAwesomeEntry {
+    id: string;
+    name: string;
+    kind: ModAwesomeKind;
+    category: string | null;
+    description: string | null;
+    url: string;
+    homepage: string | null;
+    bugs: string | null;
+    owners: ModMarketOwner[];
+    tags: string[];
+    addedAt: string | null;
+    updatedAt: string | null;
+}
+
+export interface ModMarketCategory {
+    id: string;
+    label: { 'zh-CN': string; en: string };
+}
+
+export interface ModMarketCatalog {
+    version: number | null;
+    commit: string | null;
+    origin: string;
+    categories: ModMarketCategory[];
+    mods: ModMarketEntry[];
+    awesome: ModAwesomeEntry[];
+}
+
+export type ModMarketCatalogResult =
+    | { ok: true; catalog: ModMarketCatalog; fetchedAt: number | null; stale: boolean; error?: string; hostVersion?: string | null }
+    | { ok: false; error: string };
+
+export type ModMarketInstallPhase = 'download' | 'verify' | 'install' | 'done' | 'error';
+
+export interface ModMarketProgress {
+    id: string;
+    phase: ModMarketInstallPhase;
+    received?: number;
+    total?: number | null;
+    error?: string;
 }

@@ -6,9 +6,10 @@ import { createCollectionResourceState } from './collectionResourceState.service
 // src/library/core/collection/resource/staticCollectionResource.service.ts
 // 曲目已经在手里的集合（本地曲库算好的列表、探针里的固定数据）：没有请求，也没有分页。
 // 曲目变了就换一个新资源，所以它不需要「重新加载」。
+// status 传 'loading'：曲目还在读（Folia 歌单的条目是打开时才从库里读的），读到之后宿主换一个就绪的新资源。
 
-export const createStaticCollectionResource = (key: string, tracks: SongResult[]): CollectionResource => {
-    const state = createCollectionResourceState(key, 'static', { status: 'ready', tracks });
+export const createStaticCollectionResource = (key: string, tracks: SongResult[], status: 'ready' | 'loading' = 'ready'): CollectionResource => {
+    const state = createCollectionResourceState(key, 'static', { status, tracks });
     const commitTracks = (next: SongResult[]) => state.set({ tracks: next }, 'urgent');
 
     return {

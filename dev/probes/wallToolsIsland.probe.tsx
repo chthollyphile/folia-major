@@ -3,6 +3,8 @@ import type { ProbeDefinition } from './definition';
 import type { SongResult } from '../../src/types';
 import { WallToolsSurface } from '../../src/components/wall/WallToolsButton';
 import { WallToolsHostContext, type WallToolsHost, type WallToolsHostSnapshot } from '../../src/components/wall/wallToolsHost';
+import { registerOnlineMusicProvider } from '../../src/services/onlineMusic/providerRegistry';
+import type { OnlineMusicProvider } from '../../src/types/onlineMusic';
 import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
 import { useLatticeSettingsStore } from '../../src/stores/useLatticeSettingsStore';
 import { getPlaybackSongKey } from '../../src/utils/appPlaybackGuards';
@@ -42,10 +44,25 @@ const buildQueue = (count: number, local: boolean): SongResult[] => Array.from({
     return {
         ...base,
         sourceRef: { kind: 'online', providerId: 'netease', mediaId: id },
-        // 第 3 首在网易云上不可用（privilege.st < 0）：行上带「不可用」标签。
+        // 第 3 首在它的平台上已下架（下面登记的探针音源按 privilege.st < 0 判）：行上带「不可用」标签。
         ...(index === 3 ? { privilege: { st: -200 } } : {}),
     } as SongResult;
 });
+
+// 音源外置成模组（Folium 2）以后探针页里没有任何平台：歌能不能播由歌所属的音源自己说（playback.getAvailability），
+// 没有音源就一律「不知道」、行上不出标签。这里登记一个只会回答这一件事的探针音源。
+const PROBE_PROVIDER = {
+    id: 'netease',
+    displayName: 'Probe source',
+    capabilities: {},
+    normalizeSong: (raw: unknown) => raw,
+    playback: {
+        getAvailability: (song: SongResult) => (
+            ((song as { privilege?: { st?: number } }).privilege?.st ?? 0) < 0 ? { state: 'unavailable' } : { state: 'playable' }
+        ),
+    },
+} as unknown as OnlineMusicProvider;
+registerOnlineMusicProvider(PROBE_PROVIDER);
 
 let calls: IslandProbeCall[] = [];
 let failNextSave = false;

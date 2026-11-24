@@ -1,11 +1,12 @@
-import type { LocalLibrarySnapshot, LocalLibrarySnapshotNode, LocalPlaylist, LocalSong } from '../../../src/types';
+import type { LocalLibrarySnapshot, LocalLibrarySnapshotNode, LocalSong } from '../../../src/types';
+import type { FoliaPlaylistSummary } from '../../../src/types/foliaPlaylist';
 import {
     getLocalSongs,
     saveDirHandles,
     saveLocalLibrarySnapshot,
     saveLocalSongs,
 } from '../../../src/services/db';
-import { createLocalPlaylist, getLocalPlaylists } from '../../../src/services/localPlaylistService';
+import { createFoliaPlaylistFromLocalSongs, getFoliaPlaylistSummaries } from '../../../src/services/foliaPlaylist/foliaPlaylistService';
 import { makeLocalSong } from '../libraryBehavior/localFixtures';
 import {
     HOME_IMPORTED_SONG,
@@ -80,9 +81,9 @@ const seedOnce = (): Promise<void> => {
         const storedIds = new Set(stored.map(song => song.id));
         const missing = HOME_LOCAL_FIXTURE_SONGS.filter(song => !storedIds.has(song.id));
         if (missing.length > 0) await saveLocalSongs(missing);
-        const playlists = await getLocalPlaylists();
+        const playlists = await getFoliaPlaylistSummaries();
         if (!playlists.some(playlist => playlist.name === HOME_LOCAL_PLAYLIST.name)) {
-            await createLocalPlaylist(
+            await createFoliaPlaylistFromLocalSongs(
                 HOME_LOCAL_PLAYLIST.name,
                 HOME_LOCAL_PLAYLIST.songs.map(index => HOME_LOCAL_FIXTURE_SONGS.find(song => song.id === homeLocalSongId(index))!),
             );
@@ -97,14 +98,14 @@ const seedOnce = (): Promise<void> => {
 };
 
 /** 写入种子（可重复调用），返回存储里的曲目与歌单。 */
-export const seedHomeLibrary = async (): Promise<{ songs: LocalSong[]; playlists: LocalPlaylist[] }> => {
+export const seedHomeLibrary = async (): Promise<{ songs: LocalSong[]; playlists: FoliaPlaylistSummary[] }> => {
     await seedOnce();
     return readHomeLibrary();
 };
 
 /** 读回沙盒里的全部本地曲目与歌单（沙盒页面里只有探针自己的数据）。 */
-export const readHomeLibrary = async (): Promise<{ songs: LocalSong[]; playlists: LocalPlaylist[] }> => {
-    const [songs, playlists] = await Promise.all([getLocalSongs(), getLocalPlaylists()]);
+export const readHomeLibrary = async (): Promise<{ songs: LocalSong[]; playlists: FoliaPlaylistSummary[] }> => {
+    const [songs, playlists] = await Promise.all([getLocalSongs(), getFoliaPlaylistSummaries()]);
     return { songs, playlists };
 };
 

@@ -43,6 +43,9 @@ export type { CanvasSide } from './ScratchpadCanvasSide';
 //   位置一律用 offsetTop / offsetLeft 与滚动量，不拿外接框相减（转过的元素外接框是斜的）。框选框是纸上的矩形，跟着纸一起斜
 //   （用户定，2026-11-07；原来是屏幕方向的）：起点与指针都换成内容坐标，两点围成的矩形直接和卡片比。浮动菜单在内容里，也跟着纸斜。
 // - 跳到栏与操作提示（side）：展开整页时画在卡片右边那一列；跳到栏按组（只有一组时按一段段）滚过去。
+// - 点开（onActivate，「时刻」页）：给了它时，单击卡片（不带 Ctrl / Shift，触屏上没有选中的卡时）是打开这一首，不是选它；
+//   多选照旧用框选、Ctrl 单击、Shift 单击（Shift 单击没有起点时选它一张、记成起点，不打开）。
+// - 卡片封面上的「评论」钮（onComment，速记簿、播放历史、播放队列三页）：看这首的评论与标签。
 
 
 export type CanvasGroup<E extends CanvasEntry = CanvasEntry> = {
@@ -89,6 +92,11 @@ type ScratchpadCanvasProps<E extends CanvasEntry> = {
     side?: CanvasSide;
     /** 胶片里正在播的那一格片边印的字。 */
     currentLabel?: string;
+    /** 单击卡片是打开它（见文件头）。 */
+    onActivate?: (entry: E) => void;
+    /** 卡片封面上的「评论」钮。 */
+    onComment?: (entry: E) => void;
+    commentLabel?: string;
 };
 
 /** 按下之后走过这么远才算拖（以内是点击）。 */
@@ -178,6 +186,9 @@ function ScratchpadCanvas<E extends CanvasEntry>({
     tilt = 0,
     side,
     currentLabel,
+    onActivate,
+    onComment,
+    commentLabel,
 }: ScratchpadCanvasProps<E>) {
     const { t } = useTranslation();
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -213,8 +224,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
     }, [groups]);
 
     // 计时器里（手指按住 0.4 秒之后）读的是这一刻的值，不是按下那一刻的。
-    const latest = useRef({ groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd, tilt });
-    latest.current = { groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd, tilt };
+    const latest = useRef({ groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd, tilt, onActivate });
+    latest.current = { groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd, tilt, onActivate };
     const card = cardSize(spacing);
 
     // 条目被移走（这里删的、别处删的）时，选择里也去掉它们。
@@ -474,6 +485,12 @@ function ScratchpadCanvas<E extends CanvasEntry>({
             return;
         }
         anchorRef.current = key;
+        // 「时刻」页：单击是打开这一首（不带修饰键；触屏上已经有选中的卡时仍是加选 / 取消）。
+        const activate = latest.current.onActivate;
+        if (activate && !press.modifiers.toggle && !press.modifiers.shift && !(press.isTouch && latest.current.selected.size > 0)) {
+            activate(press.entry as E);
+            return;
+        }
         setSelected(current => {
             // Ctrl 单击切换；手指点的，已经有选中的卡时也是切换（触屏多选）。
             if (!press.modifiers.toggle && !(press.isTouch && current.size > 0)) return new Set([key]);
@@ -803,6 +820,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                                                 register={register}
                                                 onPointerDown={handleCardPointerDown}
                                                 onPlay={onPlay as (entry: CanvasEntry) => void}
+                                                onComment={onComment as ((entry: CanvasEntry) => void) | undefined}
+                                                commentLabel={commentLabel}
                                             />
                                         );
                                     })}

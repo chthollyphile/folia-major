@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it, vi } from 'vitest';
 import { dispatchSearchTrackAction } from '@/components/app/search/searchTrackActions';
 import type { LocalSong, UnifiedSong } from '@/types';

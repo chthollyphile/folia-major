@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 // test/unit/electron/lazyJsdom.test.ts
 
 const require = createRequire(import.meta.url);
-const { deferJsdom } = require('../../../electron/netease/lazyJsdom.cjs') as {
+const { deferJsdom } = require('../../../sources/netease/main/lazyJsdom.cjs') as {
     deferJsdom: (resolveFrom: string) => boolean;
 };
 

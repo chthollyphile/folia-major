@@ -11,6 +11,7 @@ import { hifiCommands } from './hifiCommands';
 import { navigationCommands } from './navigationCommands';
 import { panelCommands } from './panelCommands';
 import { scratchpadCommands } from './scratchpadCommands';
+import { songNoteCommands } from './songNoteCommands';
 import { modsCommands } from './modsCommands';
 import { visualizerCommands } from './visualizerCommands';
 import { sceneCommands } from './sceneCommands';
@@ -90,6 +91,7 @@ export const ALL_COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = assertExecu
     ...navigationCommands,
     ...panelCommands,
     ...scratchpadCommands,
+    ...songNoteCommands,
     ...modsCommands,
     ...visualizerCommands,
     ...sceneCommands,

@@ -105,6 +105,10 @@
   color: rgba(var(--remote-ink), 0.46);
 }
 
+.remote-row__note--error {
+  color: #ff5d73;
+}
+
 .remote-sheet__error {
   position: absolute;
   left: 22px;
@@ -147,6 +151,24 @@
   background: rgba(var(--remote-ink), 0.94);
   color: var(--remote-paper);
   font-weight: 600;
+}
+
+/* A second choice beside the first in one row: no well, a thin underline marks the pick. */
+.remote-seg--quiet {
+  margin-left: 6px;
+  padding: 2px 0;
+  background: none;
+}
+
+.remote-seg--quiet .remote-seg__cell {
+  padding: 0 7px;
+}
+
+.remote-seg--quiet .remote-seg__cell[data-on='true'] {
+  background: none;
+  color: rgb(var(--remote-ink));
+  box-shadow: inset 0 -1.5px 0 rgba(var(--remote-ink), 0.9);
+  border-radius: 0;
 }
 
 .remote-seg__cell:disabled,

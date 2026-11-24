@@ -1,6 +1,6 @@
 // src/stores/useDesktopSettingsStore.ts
 // Desktop-shell behaviour: tray and taskbar, wallpaper mode, display-sleep and voice-input
-// interlocks, launch target, the experimental mod system switch, the Windows render GPU, and the
+// interlocks, launch target, the mod system and community mods switches, the Windows render GPU, and the
 // opt-in background throttling.
 //
 // Split out of useSettingsUiStore.
@@ -81,11 +81,17 @@ export type DesktopSettingsState = {
     voiceInputPauseEnabled: boolean;
     preventDisplaySleepDuringPlayback: boolean;
     /**
-     * Master switch for the experimental mod system. Off by default: while it is
-     * off the main process loads no mod at all and the mod commands stay out of
-     * the palette, so an unfinished apiVersion 1 is opt-in rather than ambient.
+     * Master switch for the mod system. On by default since Folium 2.0 (the online sources are source mods):
+     * a profile that never stored it reads on, one switched off stays off. While it is off the main process
+     * loads no mod from the mods folders and the mod commands stay out of the palette.
      */
     modSystemEnabled: boolean;
+    /**
+     * Folium 2.0, community mods (main process communityMods.cjs): off, only official source mods install and
+     * run. Shown only: the main process owns it (MOD_COMMUNITY_ENABLED, never through save-settings) and
+     * confirms turning it on, so it is not mirrored to localStorage either.
+     */
+    modCommunityEnabled: boolean;
     hideTaskbarIcon: boolean;
     hideRemoteControlTaskbarIcon: boolean;
     /** Remote control window: never reveal the top floating window-control bar. */
@@ -121,11 +127,13 @@ export type DesktopSettingsState = {
     uiZoomStep: UiZoomStep;
     /** Transient (never persisted), from the main process: false on native Wayland, where always-on-top is silently ignored. */
     windowAlwaysOnTopSupported: boolean;
-    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; REMOTE_CONTROL_EXPAND_COVER?: unknown; REMOTE_CONTROL_TEXT_SHADE?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; GPU_PREFERENCE?: unknown; BACKGROUND_THROTTLING?: unknown; wallpaper_mode?: unknown; wallpaper_entry_confirmed?: unknown; wallpaper_mac_autohide_dock?: unknown; window_always_on_top_supported?: unknown; }) => void;
+    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; REMOTE_CONTROL_EXPAND_COVER?: unknown; REMOTE_CONTROL_TEXT_SHADE?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; MOD_COMMUNITY_ENABLED?: unknown; GPU_PREFERENCE?: unknown; BACKGROUND_THROTTLING?: unknown; wallpaper_mode?: unknown; wallpaper_entry_confirmed?: unknown; wallpaper_mac_autohide_dock?: unknown; window_always_on_top_supported?: unknown; }) => void;
     handleToggleMinimizeToTray: (enable: boolean) => void;
     handleToggleCloseToTray: (enable: boolean) => void;
     handleToggleVoiceInputPause: (enable: boolean) => void;
     handleToggleModSystem: (enable: boolean) => void;
+    /** Asks the main process; resolves to the switch as it is afterwards (a declined confirmation leaves it off). */
+    handleToggleCommunityMods: (enable: boolean) => Promise<boolean>;
     handleTogglePreventDisplaySleepDuringPlayback: (enable: boolean) => void;
     handleToggleHideTaskbarIcon: (enable: boolean) => void;
     handleToggleHideRemoteControlTaskbarIcon: (enable: boolean) => void;
@@ -160,7 +168,8 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     closeToTray: getStoredBoolean(CLOSE_TO_TRAY_STORAGE_KEY, false),
     voiceInputPauseEnabled: getStoredBoolean(VOICE_INPUT_PAUSE_STORAGE_KEY, false),
     preventDisplaySleepDuringPlayback: getStoredBoolean(PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_STORAGE_KEY, false),
-    modSystemEnabled: getStoredBoolean(MOD_SYSTEM_ENABLED_STORAGE_KEY, false),
+    modSystemEnabled: getStoredBoolean(MOD_SYSTEM_ENABLED_STORAGE_KEY, true),
+    modCommunityEnabled: false,
     hideTaskbarIcon: getStoredBoolean(HIDE_TASKBAR_ICON_STORAGE_KEY, false),
     hideRemoteControlTaskbarIcon: getStoredBoolean(REMOTE_CONTROL_SKIP_TASKBAR_STORAGE_KEY, false),
     hideRemoteControlTitlebar: getStoredBoolean(REMOTE_CONTROL_HIDE_TITLEBAR_STORAGE_KEY, false),
@@ -199,6 +208,9 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
         if (typeof settings.MOD_SYSTEM_ENABLED === 'boolean') {
             patch.modSystemEnabled = settings.MOD_SYSTEM_ENABLED;
             setStoredBoolean(MOD_SYSTEM_ENABLED_STORAGE_KEY, settings.MOD_SYSTEM_ENABLED);
+        }
+        if (typeof settings.MOD_COMMUNITY_ENABLED === 'boolean') {
+            patch.modCommunityEnabled = settings.MOD_COMMUNITY_ENABLED;
         }
         if (typeof settings.HIDE_TASKBAR_ICON === 'boolean') {
             patch.hideTaskbarIcon = settings.HIDE_TASKBAR_ICON;
@@ -292,6 +304,16 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
         if (window.electron?.saveSettings) {
             void window.electron.saveSettings('MOD_SYSTEM_ENABLED', enable);
         }
+    },
+    // Straight to the preload bridge, like MOD_SYSTEM_ENABLED's saveSettings: a desktop setting, not mod code.
+    handleToggleCommunityMods: async (enable) => {
+        const result = await window.electron?.mods?.setCommunityMods?.(enable) ?? { ok: false, error: 'no-electron-bridge' };
+        const now = typeof result.enabled === 'boolean' ? result.enabled : get().modCommunityEnabled;
+        set({ modCommunityEnabled: now });
+        if (!result.ok && result.error !== 'community-declined') {
+            setStatusMessage({ type: 'error', text: i18n.t('mods.errors.community-unavailable') });
+        }
+        return now;
     },
     handleTogglePreventDisplaySleepDuringPlayback: (enable) => {
         setStoredBoolean(PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_STORAGE_KEY, enable);
@@ -485,6 +507,7 @@ export const selectDesktopSettingsSnapshot = (state: DesktopSettingsState) => ({
     voiceInputPauseEnabled: state.voiceInputPauseEnabled,
     preventDisplaySleepDuringPlayback: state.preventDisplaySleepDuringPlayback,
     modSystemEnabled: state.modSystemEnabled,
+    modCommunityEnabled: state.modCommunityEnabled,
     hideTaskbarIcon: state.hideTaskbarIcon,
     hideRemoteControlTaskbarIcon: state.hideRemoteControlTaskbarIcon,
     hideRemoteControlTitlebar: state.hideRemoteControlTitlebar,

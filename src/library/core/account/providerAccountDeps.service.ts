@@ -1,5 +1,5 @@
 import { omni } from '../../../services/onlineMusic/omni';
-import { dropLoginRequestLimits } from '../../../services/onlineMusic/login/loginRequestLimit';
+import { dropLoginRequestLimits } from '@folia/folium-source-kit';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import { formatBuildProvenance } from '../../../utils/buildProvenance';
 import type {
@@ -49,6 +49,7 @@ export const accountStorePort: LibraryAccountStorePort = {
     listProviders: () => omni.getProviderSummaries(),
     getProviderLabel: providerId => omni.getProviderLabel(providerId),
     getStoredActiveProviderId: () => useOnlineProviderAccountStore.getState().activeProviderId,
+    getChosenProviderId: () => useOnlineProviderAccountStore.getState().chosenProviderId,
     setActiveProviderId: providerId => useOnlineProviderAccountStore.getState().setActiveProviderId(providerId),
     invalidateActiveRequests: () => omni.invalidateActiveRequests(),
     subscribe: listener => {

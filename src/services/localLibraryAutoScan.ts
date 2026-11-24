@@ -1,5 +1,5 @@
 import { getDirHandles } from './db';
-import { LOCAL_MUSIC_UPDATED_EVENT, resyncFolder } from './localMusicService';
+import { LOCAL_MUSIC_UPDATED_EVENT, LocalFolderUnavailableError, resyncFolder } from './localMusicService';
 import { summarizeLocalLibraryChanges } from '../utils/localLibraryWatchRecords';
 import { useLocalLibrarySettingsStore } from '../stores/useLocalLibrarySettingsStore';
 import type {
@@ -121,9 +121,16 @@ const drainScanQueue = async (): Promise<void> => {
             pendingScanRoots.delete(rootFolderName);
 
             try {
-                await resyncFolder(rootFolderName);
+                // 文件夹读不到时不弹提示（没有人在等这次扫描），原因只记在 lastError 里。
+                await resyncFolder(rootFolderName, { announceUnavailable: false });
                 patchState({ lastScanAt: Date.now(), lastScanRootFolderName: rootFolderName, lastError: null });
             } catch (error) {
+                if (error instanceof LocalFolderUnavailableError) {
+                    // 盘没插、NAS 离线：扫描已经整个放弃，曲库没有动。不算故障，记一行就够。
+                    console.warn(`[LocalLibraryWatch] "${rootFolderName}" is not readable right now; the auto rescan was skipped and the library left as it is.`);
+                    patchState({ lastScanAt: Date.now(), lastScanRootFolderName: rootFolderName, lastError: error.message });
+                    continue;
+                }
                 console.error(`[LocalLibraryWatch] Auto rescan failed for "${rootFolderName}":`, error);
                 patchState({
                     lastScanAt: Date.now(),

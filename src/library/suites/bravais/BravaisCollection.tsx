@@ -19,7 +19,7 @@ import type { BravaisItem, BravaisLayer, BravaisLayerLocate, BravaisSeamModel } 
 import type { BravaisSeamAlbumArtist, BravaisSeamArtistSongs } from './bravaisSeamModels';
 import { ARTIST_SONGS_COLLECTION_TYPE } from '../../core/artist/artistModel';
 import { collectQueuedKeys, findNowPlayingKey, projectCollectionTracks } from './bravaisProjection';
-import { describeBravaisTrack } from './describeBravaisTrack';
+import { describeBravaisSourcedTrack, describeBravaisTrack } from './describeBravaisTrack';
 import type { BravaisPlaylistScope } from './bravaisFormModel';
 import { useBravaisCollectionFilter } from './useBravaisCollectionFilter';
 import { useBravaisCollectionForms } from './useBravaisCollectionForms';
@@ -126,11 +126,15 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         : collection.coverUrl;
     const albumCoverUrl = collection.type === 'album' ? snapshot?.detail?.coverUrl || wallCoverUrl || undefined : undefined;
     const isAlbum = collection.type === 'album';
+    const isFoliaPlaylist = collection.source === 'local' && collection.type === 'playlist' && Boolean(collection.playlistId);
     const allItems = useMemo(() => {
         const listenCountLabel = (count: number) => t('listeningRank.listenCount', { count });
-        const projected = projectCollectionTracks(view.displayTracks, view.entryKeyAt, describeBravaisTrack, unknownArtist, listenCountLabel);
+        // Folia 聚合歌单混着各个来源：每首的副标题带上来源。
+        const describe = isFoliaPlaylist ? (track: SongResult) => describeBravaisSourcedTrack(track, t) : describeBravaisTrack;
+        const projected = projectCollectionTracks(view.displayTracks, view.entryKeyAt, describe, unknownArtist, listenCountLabel);
         return isAlbum ? assignAlbumCoverArt(projected, albumCoverUrl) : projected;
-    }, [albumCoverUrl, isAlbum, t, unknownArtist, view.displayTracks, view.entryKeyAt]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- view.playableTracks 跟着音源登记表换新：来源停用、启用后副标题与灰显重算
+    }, [albumCoverUrl, isAlbum, isFoliaPlaylist, t, unknownArtist, view.displayTracks, view.entryKeyAt, view.playableTracks]);
     // 过滤时只放匹配项（序号徽标保留它在整张列表里的位置）。
     const items = useMemo<readonly BravaisItem[]>(() => {
         if (!view.matchIndexes) return allItems;
@@ -270,7 +274,7 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
     const cardsStillArriving = snapshot
         ? snapshot.status === 'idle' || snapshot.status === 'loading' || snapshot.sync.status === 'syncing'
         : false;
-    const hasReadFailed = Boolean(snapshot?.error || snapshot?.sync.status === 'interrupted');
+    const hasReadFailed = (snapshot?.error != null && !snapshot.tracksWhole) || snapshot?.sync.status === 'interrupted';
     const locate = useMemo<BravaisLayerLocate>(() => ({
         pageKey: locatePageKey,
         isFiltered,

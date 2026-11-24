@@ -1,0 +1,38 @@
+{
+  "folium": 2,
+  "id": "netease",
+  "name": "网易云音乐",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的网易云音乐音源：扫码登录、搜索、播放、逐字歌词、曲库、云盘、听歌排行、每日推荐与私人 FM（带模式与场景）、探索页、歌单改动与听歌上报。桌面端经 main 入口工作线程里内嵌的 NeteaseCloudMusicApi Enhanced 请求，网页版发到配置的 API 地址。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "netease",
+      "name": {
+        "zh-CN": "网易云音乐",
+        "en": "NetEase Cloud Music",
+        "in": "NetEase Cloud Music",
+        "vi": "NetEase Cloud Music"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "reports@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "explore@1",
+        "recommendations@1",
+        "mutations@1",
+        "covers@1",
+        "raw@1"
+      ],
+      "keepForMatching": true
+    }
+  ]
+}

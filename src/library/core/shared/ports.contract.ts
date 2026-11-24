@@ -1,5 +1,9 @@
 import type { SongResult, StatusMessage } from '../../../types';
-import type { LocalGridViewCollectionDescriptor, OnlineGridViewCollectionDescriptor } from '../collection/collection.contract';
+import type {
+    LocalGridViewCollectionDescriptor,
+    NavidromeGridViewCollectionDescriptor,
+    OnlineGridViewCollectionDescriptor,
+} from '../collection/collection.contract';
 
 // src/library/core/shared/ports.contract.ts
 // 宿主提供给 Library Core 的端口：播放端口（交给应用的播放控制器）与变更动作的来源端口
@@ -49,7 +53,8 @@ export type LibraryPlaylistOption = { id: string | number; name: string; descrip
 
 /** 本地曲库的来源动作；编辑对话框由宿主挂载。 */
 export interface LibraryLocalMutationPort {
-    removePlaylistSongs?: (playlistId: string, songIds: string[]) => Promise<void> | void;
+    /** 从 Folia 聚合歌单里移除条目，按条目的 key（foliaPlaylistEntryKeyOf）。 */
+    removePlaylistSongs?: (playlistId: string, entryKeys: string[]) => Promise<void> | void;
     /** 重新读取本地曲库（歌单、歌曲）。 */
     refresh?: () => Promise<void> | void;
     renamePlaylist?: (playlistId: string, name: string) => Promise<void> | void;
@@ -64,6 +69,19 @@ export interface LibraryLocalMutationPort {
     matchSong?: (songId: string) => Promise<void> | void;
     /** 本地文件夹 / 专辑 / 歌单的自定义封面对话框。 */
     editCover?: (collection: LocalGridViewCollectionDescriptor) => Promise<void> | void;
+}
+
+/**
+ * Folia 聚合歌单的转存：把一张平台歌单 / 专辑存成 Folia 歌单，以及转存来的歌单从原歌单更新。
+ * 两个动作都只是请宿主打开它的对话框（名字、「改由……播放」的选择、读原歌单的进度都在那里）。
+ */
+export interface LibraryFoliaMutationPort {
+    /** 打开「存成 Folia 歌单」的对话框。 */
+    saveCollection?: (collection: OnlineGridViewCollectionDescriptor | NavidromeGridViewCollectionDescriptor) => void;
+    /** 打开「从原歌单更新」的对话框。 */
+    refreshFromOrigin?: (playlistId: string) => void;
+    /** 这张 Folia 歌单是不是转存来的（记着出处）。同步读此刻的歌单；出处建歌单时就定了，之后不变。 */
+    hasOrigin?: (playlistId: string) => boolean;
 }
 
 /** Navidrome 的来源动作。删歌按资源里的原始下标，不是界面上的显示下标。 */
@@ -83,6 +101,7 @@ export interface LibraryNavidromeMutationPort {
 export interface LibraryMutationPort {
     local?: LibraryLocalMutationPort;
     navidrome?: LibraryNavidromeMutationPort;
+    folia?: LibraryFoliaMutationPort;
     /** 集合在上游变了（删歌、订阅）：刷新账户里的歌单列表等。 */
     onCollectionMutated?: () => Promise<void> | void;
     /** renderer 把动作结果翻译成文案后经由这里显示；控制器自己只返回判别式。 */

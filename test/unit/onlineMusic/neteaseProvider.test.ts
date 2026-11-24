@@ -1,44 +1,56 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NeteaseLoginHttpError, neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { describeNeteaseFailure } from '@/services/onlineMusic/netease/neteaseFailure';
-import { NETEASE_SONG_DETAIL_BATCH, neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
+import { NeteaseLoginHttpError, neteaseApi } from '../../../sources/netease/core/netease';
+import { describeNeteaseFailure } from '../../../sources/netease/core/neteaseFailure';
+import { NETEASE_SONG_DETAIL_BATCH } from '../../../sources/netease/core/neteaseProvider';
+import { lazyNetease } from '../helpers/neteaseSource';
 import type { UnifiedSong } from '@/types';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { parseLyricsAsync } from '@/utils/lyrics/workerClient';
 
 // test/unit/onlineMusic/neteaseProvider.test.ts
+// 网易云音源模组经注册着的音源跑（helpers/neteaseSource.ts）：测试拿到的是宿主的 provider（适配层组装的那一个），
+// core/netease.ts 的 neteaseApi 用替身。
 
-vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/netease/netease')>(),
-    isSongMarkedUnavailable: (candidate: UnifiedSong) => candidate.privilege?.st === -200,
-    getNeteaseRemoteApiBase: () => null,
-    neteaseApi: {
-        normalizeSongResult: vi.fn((raw: unknown) => raw),
-        getSongUrl: vi.fn(),
-        getLyric: vi.fn(),
-        getUnavailableSongReplacement: vi.fn(),
-        cloudSearch: vi.fn(),
-        getSongDetail: vi.fn(),
-        getAlbum: vi.fn(),
-        getArtistDetail: vi.fn(),
-        getArtistAlbums: vi.fn(),
-        getArtistSongs: vi.fn(),
-        getPersonalizedPlaylists: vi.fn(),
-        getLikedSongs: vi.fn(),
-        getUserPlaylists: vi.fn(),
-        getUserRecord: vi.fn(),
-        checkQr: vi.fn(),
-        getQrKey: vi.fn(),
-        createQr: vi.fn(),
-        scrobbleV1: vi.fn(),
-        getLoginStatus: vi.fn(),
-        getUserAccount: vi.fn(),
-        updatePlaylistTracks: vi.fn(),
-        getDailyStyleConfigs: vi.fn(),
-        getDailyStyleSongs: vi.fn(),
-        setDailyStyle: vi.fn(),
-    },
-}));
+const neteaseProvider = lazyNetease();
+
+vi.mock('../../../sources/netease/core/netease', async (importOriginal) => {
+    const original = await importOriginal<typeof import('../../../sources/netease/core/netease')>();
+    return {
+        ...original,
+        isSongMarkedUnavailable: (candidate: UnifiedSong) => candidate.privilege?.st === -200,
+        getNeteaseRemoteApiBase: () => null,
+        neteaseApi: {
+        // The module's own pure helpers: the source reads every song through them.
+            normalizeSongResult: vi.fn(original.neteaseApi.normalizeSongResult),
+            getProcessedLyricPayload: original.neteaseApi.getProcessedLyricPayload,
+            getSongUrl: vi.fn(),
+            getLyric: vi.fn(),
+            getChorus: vi.fn(async () => ({ code: 200, chorus: [] })),
+            getUnavailableSongReplacement: vi.fn(),
+            cloudSearch: vi.fn(),
+            getSongDetail: vi.fn(),
+            getAlbum: vi.fn(),
+            getArtistDetail: vi.fn(),
+            getArtistAlbums: vi.fn(),
+            getArtistSongs: vi.fn(),
+            getPersonalizedPlaylists: vi.fn(),
+            getLikedSongs: vi.fn(),
+            getUserPlaylists: vi.fn(),
+            getUserRecord: vi.fn(),
+            checkQr: vi.fn(),
+            getQrKey: vi.fn(),
+            createQr: vi.fn(),
+            scrobbleV1: vi.fn(),
+            getLoginStatus: vi.fn(),
+            getUserAccount: vi.fn(),
+            updatePlaylistTracks: vi.fn(),
+            getDailyStyleConfigs: vi.fn(),
+            getDailyStyleSongs: vi.fn(),
+            setDailyStyle: vi.fn(),
+        },
+    };
+});
 
 vi.mock('@/utils/lyrics/workerClient', () => ({
     parseLyricsAsync: vi.fn(),
@@ -170,7 +182,7 @@ describe('neteaseProvider', () => {
         expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 10);
         expect(albums).toMatchObject({ total: 592, hasMore: true, nextOffset: 1 });
         expect(albums.items[0]).toMatchObject({
-            providerId: 'netease', id: 18909, type: 'album', name: 'Partners 拍档', trackCount: 13,
+            providerId: 'netease', id: '18909', type: 'album', name: 'Partners 拍档', trackCount: 13,
             coverUrl: 'https://p4.music.126.net/cover.jpg', publishedAt: 1019750400000,
             artists: [{ name: '周杰伦' }, { name: '方文山' }],
         });
@@ -188,7 +200,7 @@ describe('neteaseProvider', () => {
         expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 1000);
         expect(playlists).toMatchObject({ total: 1, hasMore: false, nextOffset: 1 });
         expect(playlists.items[0]).toMatchObject({
-            providerId: 'netease', id: 6792103822, type: 'playlist', trackCount: 144, playCount: 34324836,
+            providerId: 'netease', id: '6792103822', type: 'playlist', trackCount: 144, playCount: 34324836,
             creator: { nickname: 'Buradarrr' },
         });
     });
@@ -215,7 +227,7 @@ describe('neteaseProvider', () => {
         expect(vi.mocked(neteaseApi.getSongDetail).mock.calls.map(([asked]) => (asked as number[]).length)).toEqual([50, 50, 20]);
         expect(most).toBe(1);
         expect(songs).toHaveLength(ids.length + 1);
-        expect(songs[0]).toMatchObject({ id: 1, name: 'Song 1', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
+        expect(songs[0]).toMatchObject({ id: '1', name: 'Song 1', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
         expect(songs[3]?.name).toBe('Song 2');
         expect(songs[ids.length - 2]?.name).toBe('Song 119');
         expect(songs.slice(-2)).toEqual([null, null]);
@@ -269,9 +281,9 @@ describe('neteaseProvider', () => {
 
         const page = await neteaseProvider.catalog!.getArtistAlbums!(9, 10, 0);
         expect(page.items[0]).toMatchObject({
-            id: 7,
+            id: '7',
             coverUrl: 'https://example.test/album.jpg',
-            artists: [{ id: 9, name: 'Artist' }],
+            artists: [{ id: '9', name: 'Artist' }],
             aliases: ['Alias'],
             publishedAt: 1704067200000,
             publisher: 'Publisher',
@@ -300,7 +312,7 @@ describe('neteaseProvider', () => {
             more: false,
         } as any);
 
-        await expect(neteaseProvider.catalog!.getAlbumDetail!(7)).resolves.toMatchObject({ id: 7, type: 'album' });
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7)).resolves.toMatchObject({ id: '7', type: 'album' });
         const page = await neteaseProvider.catalog!.getArtistAlbums!(3, 10, 0);
         expect(page.items.map((album) => album.type)).toEqual(['album', 'album']);
     });
@@ -332,7 +344,8 @@ describe('neteaseProvider', () => {
         const asked = { providerId: 'netease', id: 7, type: 'album' as const, name: 'Kept' };
         vi.mocked(neteaseApi.getAlbum).mockResolvedValue({ code: 200, songs: [] } as any);
         vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue({ code: 200, data: {} } as any);
-        await expect(neteaseProvider.catalog!.getAlbumDetail!(7, asked)).resolves.toBe(asked);
+        // The collection asked with comes back as it was (as the host hands it to the source and takes it back: the id as text).
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7, asked)).resolves.toEqual({ ...asked, id: '7' });
         await expect(neteaseProvider.catalog!.getArtistDetail!(9)).resolves.toBeNull();
     });
 
@@ -365,7 +378,7 @@ describe('neteaseProvider', () => {
         });
         await expect(neteaseProvider.catalog!.getAlbumDetail!(7)).resolves.toMatchObject({
             description: 'Album biography',
-            artists: [{ id: 9, name: 'Artist' }],
+            artists: [{ id: '9', name: 'Artist' }],
         });
     });
 
@@ -462,7 +475,7 @@ describe('neteaseProvider', () => {
         } as any);
         await expect(neteaseProvider.playback!.getReplacement!(unavailableSong)).resolves.toMatchObject({
             label: '版权替代版本',
-            song: { id: 43, sourceRef: { providerId: 'netease', mediaId: '43' } },
+            song: { id: '43', sourceRef: { providerId: 'netease', mediaId: '43' } },
         });
     });
 
@@ -534,7 +547,7 @@ describe('neteaseProvider login status', () => {
     it('names the user where both checks name the same one', async () => {
         vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(signedIn as any);
         vi.mocked(neteaseApi.getUserAccount).mockResolvedValue(account as any);
-        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toMatchObject({ id: 7, nickname: 'Listener' });
+        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toMatchObject({ id: '7', nickname: 'Listener' });
     });
 
     // What the local backend answers where it cannot reach NetEase (HTTP 502), and what NetEase refuses with.
@@ -604,10 +617,8 @@ describe('neteaseProvider user playlists', () => {
         const page = await neteaseProvider.library!.getUserPlaylists!(7, 30, 0);
 
         expect(neteaseApi.getUserPlaylists).toHaveBeenCalledWith(7, 30, 0);
-        expect(page.items.map(item => [item.id, item.isLiked])).toEqual([[11, true], [12, undefined], [13, undefined]]);
-        // 归一化结果进缓存后回灌（omni.normalizeCachedCollection）仍是「我喜欢的音乐」。
-        expect(neteaseProvider.normalizeCollection!(page.items[0]).isLiked).toBe(true);
-        expect(neteaseProvider.normalizeCollection!(page.items[1]).isLiked).toBeUndefined();
+        expect(page.items.map(item => [item.id, item.isLiked])).toEqual([['11', true], ['12', undefined], ['13', undefined]]);
+        // 存下的账号原样读回（音源模组没有 normalizeCollection：存的就是宿主的集合，isLiked 在上面）。
     });
 });
 
@@ -616,7 +627,7 @@ describe('neteaseProvider liked song ids', () => {
 
     it('returns the ids of a successful response', async () => {
         vi.mocked(neteaseApi.getLikedSongs).mockResolvedValue({ code: 200, ids: [1, 2, 3] } as any);
-        await expect(neteaseProvider.library!.getLikedSongIds!(7)).resolves.toEqual({ ids: [1, 2, 3], whole: true });
+        await expect(neteaseProvider.library!.getLikedSongIds!(7)).resolves.toEqual({ ids: ['1', '2', '3'], whole: true });
         expect(neteaseApi.getLikedSongs).toHaveBeenCalledWith(7);
     });
 
@@ -806,7 +817,7 @@ describe('neteaseProvider listening ranking', () => {
         expect(vi.mocked(neteaseApi.getUserRecord).mock.calls).toEqual([[7, 1], [7, 0]]);
         expect(entries).toEqual([expect.objectContaining({
             providerId: 'netease', id: 'listening-rank-week-7', type: 'listening_rank', listeningRank: 'week',
-            trackCount: 2, coverUrl: 'https://img.test/1.jpg', isOwned: false, creator: listener,
+            trackCount: 2, coverUrl: 'https://img.test/1.jpg', isOwned: false, creator: { ...listener, id: '7' },
         })]);
     });
 
@@ -830,11 +841,11 @@ describe('neteaseProvider listening ranking', () => {
 
         const first = await neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 0, entry);
         expect(neteaseApi.getUserRecord).toHaveBeenCalledWith(7, 0);
-        expect(first.items.map(item => [item.id, item.listenCount])).toEqual([[5, 40], [6, 9]]);
+        expect(first.items.map(item => [item.id, item.listenCount])).toEqual([['5', 40], ['6', 9]]);
         expect(first).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
 
         const rest = await neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 2, entry);
-        expect(rest.items.map(item => item.id)).toEqual([7]);
+        expect(rest.items.map(item => item.id)).toEqual(['7']);
         expect(rest.items[0]).not.toHaveProperty('listenCount');
         expect(rest).toMatchObject({ hasMore: false, nextOffset: 3 });
 

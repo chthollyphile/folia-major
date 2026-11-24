@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { neteaseApi } from '../../../src/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 
 // Regression coverage for complete artist-album pagination.
 describe('netease artist albums', () => {

@@ -146,4 +146,15 @@ const resolveFfmpeg = async ({ appGetAppPath, packagedDirName = MODS_RUNTIME_DIR
     return { available: false, path: null, version: null, probed: true, candidates };
 };
 
-module.exports = { resolveFfmpeg, FFMPEG_BINARY_NAME, MODS_RUNTIME_DIR, TRANSCODE_RUNTIME_DIR, RUNTIME_SLOTS };
+/** The fixed slots of one caller (environment override, in-repo, packaged), without the PATH lookup. */
+const listRuntimeSlotCandidates = ({ appGetAppPath, packagedDirName = MODS_RUNTIME_DIR }) => buildCandidates(appGetAppPath, packagedDirName);
+
+module.exports = {
+    resolveFfmpeg,
+    listRuntimeSlotCandidates,
+    pathExists,
+    FFMPEG_BINARY_NAME,
+    MODS_RUNTIME_DIR,
+    TRANSCODE_RUNTIME_DIR,
+    RUNTIME_SLOTS,
+};

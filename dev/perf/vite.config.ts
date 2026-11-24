@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { commandPinyinPlugin } from '../pinyin/commandPinyinPlugin.mjs';
 import { traditionalLocalePlugin } from '../i18n/traditionalLocalePlugin.mjs';
+import { webSourcePlugin } from '../sources/webSourcePlugin.mjs';
 import { icuFoliaDataPlugin } from '../icuFolia/icuFoliaDataPlugin.mjs';
 
 // dev/perf/vite.config.ts
@@ -58,6 +59,7 @@ export default defineConfig({
     plugins: [
         commandPinyinPlugin(),
         traditionalLocalePlugin(),
+        webSourcePlugin(),
         icuFoliaDataPlugin(),
         react(),
     ],
@@ -72,6 +74,8 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(ROOT, './src'),
+            // 音源模组共用的纯函数（packages/folium-source-kit），宿主从包的入口取；和根 vite.config.ts 同一条别名。
+            '@folia/folium-source-kit': path.resolve(ROOT, './packages/folium-source-kit/src/index.ts'),
         },
     },
 });

@@ -71,6 +71,8 @@ export interface LyricAgent {
   type?: string;
 }
 
+export type LyricChorusOrigin = 'source' | 'text';
+
 export interface Line {
   words: Word[];
   startTime: number;
@@ -88,6 +90,10 @@ export interface Line {
   renderHints?: LineRenderHints;
   isChorus?: boolean;
   chorusEffect?: 'bars' | 'circles' | 'beams';
+  // Where isChorus came from: 'source' when the lyric data said so (a platform's chorus ranges, a
+  // TTML songPart), 'text' when the host guessed it from repeated lines. Absent on lyrics marked
+  // before this was recorded, which count as not known.
+  chorusOrigin?: LyricChorusOrigin;
   // User-saved fine word boundaries for fullText, baked in upstream by the lyric setter.
   // join('') must equal fullText. When present it wins over every automatic segmentation.
   wordSegments?: string[];
@@ -99,6 +105,9 @@ export interface Line {
 
 export interface LyricData {
   lines: Line[];
+  // The chorus ranges a lyric source gave (seconds, lyric clock), kept when they marked lines here:
+  // a range can start inside a line, and the progress bar's chorus tick wants the range's own start.
+  sourceChorusRanges?: Array<{ startTime: number; endTime: number }>;
   title?: string;
   artist?: string;
   isWordByWord?: boolean;
@@ -163,7 +172,14 @@ export interface LyricRenderOverride {
   antialias: 'global' | 'on' | 'off';
 }
 
-export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio' | 'explore';
+/**
+ * 首页的一页。首页是两级页签：一级是组（Folia、当前在线音源、本地、Navidrome），二级是组里的页。这里的值是「页」，
+ * 组由页推出（library/core/home/homeSources 的 homeGroupOfTab）：在线组有四页（playlist / radio / albums / explore），
+ * 其余各组只有一页（本地与 Navidrome 的二级页签是各自的 section，不在这里）。旧版本存下的值都还是其中一页。
+ */
+export type HomeViewTab = 'folia' | 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio' | 'explore';
+/** 在线组里的页。 */
+export type HomeOnlineViewTab = 'playlist' | 'radio' | 'albums' | 'explore';
 
 export type PlaybackContext = 'main' | 'stage';
 export type StageSource = 'stage-api' | 'now-playing' | 'playercap';
@@ -1448,6 +1464,11 @@ export interface SongResult {
   fee?: number;
   // Its audio is a music video's, which may hold an intro, a scene or another mix: rows tag it MV.
   isVideo?: boolean;
+  /**
+   * The kind of item it is, one its provider declares (`OnlineMusicProvider.itemKinds`, Folium 2 plan §4.4);
+   * a song when left out. What the host does with it is itemTraits.ts's.
+   */
+  itemKind?: string;
   noCopyrightRcmd?: NoCopyrightRecommendation | null;
   resourceState?: boolean;
   privilege?: SongPrivilege;
@@ -1577,15 +1598,6 @@ export interface LocalLibrarySnapshot {
   tree: LocalLibrarySnapshotNode;
 }
 
-export interface LocalPlaylist {
-  id: string;
-  name: string;
-  songIds: string[];
-  createdAt: number;
-  updatedAt: number;
-  isFavorite?: boolean;
-}
-
 export type LocalLibraryGroupType = 'folder' | 'album' | 'artist' | 'playlist';
 
 export interface LocalLibraryGroup {
@@ -1623,6 +1635,9 @@ export interface UnifiedSong extends SongResult {
   // How many times the account played it, as its platform's listening ranking counts, where the song
   // was read from that ranking. Like collectionRowId it belongs to the row, not to the song.
   listenCount?: number;
+  // In a Folia playlist saved from a platform playlist: the key of the song this row stood for before
+  // it was swapped for another source's copy (the entry's originalKey). Belongs to the row as well.
+  foliaOriginalKey?: string;
   isLocal?: boolean;
   localRef?: import('./types/localLibrary').LocalSongReference;
   isNavidrome?: boolean;

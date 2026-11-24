@@ -3,13 +3,13 @@
 // 不会把探针运行时带进 Node。
 //
 // 七个 provider 各管一类语义：
-// - netease：顶替真实网易注册的假 provider，单一登录方式；只有它会读网易本地后端的健康状态（Grid3D 按 id 判定）。
+// - netease：顶替真实网易注册的假 provider，单一登录方式；只有它带着可以在登录窗口里重启的本地服务（auth.localService）。
 // - alpha：探针挂载时已登录、是当前平台。
 // - beta：已登录、不是当前平台——「切换到已登录平台」。
 // - gamma：未登录、单一登录方式——「选未登录平台 → 扫码」。
 // - quill：未登录、两种登录方式（QQ 那样的两步式）。
 // - modo：没有账户（capabilities.auth = false，requiresAccount = false），等同 Folium mod 源。
-// - qq：顶替真实 QQ 注册的假 provider，未登录、单步流程；名字用 Tencent，免得按文字找菜单项时与 Quill 撞上。
+// - qq：顶替真实 QQ 注册的假 provider，未登录、单步流程；名字用 Tencent，免得按文字找平台那一行时与 Quill 撞上。
 //   用来验证 QQ 的失败与别的平台走同一套规则（诊断入口、自检，见 core/account/accountRules 的 canShowLoginDiagnostics）。
 
 export const ACCOUNT_NETEASE = 'netease';
@@ -43,9 +43,11 @@ export const ACCOUNT_PROVIDERS: AccountProviderRule[] = [
         displayName: 'Probe Quill',
         auth: true,
         initial: 'anonymous',
+        // labelKey 直接写要显示的字：QQ 的登录方式文案跟着音源模组走了，宿主的语言表里没有这两个键，
+        // t() 找不到键时原样回键名。
         methods: [
-            { id: 'qq', labelKey: 'home.qqLoginMethodMobile', iconKey: 'qq' },
-            { id: 'wechat', labelKey: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
+            { id: 'qq', labelKey: 'QQ scan', iconKey: 'qq' },
+            { id: 'wechat', labelKey: 'WeChat scan', iconKey: 'wechat' },
         ],
     },
     { id: ACCOUNT_MODO, shortName: 'Modo', displayName: 'Probe Modo', auth: false, initial: null },
@@ -73,5 +75,5 @@ export const qrKeyOf = (providerId: string, methodId: string | undefined, serial
     `${providerId}#${methodId ?? 'default'}#${serial}`
 );
 
-/** 手机上取消之后的后端冷却（探针缩短到 3 秒，真实后端是 30 秒）。 */
+/** 手机上取消之后平台要求等的时间（探针缩短到 3 秒，真实后端是 30 秒）：登录窗口的重试按钮先倒数这么久。 */
 export const ACCOUNT_CANCEL_COOLDOWN_MS = 3_000;

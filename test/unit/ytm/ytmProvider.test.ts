@@ -1,23 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-// test/unit/ytm/ytmProvider.test.ts
+// The host parses a source's tracks in the lyrics worker; run the same parser inline.
+vi.mock('@/utils/lyrics/workerClient', async () => {
+    const { parseLyricsByFormat } = await import('@/utils/lyrics/parserCore');
+    return {
+        parseLyricsAsync: vi.fn(async (
+            format: Parameters<typeof parseLyricsByFormat>[0],
+            content: string,
+            translation: string,
+            options: Parameters<typeof parseLyricsByFormat>[3],
+            romanization: string,
+        ) => parseLyricsByFormat(format, content, translation, options, romanization)),
+    };
+});
 
-const request = vi.hoisted(() => vi.fn());
-const loadSnapshot = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
-    requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
-}));
-vi.mock('@/services/onlineMusic/providerAccountCache', () => ({
-    loadProviderAccountSnapshot: loadSnapshot,
-}));
-import { ytmProvider } from '@/services/onlineMusic/ytm/ytmProvider';
-import { noteYtmAccount, ytmHasPremium } from '@/services/onlineMusic/ytm/ytmAccount';
-import { clearYtmCatalogCache } from '@/services/onlineMusic/ytm/ytmCatalog';
-import { clearYtmLibraryCache } from '@/services/onlineMusic/ytm/ytmLibrary';
-import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, normalizeYtmUser } from '@/services/onlineMusic/ytm/ytmNormalize';
+import { noteYtmAccount, ytmHasPremium } from '../../../sources/ytm/client/ytmAccount';
+import { clearYtmCatalogCache } from '../../../sources/ytm/client/ytmCatalog';
+import { clearYtmLibraryCache } from '../../../sources/ytm/client/ytmLibrary';
+import { createYtmPager } from '../../../sources/ytm/client/ytmNormalize';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
-import { OnlineProviderError } from '@/types/onlineMusic';
 import i18n from '@/i18n/config';
+import { answerYtmRequests, hostYtmCollection, hostYtmSong, hostYtmUser, lazyYtmProvider, ytmRefusal } from '../helpers/ytmSource';
+// @builtin-sources
+
+// test/unit/ytm/ytmProvider.test.ts — the YouTube Music source mod (sources/ytm/client/) as the host has it: registered
+// through the adapter; its requests to the main entry are answered here.
+
+const { request } = answerYtmRequests();
+const ytmProvider = lazyYtmProvider();
+const normalizeYtmSong = hostYtmSong;
+const normalizeYtmCollection = hostYtmCollection;
+const normalizeYtmUser = hostYtmUser;
 
 const wireSong = (id = 'm9SMT5ipbxk', extra: Record<string, unknown> = {}) => ({
     id, name: 'アイドル', artists: [{ id: 'UCI6B8NkZKqlFWoiC_xE-hzA', name: 'YOASOBI' }],
@@ -32,7 +45,6 @@ const ids = (count: number, from = 0) => Array.from({ length: count }, (_, index
 
 beforeEach(() => {
     request.mockReset();
-    loadSnapshot.mockReset().mockResolvedValue(null);
     clearYtmCatalogCache();
     clearYtmLibraryCache();
     noteYtmAccount(null);
@@ -48,10 +60,10 @@ describe('YouTube Music normalization', () => {
             album: { id: 'MPREb_6h43ySO9duW', catalogRef: { providerId: 'ytm', kind: 'album', id: 'MPREb_6h43ySO9duW' } },
         });
         expect(getPlaybackSongKey(song)).toBe('online:ytm:m9SMT5ipbxk');
-        expect(normalizeYtmSong(song)).toBe(song);
 
         const row = normalizeYtmSong(tileSong());
-        expect(row.album).toMatchObject({ id: '', catalogRef: undefined });
+        expect(row.album).toMatchObject({ id: '' });
+        expect(row.album?.catalogRef).toBeUndefined();
         expect(row.artists).toEqual([{ id: '', name: 'YOASOBI', catalogRef: undefined }]);
         expect(() => normalizeYtmSong({})).toThrow('no id');
         expect(() => normalizeYtmSong(null)).toThrow('no id');
@@ -65,7 +77,6 @@ describe('YouTube Music normalization', () => {
         expect(playlist).not.toHaveProperty('trackCount');
         const album = normalizeYtmCollection({ id: 'MPREb_x', name: 'Album', coverUrl: '', playlistId: 'OLAK5uy_x', year: 2021, artists: [{ id: '', name: 'Artist' }] }, 'album');
         expect(album).toMatchObject({ type: 'album', publishedAt: Date.UTC(2021, 0, 1), providerData: { playlistId: 'OLAK5uy_x' }, artists: [{ name: 'Artist' }] });
-        expect(normalizeYtmCollection(album)).toBe(album);
         expect(() => normalizeYtmCollection({ name: 'x' })).toThrow('no id');
     });
 
@@ -90,7 +101,7 @@ describe('YouTube Music paging by offset', () => {
         expect(first).toEqual({ items: ids(15), nextOffset: 15, hasMore: true });
         expect(fetchPage).toHaveBeenCalledTimes(1);
 
-        const second = await pager.page('list', first.nextOffset, 150, fetchPage);
+        const second = await pager.page('list', first.nextOffset ?? 0, 150, fetchPage);
         expect(second.items).toEqual(ids(105, 15));
         expect(second).toMatchObject({ nextOffset: 120, hasMore: true });
         expect(fetchPage).toHaveBeenCalledTimes(8);
@@ -170,7 +181,8 @@ describe('YouTube Music provider', () => {
     it('declares what it does and does not do', () => {
         expect(ytmProvider.capabilities).toMatchObject({
             search: true, playback: true, lyrics: true, auth: true, userLibrary: true, userAlbums: true,
-            explore: true, mutations: true, playlistTrackMutations: true, playlistSubscription: true, wordByWordLyrics: false,
+            // (`wordByWordLyrics` is derived from lyrics@1 being there, and nothing in the host reads it.)
+            explore: true, mutations: true, playlistTrackMutations: true, playlistSubscription: true,
             // The radio tab: a personal FM and the music page's playlists (ytmRecommendations.test.ts).
             recommendations: true,
             // The heart, whoever is signed in.
@@ -194,10 +206,7 @@ describe('YouTube Music provider', () => {
         expect(request).toHaveBeenLastCalledWith('song_like', { id: 'm9SMT5ipbxk', liked: 'true' });
         await ytmProvider.mutations!.likeSong!('ZRtdQ81jPUQ', false);
         expect(request).toHaveBeenLastCalledWith('song_like', { id: 'ZRtdQ81jPUQ', liked: 'false' });
-        request.mockClear();
-        const foreign = { ...normalizeYtmSong(wireSong()), sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: '1' } };
-        await expect(ytmProvider.mutations!.likeSong!(foreign, true)).rejects.toMatchObject({ code: 'unsupported' });
-        expect(request).not.toHaveBeenCalled();
+        // (Another platform's song never reaches the source: the host picks the source by the song's own.)
     });
 
     it('reads the liked songs to the end of the liked list', async () => {
@@ -383,8 +392,8 @@ describe('YouTube Music provider', () => {
         const second = await ytmProvider.explore!.getFeed(first.nextCursor);
         expect(request).toHaveBeenLastCalledWith('mix', { id: 'RDAMVMseedAAAAAAA', videoId: 'seedAAAAAAA' });
         // Its heading names the song as the radio does, in the app's language.
-        expect(i18n.t('home.exploreSimilar', { name: 'As the radio names it' })).toContain('As the radio names it');
-        expect(second.sections.map(section => section.title)).toEqual([i18n.t('home.exploreSimilar', { name: 'As the radio names it' }), 'More']);
+        expect(i18n.t('folium-mod/ytm:exploreSimilar', { name: 'As the radio names it' })).toContain('As the radio names it');
+        expect(second.sections.map(section => section.title)).toEqual([i18n.t('folium-mod/ytm:exploreSimilar', { name: 'As the radio names it' }), 'More']);
         const [shelf] = second.sections;
         expect(songIds(shelf.items)).toEqual(radio(12).map(song => song.id));
         expect(shelf.items[0]).toMatchObject({ kind: 'song', song: { sourceRef: { kind: 'online', providerId: 'ytm' } } });
@@ -406,7 +415,7 @@ describe('YouTube Music provider', () => {
         expect(request.mock.calls.map(call => call[1].videoId)).toEqual(['pageSongA01', 'pageSongA02']);
         expect(third.sections).toHaveLength(2);
         // (A radio that does not list its song leaves the heading with the name the song came with.)
-        expect(third.sections[0].title).toBe(i18n.t('home.exploreSimilar', { name: 'アイドル' }));
+        expect(third.sections[0].title).toBe(i18n.t('folium-mod/ytm:exploreSimilar', { name: 'アイドル' }));
         expect(third).not.toHaveProperty('nextCursor');
 
         // Read from its start again, the page answers the cursors of the shelves it made before with nothing.
@@ -463,7 +472,7 @@ describe('YouTube Music provider', () => {
         request.mockResolvedValueOnce({ sections: [{ title: 'More', items: [{ kind: 'song', song: tileSong('pageSongW01') }] }], continuation: 'page-3' });
         const second = await ytmProvider.explore!.getFeed(first.nextCursor);
         expect(request).toHaveBeenCalledExactlyOnceWith('explore', { continuation: 'page-2' });
-        expect(second.sections.map(section => section.title)).toEqual([i18n.t('home.exploreSimilar', { name: 'Waited for' }), 'More']);
+        expect(second.sections.map(section => section.title)).toEqual([i18n.t('folium-mod/ytm:exploreSimilar', { name: 'Waited for' }), 'More']);
         // The page after it asks with the next song.
         request.mockResolvedValueOnce({ sections: [] }).mockResolvedValueOnce({ items: radio(20, 50) });
         await ytmProvider.explore!.getFeed(second.nextCursor);
@@ -474,7 +483,7 @@ describe('YouTube Music provider', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
         request.mockResolvedValueOnce({ sections: [] });
         let cursor = (await ytmProvider.explore!.getFeed(undefined, Array.from({ length: 20 }, (_, index) => played(`capSeed${String(index).padStart(4, '0')}`, `Song ${index}`)))).nextCursor;
-        request.mockImplementation(async (_operation: string, params: { videoId: string }) => ({ items: radio(12, Number(params.videoId.slice(-4)) * 100) }));
+        request.mockImplementation(async (_operation: string, params: { videoId?: string }) => ({ items: radio(12, Number(params.videoId!.slice(-4)) * 100) }));
         let shelves = 0;
         while (cursor) {
             const page = await ytmProvider.explore!.getFeed(cursor);
@@ -685,9 +694,7 @@ describe('YouTube Music provider', () => {
         expect(first).toMatchObject({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=one', quality: 'high' });
         expect(second).toMatchObject({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=two', quality: 'lossless' });
         expect(request).toHaveBeenLastCalledWith('audio', { id: 'm9SMT5ipbxk', quality: 'lossless' });
-        const foreign = { ...song, sourceRef: { kind: 'online' as const, providerId: 'netease', mediaId: '1' } };
-        await expect(ytmProvider.playback!.getAudioSource(foreign, 'high')).rejects.toMatchObject({ code: 'unsupported' });
-        await expect(ytmProvider.lyrics!.getLyrics(foreign)).rejects.toMatchObject({ code: 'unsupported' });
+        // (Another platform's song never reaches the source: the host picks the source by the song's own.)
     });
 
     it('takes YouTube\'s loudness figure as the track gain: a track louder than its level is turned down, a quieter one not lifted', async () => {
@@ -748,13 +755,11 @@ describe('YouTube Music provider', () => {
         expect(await other(named('YOASOBI & Ayase'))).toBeNull();
         request.mockResolvedValueOnce(named('绿洲合唱团'));
         expect(await other(named('绿洲合唱团'))).toBeNull();
-        await expect(ytmProvider.lyrics!.getAlternateArtistName!({ ...normalizeYtmSong(named('绿洲合唱团')), sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } }))
-            .rejects.toMatchObject({ code: 'unsupported' });
     });
 
     // The desktop side's answer where none of the browsers it opens is installed: its code, its
     // sentence and, as the transport hands it on, its reason.
-    const noBrowser = (reason?: string) => new OnlineProviderError('unsupported', 'No browser to sign in with was found', 'ytm', reason);
+    const noBrowser = (reason?: string) => ytmRefusal('unsupported', 'No browser to sign in with was found', reason);
 
     it('begins a sign-in in the person\'s browser, which has no QR image, and sends its steps to that sign-in', async () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -762,7 +767,7 @@ describe('YouTube Music provider', () => {
         expect(auth.createQr).toBeUndefined();
         request.mockResolvedValueOnce({});
         const key = await auth.startLogin!();
-        expect(request.mock.calls).toEqual([['web_login_start']]);
+        expect(request.mock.calls).toEqual([['web_login_start', {}]]);
         // The dialog gives it longer than the desktop side's ten minutes: at the end of those the
         // desktop side reads what the browser left, and the dialog waits for that.
         expect(auth.getLoginTtlMs!()).toBe(12 * 60 * 1000);
@@ -776,13 +781,13 @@ describe('YouTube Music provider', () => {
         ]) {
             request.mockResolvedValueOnce(answer);
             expect(await auth.checkLogin!(key)).toEqual(state);
-            expect(request).toHaveBeenLastCalledWith('web_login_check');
+            expect(request).toHaveBeenLastCalledWith('web_login_check', {});
         }
         request.mockResolvedValue({});
         await auth.openLoginPage!(key);
-        expect(request).toHaveBeenLastCalledWith('web_login_open');
+        expect(request).toHaveBeenLastCalledWith('web_login_open', {});
         await auth.cancelLogin!(key);
-        expect(request).toHaveBeenLastCalledWith('web_login_cancel');
+        expect(request).toHaveBeenLastCalledWith('web_login_cancel', {});
         // Given up, it is the sign-in in progress no more: a step of it is answered here, not sent.
         request.mockClear();
         expect(await auth.checkLogin!(key)).toEqual({ state: 'expired' });
@@ -795,23 +800,23 @@ describe('YouTube Music provider', () => {
         request.mockRejectedValueOnce(noBrowser('no-browser'));
         const failure = await auth.startLogin!().catch((error: unknown) => error);
         expect(failure).toMatchObject({ code: 'unsupported' });
-        expect(request.mock.calls).toEqual([['web_login_start']]);
+        expect(request.mock.calls).toEqual([['web_login_start', {}]]);
         // The reason on what the start threw makes it the case "no browser", and for that case the
         // window shows this platform's own sentence under the headline; the three languages have it.
         expect(auth.describeLoginFailure!('start', failure)).toMatchObject({ case: 'no-browser' });
-        expect(auth.getLoginTexts!().caseNotes?.['no-browser']).toBe('home.loginNoBrowserYtm');
+        expect(auth.getLoginTexts!().caseNotes?.['no-browser']).toBe('folium-mod/ytm:login.noBrowser');
         for (const language of ['zh-CN', 'en', 'in']) {
-            expect(i18n.getFixedT(language)('home.loginNoBrowserYtm')).toMatch(/YouTube Music.+Chrome.+Beta.+Dev.+Canary.+Edge.+Chromium.+Brave.+Helium/);
+            expect(i18n.getFixedT(language)('folium-mod/ytm:login.noBrowser')).toMatch(/YouTube Music.+Chrome.+Beta.+Dev.+Canary.+Edge.+Chromium.+Brave.+Helium/);
         }
     });
 
     it('fails the sign-in when its start fails for any other reason, and does not call it "no browser"', async () => {
         const auth = ytmProvider.auth!;
         for (const code of ['unavailable', 'network', 'invalid-response'] as const) {
-            const failure = new OnlineProviderError(code, 'The browser could not be opened', 'ytm');
-            request.mockReset().mockRejectedValueOnce(failure);
-            await expect(auth.startLogin!()).rejects.toBe(failure);
-            expect(request.mock.calls).toEqual([['web_login_start']]);
+            request.mockReset().mockRejectedValueOnce(ytmRefusal(code, 'The browser could not be opened'));
+            const failure = await auth.startLogin!().catch((error: unknown) => error);
+            expect(failure).toMatchObject({ name: 'OnlineProviderError', code, message: 'The browser could not be opened', providerId: 'ytm' });
+            expect(request.mock.calls).toEqual([['web_login_start', {}]]);
             expect(auth.describeLoginFailure!('start', failure)?.case).not.toBe('no-browser');
         }
         // A failure that names no reason is not "no browser" either, whatever its code or its words.
@@ -825,7 +830,7 @@ describe('YouTube Music provider', () => {
         request.mockResolvedValue({});
         const earlier = await auth.startLogin!();
         const later = await auth.startLogin!();
-        expect(request.mock.calls).toEqual([['web_login_start'], ['web_login_start']]);
+        expect(request.mock.calls).toEqual([['web_login_start', {}], ['web_login_start', {}]]);
         expect(later).not.toBe(earlier);
 
         // The desktop side has one sign-in and no key for it: a step of the earlier one is not
@@ -835,7 +840,7 @@ describe('YouTube Music provider', () => {
         await auth.cancelLogin!(earlier);
         expect(request).not.toHaveBeenCalled();
         await auth.cancelLogin!(later);
-        expect(request.mock.calls).toEqual([['web_login_cancel']]);
+        expect(request.mock.calls).toEqual([['web_login_cancel', {}]]);
     });
 
     // The dialog was closed and opened again while the browser was still starting.
@@ -852,13 +857,13 @@ describe('YouTube Music provider', () => {
         // The older one is not the sign-in in progress, and giving it up says nothing to the desktop side.
         expect(await auth.checkLogin!(olderKey)).toEqual({ state: 'expired' });
         await auth.cancelLogin!(olderKey);
-        expect(request.mock.calls).toEqual([['web_login_start'], ['web_login_start']]);
+        expect(request.mock.calls).toEqual([['web_login_start', {}], ['web_login_start', {}]]);
         answerNewer({});
         const newerKey = await newer;
         request.mockResolvedValueOnce({ state: 'waiting' });
         expect(await auth.checkLogin!(newerKey)).toEqual({ state: 'waiting' });
         await auth.cancelLogin!(newerKey);
-        expect(request).toHaveBeenLastCalledWith('web_login_cancel');
+        expect(request).toHaveBeenLastCalledWith('web_login_cancel', {});
     });
 
     // A sign-in can begin while an account is signed in, and that account stays signed in until
@@ -903,7 +908,7 @@ describe('YouTube Music provider', () => {
         request.mockReset().mockResolvedValue({ collection: { id: 'MPREb_x', type: 'album', name: 'Album', coverUrl: '' }, items: [wireSong()] });
         await ytmProvider.catalog!.getAlbumDetail!('MPREb_x');
         await ytmProvider.auth!.logout();
-        expect(request).toHaveBeenLastCalledWith('logout');
+        expect(request).toHaveBeenLastCalledWith('logout', {});
         await ytmProvider.catalog!.getAlbumDetail!('MPREb_x');
         expect(request.mock.calls.filter(([operation]) => operation === 'album')).toHaveLength(2);
     });
@@ -954,7 +959,8 @@ describe('YouTube Music catalog and library', () => {
     it('reads a library album that has only a playlist id as that playlist', async () => {
         request.mockResolvedValue({ items: [tileSong()] });
         const card = normalizeYtmCollection({ id: 'OLAK5uy_x', type: 'album', name: 'Album', coverUrl: 'c', playlistId: 'OLAK5uy_x' });
-        expect(await ytmProvider.catalog!.getAlbumDetail!('OLAK5uy_x', card)).toBe(card);
+        // Through the host the card comes back as an equal one, not the same object.
+        expect(await ytmProvider.catalog!.getAlbumDetail!('OLAK5uy_x', card)).toEqual(card);
         expect((await ytmProvider.catalog!.getAlbumTracks!('OLAK5uy_x', 50, 0)).items).toHaveLength(1);
         expect(request).toHaveBeenCalledExactlyOnceWith('public_playlist', { id: 'OLAK5uy_x', continuation: undefined });
     });
@@ -992,7 +998,11 @@ describe('YouTube Music catalog and library', () => {
         // A guest read that fails on its first page gives way to the account's, and says so.
         answers({ public_playlist: new Error('YouTube Music could not be reached'), playlist: { items: [tileSong('a0000000006')] } });
         expect(await read('PLflaky001')).toEqual({ songs: ['a0000000006'], asked: ['public_playlist', 'playlist'] });
-        expect(warn).toHaveBeenCalledExactlyOnceWith('[Ytm] Playlist PLflaky001 could not be read as a guest (YouTube Music could not be reached); it is read as the account');
+        // The transport logs the failed request; the fallback names the playlist, with the error.
+        expect(warn.mock.calls).toEqual([
+            [expect.stringMatching(/^\[Ytm\] public_playlist failed after \d+ms: invalid-response \(YouTube Music could not be reached\)$/)],
+            ['[Ytm] Playlist PLflaky001 could not be read as a guest (YouTube Music could not be reached); it is read as the account'],
+        ]);
         // One that fails on a further page fails: the account's read has no page for a guest's token.
         answers({ public_playlist: { items: [wireSong('a0000000007')], continuation: 'rows-2' }, 'public_playlist rows-2': new Error('YouTube Music could not be reached') });
         await expect(read('PLbroken01')).rejects.toThrow('could not be reached');
@@ -1008,7 +1018,7 @@ describe('YouTube Music catalog and library', () => {
         expect([...first.items, ...second.items].map(song => song.id)).toEqual(['a0000000001', 'a0000000002']);
         expect(request.mock.calls).toEqual([['playlist', { id: 'LM', continuation: undefined }], ['playlist', { id: 'LM', continuation: 'next' }]]);
         const card = normalizeYtmCollection({ id: 'LM', type: 'playlist', name: 'Liked Music', coverUrl: 'c' });
-        expect(await catalog.getPlaylistDetail!('LM', card)).toBe(card);
+        expect(await catalog.getPlaylistDetail!('LM', card)).toEqual(card);
         expect(await catalog.getPlaylistDetail!('LM')).toBeNull();
     });
 
@@ -1026,7 +1036,7 @@ describe('YouTube Music catalog and library', () => {
         await catalog.resolveSongCatalogRefs!(row);
         expect(request).toHaveBeenCalledExactlyOnceWith('song_detail', { id: 'ZRtdQ81jPUQ' });
         // A song that already has its ids is returned as it is, with no request.
-        expect(await catalog.resolveSongCatalogRefs!(resolved)).toBe(resolved);
+        expect(await catalog.resolveSongCatalogRefs!(resolved)).toEqual(resolved);
         expect(request).toHaveBeenCalledTimes(1);
     });
 
@@ -1040,11 +1050,12 @@ describe('YouTube Music catalog and library', () => {
         });
         const missing = normalizeYtmSong(tileSong('a0000000004'));
         request.mockResolvedValueOnce(null);
-        expect(await catalog.resolveSongCatalogRefs!(missing)).toBe(missing);
+        expect(await catalog.resolveSongCatalogRefs!(missing)).toEqual(missing);
         const offline = normalizeYtmSong(tileSong('a0000000005'));
         request.mockRejectedValueOnce(new Error('offline'));
-        expect(await catalog.resolveSongCatalogRefs!(offline)).toBe(offline);
-        expect(catalog.canResolveSongCatalogRefs!({ ...video, sourceRef: { kind: 'online', providerId: 'qq', mediaId: '1' } })).toBe(false);
+        expect(await catalog.resolveSongCatalogRefs!(offline)).toEqual(offline);
+        // (Another source's song is not asked about: the host routes a song by its own sourceRef, so the source no
+        // longer checks the provider.)
     });
 
     it('serves an artist\'s detail, top songs and albums from one request', async () => {
@@ -1083,17 +1094,33 @@ describe('YouTube Music catalog and library', () => {
         ]);
     });
 
+    // The built-in provider read the earlier answer from the host's account snapshot; the source keeps it in its
+    // page store (`ownedPlaylists`, on localStorage, which the node test environment has not: a memory one stands in).
     it('keeps confirmed ownership on an inconclusive refresh for the same account only', async () => {
-        const playlist = (id: string, isOwned?: boolean) => ({ id, type: 'playlist', name: id, coverUrl: '', isOwned });
-        loadSnapshot.mockResolvedValue({
-            user: { id: 'owner' }, collections: [playlist('PLunknown', true), playlist('PLnotOwned', true)],
+        const kept = new Map<string, string>();
+        vi.stubGlobal('localStorage', {
+            getItem: (key: string) => kept.get(key) ?? null,
+            setItem: (key: string, value: string) => { kept.set(key, value); },
+            removeItem: (key: string) => { kept.delete(key); },
+            key: (index: number) => [...kept.keys()][index] ?? null,
+            get length() { return kept.size; },
         });
+        // The host's storage reads only where there is a window.
+        vi.stubGlobal('window', globalThis);
+        onTestFinished(() => { vi.unstubAllGlobals(); });
+        const playlist = (id: string, isOwned?: boolean) => ({ id, type: 'playlist', name: id, coverUrl: '', isOwned });
+        const library = ytmProvider.library!;
+        request.mockResolvedValueOnce({ items: [playlist('PLunknown', true), playlist('PLnotOwned', true)] });
+        expect((await library.getUserPlaylists('owner', 50, 0)).items.map(item => item.isOwned)).toEqual([true, true]);
         request.mockResolvedValue({ items: [playlist('PLunknown'), playlist('PLnotOwned', false)] });
 
-        const library = ytmProvider.library!;
         const own = await library.getUserPlaylists('owner', 50, 0);
         expect(own.items.map(item => item.isOwned)).toEqual([true, false]);
         const other = await library.getUserPlaylists('other', 50, 0);
         expect(other.items.map(item => item.isOwned)).toEqual([undefined, false]);
+        // A read that settled one as not the account's took it out of what is kept.
+        expect(JSON.parse(kept.get('online_provider:ytm:ownedPlaylists')!)).toEqual({ userId: 'owner', ids: ['PLunknown'] });
+        request.mockResolvedValue({ items: [playlist('PLunknown'), playlist('PLnotOwned')] });
+        expect((await library.getUserPlaylists('owner', 50, 0)).items.map(item => item.isOwned)).toEqual([true, undefined]);
     });
 });

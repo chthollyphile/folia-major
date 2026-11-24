@@ -9,7 +9,8 @@ import type { LibraryDirectoryBatchActionId, LibraryDirectorySurfaceState, Libra
 // 接口按语义命名（条目、打开、筛选、批选、隐藏、provider），与渲染形态无关；P3.4 起网格与 TUI 首页实现同一套
 // 签名（homeProbeApi.ts，网格专属概念在 TUI 上的对应写在那里的文件头），用例对两套 suite 参数化。
 
-export type HomeTabKey = 'playlist' | 'radio' | 'albums' | 'local' | 'navidrome';
+/** 首页的「页」。folia（聚合歌单）只在两级页签的首页（网格、Bravais）里有，TUI 没有这一页。 */
+export type HomeTabKey = 'folia' | 'playlist' | 'radio' | 'albums' | 'local' | 'navidrome';
 
 export type HomeProbeTab = {
     key: HomeTabKey;

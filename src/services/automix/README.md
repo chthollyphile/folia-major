@@ -441,7 +441,7 @@ build-up 占据 `swap` 之前的若干小节，**结束于 `swap`**。所谓的 
 小节线一侧从未单独做过听感对比，仅有客观数据：内置估算器在 30 首中仅回答 12 首、其中约半数正确
 （≈ 20% 可用），对比 Beat This! 的 F = 1.0000。
 
-浏览器构建另需注意：不存在本地 netease API 服务（桌面版由 `electron/netease/neteaseApiStartup.cjs` 拉起），
+浏览器构建另需注意：不存在本地 netease API 服务（桌面版由网易云音源模组的 main 入口拉起，`sources/netease/main/neteaseApiStartup.cjs`），
 须指向已部署实例；且音频元素带 `crossOrigin="anonymous"`，音频 CDN 必须返回 CORS 头，否则连播放都不可行。
 
 ---

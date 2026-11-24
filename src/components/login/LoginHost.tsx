@@ -8,6 +8,7 @@ import {
     useLibraryAccountSelector,
 } from '../../library/core/account/useLibraryAccount';
 import { omni } from '../../services/onlineMusic/omni';
+import { openSettings } from '../../stores/useSettingsModalStore';
 import { useKitReducedMotion } from '../modal/settings/kit/motion';
 import { loginDoneLanding, loginDonePlays } from './done/loginDoneFrame';
 import { createLoginHostState } from './loginHostState';
@@ -137,6 +138,12 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
             onSelectMethod={methodId => void account.selectLoginMethod(methodId)}
             onReopenBrowser={() => void account.openLoginPage()}
             onRestartService={() => void account.restartLocalService()}
+            // 「安装音源模组」：关掉窗口，打开「设置 → 音源」的安装那一组。只有桌面版能装（网页版没有 preload 的模组桥）。
+            onInstallSourceMod={window.electron?.mods ? () => {
+                host.doneEnded();
+                closeLoginWindow();
+                openSettings('options', 'sources', null, 'sourceInstall');
+            } : undefined}
             onSwitch={host.switchToChosen}
             onSignOut={host.signOutChosen}
             // 同步选中的这个平台（不一定是正在用的那个），结果用一句提示说。

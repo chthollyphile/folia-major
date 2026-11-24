@@ -1,4 +1,4 @@
-import { Boxes, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PictureInPicture2, PlayCircle, SlidersHorizontal, Sparkles, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
+import { Boxes, Cable, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PictureInPicture2, PlayCircle, SlidersHorizontal, Sparkles, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
 // src/components/modal/settings/navigation/settingsNavModel.ts
 // Single source of truth for the settings categories: their order in the side list, their grouping,
 // icons and names. A category is cut by what the listener is looking at or doing, so each page holds
@@ -11,6 +11,7 @@ export type SettingsSectionId =
     | 'graphics'
     | 'playback'
     | 'lyrics'
+    | 'sources'
     | 'general'
     | 'interaction'
     | 'integration'
@@ -66,6 +67,8 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
         sections: [
             { id: 'playback', icon: PlayCircle, labelKey: 'options.settingsPagePlayback' },
             { id: 'lyrics', icon: TextAlignStart, labelKey: 'options.settingsPageLyrics' },
+            // Folium 2.0 (plan §5.3): every online source's state. The states live in the desktop main process.
+            { id: 'sources', icon: Cable, labelKey: 'options.settingsPageSources', electronOnly: true },
         ],
     },
     {

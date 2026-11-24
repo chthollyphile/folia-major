@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/player-panel/playerPanelLikedState.test.ts
-// 播放器面板红心的响应性。App 把 isLocalSongLiked 经 useStableActionSurface 交给面板，
+// 播放器面板红心的响应性。App 把 isFoliaSongLiked 经 useStableActionSurface 交给面板，
 // 身份永久不变，所以任何以它为依赖的 memo 都会永远停在第一帧的答案。
 
 vi.hoisted(() => {
@@ -44,7 +44,7 @@ const localSong = {
 } as unknown as SongResult;
 
 describe('player panel liked state', () => {
-    it('follows the local favorite set even though isLocalSongLiked keeps one identity', async () => {
+    it('follows the local favorite set even though isFoliaSongLiked keeps one identity', async () => {
         (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
         usePlaybackStore.setState({ currentSong: localSong } as never);
 
@@ -57,13 +57,13 @@ describe('player panel liked state', () => {
             setFavoriteSongIds = setSongIds;
             // App 的真实形态：收藏数据每次变化都会换新闭包，但交出去的函数身份是永久的。
             const surface = useStableActionSurface({
-                isLocalSongLiked: (song: SongResult | null) => Boolean(
+                isFoliaSongLiked: (song: SongResult | null) => Boolean(
                     song && favoriteSongIds.includes((song as { localRef?: { songId?: string } }).localRef?.songId || ''),
                 ),
             });
-            likedCheckers.add(surface.isLocalSongLiked);
+            likedCheckers.add(surface.isFoliaSongLiked);
             const model = usePlayerPanelModel({
-                isLocalSongLiked: surface.isLocalSongLiked,
+                isFoliaSongLiked: surface.isFoliaSongLiked,
                 shouldHidePlayerRightPanelButton: false,
                 localSongs: [],
                 localLibraryCatalog: emptyLocalLibraryCatalog,
@@ -115,7 +115,7 @@ describe('player panel liked state', () => {
         const likedStates: boolean[] = [];
         const Probe: React.FC = () => {
             const model = usePlayerPanelModel({
-                isLocalSongLiked: () => false,
+                isFoliaSongLiked: () => false,
                 shouldHidePlayerRightPanelButton: false,
                 localSongs: [],
                 localLibraryCatalog: emptyLocalLibraryCatalog,

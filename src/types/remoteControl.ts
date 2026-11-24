@@ -1,5 +1,5 @@
 import type { PlayerState, LyricData, SubtitleContentMode } from '../types';
-import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from './videoExport';
+import type { AlphaVideoFormatId, VideoExportPreset, VideoExportStartMode, VideoExportState } from './videoExport';
 import type { FoliumRemoteActionDef } from '../mods/folium/contract';
 
 // src/types/remoteControl.ts
@@ -96,7 +96,8 @@ export type RemoteControlCommand =
     | { type: 'cycle-player-chrome-visibility-mode' }
     | { type: 'set-player-chrome-visibility-mode'; mode: PlayerChromeVisibilityMode }
     | { type: 'open-export' }
-    | { type: 'start-export'; preset: VideoExportPreset; startMode: VideoExportStartMode }
+    /** `alphaFormat`: render a transparent video with the user's ffmpeg instead of recording the window. */
+    | { type: 'start-export'; preset: VideoExportPreset; startMode: VideoExportStartMode; alphaFormat?: AlphaVideoFormatId }
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
     | { type: 'toggle-like' }

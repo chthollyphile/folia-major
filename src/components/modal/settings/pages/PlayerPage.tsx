@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RotateCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { getActiveLibrarySuiteId, isWallLibrarySuite, useActiveLibrarySuiteId } from '../../../../library/app/librarySuiteChoice';
-import { PLAYER_CONTROL_SLOT_OPTIONS } from '../../../floating-player/playerControlSlotActions';
 import FastColorPicker from '../../../shared/FastColorPicker';
 import { useColorPreviewThrottle } from '../../../shared/useColorPreviewThrottle';
 import { playerBottomBarLiveOffset } from '../../../../stores/motionSignals';
@@ -18,8 +17,9 @@ import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore'
 import { useTypographySettingsStore } from '../../../../stores/useTypographySettingsStore';
 import { ensureVideoLayerFileRestored, useVideoLayerSettingsStore, VIDEO_LAYER_OPACITY_BOUNDS } from '../../../../stores/useVideoLayerSettingsStore';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, resolvePlayerBottomBarMaxOffset } from '../../../../utils/playerBottomBarLayout';
-import { Button, FoldedGroup, Group, PictureChoice, Reveal, Row, Segmented, Select, Slider, TextField, Toggle, Value, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { Button, FoldedGroup, Group, PictureChoice, Reveal, Row, Segmented, Slider, TextField, Toggle, Value, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { EntryViewPicture } from './pictures';
+import PlayerControlLayoutEditor from './player/PlayerControlLayoutEditor';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/PlayerPage.tsx
@@ -50,6 +50,7 @@ const O = {
     barOffset: option(BAR, 'playerBottomBarOffset', 'options.playerBottomBarOffset'),
     barReposition: option(BAR, 'playerBottomBarReposition', 'options.playerBottomBarReposition'),
     controlSlots: option(BAR, 'playerControlSlots', 'options.playerControlSlots'),
+    chorusMarker: option(BAR, 'progressBarChorusMarker', 'options.progressBarChorusMarker'),
     cardMode: option(CARD, 'stageTrackPillMode', 'options.stageTrackPillMode'),
     cardTimeout: option(CARD, 'stageTrackPillTimeout', 'options.stageTrackPillTimeout'),
     cardPosition: option(CARD, 'stageTrackPillReposition', 'options.stageTrackPillReposition'),
@@ -104,9 +105,8 @@ const PlayerPage: React.FC = () => {
         autoHideCursor: state.autoHideCursorWithPlayerChrome,
         hideCursorWhenIdle: state.hideCursorWhenIdle,
         barOffset: state.playerBottomBarOffset,
-        slotPrimary: state.playerControlSlotPrimary,
-        slotSecondary: state.playerControlSlotSecondary,
         hideProgressBar: state.hidePlayerProgressBar,
+        chorusMarker: state.progressBarChorusMarker,
         hidePanelButton: state.hidePlayerRightPanelButton,
         alwaysBackButton: state.alwaysShowPlayerBackButton,
         alwaysTrackSwitch: state.alwaysShowTrackSwitchButtons,
@@ -116,8 +116,9 @@ const PlayerPage: React.FC = () => {
         setAutoHideCursor: state.handleToggleAutoHideCursorWithPlayerChrome,
         setHideCursorWhenIdle: state.handleToggleHideCursorWhenIdle,
         setBarOffset: state.handleSetPlayerBottomBarOffset,
-        setSlot: state.handleSetPlayerControlSlot,
+        resetControlLayout: state.handleResetPlayerControlLayout,
         setHideProgressBar: state.handleToggleHidePlayerProgressBar,
+        setChorusMarker: state.handleToggleProgressBarChorusMarker,
         setHidePanelButton: state.handleToggleHidePlayerRightPanelButton,
         setAlwaysBackButton: state.handleToggleAlwaysShowPlayerBackButton,
         setAlwaysTrackSwitch: state.handleToggleAlwaysShowTrackSwitchButtons,
@@ -175,10 +176,6 @@ const PlayerPage: React.FC = () => {
         playerBottomBarLiveOffset.set(next);
     };
     const canReposition = hasCurrentSong && !chrome.hideProgressBar;
-    const slotOptions = useMemo(
-        () => PLAYER_CONTROL_SLOT_OPTIONS.map(slot => ({ value: slot.id, label: t(slot.labelKey) })),
-        [t],
-    );
 
     // The URL commits on blur/Enter, so a half-typed address never reaches the <video>.
     const [urlDraft, setUrlDraft] = useState(video.url);
@@ -270,6 +267,9 @@ const PlayerPage: React.FC = () => {
                 <Row option={O.idleCursorHide} note={t('options.hideCursorWhenIdleDesc')}>
                     <Toggle checked={chrome.hideCursorWhenIdle} onChange={chrome.setHideCursorWhenIdle} />
                 </Row>
+                <Row option={O.chorusMarker} note={t('options.progressBarChorusMarkerDesc')}>
+                    <Toggle checked={chrome.chorusMarker} onChange={chrome.setChorusMarker} />
+                </Row>
                 <Row option={O.barOffset} note={t('options.playerBottomBarOffsetDesc')}>
                     <Button
                         icon={RotateCcw}
@@ -291,19 +291,14 @@ const PlayerPage: React.FC = () => {
                     onClick={requestPositioning}
                     disabled={!canReposition}
                 />
-                <Row option={O.controlSlots} note={t('options.playerControlSlotsDesc')}>
-                    <Select
-                        name={t('options.playerControlSlotPrimary')}
-                        value={chrome.slotPrimary}
-                        options={slotOptions}
-                        onChange={next => chrome.setSlot('primary', next)}
-                    />
-                    <Select
-                        name={t('options.playerControlSlotSecondary')}
-                        value={chrome.slotSecondary}
-                        options={slotOptions}
-                        onChange={next => chrome.setSlot('secondary', next)}
-                    />
+                {/* 右侧两个按钮和胶囊上方浮出的那一排合在一起摆（像 iOS 控制中心那样拖）。 */}
+                <Row
+                    option={O.controlSlots}
+                    hint={t('options.playerControlSlotsHint')}
+                    note={t('options.playerControlSlotsDesc')}
+                    below={<PlayerControlLayoutEditor />}
+                >
+                    <Button variant="quiet" icon={RotateCcw} onClick={chrome.resetControlLayout}>{t('options.playerControlLayoutReset')}</Button>
                 </Row>
             </Group>
 

@@ -1,21 +1,22 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    UNSET_SEARCH_SOURCE,
     getSearchKinds,
     isLibrarySearchCollection,
     resolveCommandPaletteSearchSource,
     setLocalSearchCollectionsReader,
     useSearchNavigationStore,
 } from '@/stores/useSearchNavigationStore';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
-    neteaseApi: {
-        cloudSearch: vi.fn(),
-        normalizeSongResult: vi.fn((raw: unknown) => raw),
-    },
-}));
+// The module's own pure helpers stay real (the source reads songs through them); the search is mocked.
+vi.mock('../../../sources/netease/core/netease', async (importOriginal) => {
+    const original = await importOriginal<{ neteaseApi: object }>();
+    return { ...original, neteaseApi: { ...original.neteaseApi, cloudSearch: vi.fn() } };
+});
 
 vi.mock('@/services/navidromeService', () => ({
     getNavidromeConfig: vi.fn(() => null),
@@ -76,7 +77,22 @@ describe('useSearchNavigationStore', () => {
             album: { id: 1, name: '' },
             durationMs: 1,
         }, 'netease', 'kugou')).toBe('kugou');
-        expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('kugou');
+        // No search has picked a source yet: the platform in effect (there is no default platform).
+        expect(resolveCommandPaletteSearchSource(null, UNSET_SEARCH_SOURCE, 'kugou')).toBe('kugou');
+        // A source a search picked stays the palette's, NetEase like any other.
+        expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('netease');
+        expect(resolveCommandPaletteSearchSource(null, 'qq', 'kugou')).toBe('qq');
+    });
+
+    // Folium 2.0 方案 §7：零音源（或存着的平台此刻不在）时不去搜，走空状态，不报错。
+    it('sends no search to an online source that is not registered', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        const didSearch = await useSearchNavigationStore.getState().submitSearch({ query: 'test', sourceTab: 'not-registered-source', deps });
+        expect(didSearch).toBe(false);
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+        expect(useSearchNavigationStore.getState().isSearchOpen).toBe(false);
+        expect(useSearchNavigationStore.getState().searchError).toBeNull();
+        info.mockRestore();
     });
 
     it('searches albums through omni, keeps the kind and caches the page apart from the songs', async () => {
@@ -90,7 +106,7 @@ describe('useSearchNavigationStore', () => {
         expect(cloudSearchMock).toHaveBeenLastCalledWith('jay', 30, 0, 10);
         expect(state.searchKind).toBe('album');
         expect(state.searchResults).toEqual([]);
-        expect(state.collectionResults).toEqual([expect.objectContaining({ providerId: 'netease', id: 18909, type: 'album' })]);
+        expect(state.collectionResults).toEqual([expect.objectContaining({ providerId: 'netease', id: '18909', type: 'album' })]);
         expect(state).toMatchObject({ resultTotal: 40, hasMore: true, offset: 1 });
 
         // Songs of the same query are another search; going back to the albums restores them from the cache.
@@ -101,7 +117,7 @@ describe('useSearchNavigationStore', () => {
         useSearchNavigationStore.getState().restoreSearch({ query: 'jay', sourceTab: 'netease', kind: 'album' });
         state = useSearchNavigationStore.getState();
         expect(state.searchKind).toBe('album');
-        expect(state.collectionResults).toEqual([expect.objectContaining({ id: 18909 })]);
+        expect(state.collectionResults).toEqual([expect.objectContaining({ id: '18909' })]);
         expect(state.resultTotal).toBe(40);
     });
 

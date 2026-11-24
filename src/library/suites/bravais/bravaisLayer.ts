@@ -9,7 +9,8 @@ import type { BravaisLayerShape } from './bravaisWallShape';
 // 回调的参数一律是条目 key（BravaisItem.key），surface 自己把 key 映射回曲目 / 卡片。
 
 /** 磁贴上的内容种类（设计稿 §6；'wall' 留白由 stage 自己画，不出现在条目里）。 */
-export type BravaisItemKind = 'track' | 'playlist' | 'album' | 'artist' | 'folder' | 'feed';
+/** tag：首页 Folia「标签」页签的卡（速记簿「时刻」里打的标签）。 */
+export type BravaisItemKind = 'track' | 'playlist' | 'album' | 'artist' | 'folder' | 'feed' | 'tag';
 
 /** 专辑墙上曲目封面的画法（bravaisAlbumWall）：整面墙拼成一张封面，或从封面上切下来的碎片。 */
 export type BravaisCoverArt = { mode: 'mosaic' | 'shard'; url: string };
@@ -21,6 +22,8 @@ export type BravaisItem = {
     kind: BravaisItemKind;
     title: string;
     subtitle: string;
+    /** 副标题的悬停说明（换过来源的行）；没有就不给。 */
+    subtitleHint?: string;
     coverUrl?: string;
     /** 专辑墙（has-album-wall）上这首的封面画法；没有就照常画整张封面。 */
     coverArt?: BravaisCoverArt;
@@ -66,6 +69,8 @@ export type BravaisSeamTab = {
     label: string;
     active: boolean;
     disabled: boolean;
+    /** 页签的 title（不可用的原因）；不给就是 label。 */
+    title?: string;
 };
 
 /** 缝里画什么（设计稿 §5「内容」）。文案都是已翻译的。 */

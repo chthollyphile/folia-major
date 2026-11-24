@@ -25,7 +25,7 @@ description: Use when adding a feature or a file, moving or renaming files, or r
 
 现有的例子：
 
-- 一个平台：`src/services/onlineMusic/ytm/`、`electron/ytm/`、`test/unit/ytm/`（Spotify 同样）。目录名就是平台 id：`test/unit/onlineMusic/platformNameCount.ts` 按这个名字认平台自己的文件。
+- 一个平台：音源模组 `sources/ytm/`（client、main 入口、语言表都在里面）、测试 `test/unit/ytm/`（Spotify 同样）。目录名就是平台的短 id：`test/unit/onlineMusic/platformNameCount.ts` 按这个名字认平台自己的文件。
 - 登录：界面和 hook 在 `src/components/login/`，不认识平台的失败分类和请求时限在 `src/services/onlineMusic/login/`（两处，因为 transport 要用请求时限）。
 - 探索页：`src/components/app/home/explore/`，包括它自己的播放记录和动效。
 - 一个歌词动画样式：`src/components/visualizer/<mode>/`（`entry.tsx`、`tuning.ts`、设置面板、渲染器）。
@@ -67,7 +67,7 @@ description: Use when adding a feature or a file, moving or renaming files, or r
 - `src/components/app/dialogs/AppDialogs.tsx` -> `components/app/dialogs/*`。
 - 播放恢复、在线回退、缓存 -> `components/app/playback/*`。
 - 搜索工作台和搜索动作 -> `components/app/search/*`。
-- 主进程：一个平台的桥放在 `electron/<id>/`，更新通道在 `electron/updateChannels.cjs`；不要把新的 Electron 逻辑都塞回 `electron/main.cjs`，那里只留创建和接线。
+- 主进程：一个平台的主进程代码是它音源模组的 main 入口（`sources/<id>/main/`，经 `api.*` 接线），不进 `electron/`；更新通道在 `electron/updateChannels.cjs`；不要把新的 Electron 逻辑都塞回 `electron/main.cjs`，那里只留创建和接线。
 
 ## 拆分信号
 

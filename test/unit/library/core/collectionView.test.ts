@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     deriveDisplayTracks,
     derivePlayableTracks,
@@ -7,6 +7,7 @@ import {
 } from '@/library/core/collection/collectionView';
 import { resolveGridViewContextTracks } from '@/library/suites/grid/collection/gridViewContextActions';
 import { buildLocalQueue } from '@/services/playbackAdapters';
+import { omni } from '@/services/onlineMusic/omni';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import type { LocalSong, SongResult, UnifiedSong } from '@/types';
 
@@ -96,8 +97,16 @@ describe('playable and context tracks', () => {
     });
 
     it('keeps the grid wrapper on the same rule', () => {
+        // 网格那一层用的是「这一行现在播不播得了」（歌下架，或者它的音源不在）：这里让音源在。
+        const naming = vi.spyOn(omni, 'getProviderNaming').mockReturnValue({ displayName: 'N', shortName: 'N' });
+        const switchedOn = vi.spyOn(omni, 'isSourceSwitchedOn').mockReturnValue(true);
         const playable = derivePlayableTracks(tracks, () => false);
         expect(resolveGridViewContextTracks([{ rawTrack: tracks[2] }, {}], playable, true)).toEqual([tracks[2]]);
         expect(resolveGridViewContextTracks([{ rawTrack: tracks[2] }], playable, false)).toBe(playable);
+        // 音源被停用：筛选命中的那一行也不算在操作范围里。
+        switchedOn.mockReturnValue(false);
+        expect(resolveGridViewContextTracks([{ rawTrack: tracks[2] }, {}], playable, true)).toEqual([]);
+        naming.mockRestore();
+        switchedOn.mockRestore();
     });
 });

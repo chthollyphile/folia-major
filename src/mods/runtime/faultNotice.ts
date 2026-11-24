@@ -1,9 +1,8 @@
 import i18n from '@/i18n/config';
 import type { StatusMessage } from '@/types';
-import { settingsAnchorSubview } from '@/utils/settingsAnchorModel';
 import { openSettings } from '@/stores/useSettingsModalStore';
 import { setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
-import { modSettingsRowId, useModsStore } from '../useModsStore';
+import { useModsStore } from '../useModsStore';
 import { FOLIUM_START_LIMIT_MS, foliumModName } from './clientLoader';
 import { FOLIUM_ENTRY_NOTICE_WORDS } from '../folium/kinds';
 import { setFoliumFaultNoticeMuted, setFoliumFaultNotifier, type FoliumNoticeKind } from './status';
@@ -54,16 +53,16 @@ const waiting: PendingNotice[] = [];
 let shown: ShownNotice | null = null;
 let stopWatching: (() => void) | null = null;
 
-/* Opens Settings on the mods page with this mod's row open and in view. */
+/* Opens the mods window on this mod (ModsWorkbench shows the store's selected mod). */
 const openModRow = async (modId: string) => {
     try {
         // Read first, so the row is on the page when the settings window lands on it.
         await useModsStore.getState().refresh();
     } catch {
-        // Without the list the window still opens on the mods page.
+        // Without the list the window still opens.
     }
     useModsStore.getState().selectMod(modId);
-    openSettings('options', settingsAnchorSubview('modList'), null, 'modList', modSettingsRowId(modId));
+    openSettings('options', 'modsWindow');
 };
 
 const show = ({ modId, piece, shows }: PendingNotice) => {

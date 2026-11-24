@@ -1,14 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+// @builtin-sources
+import { beforeEach, describe, expect, it } from 'vitest';
+import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
+import { bodianPage } from '../../../sources/bodian/client/bodianNormalize';
+import {
+    answerBodianRequests,
+    lazyBodian,
+    hostBodianCollection as normalizeBodianCollection,
+    hostBodianSong as normalizeBodianSong,
+    hostBodianUser as normalizeBodianUser,
+} from '../helpers/bodianSource';
 
 // test/unit/onlineMusic/bodianProvider.test.ts
+// The Bodian source mod (sources/bodian/) as the host has it: registered by the unit setup (helpers/builtinSources.ts),
+// its requests to the main entry answered here.
 
-const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({
-    requestBodian: request, getBodianTransportAvailability: () => ({ configured: true }),
-}));
-import { bodianProvider } from '@/services/onlineMusic/bodian/bodianProvider';
-import { bodianPage, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from '@/services/onlineMusic/bodian/bodianNormalize';
-import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
+const { request } = answerBodianRequests();
+const bodianProvider = lazyBodian(provider => provider);
 
 const track = { id: 228908, songName: '测试歌曲 (Live)', name: '测试歌曲', albumId: 1293, album: '测试专辑',
     albumPic: 'https://img4.kuwo.cn/cover.jpg', artist: '测试歌手', artistId: 336,
@@ -73,7 +80,8 @@ describe('Bodian provider', () => {
         const collection = normalizeBodianCollection({ id: 123, name: '测试歌单', musicCount: 121, sourceType: 5, isPrivate: 1, isLiked: true });
         expect(collection).toMatchObject({ providerId: 'bodian', trackCount: 121, providerData: { source: 5, isPrivate: 1 } });
         expect(collection.isLiked).toBe(true);
-        expect(normalizeBodianCollection(collection)).toEqual(collection);
+        // Folium 2.0 S5: the host keeps no normalizeCollection (registries/sourceMembers.ts, matrix §4.1): a kept
+        // collection is not handed back to the source, so its pass-through went with it.
         expect(normalizeBodianCollection({ id: 123, name: 'Owned', isOwned: true }).providerData?.source).toBe(5);
         expect(normalizeBodianCollection({ id: 123, name: 'Public' }).providerData?.source).toBe(4);
     });
@@ -150,16 +158,18 @@ describe('Bodian provider', () => {
     });
 
     // The clip plays, with a notice, and the media cache never keeps it: both read the mark.
-    it('hands out a preview\'s URL marked as a preview, a whole song unmarked, and routes no other provider through Bodian', async () => {
+    // Folium 2.0 S5: the host stamps `fetchedAt` itself when a source hands an address (sourceAdapter/playback.ts), and
+    // a song of another provider never reaches the source: omni sends each song to its own provider, and the DTO the
+    // source gets names no provider to refuse by.
+    it('hands out a preview\'s URL marked as a preview, a whole song unmarked', async () => {
         request.mockResolvedValueOnce({ url: 'https://audio.example.test/preview.mp3', quality: 'standard', fetchedAt: 1, preview: { startTime: 0, endTime: 29 } });
         await expect(bodianProvider.playback!.getAudioSource(normalizeBodianSong(track), 'high'))
-            .resolves.toEqual({ url: 'https://audio.example.test/preview.mp3', quality: 'standard', fetchedAt: 1, preview: true });
+            .resolves.toEqual({ url: 'https://audio.example.test/preview.mp3', quality: 'standard', fetchedAt: expect.any(Number), preview: true });
         request.mockResolvedValueOnce({ url: 'https://audio.example.test/whole.mp3', quality: 'high', fetchedAt: 2 });
         await expect(bodianProvider.playback!.getAudioSource(normalizeBodianSong(track), 'high'))
-            .resolves.toEqual({ url: 'https://audio.example.test/whole.mp3', quality: 'high', fetchedAt: 2 });
-        await expect(bodianProvider.playback!.getAudioSource({ ...normalizeBodianSong(track), sourceRef: { kind: 'online', providerId: 'qq', mediaId: '228908' } }, 'high'))
-            .rejects.toMatchObject({ code: 'unsupported' });
+            .resolves.toEqual({ url: 'https://audio.example.test/whole.mp3', quality: 'high', fetchedAt: expect.any(Number) });
         expect(request).toHaveBeenCalledTimes(2);
+        expect(request).toHaveBeenLastCalledWith('audio', { id: '228908', quality: 'high', freeSign: '' });
     });
 
     it.each([

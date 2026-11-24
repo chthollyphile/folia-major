@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from 'react';
 import { animate, motion, useMotionValue, type MotionValue } from 'framer-motion';
-import { Check, Music2, Play } from 'lucide-react';
+import { Check, MessageSquareQuote, Music2, Play } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
@@ -9,10 +9,11 @@ import { CARD_HEIGHT, CARD_WIDTH } from './canvasLayout';
 
 /**
  * 展开整页（设计稿 F）里卡片的三种样子：速记簿是笔记本上的一条记录（封面在上，红页边线、斜体的来源），
- * 播放历史是一张回忆相片（泛黄、暗角、微微歪着，底下写几点放的），播放队列是一格电影胶片（上下齿孔，片边印序号）。
- * 缺省是原来的卡片。样子全在 scratchpad.css，这里只多画胶片片边那一行、给相片一个歪的角度。
+ * 播放历史是一张回忆相片（泛黄、暗角、微微歪着，底下写几点放的），播放队列是一格电影胶片（上下齿孔，片边印序号），
+ * 评论是一张图书馆目录卡（红顶线、横格、编号，设计稿 G 组；用户定不要底部的穿孔圆点）。
+ * 缺省是原来的卡片。样子全在 scratchpad.css，这里只多画胶片片边那一行、目录卡的编号与标签、给相片一个歪的角度。
  */
-export type CardVariant = 'note' | 'photo' | 'film';
+export type CardVariant = 'note' | 'photo' | 'film' | 'catalog';
 
 /** 相片歪的角度：按 key 固定挑一个（同一张相片每次都一样歪，挪动后也不变）。 */
 const PHOTO_ROTATIONS = [-2.2, 1.4, -0.6, 2, -1.5, 0.8, -2.4, 1.7, -0.9, 1.1];
@@ -48,6 +49,13 @@ export type CanvasEntry = {
     isDimmed?: boolean;
     /** 在播放队列里是第几首（从 1 起）：队列的胶片在片边印这个号。 */
     position?: number;
+    /** 目录卡：左上角的编号（「No. 01」，调用方按语言排好）、一行标签、最新一条评论、计数（「3 条 · 2 处」）。 */
+    catalogNumber?: string;
+    tagLine?: string;
+    quote?: string;
+    counts?: string;
+    /** 另外三页的卡片上那一小行：这首的标签与评论数（「#夜车 · 3 条」，commentCards 的 songNoteChipLine）。 */
+    noteLine?: string;
 };
 
 export type CardMotion = { x: MotionValue<number>; y: MotionValue<number> };
@@ -73,6 +81,9 @@ type ScratchpadCardProps = {
     register: (key: string, motion: CardMotion | null) => void;
     onPointerDown: (entry: CanvasEntry, event: React.PointerEvent<HTMLDivElement>) => void;
     onPlay: (entry: CanvasEntry) => void;
+    /** 封面上的「评论」钮（给了才画）：看这首的评论与标签。 */
+    onComment?: (entry: CanvasEntry) => void;
+    commentLabel?: string;
 };
 
 const SNAP = { type: 'spring', stiffness: 520, damping: 42, mass: 0.7 } as const;
@@ -93,6 +104,8 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
     register,
     onPointerDown,
     onPlay,
+    onComment,
+    commentLabel = '',
 }) => {
     const x = useMotionValue(slotX);
     const y = useMotionValue(slotY);
@@ -169,10 +182,39 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
                 >
                     <Play aria-hidden="true" fill="currentColor" />
                 </button>
+                {onComment && (
+                    <button
+                        type="button"
+                        className="scratchpad-card-play is-comment"
+                        title={commentLabel}
+                        aria-label={commentLabel}
+                        onPointerDown={event => event.stopPropagation()}
+                        onClick={() => onComment(entry)}
+                    >
+                        <MessageSquareQuote aria-hidden="true" />
+                    </button>
+                )}
+                {/* 这首的标签与评论数：贴在封面左上角的一小条（卡片高度是定的，不另起一行）。 */}
+                {variant !== 'catalog' && entry.noteLine && <span className="scratchpad-card-noteline">{entry.noteLine}</span>}
             </span>
             {movingCount > 1 && <span className="scratchpad-card-count" aria-hidden="true">{movingCount}</span>}
+            {variant === 'catalog' && entry.catalogNumber && (
+                <span className="scratchpad-card-no" aria-hidden="true">{entry.catalogNumber}</span>
+            )}
             <span className="scratchpad-card-name">{entry.song.name}</span>
-            {variant === 'film' ? (
+            {variant === 'catalog' ? (
+                // 目录卡：歌手、一道点缀色的线、标签、最新一条评论（斜体，压在横格上）、计数。
+                <>
+                    <span className="scratchpad-card-meta">{entry.meta ?? getSongArtistLabel(entry.song)}</span>
+                    <span className="scratchpad-card-rule" aria-hidden="true" />
+                    {entry.tagLine && <span className="scratchpad-card-tags">{entry.tagLine}</span>}
+                    {entry.quote && <span className="scratchpad-card-quote">{entry.quote}</span>}
+                    <span className="scratchpad-card-foot">
+                        <span>{entry.counts}</span>
+                        {entry.isCurrent && <span className="scratchpad-card-playing">{currentLabel}</span>}
+                    </span>
+                </>
+            ) : variant === 'film' ? (
                 // 胶片的片边：左边印序号（正在播的那一格印「▶ 正在播放」），右边印时长。
                 <span className="scratchpad-card-edge">
                     <span>{entry.isCurrent ? `▶ ${currentLabel}` : entry.position !== undefined ? `▸ ${entry.position}` : ''}</span>

@@ -13,8 +13,30 @@ export { getCommandPaletteMatches, matchCommandsExactly, rankCommands } from './
 
 export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = ALL_COMMAND_PALETTE_COMMANDS;
 
-// The suite chrome slice currently in the list (see setSuiteChromeCommands).
-let installedSuiteChromeCommands: readonly CommandPaletteCommand[] = [];
+// The slices installed into the list at run time, each replaced whole by its setter.
+const installedSlices: Record<'suite-chrome' | 'provider-search' | 'source-switch' | 'song-note-tags', readonly CommandPaletteCommand[]> = {
+    'suite-chrome': [],
+    'provider-search': [],
+    'source-switch': [],
+    'song-note-tags': [],
+};
+
+// Replaces one installed slice, re-checking the static list's invariants over the combined list: a duplicate id
+// or an execute shortcut that is not prefix-free throws, and the list is left as it was.
+const installSlice = (slice: keyof typeof installedSlices, commands: readonly CommandPaletteCommand[]) => {
+    const rest = COMMAND_PALETTE_COMMANDS.filter(command => !installedSlices[slice].includes(command));
+    const taken = new Set(rest.map(command => command.id));
+    commands.forEach(command => {
+        if (taken.has(command.id)) {
+            throw new Error(`[CommandPalette] Duplicate command id "${command.id}"`);
+        }
+        taken.add(command.id);
+    });
+    assertExecuteShortcutsArePrefixFree([...rest, ...commands]);
+
+    COMMAND_PALETTE_COMMANDS.splice(0, COMMAND_PALETTE_COMMANDS.length, ...rest, ...commands);
+    installedSlices[slice] = [...commands];
+};
 
 /**
  * Puts the library suites' chrome commands (B2, built by commands/suiteChromeCommands from the manifests'
@@ -31,18 +53,32 @@ let installedSuiteChromeCommands: readonly CommandPaletteCommand[] = [];
  * commands are mirrored in the same way, see mods/folium/commandPaletteSync.ts).
  */
 export const setSuiteChromeCommands = (commands: readonly CommandPaletteCommand[]) => {
-    const rest = COMMAND_PALETTE_COMMANDS.filter(command => !installedSuiteChromeCommands.includes(command));
-    const taken = new Set(rest.map(command => command.id));
-    commands.forEach(command => {
-        if (taken.has(command.id)) {
-            throw new Error(`[CommandPalette] Duplicate command id "${command.id}"`);
-        }
-        taken.add(command.id);
-    });
-    assertExecuteShortcutsArePrefixFree([...rest, ...commands]);
+    installSlice('suite-chrome', commands);
+};
 
-    COMMAND_PALETTE_COMMANDS.splice(0, COMMAND_PALETTE_COMMANDS.length, ...rest, ...commands);
-    installedSuiteChromeCommands = [...commands];
+/**
+ * Puts the online sources' search commands (commands/searchCommands buildProviderSearchCommands) into the list,
+ * replacing the ones an earlier call put there. Installed by providerSearchCommandsInstaller.ts whenever the
+ * registered sources change, with the same checks as the suite chrome slice.
+ */
+export const setProviderSearchCommands = (commands: readonly CommandPaletteCommand[]) => {
+    installSlice('provider-search', commands);
+};
+
+/**
+ * Puts the commands that switch one source (commands/sourceSwitchCommands) into the list, replacing the ones an earlier
+ * call put there. Installed by sourceSwitchCommandsInstaller.ts whenever the source states change, with the same checks.
+ */
+export const setSourceSwitchCommands = (commands: readonly CommandPaletteCommand[]) => {
+    installSlice('source-switch', commands);
+};
+
+/**
+ * Puts the #tag commands (one per song-note tag, songNoteTagCommandsInstaller.ts) into the list, replacing the ones an
+ * earlier call put there. Installed again whenever the tags change, with the same checks.
+ */
+export const setSongNoteTagCommands = (commands: readonly CommandPaletteCommand[]) => {
+    installSlice('song-note-tags', commands);
 };
 
 // Availability is declared on each command: `platform` gates the environment, `scope` gates the

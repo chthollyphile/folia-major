@@ -10,6 +10,7 @@ import {
     getAudioFromFile,
     getAudioFromLocalSong,
     importFolder,
+    LocalFolderUnavailableError,
     resyncAllFolders,
     resyncFolder,
     removeImportedRoot,
@@ -30,8 +31,9 @@ import {
     saveToCache,
 } from '@/services/db';
 import { removeCachedCover } from '@/services/coverCache';
-import { removeDeletedSongIdsFromPlaylists } from '@/services/localPlaylistService';
+import { removeDeletedLocalSongsFromFoliaPlaylists } from '@/services/foliaPlaylist/foliaPlaylistService';
 import { useLyricSettingsStore } from '@/stores/useLyricSettingsStore';
+import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import { DEFAULT_LOCAL_LYRIC_FORMAT_ORDER } from '@/utils/lyrics/localLyricFormatOrder';
 import { applyUploadedLocalLyrics } from '@/utils/lyrics/localLyricsUpload';
 import { setLocalFolderIgnored } from '@/services/localLibraryFolderIgnore';
@@ -59,8 +61,8 @@ vi.mock('@/services/db', () => ({
 vi.mock('@/services/coverCache', () => ({
     removeCachedCover: vi.fn(),
 }));
-vi.mock('@/services/localPlaylistService', () => ({
-    removeDeletedSongIdsFromPlaylists: vi.fn(),
+vi.mock('@/services/foliaPlaylist/foliaPlaylistService', () => ({
+    removeDeletedLocalSongsFromFoliaPlaylists: vi.fn(),
 }));
 
 class FakeFileHandle {
@@ -754,7 +756,7 @@ describe('localMusicService', () => {
         await deleteFolderSongs('Music/Disc 1');
 
         expect(deleteLocalSongs).toHaveBeenCalledWith(['song-1', 'song-2']);
-        expect(removeDeletedSongIdsFromPlaylists).toHaveBeenCalledWith(['song-1', 'song-2']);
+        expect(removeDeletedLocalSongsFromFoliaPlaylists).toHaveBeenCalledWith(['song-1', 'song-2']);
         expect(removeCachedCover).toHaveBeenCalledTimes(2);
         expect(removeCachedCover).toHaveBeenCalledWith('cover_local_song-1');
         expect(removeCachedCover).toHaveBeenCalledWith('cover_local_song-2');
@@ -809,7 +811,7 @@ describe('localMusicService', () => {
         await deleteSongsByIds(['song-1', 'song-1']);
 
         expect(deleteLocalSongs).toHaveBeenCalledWith(['song-1']);
-        expect(removeDeletedSongIdsFromPlaylists).toHaveBeenCalledWith(['song-1']);
+        expect(removeDeletedLocalSongsFromFoliaPlaylists).toHaveBeenCalledWith(['song-1']);
         expect(removeCachedCover).toHaveBeenCalledWith('cover_local_song-1');
     });
 
@@ -832,5 +834,203 @@ describe('localMusicService', () => {
         expect(deleteDirHandle).toHaveBeenCalledWith('Music');
         expect(deleteLocalLibrarySnapshot).toHaveBeenCalledWith('Music');
         expect(saveLocalLibrarySnapshot).not.toHaveBeenCalled();
+    });
+
+    describe('a folder that cannot be read is not a folder whose files were deleted', () => {
+        const gone = () => new DOMException('The drive is gone', 'NotFoundError');
+        const unreadable = (handle: FakeDirectoryHandle) => {
+            (handle as unknown as { values: () => AsyncIterable<never>; }).values = () => ({
+                [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(gone()) }),
+            });
+            return handle;
+        };
+        const unreadableFile = (name: string) => {
+            const handle = new FakeFileHandle(name);
+            (handle as unknown as { getFile: () => Promise<File>; }).getFile = () => Promise.reject(gone());
+            return handle;
+        };
+        const twoDiscs = (token = 'library-root') => new FakeDirectoryHandle('Music', [
+            new FakeDirectoryHandle('Disc 1', [new FakeFileHandle('Track 01.mp3')], `${token}:disc-1`),
+            new FakeDirectoryHandle('Disc 2', [new FakeFileHandle('Track 02.mp3')], `${token}:disc-2`),
+        ], token);
+        const setRootHandle = (handle: FakeDirectoryHandle) => {
+            vi.mocked(getDirHandles).mockResolvedValue({ Music: handle as unknown as FileSystemDirectoryHandle });
+        };
+        // 先正常扫一遍，把扫出来的歌和快照当成「已经在曲库里」的状态。
+        const importOnce = async (handle: FakeDirectoryHandle) => {
+            setRootHandle(handle);
+            const songs = await resyncFolder('Music') as LocalSong[];
+            const snapshot = vi.mocked(saveLocalLibrarySnapshot).mock.calls.at(-1)?.[0] as LocalLibrarySnapshot;
+            vi.mocked(getLocalSongs).mockResolvedValue(songs);
+            vi.mocked(getLocalLibrarySnapshot).mockResolvedValue(snapshot);
+            vi.mocked(deleteLocalSong).mockClear();
+            vi.mocked(saveLocalSongs).mockClear();
+            vi.mocked(saveLocalLibrarySnapshot).mockClear();
+            vi.mocked(saveDirHandles).mockClear();
+            vi.mocked(removeDeletedLocalSongsFromFoliaPlaylists).mockClear();
+            return { songs, snapshot };
+        };
+        const flattenPaths = (snapshot: LocalLibrarySnapshot) => {
+            const paths: string[] = [];
+            const walk = (node: LocalLibrarySnapshot['tree']) => {
+                node.files.forEach(file => paths.push(file.relativePath));
+                node.children.forEach(walk);
+            };
+            walk(snapshot.tree);
+            return paths.sort();
+        };
+
+        beforeEach(() => {
+            vi.mocked(removeDeletedLocalSongsFromFoliaPlaylists).mockReset();
+            useStatusMessageStore.setState({ message: null });
+        });
+
+        it('abandons the scan when the root cannot be listed: no song deleted, no snapshot saved, and the user is told', async () => {
+            await importOnce(twoDiscs());
+            setRootHandle(unreadable(twoDiscs()));
+
+            const error = await resyncFolder('Music').catch((caught: unknown) => caught);
+
+            expect(error).toBeInstanceOf(LocalFolderUnavailableError);
+            expect(error).toMatchObject({ rootFolderName: 'Music', reason: 'unreadable' });
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+            expect(saveLocalLibrarySnapshot).not.toHaveBeenCalled();
+            expect(saveDirHandles).not.toHaveBeenCalled();
+            expect(removeDeletedLocalSongsFromFoliaPlaylists).not.toHaveBeenCalled();
+            const message = useStatusMessageStore.getState().message;
+            expect(message).toMatchObject({ type: 'error' });
+            expect(message?.text).toContain('“Music”');
+            expect(message?.text).not.toContain('localMusic.');
+            expect(message?.note).toBeTruthy();
+            expect(message?.note).not.toContain('localMusic.');
+            expect((error as Error).message).toBe(message?.text);
+        });
+
+        it('stays quiet when the caller asked not to announce (the auto scan), and still throws', async () => {
+            await importOnce(twoDiscs());
+            setRootHandle(unreadable(twoDiscs()));
+
+            await expect(resyncFolder('Music', { announceUnavailable: false })).rejects.toBeInstanceOf(LocalFolderUnavailableError);
+
+            expect(useStatusMessageStore.getState().message).toBeNull();
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+        });
+
+        it('keeps the songs under a subfolder that cannot be listed, and carries its snapshot branch over', async () => {
+            const { songs, snapshot } = await importOnce(twoDiscs());
+            const next = new FakeDirectoryHandle('Music', [
+                new FakeDirectoryHandle('Disc 1', [new FakeFileHandle('Track 01.mp3')], 'library-root:disc-1'),
+                unreadable(new FakeDirectoryHandle('Disc 2', [], 'library-root:disc-2')),
+            ], 'library-root');
+            setRootHandle(next);
+
+            const result = await resyncFolder('Music');
+
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+            expect(removeDeletedLocalSongsFromFoliaPlaylists).not.toHaveBeenCalled();
+            expect(result?.map(song => song.id).sort()).toEqual(songs.map(song => song.id).sort());
+            const saved = vi.mocked(saveLocalLibrarySnapshot).mock.calls.at(-1)?.[0] as LocalLibrarySnapshot;
+            expect(flattenPaths(saved)).toEqual(flattenPaths(snapshot));
+            expect(useStatusMessageStore.getState().message).toBeNull();
+        });
+
+        it('keeps the songs under an unreadable subfolder even when there is no earlier snapshot of it', async () => {
+            const { songs } = await importOnce(twoDiscs());
+            vi.mocked(getLocalLibrarySnapshot).mockResolvedValue(null);
+            setRootHandle(new FakeDirectoryHandle('Music', [
+                new FakeDirectoryHandle('Disc 1', [new FakeFileHandle('Track 01.mp3')], 'library-root:disc-1'),
+                unreadable(new FakeDirectoryHandle('Disc 2', [], 'library-root:disc-2')),
+            ], 'library-root'));
+
+            const result = await resyncFolder('Music');
+
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+            expect(result?.map(song => song.id).sort()).toEqual(songs.map(song => song.id).sort());
+        });
+
+        it('keeps the song of a file that is listed but cannot be read, and reconciles its siblings', async () => {
+            const { songs } = await importOnce(twoDiscs());
+            const sibling = songs.find(song => song.filePath === 'Music/Disc 1/Track 01.mp3') as LocalSong;
+            setRootHandle(new FakeDirectoryHandle('Music', [
+                new FakeDirectoryHandle('Disc 1', [], 'library-root:disc-1'),
+                new FakeDirectoryHandle('Disc 2', [unreadableFile('Track 02.mp3')], 'library-root:disc-2'),
+            ], 'library-root'));
+
+            const result = await resyncFolder('Music');
+
+            expect(vi.mocked(deleteLocalSong).mock.calls.map(call => call[0])).toEqual([sibling.id]);
+            expect(result?.map(song => song.filePath)).toEqual(['Music/Disc 2/Track 02.mp3']);
+        });
+
+        it('does not take a sibling folder with the same name prefix for the unreadable one', async () => {
+            const discs = () => [
+                new FakeDirectoryHandle('Disc 1', [new FakeFileHandle('Track 01.mp3')], 'r:disc-1'),
+                new FakeDirectoryHandle('Disc 10', [new FakeFileHandle('Track 10.mp3')], 'r:disc-10'),
+            ];
+            const { songs } = await importOnce(new FakeDirectoryHandle('Music', discs(), 'library-root'));
+            const inDisc10 = songs.find(song => song.filePath === 'Music/Disc 10/Track 10.mp3') as LocalSong;
+            setRootHandle(new FakeDirectoryHandle('Music', [
+                unreadable(new FakeDirectoryHandle('Disc 1', [], 'r:disc-1')),
+                new FakeDirectoryHandle('Disc 10', [], 'r:disc-10'),
+            ], 'library-root'));
+
+            await resyncFolder('Music');
+
+            expect(vi.mocked(deleteLocalSong).mock.calls.map(call => call[0])).toEqual([inDisc10.id]);
+        });
+
+        it('does not delete when a readable root yields no file at all while the library has songs for it', async () => {
+            await importOnce(twoDiscs());
+            setRootHandle(new FakeDirectoryHandle('Music', [], 'library-root'));
+
+            const error = await resyncFolder('Music').catch((caught: unknown) => caught);
+
+            expect(error).toMatchObject({ name: 'LocalFolderUnavailableError', reason: 'empty' });
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+            expect(saveLocalLibrarySnapshot).not.toHaveBeenCalled();
+            expect(useStatusMessageStore.getState().message).toMatchObject({ type: 'error' });
+        });
+
+        it('lets an empty result through when the folder carries .foliaignore rules', async () => {
+            const { songs } = await importOnce(twoDiscs());
+            setRootHandle(new FakeDirectoryHandle('Music', [
+                new FakeFileHandle('.foliaignore', { content: 'Disc 1/\nDisc 2/\n', type: 'text/plain' }),
+                new FakeDirectoryHandle('Disc 1', [new FakeFileHandle('Track 01.mp3')], 'library-root:disc-1'),
+                new FakeDirectoryHandle('Disc 2', [new FakeFileHandle('Track 02.mp3')], 'library-root:disc-2'),
+            ], 'library-root'));
+
+            await resyncFolder('Music');
+
+            expect(vi.mocked(deleteLocalSong).mock.calls.map(call => call[0]).sort()).toEqual(songs.map(song => song.id).sort());
+        });
+
+        it('still deletes the song of a file that is really gone, and drops it from the playlists', async () => {
+            const { songs } = await importOnce(twoDiscs());
+            const gone = songs.find(song => song.filePath === 'Music/Disc 2/Track 02.mp3') as LocalSong;
+            setRootHandle(new FakeDirectoryHandle('Music', [
+                new FakeDirectoryHandle('Disc 1', [new FakeFileHandle('Track 01.mp3')], 'library-root:disc-1'),
+                new FakeDirectoryHandle('Disc 2', [], 'library-root:disc-2'),
+            ], 'library-root'));
+
+            const result = await resyncFolder('Music');
+
+            expect(vi.mocked(deleteLocalSong).mock.calls.map(call => call[0])).toEqual([gone.id]);
+            expect(removeDeletedLocalSongsFromFoliaPlaylists).toHaveBeenCalledWith([gone.id]);
+            expect(result?.map(song => song.filePath)).toEqual(['Music/Disc 1/Track 01.mp3']);
+            expect(saveLocalLibrarySnapshot).toHaveBeenCalledTimes(1);
+        });
+
+        it('rescans the other folders when one of them is unreadable, then reports that one', async () => {
+            const other = new FakeDirectoryHandle('Other', [new FakeFileHandle('Song.mp3')], 'other-root');
+            vi.mocked(getDirHandles).mockResolvedValue({
+                Music: unreadable(twoDiscs()) as unknown as FileSystemDirectoryHandle,
+                Other: other as unknown as FileSystemDirectoryHandle,
+            });
+
+            await expect(resyncAllFolders()).rejects.toMatchObject({ rootFolderName: 'Music', reason: 'unreadable' });
+
+            expect(saveLocalLibrarySnapshot).toHaveBeenCalledWith(expect.objectContaining({ rootFolderName: 'Other' }));
+            expect(useStatusMessageStore.getState().message?.text).toContain('“Music”');
+        });
     });
 });

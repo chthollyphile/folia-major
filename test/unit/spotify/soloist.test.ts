@@ -5,15 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// test/unit/spotify/soloist.test.ts — Spotify Soloist in the main process (electron/spotify/soloist.cjs)
+// test/unit/spotify/soloist.test.ts — Spotify Soloist in the main process (sources/spotify/main/soloist.cjs)
 // and the reading of its build (soloistBuild.cjs). The program is a stand-in: `spawn` starts a real
 // WebSocket server on loopback, writes its port where Soloist writes it, and answers the way the
 // documented control API does. The tests then drive it as the program would.
 
 const require = createRequire(import.meta.url);
 const { WebSocketServer } = require('ws');
-const { createSoloist } = require('../../../electron/spotify/soloist.cjs');
-const { describeBuild, createSoloistBuildReader, DAY_MS } = require('../../../electron/spotify/soloistBuild.cjs');
+const { createSoloist } = require('../../../sources/spotify/main/soloist.cjs');
+const { describeBuild, createSoloistBuildReader, DAY_MS } = require('../../../sources/spotify/main/soloistBuild.cjs');
 
 const URI = 'spotify:track:4cOdK2wGLETKBW3PvgPWqT';
 const OTHER = 'spotify:track:7qiZfU4dY1lWllzX7mPBI3';
@@ -100,6 +100,7 @@ const setup = ({
     const store = memoryStore({ SPOTIFY_SOLOIST_V1: { executable, sealedKey: sealed ? Buffer.from(`sealed:${KEY}`).toString('base64') : null } });
     const fake = program({ paired, exitAtOnce, pairAfterMs, stderr });
     const logs: string[] = [];
+    const actives: boolean[] = [];
     const soloist = createSoloist({
         store,
         safeStorage: keychain(available),
@@ -112,9 +113,10 @@ const setup = ({
         log: (line: string) => logs.push(line),
         warn: (line: string) => logs.push(line),
         onProcessExit: (stop: () => void) => { exitStops.push(stop); },
+        onActiveChanged: (active: boolean) => { actives.push(active); },
         signInWaitMs: 400,
     });
-    return { soloist, store, ...fake, logs, data, exitStops };
+    return { soloist, store, ...fake, logs, data, exitStops, actives };
 };
 // What each Soloist made in a test would stop when the process ends.
 const exitStops: Array<() => void> = [];
@@ -562,6 +564,36 @@ describe('soloist', () => {
         await first.soloist.shutdown();
     });
 
+    // The source turned off while a start was taking over a program an earlier run left: the program
+    // and the socket are not kept by a start that ends after the shutdown.
+    it('stops a program it was taking over when it is shut down meanwhile', async () => {
+        const first = setup();
+        await playing(first.soloist, first.spawned);
+        const dataDir = path.join(first.data, 'data');
+        let alive = true;
+        const killPid = vi.fn<(pid: number) => void>(() => { alive = false; });
+        let reaching = false;
+        const again = createSoloist({
+            store: first.store, safeStorage: keychain(),
+            dataDirectory: () => { reaching = true; return dataDir; },
+            cacheDirectory: () => path.join(first.data, 'cache'),
+            chooseFile: async () => null, spawn: vi.fn(), readBuild: async () => VALID_BUILD, log: () => { }, warn: () => { },
+            onProcessExit: () => { }, isAlive: () => alive, killPid,
+        });
+        const connected = () => servers.reduce((total, server) => total + server.clients.size, 0);
+        const before = connected();
+        const going = again.restart().catch((error: any) => error);
+        for (let tries = 0; tries < 1000 && !reaching; tries += 1) await Promise.resolve();
+        expect(reaching).toBe(true);
+        await again.shutdown();
+        expect(await going).toMatchObject({ reason: 'soloist-gone' });
+        expect(killPid).toHaveBeenCalledWith(4321);
+        await expect(again.state({ start: false })).resolves.toMatchObject({ running: false });
+        await settle();
+        expect(connected()).toBe(before);
+        await first.soloist.shutdown();
+    });
+
     it('stops what it started when the process ends without quitting', async () => {
         const { soloist, spawned, exitStops: stops } = setup();
         await playing(soloist, spawned);
@@ -579,6 +611,16 @@ describe('soloist', () => {
         expect(Date.now() - quitAt).toBeLessThan(1000);
         expect(spawned[0].proc.kill).toHaveBeenCalled();
         await starting;
+    });
+
+    // The source mod's main entry holds a quit while the program is about (sources/spotify/main/index.ts).
+    it('tells when the program begins and stops being about', async () => {
+        const { soloist, spawned, actives } = setup();
+        expect(actives).toEqual([]);
+        await playing(soloist, spawned);
+        expect(actives).toEqual([true]);
+        await soloist.shutdown();
+        expect(actives).toEqual([true, false]);
     });
 
     it('stops the program when the app quits', async () => {

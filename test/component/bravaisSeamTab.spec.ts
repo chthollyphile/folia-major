@@ -58,7 +58,7 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         // 没有焦点：Tab 进缝，落在选中的页签上。
         await page.keyboard.press('Tab');
         expect(await focusArea(page)).toBe('seam');
-        expect(await focusedName(page)).toBe('tab:playlist');
+        expect(await focusedName(page)).toBe('tab:online');
 
         // 缝里：Tab 回墙，键盘焦点落在一张磁贴上（没有上次的焦点：离缝最近的一张）。
         await page.keyboard.press('Tab');
@@ -71,15 +71,15 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         const wallSlot = await focusedTile(page);
         expect(wallSlot).not.toBeNull();
         await page.keyboard.press('Shift+Tab');
-        expect(await focusedName(page)).toBe('tab:playlist');
+        expect(await focusedName(page)).toBe('tab:online');
 
         // 缝里方向键：↓ 下一个控件、↑ 回来；焦点一直在缝里，墙上的键盘焦点不动。
         await page.keyboard.press('ArrowDown');
         const next = await focusedName(page);
         expect(await focusArea(page)).toBe('seam');
-        expect(next).not.toBe('tab:playlist');
+        expect(next).not.toBe('tab:online');
         await page.keyboard.press('ArrowUp');
-        expect(await focusedName(page)).toBe('tab:playlist');
+        expect(await focusedName(page)).toBe('tab:online');
         await page.keyboard.press('ArrowDown');
         expect(await focusedName(page)).toBe(next);
         expect(await focusedTile(page)).toBe(wallSlot);
@@ -106,7 +106,7 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         await page.keyboard.press('Tab');
         await page.keyboard.press('ArrowDown');
         const remembered = await focusedName(page);
-        expect(remembered).not.toBe('tab:playlist');
+        expect(remembered).not.toBe('tab:online');
         await page.keyboard.press('Tab');
         expect(await focusArea(page)).toBe('wall');
 
@@ -139,7 +139,7 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         await page.locator('[data-bravais-seam-action="hide"]').first().click();
         await expect(stage(page).locator('[data-bravais-seam]')).toHaveAttribute('data-bravais-seam-level', 'hidden');
         await page.locator('.bravais-seam-tab').click();
-        await expect(page.locator('[data-bravais-tab="playlist"]')).toBeVisible();
+        await expect(page.locator('[data-bravais-tab="online"]')).toBeVisible();
         await page.waitForTimeout(400);
         expect(await focusArea(page)).not.toBe('seam');
     });

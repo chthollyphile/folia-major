@@ -23,6 +23,21 @@ const listFiles = (root, dir) => {
     });
 };
 
+/*
+ * 渲染进程与主进程各自的文件。Folium 2.0 的音源模组（sources/<id>/）：client/、core/ 在窗口里跑，main/ 在主进程里跑；
+ * 平台逐家从 src/、electron/ 搬过去（S5），两边都扫。音源 main 入口的 api.legacy.store.get/set/… 也是 store.xxx(键) 的写法，
+ * 照主进程的键认；client 的 folium.sources.pageStore(id).get/set(键) 落在 online_provider:<id>:<键>，和 providerStorage 是同一个
+ * 键，记成 `provider:<id>:<键>`（PAGE_STORE_CALL，S5 补的）。
+ */
+const sideFiles = root => {
+    const sources = listFiles(root, 'sources');
+    const inMain = file => /^sources\/[^/]+\/main\//.test(file);
+    return {
+        rendererFiles: [...['src', 'shared'].flatMap(dir => listFiles(root, dir)), ...sources.filter(file => !inMain(file))],
+        mainFiles: [...listFiles(root, 'electron'), ...sources.filter(inMain)],
+    };
+};
+
 /** 本文件 `const NAME = '字面量'` 的定义。 */
 const ownConstants = text => {
     const values = new Map();
@@ -106,6 +121,21 @@ const PROVIDER_CALL = /\b(?:readProviderSessionValue|writeProviderSessionValue|r
  * 渲染进程经 `window.electron.saveSettings(键, 值)` 写进主进程 electron-store 的键：主进程那边是通用的
  * `store.set(key, value)`，扫不出键名，只能在这里认（2026-11-08 演习：#668 直接读已有的 STAGE_MODE_SOURCE 被当成新键）。
  */
+/**
+ * 音源模组的同步页面存储（folium.sources.pageStore，落在 providerStorage 的同一个键）：`….pageStore(id).set(键, 值)`，
+ * 或者先存进变量 `const store = folium.sources.pageStore(id)` 再 `store.get(键)`。id 是字面量或常量；认不出时，文件在
+ * sources/<目录>/ 里就用目录名（内置音源的目录名就是短音源 id，内置清单校验管这一条）。
+ */
+const PAGE_STORE_CALL = /\bpageStore\(\s*([^)]*?)\s*\)\s*\.(?:get|set)\(\s*([^,)]+)/g;
+const PAGE_STORE_BINDING = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[\w$.?]*pageStore\(\s*([^)]*?)\s*\)/g;
+/** `name.get(键)` / `name.set(键, …)` for a variable that holds a page store. */
+const pageStoreUses = name => new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}\\s*\\.(?:get|set)\\(\\s*([^,)]+)`, 'g');
+
+/** 一个 pageStore 调用的音源 id：参数认得出就用它，否则用 sources/<目录>/ 的目录名。 */
+const pageStoreSourceOf = (raw, file, resolve) => (
+    (raw ? keyOf(raw, file, resolve) : null) ?? /^sources\/([^/]+)\//.exec(file)?.[1] ?? null
+);
+
 const MAIN_FROM_RENDERER_CALL = /\bsaveSettings\??\.?\(\s*([^,)]+)/g;
 const MAIN_CALL = /\bstore\.(?:get|set|delete|has)\(\s*([^,)]+)/g;
 /** 键的读写本身就在这些文件里（参数是变量），不当成键的出处。 */
@@ -115,8 +145,7 @@ const HELPER_FILES = new Set(['src/stores/storagePrimitives.ts', 'src/services/o
  * @returns {string[]} 排好序的键，写成 `web:键`、`provider:平台:键`、`main:键`
  */
 export function scanStorageKeys(root) {
-    const rendererFiles = ['src', 'shared'].flatMap(dir => listFiles(root, dir));
-    const mainFiles = listFiles(root, 'electron');
+    const { rendererFiles, mainFiles } = sideFiles(root);
     const { texts, resolve } = constantResolver(root, [...rendererFiles, ...mainFiles]);
     const keys = new Set();
     for (const file of rendererFiles) {
@@ -132,6 +161,19 @@ export function scanStorageKeys(root) {
             const provider = keyOf(match[1], file, resolve);
             const key = keyOf(match[2], file, resolve);
             if (provider && key) keys.add(`provider:${provider}:${key}`);
+        }
+        for (const match of text.matchAll(PAGE_STORE_CALL)) {
+            const source = pageStoreSourceOf(match[1], file, resolve);
+            const key = keyOf(match[2], file, resolve);
+            if (source && key) keys.add(`provider:${source}:${key}`);
+        }
+        for (const binding of text.matchAll(PAGE_STORE_BINDING)) {
+            const source = pageStoreSourceOf(binding[2], file, resolve);
+            if (!source) continue;
+            for (const match of text.matchAll(pageStoreUses(binding[1]))) {
+                const key = keyOf(match[1], file, resolve);
+                if (key) keys.add(`provider:${source}:${key}`);
+            }
         }
         for (const match of text.matchAll(MAIN_FROM_RENDERER_CALL)) {
             const key = keyOf(match[1], file, resolve);
@@ -156,7 +198,8 @@ const STORE_HELPER_CALL = /\b(?:readStored\w*|writeStored\w*)\(\s*([^,)]+)/g;
  * @returns {Map<string, string[]>} 文件 → 排好序的键
  */
 export function storageKeysInFiles(root, files) {
-    const all = [...['src', 'shared'].flatMap(dir => listFiles(root, dir)), ...listFiles(root, 'electron')];
+    const { rendererFiles, mainFiles } = sideFiles(root);
+    const all = [...rendererFiles, ...mainFiles];
     const { texts, resolve } = constantResolver(root, all);
     return new Map(files.map(file => {
         const text = texts.get(file) ?? '';

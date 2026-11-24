@@ -31,7 +31,7 @@ export const directoryCommands: CommandPaletteCommand[] = [
     createDirectorySurfaceCommand(
         'directory-create-playlist',
         'New playlist from selection',
-        'Create a local playlist with the songs of the selected cards',
+        'Create a Folia playlist with the songs of the selected cards',
         ['playlist from selection', 'save selection', '新建歌单', '选中建歌单'],
         'create-playlist',
         Plus,

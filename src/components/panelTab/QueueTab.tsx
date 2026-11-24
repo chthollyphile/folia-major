@@ -6,7 +6,7 @@ import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
 import { Button } from '../modal/settings/kit';
 import { useKitReducedMotion } from '../modal/settings/kit/motion';
-import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongShownUnplayable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { queueIndexOfKey } from '../../utils/playbackNeighbors';
@@ -38,7 +38,7 @@ interface QueueTabProps {
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
-    canSaveLocalPlaylist?: boolean;
+    canSavePlaylist?: boolean;
     /** Opens the same queue as a poster wall; absent when the host has no wall to show. */
     onOpenLattice?: () => void;
     /** 在速记簿里展开队列（打开速记簿的播放队列页、展开成画布）。 */
@@ -78,7 +78,7 @@ const QueueRow = ({
 }: RowComponentProps<QueueRowProps>): React.ReactElement => {
     const song = playQueue[index];
     const isActive = currentSongKey === getPlaybackSongKey(song);
-    const isUnavailable = isSongUnavailable(song);
+    const isUnavailable = isSongShownUnplayable(song);
     const tag = getSongTag(song, labels);
 
     return (
@@ -138,7 +138,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     onRemoveSong,
     onMoveSongToEnd,
     onMoveSongToNext,
-    canSaveLocalPlaylist = false,
+    canSavePlaylist = false,
     onOpenLattice,
     onOpenScratchpadQueue,
     onSaveCurrentQueueAsPlaylist,
@@ -250,7 +250,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         {t('queue.title')}
                         <span className="ml-1.5 font-normal text-[color:var(--st-t3)]">{playQueue.length}</span>
                     </span>
-                    {canSaveLocalPlaylist && (
+                    {canSavePlaylist && (
                         <Button variant="quiet" onClick={handleSavePlaylist}>
                             {t('localMusic.saveQueueAsPlaylist')}
                         </Button>

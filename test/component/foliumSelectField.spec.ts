@@ -33,17 +33,18 @@ test.describe('Folium select field', () => {
             .toEqual(await look('[data-folium-entry] input[type="text"]'));
     });
 
-    test('a mouse pick lands: pressing an option moves focus onto it without closing the menu first', async ({ mount, page }) => {
+    test('a mouse pick lands: pressing an option leaves focus on the combobox and does not close the menu first', async ({ mount, page }) => {
         await mount('foliumSelectField');
         const select = page.getByRole('combobox', { name: 'Codec' });
         await select.click();
         const listbox = page.getByRole('listbox', { name: 'Codec' });
         const option = listbox.getByRole('option', { name: 'H.264', exact: true });
 
-        // Chromium 在按下时把焦点交给选项按钮并触发 focusin；菜单不能因此收起，否则松开时点不到选项。
+        // 菜单从不拿焦点（CustomSelectMenu 在 mousedown 上 preventDefault）：按下时焦点留在触发按钮上，
+        // 菜单不因为焦点移动而收起，否则松开时点不到选项。
         await option.hover();
         await page.mouse.down();
-        await expect(option).toBeFocused();
+        await expect(select).toBeFocused();
         await expect(listbox).toBeVisible();
         await page.mouse.up();
 

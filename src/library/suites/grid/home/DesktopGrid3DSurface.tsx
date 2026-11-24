@@ -36,6 +36,8 @@ interface DesktopGrid3DSurfaceProps {
     onFocusedIndexChange: (index: number) => void;
     onSelect: (item: Grid3DSliderItem, index: number) => void;
     tabs?: DesktopGrid3DAction[];
+    /** 二级页签那一组的读屏名。 */
+    tabsLabel?: string;
     actions?: DesktopGrid3DAction[];
     isInteractive?: boolean;
     isLoading?: boolean;
@@ -52,6 +54,8 @@ interface DesktopGrid3DSurfaceProps {
     batchConfig?: GridMapBatchConfig;
     ponderControls?: 'local-grid-controls';
     gridMapPonderScope?: 'local-grid-map-page';
+    /** 卡与卡之间的空隙（px），缺省照滑轨自己的。 */
+    cardGap?: number;
 }
 
 export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
@@ -63,6 +67,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
     onFocusedIndexChange: onLegacyFocusedIndexChange,
     onSelect,
     tabs = [],
+    tabsLabel,
     actions = [],
     isInteractive = true,
     isLoading = false,
@@ -76,6 +81,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
     batchConfig,
     ponderControls,
     gridMapPonderScope,
+    cardGap,
 }) => {
     // GridMap 就是网格里「打开着的目录」（core 的目录会话 store 记着打开的是哪个，见 useLibraryDirectorySessionStore）：
     // 打开地图 = openDirectory，关掉地图 = closeDirectory（退场动画结束之后：地图还在淡出，筛选结果不能先跳回全部；
@@ -159,6 +165,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                                 mapLabel={mapButtonLabel}
                                 mapIcon={<MapIcon size={13} />}
                                 ponderId={ponderControls}
+                                label={tabsLabel}
                             />
                         )}
                     </div>
@@ -197,6 +204,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                 emptyMessage={emptyMessage}
                 isDaylight={isDaylight}
                 hasFloatingPlayer={hasFloatingPlayer}
+                cardGap={cardGap}
             />
 
             <AnimatePresence onExitComplete={handleGridMapExitComplete}>

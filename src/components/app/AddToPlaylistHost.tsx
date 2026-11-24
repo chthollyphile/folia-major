@@ -1,14 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { LocalPlaylist, SongResult, UnifiedSong } from '../../types';
+import type { SongResult, UnifiedSong } from '../../types';
+import type { FoliaPlaylistSummary } from '../../types/foliaPlaylist';
 import type { ProviderCollection } from '../../types/onlineMusic';
 import PlaylistSelectionDialog, { type PlaylistSelectionDialogItem, type PlaylistSelectionSubject } from '../shared/PlaylistSelectionDialog';
 import { getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
 import { omni } from '../../services/onlineMusic/omni';
 import { getSongArtistLabel, getSongCoverUrl } from '../../services/onlineMusic/songMetadata';
 import { selectDisplaySong, usePlaybackStore } from '../../stores/usePlaybackStore';
-import { useAddToPlaylistStore } from '../../stores/useAddToPlaylistStore';
+import {
+    readLastAddToPlaylistPane,
+    readLastFoliaPlaylistId,
+    rememberAddToPlaylistPane,
+    rememberLastFoliaPlaylistId,
+    useAddToPlaylistStore,
+    type AddToPlaylistPane,
+} from '../../stores/useAddToPlaylistStore';
+import { useFoliaPlaylistsStore } from '../../stores/useFoliaPlaylistsStore';
+import { useScratchpadStore } from '../../stores/useScratchpadStore';
+import { addPickedSongsToFoliaPlaylist, createFoliaPlaylistFromPickedSongs } from '../../services/foliaPlaylist/foliaPlaylistService';
+import { getTrackSourceKey } from '../../services/foliaPlaylist/trackSourceState';
+import { foliaPlaylistEntryKeyOf } from '../../library/core/collection/mutations/collectionMutationCapabilities';
+import { describeFoliaAddResult } from '../folia-playlists/foliaAddResult';
 import { useLibraryStore } from '../../stores/useLibraryStore';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
@@ -22,23 +36,27 @@ import { onlineMutationFailureText } from '../../services/onlineMusic/failure/on
 // question about the song, not about the panel, and a command bound to a global shortcut has to be
 // able to ask it from anywhere. The star button in the panel now only requests it.
 //
-// Everything the three sources need to be told apart stays here, in one place, because the answer
-// depends on a Navidrome fetch — see the note in useAddToPlaylistStore. Each source has a "Liked
-// songs" row first: the local favorites playlist, the platform's heart for an online song (some
-// platforms' liked list is no playlist at all), Navidrome's star.
+// Two panes (Folia 聚合歌单规格 §7): **Folia** — "Liked songs" first, then Folia's own playlists, "new playlist" at
+// the bottom; it takes songs of any source, several sources at once too — and **the source the songs come from**
+// (titled with its name): the platform's heart and playlists, or Navidrome's star and playlists, as before.
+// Only the Folia pane shows for local songs (local playlists are Folia's now), for a source with no account
+// playlists and no likes, and for a request whose songs come from more than one source.
+// The picker remembers the pane used last and the Folia playlist picked last (useAddToPlaylistStore).
+//
+// Everything the sources need to be told apart stays here, in one place, because the answer depends on a
+// Navidrome fetch — see the note in useAddToPlaylistStore.
 
 type AddToPlaylistHostProps = {
     isDaylight: boolean;
-    localPlaylists: LocalPlaylist[];
-    // All six are handed the songs the picker is about: the shown song (the playback store's
+    // All four are handed the songs the picker is about: the shown song (the playback store's
     // current song is another one during a blend, and after any change of track under the open
-    // dialog), or the scratchpad's row or group it was asked for — all of one source.
-    onAddSongsToLocalPlaylist: (playlistId: string, songs: SongResult[]) => Promise<void>;
-    onCreateLocalPlaylistWithSongs: (name: string, songs: SongResult[]) => Promise<void>;
+    // dialog), or the ones it was asked for. The source pane only shows for songs of one source.
     onAddSongsToOnlinePlaylist: (playlist: ProviderCollection, songs: SongResult[]) => Promise<void>;
     onCreateOnlinePlaylistWithSongs: (name: string, songs: SongResult[]) => Promise<void>;
     onAddSongsToNavidromePlaylist: (playlistId: string, songs: SongResult[]) => Promise<void>;
     onCreateNavidromePlaylistWithSongs: (name: string, songs: SongResult[]) => Promise<void>;
+    /** 这首歌在不在 Folia 的「我喜欢的音乐」里，和播放页红心同一份判断（重复导入的本地歌按 canonical 的那条算）。 */
+    isFoliaSongLiked: (song: SongResult | null) => boolean;
 };
 
 type PlaylistEntry = PlaylistSelectionDialogItem;
@@ -63,29 +81,30 @@ const describeSong = (song: SongResult | null, hasOnlinePlaylists: boolean) => {
         isNavidrome, isLocal, isOnline, canAddOnlineSong, canCreateOnline, canLike,
         onlineProviderLabel: playbackSourceRef?.kind === 'online' ? omni.getProviderLabel(playbackSourceRef.providerId) : '',
         isApplicable: Boolean(song && !isStage && (isLocal || isOnline || isNavidrome)),
-        // Local, Navidrome and some online providers can make a playlist on the spot, so having
-        // none is not a refusal there.
-        canAdd: isLocal || (isOnline && ((canAddOnlineSong && (hasOnlinePlaylists || canCreateOnline)) || canLike)) || isNavidrome,
+        // The source's own pane has something to offer: Navidrome always (a playlist can be made on the spot), an
+        // online source that edits playlists (with one to pick or the right to make one) or takes likes. Local songs
+        // have no pane of their own: their playlists are Folia's.
+        hasSourcePane: (isOnline && ((canAddOnlineSong && (hasOnlinePlaylists || canCreateOnline)) || canLike)) || isNavidrome,
     };
 };
 
 export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     isDaylight,
-    localPlaylists,
-    onAddSongsToLocalPlaylist,
-    onCreateLocalPlaylistWithSongs,
     onAddSongsToOnlinePlaylist,
     onCreateOnlinePlaylistWithSongs,
     onAddSongsToNavidromePlaylist,
     onCreateNavidromePlaylistWithSongs,
+    isFoliaSongLiked,
 }) => {
     const { t } = useTranslation();
     // The song as the listener sees it, so a blend shows the track that is on screen. It is what
     // the star button answers for.
     const shownSong = usePlaybackStore(selectDisplaySong);
-    const { isOpen, requestedSongs, close, setAvailability } = useAddToPlaylistStore(useShallow(state => ({
+    const foliaPlaylists = useFoliaPlaylistsStore(state => state.playlists);
+    const { isOpen, requestedSongs, origin, close, setAvailability } = useAddToPlaylistStore(useShallow(state => ({
         isOpen: state.isOpen,
         requestedSongs: state.songs,
+        origin: state.origin,
         close: state.close,
         setAvailability: state.setAvailability,
     })));
@@ -95,16 +114,21 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     // adds is the song the listener asked about.
     const [askedSongs, setAskedSongs] = useState<SongResult[] | null>(null);
     const pickerSongs = requestedSongs ?? (shownSong ? [shownSong] : null);
+    // Which pane is up, and the Folia playlist picked last: both read when the picker comes up.
+    const [pane, setPane] = useState<AddToPlaylistPane>('folia');
+    const [lastFoliaPlaylistId, setLastFoliaPlaylistId] = useState<string | null>(null);
     if (isOpen && !askedSongs && pickerSongs) {
         setAskedSongs(pickerSongs);
+        setPane(readLastAddToPlaylistPane());
+        setLastFoliaPlaylistId(readLastFoliaPlaylistId());
     } else if (!isOpen && askedSongs) {
         setAskedSongs(null);
     }
     const [navidromePlaylists, setNavidromePlaylists] = useState<PlaylistEntry[]>([]);
     const starredNavidromeSongIds = useLibraryStore(state => state.starredNavidromeSongIds);
 
-    // The dialog is about the songs it was asked for, whatever is playing by now. They are all of one
-    // source, so the first one speaks for them.
+    // The dialog is about the songs it was asked for, whatever is playing by now. The source pane only
+    // shows when they are all of one source, and there the first one speaks for them.
     const targetSongs = useMemo(
         () => (isOpen ? askedSongs : null) ?? (shownSong ? [shownSong] : []),
         [askedSongs, isOpen, shownSong],
@@ -126,7 +150,13 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         [accounts, shownSong],
     );
     const shown = describeSong(shownSong, shownPlaylistCount > 0);
-    const { isNavidrome, isLocal, isOnline, canCreateOnline, canLike, onlineProviderLabel, isApplicable, canAdd } = describeSong(currentSong, songPlaylists.length > 0);
+    const { isNavidrome, isLocal, isOnline, canCreateOnline, canLike, onlineProviderLabel, hasSourcePane } = describeSong(currentSong, songPlaylists.length > 0);
+    const isMultiSource = useMemo(() => new Set(targetSongs.map(getTrackSourceKey)).size > 1, [targetSongs]);
+    // Every song the picker is about can go into a Folia playlist (a stage song belongs to no source and cannot).
+    const isApplicable = targetSongs.length > 0 && targetSongs.every(song => describeSong(song, false).isApplicable);
+    const showSourcePane = hasSourcePane && !isMultiSource;
+    const activePane: AddToPlaylistPane = showSourcePane ? pane : 'folia';
+    const inFolia = activePane === 'folia';
     const needsNavidromePlaylists = isNavidrome || shown.isNavidrome;
 
     const refreshNavidromePlaylists = useCallback(async () => {
@@ -163,18 +193,23 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         });
         const trackCount = (count: number) => `${count} ${t('playlist.tracks')}`;
 
-        if (isLocal) {
-            // 本地的「我喜欢」就是收藏歌单本身（isFavorite）：画成红心那一行，排在最前。
-            const localIds = targetSongs.map(song => (song as UnifiedSong).localRef?.songId).filter((id): id is string => Boolean(id));
-            return localPlaylists.map((playlist): PlaylistEntry => ({
-                id: playlist.id,
-                name: playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name,
-                description: trackCount(playlist.songIds.length),
-                kind: playlist.isFavorite ? 'liked' : undefined,
-                note: playlist.isFavorite && localIds.length > 0 && localIds.every(id => playlist.songIds.includes(id))
-                    ? t('playlist.alreadyLiked')
-                    : undefined,
-            }));
+        if (inFolia) {
+            // Folia 的「我喜欢的音乐」就是收藏歌单本身（isFavorite）：画成红心那一行，排在最前；其后是聚合歌单。
+            // 「已喜欢」和播放页的红心同一个口径：正在放的是重复导入的副本时，歌单里留的是 canonical 的那条。
+            const allInFavorites = targetSongs.length > 0 && targetSongs.every(isFoliaSongLiked);
+            const favorites = foliaPlaylists.filter(playlist => playlist.isFavorite);
+            const others = foliaPlaylists.filter(playlist => !playlist.isFavorite);
+            return [...favorites, ...others].map((playlist: FoliaPlaylistSummary): PlaylistEntry => {
+                return {
+                    id: playlist.id,
+                    name: playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name,
+                    description: trackCount(playlist.entryCount),
+                    coverUrl: playlist.coverUrl,
+                    kind: playlist.isFavorite ? 'liked' : undefined,
+                    note: playlist.isFavorite && allInFavorites ? t('playlist.alreadyLiked') : undefined,
+                    recent: !playlist.isFavorite && playlist.id === lastFoliaPlaylistId,
+                };
+            });
         }
 
         if (isOnline) {
@@ -197,12 +232,12 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         }
 
         return [];
-    }, [canLike, isLocal, isOnline, isNavidrome, localPlaylists, navidromePlaylists, songPlaylists, starredNavidromeSongIds, t, targetSongs]);
+    }, [canLike, foliaPlaylists, inFolia, isFoliaSongLiked, isOnline, isNavidrome, lastFoliaPlaylistId, navidromePlaylists, songPlaylists, starredNavidromeSongIds, t, targetSongs]);
 
     // 对话框顶上的「要放进去的歌」：一首写歌名与歌手 · 来源，一组写首数、前几首的名字与来源，封面最多叠三张。
     const subject = useMemo<PlaylistSelectionSubject | undefined>(() => {
         if (!currentSong) return undefined;
-        const source = isLocal ? t('scratchpad.sourceLocal') : isNavidrome ? t('navidrome.title') : onlineProviderLabel;
+        const source = isMultiSource ? '' : isLocal ? t('scratchpad.sourceLocal') : isNavidrome ? t('navidrome.title') : onlineProviderLabel;
         const coverUrls = targetSongs.slice(0, 3).map(song => getSongCoverUrl(song) ?? '').filter(Boolean);
         if (targetSongs.length === 1) {
             return {
@@ -216,25 +251,50 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
             subtitle: [targetSongs.slice(0, 3).map(song => song.name).join(' / '), source].filter(Boolean).join(' · '),
             coverUrls,
         };
-    }, [currentSong, isLocal, isNavidrome, onlineProviderLabel, t, targetSongs]);
+    }, [currentSong, isLocal, isMultiSource, isNavidrome, onlineProviderLabel, t, targetSongs]);
 
-    const disabledReason = shown.isOnline && !shown.canAddOnlineSong && !shown.canLike
-        ? t('status.providerPlaylistMutationUnavailable', { provider: shown.onlineProviderLabel })
-        : (!shown.canAdd ? t('localMusic.noPlaylistsFound') : undefined);
-
-    // A picker asked for a song that has nowhere to go, or whose playlists went under it (the
-    // account signed out): closing beats leaving a picker up that cannot pick.
+    // A picker asked for a song that cannot go anywhere (a stage song): closing beats leaving a picker
+    // up that cannot pick. Everything else has the Folia pane.
     useEffect(() => {
-        if (isOpen && !(isApplicable && canAdd)) {
+        if (isOpen && !isApplicable) {
             close();
         }
-    }, [canAdd, close, isApplicable, isOpen]);
+    }, [close, isApplicable, isOpen]);
 
     // Published rather than recomputed by each consumer: the star button and the command both need
-    // this answer, and only one of them can afford to be the thing that fetches it.
+    // this answer. Since the Folia pane takes any song, a song that is applicable can always be added.
     useEffect(() => {
-        setAvailability({ isApplicable: shown.isApplicable, canAdd: shown.isApplicable && shown.canAdd, disabledReason });
-    }, [disabledReason, setAvailability, shown.canAdd, shown.isApplicable]);
+        setAvailability({ isApplicable: shown.isApplicable, canAdd: shown.isApplicable });
+    }, [setAvailability, shown.isApplicable]);
+
+    const panes = useMemo(() => (showSourcePane ? [
+        { id: 'folia', label: t('home.foliaTab') },
+        { id: 'source', label: isNavidrome ? t('navidrome.title') : onlineProviderLabel },
+    ] : undefined), [isNavidrome, onlineProviderLabel, showSourcePane, t]);
+
+    // 放进 Folia 歌单之后的提示：加了几首、几首已在里面；速记簿交来的那一批带一个「清空速记簿」按钮
+    // （保存是复制，速记簿不动；规格 §10）。
+    const reportFoliaResult = (playlist: FoliaPlaylistSummary, result: Parameters<typeof describeFoliaAddResult>[0]) => {
+        rememberLastFoliaPlaylistId(playlist.id);
+        const message = describeFoliaAddResult(result, playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name, t);
+        // 按下去清的是整本：只在交来的这一批就是整本、而且没有一首没收进去时才给（存一行、一组、选中的几首不给）。
+        const batchKeys = new Set(targetSongs.map(foliaPlaylistEntryKeyOf));
+        const notebook = useScratchpadStore.getState().entries;
+        const offerClear = origin === 'scratchpad' && message.type !== 'error' && result.rejected === 0
+            && notebook.length > 0 && notebook.every(entry => batchKeys.has(foliaPlaylistEntryKeyOf(entry.song)));
+        setStatusMessage({
+            ...message,
+            ...(offerClear ? {
+                actionLabel: t('foliaPlaylist.clearScratchpad'),
+                // 按完提示就收起：留着的话按钮还在，像是没清掉。
+                onAction: () => {
+                    useScratchpadStore.getState().clear();
+                    setStatusMessage(null);
+                },
+                durationMs: 8000,
+            } : {}),
+        });
+    };
 
     // The dialog only waits on the add; a failure is told here (a group of the scratchpad can be refused
     // by the platform, or lose a song from the library under it), and the dialog closes as on success.
@@ -265,18 +325,32 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
                 title={t('playlist.saveToPlaylist')}
                 subject={subject}
                 playlists={availablePlaylists}
+                panes={panes}
+                activePane={activePane}
+                onPaneChange={(next) => {
+                    const nextPane: AddToPlaylistPane = next === 'source' ? 'source' : 'folia';
+                    setPane(nextPane);
+                    rememberAddToPlaylistPane(nextPane);
+                }}
                 onSelect={async (playlistId) => {
                     const isLikedRow = String(playlistId) === LIKED_ENTRY_ID;
                     try {
                         if (!currentSong) throw new Error('Selected playlist is unavailable');
-                        if (isLocal) {
-                            await onAddSongsToLocalPlaylist(String(playlistId), targetSongs);
+                        // 用了哪一栏就记哪一栏（只有一栏可选时不改记着的）。
+                        if (showSourcePane) rememberAddToPlaylistPane(activePane);
+                        if (inFolia) {
+                            const { playlist, result } = await addPickedSongsToFoliaPlaylist(String(playlistId), targetSongs);
+                            if (!playlist) throw new Error('Selected playlist is unavailable');
+                            reportFoliaResult(playlist, result);
                             return;
                         }
 
                         if (isOnline && isLikedRow) {
                             // 红心：一首一首按平台的喜欢接口来（已经喜欢的再按一次「喜欢」不会取消）。
-                            for (const song of targetSongs) await omni.likeSong(song, true);
+                            // 不能喜欢的条目（比如视频，方案 §4.4 的 itemTraits）跳过，不让它挡住后面的歌。
+                            for (const song of targetSongs) {
+                                if (omni.canLikeSong(song)) await omni.likeSong(song, true);
+                            }
                             setStatusMessage({ type: 'success', text: t('status.liked') });
                             return;
                         }
@@ -302,11 +376,13 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
                         reportFailure(error, isLikedRow ? t('status.likeFailed') : undefined);
                     }
                 }}
-                onCreateNamed={(isLocal || isNavidrome || canCreateOnline) ? async (name) => {
+                onCreateNamed={(inFolia || isNavidrome || canCreateOnline) ? async (name) => {
                     if (!currentSong) return;
                     try {
-                        if (isLocal) {
-                            await onCreateLocalPlaylistWithSongs(name, targetSongs);
+                        if (showSourcePane) rememberAddToPlaylistPane(activePane);
+                        if (inFolia) {
+                            const { playlist, result } = await createFoliaPlaylistFromPickedSongs(name, targetSongs);
+                            reportFoliaResult(playlist, result);
                             return;
                         }
 
@@ -323,7 +399,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
                         reportFailure(error);
                     }
                 } : undefined}
-                createLabel={t(isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist')}
+                createLabel={t(!inFolia && isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist')}
             />
         </div>
     );

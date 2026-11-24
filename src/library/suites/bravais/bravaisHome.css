@@ -776,3 +776,8 @@
 .bravais-seam-menu.is-home button.is-shortcut svg { color: var(--text-accent, currentColor); opacity: 1; }
 
 :root[data-reduce-motion~='lattice'] .bravais-seam-home .bravais-seam-shortcut { transition: none; }
+
+/* 二级切换里此刻不能选的一项（在线组里当前音源没有的那一页）。 */
+.bravais-seam-section:disabled { opacity: 0.35; cursor: default; pointer-events: auto; }
+.bravais-seam-home button.bravais-seam-section:disabled:hover,
+.bravais-seam-home-row button.bravais-seam-section:disabled:hover { color: inherit; background: none; }

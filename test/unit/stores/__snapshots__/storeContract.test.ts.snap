@@ -3,6 +3,8 @@
 exports[`store contract > keeps every localStorage key the stores read or write 1`] = `
 [
   "active_online_provider_id",
+  "add_to_playlist_last_folia_playlist",
+  "add_to_playlist_last_pane",
   "audio_output_device_id",
   "auto_hide_player_chrome",
   "background_opacity",
@@ -76,6 +78,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "hidden_grid_playlists",
   "hide_taskbar_icon",
   "home_layout_style",
+  "last_home_online_tab",
   "last_home_view_tab",
   "latent_background_tuning",
   "lattice_auto_focus_on_song_change",
@@ -93,6 +96,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "library_wall_backdrop_blur",
   "library_wall_backdrop_lyrics",
   "library_wall_collection_tilt",
+  "library_wall_home_finite",
   "library_wall_look",
   "library_wall_seam_clear",
   "library_wall_seam_direction",
@@ -134,6 +138,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "playback_entry_view",
   "playback_entry_view_chosen",
   "player_bottom_bar_offset",
+  "player_capsule_island",
   "player_chrome_hidden",
   "player_control_slot_primary",
   "player_control_slot_secondary",

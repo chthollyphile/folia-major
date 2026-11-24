@@ -1,17 +1,25 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqPreferences.test.ts
 // QQ 账号的音乐偏好：回包形状取自 qq-music-api 3.3.6 的 /user/recommendation-preferences
-// （{ profiles:[{ key, name, score }] }）与 /update（{ writeAttempted, verified }）；分数是虚构示例。
+// （{ profiles:[{ key, name, score }] }）与 /update（{ writeAttempted, verified }）；分数是虚构示例。经注册着的 QQ 音源模组跑（helpers/qqSource.ts），读到的是宿主的形状。
 
 const requestMock = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({ requestQq: requestMock }));
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<object>(),
+    requestQq: requestMock,
+}));
 
-import { getQqRecommendationPreferences, saveQqRecommendationPreferences } from '@/services/onlineMusic/qq/qqPreferences';
 import { normalizeRecommendationPreferences } from '@/services/onlineMusic/recommendationPreferences';
 import type { RecommendationPreferenceChoice, RecommendationPreferenceRatio } from '@/types/onlineMusic';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import i18n from '@/i18n/config';
+import { lazyQq } from '../helpers/qqSource';
+
+const qq = lazyQq();
+const getQqRecommendationPreferences = () => qq.recommendations!.getRecommendationPreferences!();
+const saveQqRecommendationPreferences = (changes: Record<string, string | number>) => qq.recommendations!.saveRecommendationPreferences!(changes);
 
 const PROFILES = [
     { key: '10008', name: '歌曲熟悉度', score: 75 },
@@ -27,7 +35,9 @@ const PROFILES = [
 ];
 
 describe('QQ recommendation preferences', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        // The fallback words below are the zh-CN ones; the app language otherwise follows the machine's.
+        await i18n.changeLanguage('zh-CN');
         requestMock.mockReset();
         vi.spyOn(console, 'info').mockImplementation(() => { });
         vi.spyOn(console, 'warn').mockImplementation(() => { });
@@ -65,7 +75,7 @@ describe('QQ recommendation preferences', () => {
         ];
         for (const language of ['zh-CN', 'en', 'in', 'vi']) {
             for (const label of labels) {
-                expect(label.labelKey, label.labelFallback).toMatch(/^qqPreferences\./);
+                expect(label.labelKey, label.labelFallback).toMatch(/^folium-mod\/qq:preferences\./);
                 expect(i18n.exists(label.labelKey!, { lng: language }), `${language} ${label.labelKey}`).toBe(true);
             }
         }
@@ -84,7 +94,7 @@ describe('QQ recommendation preferences', () => {
         });
         const preferences = await getQqRecommendationPreferences();
         expect(preferences.items.map(item => [item.key, item.value])).toEqual([['10008', '75'], ['10009', '25'], ['19999', 60]]);
-        expect(preferences.items[2].label).toEqual({ labelFallback: '新的一项' });
+        expect(preferences.items[2].label).toMatchObject({ labelFallback: '新的一项' });
     });
 
     it('treats inherited object keys as ratios named by QQ', async () => {
@@ -94,7 +104,7 @@ describe('QQ recommendation preferences', () => {
         ] });
         const { items } = await getQqRecommendationPreferences();
         expect(items.map(item => [item.kind, item.label])).toEqual([
-            ['ratio', { labelFallback: '新偏好' }], ['ratio', { labelFallback: '另一项' }],
+            ['ratio', expect.objectContaining({ labelFallback: '新偏好' })], ['ratio', expect.objectContaining({ labelFallback: '另一项' })],
         ]);
     });
 

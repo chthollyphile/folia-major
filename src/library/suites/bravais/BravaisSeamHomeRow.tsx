@@ -7,7 +7,7 @@ import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import BravaisSeamHomeTools, { homePageLayout } from './BravaisSeamHomeTools';
 import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
-import { BravaisSeamAccountSlot, HomeSeamSections, HomeSeamShortcuts } from './BravaisSeamHome';
+import { BravaisSeamAccountSlot, HomeSeamSections, HomeSeamShortcuts, seamTabClassName } from './BravaisSeamHome';
 import { BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisRevealMotion } from './bravaisSeamMotion';
@@ -41,7 +41,9 @@ const RowTabs: React.FC<{
     if (measure) {
         return (
             <div className={className}>
-                {tabs.map((tab, index) => <span key={tab.key} className="bravais-seam-home-tab">{shorts ? shorts[index] : tab.label}</span>)}
+                {tabs.map((tab, index) => (
+                    <span key={tab.key} className={seamTabClassName({ ...tab, active: false })}>{shorts ? shorts[index] : tab.label}</span>
+                ))}
             </div>
         );
     }
@@ -54,11 +56,11 @@ const RowTabs: React.FC<{
                     role="tab"
                     aria-selected={tab.active}
                     aria-label={shorts ? tab.label : undefined}
-                    title={tab.label}
+                    title={tab.title ?? tab.label}
                     disabled={tab.disabled}
                     data-bravais-tab={tab.key}
                     data-bravais-tab-short={shorts ? 'true' : undefined}
-                    className={`bravais-seam-home-tab${tab.active ? ' is-active' : ''}`}
+                    className={seamTabClassName(tab)}
                     onClick={() => onSelect?.(tab.key)}
                 >
                     {shorts ? shorts[index] : tab.label}

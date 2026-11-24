@@ -1,4 +1,4 @@
-import { ArrowDownUp, CalendarClock, FolderSync, ImagePlus, ListOrdered, NotebookPen, PanelLeft, PanelRight, Pencil, RefreshCw, Share, Shuffle, SquarePen, Star, Tags, Type } from 'lucide-react';
+import { ArrowDownUp, CalendarClock, FolderSync, ImagePlus, ListOrdered, ListPlus, NotebookPen, PanelLeft, PanelRight, Pencil, RefreshCw, Share, Shuffle, SquarePen, Star, Tags, Type } from 'lucide-react';
 import { createGridSurfaceCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
@@ -90,7 +90,7 @@ export const gridCommands: CommandPaletteCommand[] = [
     createGridSurfaceCommand(
         'grid-reorder-playlist',
         'Reorder playlist songs',
-        'Edit the order of songs in this local playlist',
+        'Edit the order of songs in this Folia playlist',
         ['reorder', 'sort songs', 'A-Z', '歌单排序', '调整顺序'],
         'reorder-playlist',
         ListOrdered,
@@ -98,10 +98,28 @@ export const gridCommands: CommandPaletteCommand[] = [
     createGridSurfaceCommand(
         'grid-export-playlist',
         'Export this playlist',
-        'Save this local playlist as an m3u8 file',
-        ['m3u8', 'export', '导出'],
+        'Save this Folia playlist as a JSON or M3U8 file',
+        ['m3u8', 'json', 'export', '导出'],
         'export-playlist',
         Share,
+    ),
+    // Folia 聚合歌单的转存：打开的是平台歌单 / 专辑时有「存成 Folia 歌单」，打开的是转存来的 Folia 歌单时有「从原歌单更新」。
+    // 两个都只打开对话框（名字、「改由……播放」的选择在那里）。
+    createGridSurfaceCommand(
+        'grid-save-to-folia',
+        'Save as a Folia playlist',
+        'Save this platform playlist or album as a Folia playlist, optionally played through another source',
+        ['folia', 'save playlist', 'copy playlist', 'transfer', '转存', '存成歌单', '聚合歌单'],
+        'save-to-folia',
+        ListPlus,
+    ),
+    createGridSurfaceCommand(
+        'grid-refresh-from-origin',
+        'Update from the original playlist',
+        'Read the original playlist again and add its new songs to this Folia playlist',
+        ['folia', 'update playlist', 'refresh', 'sync', '从原歌单更新', '同步歌单', '刷新歌单'],
+        'refresh-from-origin',
+        RefreshCw,
     ),
     createGridSurfaceCommand(
         'grid-edit-entity',

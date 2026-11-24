@@ -1,7 +1,7 @@
 import React from 'react';
 import { ListEnd, ListPlus, Trash2 } from 'lucide-react';
 import type { RowComponentProps } from 'react-window';
-import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongShownUnplayable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import type { CommandPaletteMatch } from './types';
@@ -56,7 +56,7 @@ const CommandPaletteQueueRow = ({
 
     const isSelected = index === activeIndex;
     const isPlaying = currentSongKey === getPlaybackSongKey(song);
-    const unavailable = isSongUnavailable(song);
+    const unavailable = isSongShownUnplayable(song);
     const tag = getSongTag(song, labels);
     const selectedClass = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const hoverClass = isDaylight ? 'hover:bg-black/[0.05]' : 'hover:bg-white/[0.06]';

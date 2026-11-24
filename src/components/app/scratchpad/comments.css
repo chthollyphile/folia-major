@@ -1,0 +1,696 @@
+/* src/components/app/scratchpad/comments.css — 速记簿第四页「评论」（ScratchpadComments，设计稿 G 组）与目录卡、总览里的小卡。
+   收起面板：歌曲头、标签纸片、小时间轴、排序、评论列表、输入框；颜色读 scratchpad.css 的 --scratchpad-* 变量（面板的黑、纸、墨、点缀色）。
+   和 scratchpad.css 一起由 ScratchpadHost 引入。 */
+
+/* —— 收起面板 —— */
+.scratchpad-comments {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.scratchpad-comments.is-idle .scratchpad-greeting.is-headline { padding: 20px 14px 0 18px; }
+
+.scratchpad-comments-head {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 14px 0 18px;
+}
+
+.scratchpad-comments-song { display: flex; align-items: flex-start; gap: 12px; }
+.scratchpad-comments-song-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 6px; }
+
+.scratchpad-comments-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--scratchpad-text-soft);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+}
+
+.scratchpad-comments-back { border-bottom-color: var(--scratchpad-mark-wall); letter-spacing: 0.04em; color: var(--scratchpad-text); }
+
+.scratchpad-comments-title {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.scratchpad-comments-artist {
+    overflow: hidden;
+    color: var(--scratchpad-text-soft);
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scratchpad-comments-cover {
+    display: grid;
+    width: 64px;
+    height: 64px;
+    flex: none;
+    place-items: center;
+    overflow: hidden;
+    background: var(--scratchpad-rail);
+}
+
+.scratchpad-comments-cover img { width: 100%; height: 100%; object-fit: cover; }
+.scratchpad-comments-cover svg { width: 22px; height: 22px; opacity: 0.4; }
+
+/* 标签：米白纸片、墨字，× 去掉；「+ 标签」是虚线框。 */
+.scratchpad-comments-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.scratchpad-comments-tag {
+    display: flex;
+    height: 24px;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px 0 8px;
+    background: var(--scratchpad-paper);
+    color: var(--scratchpad-ink);
+    font-size: 11.5px;
+    font-weight: 800;
+}
+
+.scratchpad-comments-tag button {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+}
+
+.scratchpad-comments-tag button:hover { opacity: 1; }
+.scratchpad-comments-tag button:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: -2px; }
+.scratchpad-comments-tag svg { width: 12px; height: 12px; }
+
+.scratchpad-comments-tag-add {
+    display: flex;
+    height: 24px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border: 1px dashed var(--scratchpad-text-soft);
+    background: transparent;
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.scratchpad-comments-tag-add:hover { border-style: solid; color: var(--scratchpad-text); }
+.scratchpad-comments-tag-add:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 1px; }
+.scratchpad-comments-tag-add svg { width: 12px; height: 12px; }
+
+.scratchpad-comments-tag-input {
+    width: 140px;
+    height: 24px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border: 0;
+    border-bottom: 2px solid var(--scratchpad-mark-wall);
+    background: var(--scratchpad-raise);
+    color: var(--scratchpad-text);
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+}
+
+/* 小时间轴：一道细线，点缀色的刻痕是挂着时刻的评论，菱形是正在播的位置（只写 transform）。 */
+.scratchpad-comments-timeline { position: relative; height: 18px; margin: 2px 0 0; }
+
+.scratchpad-comments-timeline-track {
+    position: absolute;
+    top: 8px;
+    right: 0;
+    left: 0;
+    height: 2px;
+    background: var(--scratchpad-raise);
+}
+
+.scratchpad-comments-timeline-mark {
+    position: absolute;
+    top: 2px;
+    width: 12px;
+    height: 14px;
+    margin-left: -6px;
+    padding: 0;
+    border: 0;
+    background: linear-gradient(90deg, transparent 4.5px, var(--scratchpad-mark-wall) 4.5px 7.5px, transparent 7.5px);
+    cursor: pointer;
+}
+
+.scratchpad-comments-timeline-mark:disabled { cursor: default; }
+.scratchpad-comments-timeline-mark:hover:not(:disabled) { background: linear-gradient(90deg, transparent 3.5px, var(--scratchpad-mark-wall) 3.5px 8.5px, transparent 8.5px); }
+.scratchpad-comments-timeline-mark:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 1px; }
+
+.scratchpad-comments-timeline-carrier { position: absolute; inset: 0; pointer-events: none; will-change: transform; }
+
+.scratchpad-comments-timeline-now {
+    position: absolute;
+    top: 5px;
+    left: -4px;
+    width: 8px;
+    height: 8px;
+    background: var(--scratchpad-text);
+    transform: rotate(45deg);
+}
+
+/* 排序：两个字的开关，选中的那个下面一道点缀色；右边写几条。 */
+.scratchpad-comments-sort {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 14px;
+    margin: 12px 14px 6px 18px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--scratchpad-raise);
+}
+
+.scratchpad-comments-sort-option {
+    padding: 2px 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.scratchpad-comments-sort-option.is-active { border-bottom-color: var(--scratchpad-mark-wall); color: var(--scratchpad-text); }
+.scratchpad-comments-sort-option:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
+.scratchpad-comments-sort-count { margin-left: auto; color: var(--scratchpad-text-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* 「音乐笔记」模组库的一次性提示：左边一道点缀色竖线，字小，两个文字按钮。 */
+.scratchpad-comments-modhint {
+    flex: 0 0 auto;
+    margin: 10px 14px 4px 18px;
+    padding: 6px 0 6px 10px;
+    border-left: 2px solid var(--scratchpad-mark-wall);
+    color: var(--scratchpad-text-soft);
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+.scratchpad-comments-modhint p { margin: 0; }
+.scratchpad-comments-modhint-actions { display: flex; gap: 14px; margin-top: 4px; }
+.scratchpad-comments-modhint-actions button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+.scratchpad-comments-modhint-actions .scratchpad-comments-modhint-go { color: var(--scratchpad-text); }
+.scratchpad-comments-modhint-actions button:hover { color: var(--scratchpad-text); }
+.scratchpad-comments-modhint-actions button:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
+
+/* 评论列表：挂着时刻的前面一块点缀色时间块，普通评论前面一个「；悬停出现编辑、删除。 */
+.scratchpad-comment-scroll { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
+.scratchpad-comment-list { margin: 0; padding: 0 0 8px; list-style: none; }
+
+.scratchpad-comment {
+    position: relative;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding: 8px 10px 8px 18px;
+}
+
+.scratchpad-comment:hover { background: var(--scratchpad-raise); }
+
+.scratchpad-comment-at {
+    padding: 3px 0;
+    border: 0;
+    background: var(--scratchpad-mark-wall);
+    color: var(--scratchpad-sheet);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+}
+
+button.scratchpad-comment-at { cursor: pointer; }
+button.scratchpad-comment-at:hover { filter: brightness(1.1); }
+button.scratchpad-comment-at:focus-visible { outline: 2px solid var(--scratchpad-text); outline-offset: 1px; }
+
+.scratchpad-comment-quote {
+    color: var(--scratchpad-mark-wall);
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+    text-align: right;
+}
+
+.scratchpad-comment-body { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+
+.scratchpad-comment-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.scratchpad-comment-text.is-empty { color: var(--scratchpad-text-soft); font-style: italic; }
+.scratchpad-comment-when { color: var(--scratchpad-text-soft); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+
+.scratchpad-comment-actions { display: flex; opacity: 0; transition: opacity 0.12s ease; }
+.scratchpad-comment:hover .scratchpad-comment-actions,
+.scratchpad-comment:focus-within .scratchpad-comment-actions { opacity: 1; }
+.scratchpad-comment-actions .scratchpad-icon-button { width: 28px; height: 28px; }
+
+.scratchpad-comment-actions .scratchpad-icon-button.is-confirming {
+    display: flex;
+    width: auto;
+    gap: 4px;
+    padding: 0 8px;
+    background: var(--scratchpad-mark-wall);
+    color: var(--scratchpad-sheet);
+    font-size: 11px;
+    font-weight: 800;
+    opacity: 1;
+}
+
+.scratchpad-comment-edit,
+.scratchpad-composer-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 0;
+    border-bottom: 2px solid var(--scratchpad-mark-wall);
+    background: var(--scratchpad-rail);
+    color: var(--scratchpad-text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+}
+
+.scratchpad-comment-divider {
+    margin: 6px 14px 2px 18px;
+    padding-top: 8px;
+    border-top: 1px solid var(--scratchpad-raise);
+    color: var(--scratchpad-text-soft);
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+}
+
+.scratchpad-comments-none { margin: 10px 14px 0 18px; color: var(--scratchpad-text-soft); font-size: 12.5px; line-height: 1.6; flex: 1 1 auto; }
+
+/* 输入框：底部一块，Enter 记下；「挂在 01:47」开着时垫点缀色。 */
+.scratchpad-composer {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px 16px 18px;
+    background: var(--scratchpad-rail);
+}
+
+.scratchpad-composer-input { background: var(--scratchpad-sheet); }
+.scratchpad-composer-row { display: flex; align-items: center; gap: 8px; }
+
+.scratchpad-composer-pin {
+    display: flex;
+    height: 28px;
+    align-items: center;
+    gap: 5px;
+    padding: 0 8px;
+    border: 1px solid var(--scratchpad-raise);
+    background: transparent;
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.scratchpad-composer-pin svg { width: 13px; height: 13px; }
+.scratchpad-composer-pin:hover:not(:disabled) { color: var(--scratchpad-text); }
+.scratchpad-composer-pin.is-on { border-color: var(--scratchpad-mark-wall); background: var(--scratchpad-mark-wall); color: var(--scratchpad-sheet); }
+.scratchpad-composer-pin:disabled { opacity: 0.4; cursor: default; }
+.scratchpad-composer-pin:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 1px; }
+.scratchpad-composer-pin-time { font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.scratchpad-composer-hint { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--scratchpad-text-soft); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 没歌在播时：最近评论过的几首。 */
+.scratchpad-comments-recent { min-height: 0; flex: 1 1 auto; margin: 0; padding: 0 0 12px; overflow-y: auto; list-style: none; }
+
+.scratchpad-comments-recent-item {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 14px 9px 18px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.scratchpad-comments-recent-item:hover { background: var(--scratchpad-raise); }
+.scratchpad-comments-recent-item:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: -2px; }
+.scratchpad-comments-recent-title { font-size: 13.5px; font-weight: 800; }
+.scratchpad-comments-recent-meta { color: var(--scratchpad-text-soft); font-size: 11px; }
+
+.scratchpad-comments-recent-quote {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--scratchpad-text-soft);
+    font-size: 12px;
+    font-style: italic;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+/* —— 展开整页：按标签分组的目录卡（画布与另外三页共用，ScratchpadCanvas）。单击卡片是在面板里看这一首。—— */
+.scratchpad-canvas.is-catalog .scratchpad-card { cursor: pointer; }
+
+/* 信息条右端的搜索框（只有这一页有）：墨色细线框、方角，同条上别的按钮。 */
+.scratchpad-comments-search {
+    display: inline-flex;
+    width: 280px;
+    height: 34px;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border: 1.5px solid var(--scratchpad-ink);
+    background: transparent;
+    color: var(--scratchpad-ink);
+}
+
+.scratchpad-comments-search svg { width: 15px; height: 15px; flex: none; opacity: 0.7; }
+
+.scratchpad-comments-search input {
+    min-width: 0;
+    flex: 1 1 auto;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.scratchpad-comments-search input::placeholder { color: rgb(20 20 20 / 45%); }
+.scratchpad-comments-search input::-webkit-search-cancel-button { display: none; }
+.scratchpad-comments-search-count { flex: none; font-size: 11.5px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.scratchpad-comments-search:focus-within { box-shadow: 3px 3px 0 var(--scratchpad-mark); }
+
+/* —— 另外三页：卡片封面左上角那一小条标签与评论数，行里歌手下面那一小行（只是显示）—— */
+.scratchpad-card-noteline {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    max-width: calc(100% - 12px);
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 2px 6px;
+    background: var(--scratchpad-ink);
+    color: var(--scratchpad-paper);
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.scratchpad-card.is-film .scratchpad-card-noteline { top: auto; bottom: 6px; }
+
+.scratchpad-row-noteline {
+    display: block;
+    overflow: hidden;
+    color: var(--scratchpad-mark-wall);
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 卡片封面上的「评论」钮：在播放钮左边。 */
+.scratchpad-card-play.is-comment { right: 42px; }
+.scratchpad-canvas .scratchpad-card-play.is-comment { right: 48px; }
+.scratchpad-card-play.is-comment svg { margin-left: 0; }
+
+/* —— 标签小浮层（ScratchpadTagPopovers）：整理标签、批量打标签。墨色底、米白字、方角，贴着打开它的按钮。—— */
+.scratchpad-tag-popover {
+    position: fixed;
+    /* 抽屉是 95（展开整页铺满视口），弹窗是 100：浮层压在抽屉上、弹窗下。 */
+    z-index: 98;
+    display: flex;
+    width: 340px;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: var(--scratchpad-ink);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 55%);
+    color: var(--scratchpad-paper);
+    font-size: 12.5px;
+    visibility: hidden;
+}
+
+.scratchpad-tag-popover-title { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 14px; font-weight: 900; }
+.scratchpad-tag-popover-count { color: var(--scratchpad-mark-dark); font-size: 12px; font-variant-numeric: tabular-nums; }
+.scratchpad-tag-popover-label { margin: 2px 0 0; opacity: 0.6; font-size: 11.5px; font-weight: 800; }
+.scratchpad-tag-popover-field { display: flex; gap: 6px; }
+
+.scratchpad-tag-popover-field input {
+    min-width: 0;
+    height: 32px;
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    padding: 0 10px;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 0;
+    outline: none;
+    background: rgb(255 255 255 / 6%);
+    color: inherit;
+    font: inherit;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.scratchpad-tag-popover-field input:focus { border-color: var(--scratchpad-mark-dark); }
+.scratchpad-tag-popover-row,
+.scratchpad-tag-popover-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.scratchpad-tag-popover-ask > span { flex: 1 1 100%; color: var(--scratchpad-mark-dark); font-weight: 800; }
+.scratchpad-tag-popover-spacer { flex: 1 1 auto; }
+
+.scratchpad-tag-popover-button {
+    display: inline-flex;
+    height: 32px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 0;
+    background: rgb(255 255 255 / 9%);
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.scratchpad-tag-popover-button svg { width: 14px; height: 14px; }
+.scratchpad-tag-popover-button:hover:not(:disabled) { background: var(--scratchpad-paper); color: var(--scratchpad-ink); }
+.scratchpad-tag-popover-button:disabled { opacity: 0.35; cursor: default; }
+.scratchpad-tag-popover-button.is-mark { background: var(--scratchpad-mark-dark); color: var(--scratchpad-ink); }
+.scratchpad-tag-popover-button.is-danger { background: #c8442f; color: #fff; }
+
+.scratchpad-tag-popover-chips { display: flex; max-height: 132px; flex-wrap: wrap; gap: 6px; overflow-y: auto; }
+
+.scratchpad-tag-chip {
+    display: inline-flex;
+    height: 26px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.scratchpad-tag-chip svg { width: 12px; height: 12px; opacity: 0.7; }
+.scratchpad-tag-chip:hover:not(:disabled) { border-color: var(--scratchpad-paper); background: var(--scratchpad-paper); color: var(--scratchpad-ink); }
+.scratchpad-tag-chip.is-removable:hover:not(:disabled) { border-color: #c8442f; background: #c8442f; color: #fff; }
+
+/* —— 目录卡（is-catalog）：米白卡、左上小封面与编号、歌名、歌手，一道点缀色的线，标签，横格上斜体的最新一条评论，底下计数。
+   不要底部的穿孔圆点（用户定，2026-11-24）。默认是展开整页的 172 × 214；总览里那张小的在下面另写。 */
+.scratchpad-card.is-catalog {
+    display: block;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: var(--scratchpad-paper);
+    box-shadow: 0 10px 22px rgb(0 0 0 / 35%);
+    color: var(--scratchpad-ink);
+    overflow: hidden;
+}
+
+.scratchpad-card.is-catalog::before {
+    position: absolute;
+    top: 112px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: repeating-linear-gradient(180deg, transparent 0 17px, rgb(20 20 20 / 9%) 17px 18px);
+    content: '';
+    pointer-events: none;
+}
+
+.scratchpad-card.is-catalog:hover { background: #f8f5ee; }
+.scratchpad-card.is-catalog .scratchpad-card-cover { position: absolute; top: 10px; left: 10px; width: 42px; height: 42px; aspect-ratio: auto; border-radius: 0; }
+.scratchpad-card.is-catalog .scratchpad-card-play { width: 24px; height: 24px; }
+.scratchpad-card.is-catalog .scratchpad-card-play svg { width: 11px; height: 11px; }
+.scratchpad-card.is-catalog .scratchpad-card-placeholder svg { width: 18px; height: 18px; }
+
+.scratchpad-card-no {
+    position: absolute;
+    top: 12px;
+    left: 61px;
+    color: rgb(20 20 20 / 55%);
+    font: 700 9.5px/1 ui-monospace, Menlo, Consolas, monospace;
+    letter-spacing: 0.06em;
+}
+
+.scratchpad-card.is-catalog .scratchpad-card-name {
+    position: absolute;
+    top: 25px;
+    right: 10px;
+    left: 61px;
+    display: -webkit-box;
+    margin: 0;
+    padding: 0;
+    font-size: 13.5px;
+    font-weight: 900;
+    line-height: 1.2;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+/* 正在播的那张：名字不换强调色（强调色常是浅色，压在米白纸上看不见），右下角的「正在播放」印章已经标出来了。 */
+.scratchpad-card.is-catalog.is-current .scratchpad-card-name { color: #141414; }
+
+.scratchpad-card.is-catalog .scratchpad-card-meta { position: absolute; top: 60px; right: 10px; left: 10px; margin: 0; padding: 0; color: rgb(20 20 20 / 70%); font-size: 11px; font-weight: 600; opacity: 1; }
+.scratchpad-card-rule { position: absolute; top: 80px; right: 0; left: 0; height: 2px; background: var(--scratchpad-mark); }
+
+.scratchpad-card-tags {
+    position: absolute;
+    top: 88px;
+    right: 10px;
+    left: 10px;
+    overflow: hidden;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scratchpad-card-quote {
+    position: absolute;
+    top: 112px;
+    right: 10px;
+    left: 10px;
+    display: -webkit-box;
+    overflow: hidden;
+    color: rgb(20 20 20 / 82%);
+    font-size: 11.5px;
+    font-style: italic;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.scratchpad-card-foot {
+    position: absolute;
+    right: 10px;
+    bottom: 9px;
+    left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+}
+
+.scratchpad-card-playing { padding: 1px 5px; background: var(--scratchpad-ink); color: var(--scratchpad-paper); font-size: 9.5px; letter-spacing: 0.08em; }
+
+/* —— 总览里的小卡（2026-11-24 四行总览，卡都是 102px 高，canvasLayout.ts 的 *_ROW_SPACING）—— */
+.scratchpad-overview .scratchpad-card.is-note::before { top: 54px; left: 11px; }
+.scratchpad-overview .scratchpad-card.is-note .scratchpad-card-cover { height: 54px; }
+.scratchpad-overview .scratchpad-card.is-note .scratchpad-card-name { margin: 6px 6px 0 18px; font-size: 12px; }
+.scratchpad-overview .scratchpad-card.is-note .scratchpad-card-meta { margin: 3px 6px 0 18px; padding-top: 2px; font-size: 10px; }
+
+.scratchpad-overview .scratchpad-card.is-photo { grid-template-rows: 70px auto; padding: 5px 5px 0; }
+.scratchpad-overview .scratchpad-card.is-photo .scratchpad-card-cover { width: 82px; height: 70px; }
+.scratchpad-overview .scratchpad-card.is-photo .scratchpad-card-name { margin-top: 4px; font-size: 10.5px; }
+.scratchpad-overview .scratchpad-card.is-photo .scratchpad-card-meta { font-size: 9.5px; }
+
+.scratchpad-overview .scratchpad-card.is-film .scratchpad-card-cover { top: 13px; bottom: 23px; }
+.scratchpad-overview .scratchpad-card.is-film .scratchpad-card-name { bottom: 27px; font-size: 11.5px; }
+.scratchpad-overview .scratchpad-card.is-film .scratchpad-card-edge { bottom: 9px; font-size: 9px; }
+.scratchpad-overview .scratchpad-card-play { width: 26px; height: 26px; }
+
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-cover { top: 8px; left: 8px; width: 28px; height: 28px; }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-play { display: none; }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-no { display: none; }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-name { top: 8px; right: 8px; left: 43px; font-size: 11.5px; }
+.scratchpad-overview .scratchpad-card.is-catalog :is(.scratchpad-card-meta, .scratchpad-card-tags) { display: none; }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-rule { top: 42px; }
+.scratchpad-overview .scratchpad-card.is-catalog::before { top: 50px; background: repeating-linear-gradient(180deg, transparent 0 13px, rgb(20 20 20 / 9%) 13px 14px); }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-quote { top: 50px; right: 8px; left: 8px; font-size: 10px; line-height: 14px; -webkit-line-clamp: 2; }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-foot { right: 8px; bottom: 5px; left: 8px; font-size: 9.5px; }
+.scratchpad-overview .scratchpad-card.is-catalog .scratchpad-card-playing { display: none; }

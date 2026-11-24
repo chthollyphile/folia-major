@@ -26,11 +26,13 @@ type ScratchpadRowProps = {
     entry: ScratchpadEntry;
     canAddToPlaylist: boolean;
     isFresh: boolean;
+    /** 这首的标签与评论数（「#夜车 · 3 条」），没有就不画。 */
+    noteLine?: string;
     actions: ScratchpadRowActions;
     labels: ScratchpadRowLabels;
 };
 
-const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, canAddToPlaylist, isFresh, actions, labels }) => {
+const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, canAddToPlaylist, isFresh, noteLine, actions, labels }) => {
     const { song } = entry;
     const coverUrl = scratchpadCoverUrl(song, 96);
     // 本地歌的封面是上次启动的 blob 地址，重启后就读不到了：读不到时换成占位图标。
@@ -57,6 +59,7 @@ const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, canAddToPlaylist, 
             >
                 <span className="scratchpad-name">{song.name}</span>
                 <span className="scratchpad-meta">{[artist, entry.origin?.label].filter(Boolean).join(' · ')}</span>
+                {noteLine && <span className="scratchpad-row-noteline">{noteLine}</span>}
             </button>
             <span className="scratchpad-row-actions">
                 <button

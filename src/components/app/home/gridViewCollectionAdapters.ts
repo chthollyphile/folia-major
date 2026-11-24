@@ -1,5 +1,5 @@
 import type React from 'react';
-import { LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
+import { LocalLibraryGroup, LocalSong, SongResult, type UnifiedSong } from '../../../types';
 import { LIST_ROW_COVER_SIZE, buildLocalQueue } from '../../../services/playbackAdapters';
 import { sortLocalAlbumSongs, sortLocalFolderSongs } from '../../../utils/localSongSorting';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../types/localLibrary';
@@ -13,6 +13,8 @@ import type {
 } from '../../../library/core/collection/collection.contract';
 import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
 import { getLocalCoverAssetUrl } from '../../../services/localCoverAssetUrl';
+import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
+import { getFoliaEntryLocalSongId } from '../../../utils/foliaPlaylistEntries';
 
 // src/components/app/home/gridViewCollectionAdapters.ts
 // Converts home-surface collections into small GridView descriptors and resolves non-Netease tracks outside GridView.
@@ -202,6 +204,36 @@ export const resolveLocalGridViewTracks = (
 
     // Row-sized covers: GridView renders these as list thumbnails, never full-bleed.
     return buildLocalQueue(orderedSongs, undefined, catalog, LIST_ROW_COVER_SIZE) as SongResult[];
+};
+
+// 换了来源的条目（转存时改由别的音源播放）把原来那首的 key 带在行上，界面据此画一个记号。只跟着这一行走：
+// 快照里要是留着别处带来的这个字段（这首歌是从另一张转存歌单里加过来的），而这一条自己没换过，就拿掉。
+const withFoliaOriginalKey = (song: SongResult, originalKey: string | undefined): SongResult => {
+    const carried = (song as UnifiedSong).foliaOriginalKey;
+    if (carried === originalKey) return song;
+    const { foliaOriginalKey: _carried, ...rest } = song as UnifiedSong;
+    return (originalKey ? { ...rest, foliaOriginalKey: originalKey } : rest) as SongResult;
+};
+
+/**
+ * Folia 聚合歌单的曲目，按歌单里的顺序：本地条目换成曲库里那首（和本地集合同一种行），别的来源的条目用歌单存着的快照
+ * （来源停用、卸载后照样显示）。曲库里没有的本地条目不出现（歌单下次读的时候会把它删掉）。
+ */
+export const resolveFoliaPlaylistTracks = (
+    playlist: Pick<FoliaPlaylist, 'entries'>,
+    localSongs: LocalSong[],
+    catalog?: { entities: LocalLibraryEntity[]; assignments: LocalLibraryAssignment[]; },
+): SongResult[] => {
+    const songsById = new Map(localSongs.map(song => [song.id, song]));
+    const localEntries = playlist.entries.flatMap(entry => songsById.get(getFoliaEntryLocalSongId(entry) ?? '') ?? []);
+    const localTracks = new Map(buildLocalQueue(localEntries, undefined, catalog, LIST_ROW_COVER_SIZE).flatMap(track => (
+        track.localRef?.songId ? [[track.localRef.songId, track as SongResult] as const] : []
+    )));
+    return playlist.entries.flatMap(entry => {
+        const localSongId = getFoliaEntryLocalSongId(entry);
+        if (localSongId === null) return [withFoliaOriginalKey(entry.song, entry.originalKey)];
+        return localTracks.get(localSongId) ?? [];
+    });
 };
 
 const getLocalGridViewCoverSource = (songs: LocalSong[]): string | undefined => {

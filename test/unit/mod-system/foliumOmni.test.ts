@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Stores read localStorage at import time; see foliumUiRegistries.test.ts.
@@ -31,21 +32,15 @@ vi.mock('@/utils/lyrics/workerClient', async () => {
     };
 });
 
-// KuGou's adapter is real; only its request to the backend is replaced.
-const requestKugou = vi.hoisted(() => vi.fn());
-// Its search without a signed-in session goes to the backend by a request of its own, replaced too.
-const requestKugouAnonymousSearch = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/kugou/kugouTransport', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/kugou/kugouTransport')>(),
-    requestKugou,
-    requestKugouAnonymousSearch,
-}));
+// KuGou's source mod is real (registered by the setup, its desktop transport); only what its main entry answers is
+// replaced (helpers/kugouSource.ts): the request to KuGouMusicApi, and the search without a signed-in session.
+const { request: requestKugou, anonymousSearch: requestKugouAnonymousSearch } = answerKugouRequests();
 // QQ Music's adapter is real as well; only its request to the backend is replaced, and the request it sends
 // to QQ's musicu directly (a song by its numeric songid, songs many at once).
 const requestQq = vi.hoisted(() => vi.fn());
 const requestQqMusicu = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/qq/qqTransport', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     requestQq,
     requestQqMusicu,
 }));
@@ -54,8 +49,8 @@ import type { SongResult } from '@/types';
 import type { ModRuntimeInfo } from '@/mods/types';
 import type { FoliumCollection, FoliumOmniService, FoliumProviderSong, FoliumSong, FoliumOmniProviderDef } from '@/mods/folium/contract';
 import { OnlineProviderError } from '@/types/onlineMusic';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { neteaseRaw } from '@/services/onlineMusic/netease/neteaseRaw';
+import { neteaseApi } from '../../../sources/netease/core/netease';
+import { neteaseRaw } from '../../../sources/netease/core/neteaseRaw';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { omni } from '@/services/onlineMusic/omni';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
@@ -71,6 +66,7 @@ import { installFoliumHostAccount } from '@/mods/runtime/hostAccount';
 import { FOLIUM_HOST_OMNI_SOURCE, installFoliumHostOmni } from '@/mods/runtime/omni/hostOmni';
 import { clearFoliumResolvedSongsForTest, readFoliumResolvedSong } from '@/mods/runtime/omni/omniResolveCache';
 import { clientApiOptions } from './clientApiOptions';
+import { answerKugouRequests } from '../helpers/kugouSource';
 
 // test/unit/mod-system/foliumOmni.test.ts
 // Folium 1.7 `folium.omni`: the stable read-only view of the host's online sources. Everything runs on the
@@ -226,11 +222,13 @@ describe('folium.omni.listProviders', () => {
     it('lists the built-in sources in the host order, the selected one marked, nothing of the account', () => {
         signIn('netease', 9_876_543);
         const providers = omniOf().listProviders();
-        expect(providers.map((provider) => provider.providerId).slice(0, 6)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify']);
+        // Folium 2.0: Bodian, a source mod now, keeps its place from before it moved (the registry order).
+        expect(providers.map((provider) => provider.providerId)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic', 'lxmusic']);
         expect(providers[0]).toEqual({
             providerId: 'netease',
             displayName: 'NetEase Cloud Music',
-            shortName: '网易云',
+            // The source mod's own short name, in the language of the page (the tests run in English).
+            shortName: 'NetEase',
             origin: 'host',
             selected: true,
             configured: true,
@@ -300,7 +298,7 @@ describe('folium.omni.searchSongs', () => {
         expect(Object.isFrozen(page.items)).toBe(true);
         expect(Object.isFrozen(page.items[0])).toBe(true);
         // The refs work with playSong and enqueue: they resolve to the host songs.
-        expect(resolveFoliumSongRef(page.items[0].ref)).toMatchObject({ id: 1, sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
+        expect(resolveFoliumSongRef(page.items[0].ref)).toMatchObject({ id: '1', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
     });
 
     it('searches the source named, a mod\'s included, and rejects unsupported where there is no search', async () => {
@@ -641,8 +639,10 @@ describe('folium.omni.resolveSongs', () => {
         expect(details).toHaveBeenCalledTimes(4);
     });
 
-    // QQ Music's song id (`FoliumSong.id`) is the numeric songid; its play key is the songmid. Its adapter looks
-    // both up at QQ's musicu, 25 a request, and every request counts once against the mod's allowance.
+    // QQ Music's song id (`FoliumSong.id`) is its numeric songid, as since Folium 1.7, also now that QQ is a source mod
+    // (the mod's own id is the songmid; it gives the songid as `publicId`; the maintainer kept it so on 2026-11-20); a
+    // key may be either. Its adapter looks both up at QQ's musicu, 25 a request, and every request
+    // counts once against the mod's allowance.
     describe('QQ Music keys', () => {
         type MusicuRequests = Record<string, { module: string; method: string; param: { song_type: number; song_id?: unknown; song_mid?: unknown } }>;
         const SUNNY_MID = '0039MnYb0qxYhV';
@@ -676,7 +676,9 @@ describe('folium.omni.resolveSongs', () => {
 
             expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
             const song = (resolution as { song: FoliumSong }).song;
-            expect(resolveFoliumSongRef(song.ref)).toMatchObject({ id: 97773, qqMid: SUNNY_MID });
+            expect(resolveFoliumSongRef(song.ref)).toMatchObject({
+                id: '97773', qqMid: SUNNY_MID, sourceRef: { mediaId: SUNNY_MID, providerData: { songId: 97773 } },
+            });
             expect(requestQqMusicu).toHaveBeenCalledTimes(1);
             expect(sentRequests(0)).toEqual([{
                 module: 'music.pf_song_detail_svr', method: 'get_song_detail_yqq', param: { song_type: 0, song_id: 97773 },
@@ -687,10 +689,11 @@ describe('folium.omni.resolveSongs', () => {
             expect(requestQqMusicu).toHaveBeenCalledTimes(1);
         });
 
-        it('finds a key by its songmid at musicu too, as the same song with its numeric id', async () => {
+        it('finds a key by its songmid at musicu too, as the same song', async () => {
             answerMusicu();
             const [resolution] = await omniOf().resolveSongs([{ source: 'qq', id: SUNNY_MID }]);
 
+            // Found by its songmid, it is still the song mods know by its numeric songid.
             expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
             expect(requestQqMusicu).toHaveBeenCalledTimes(1);
             const [request] = sentRequests(0);

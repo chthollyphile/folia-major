@@ -133,7 +133,7 @@ export const BRAVAIS_HOME_SEAM_GEOMETRY = {
     title: { left: 0.3, width: 0.4, top: 0.028, height: 0.022 },
     fold: { left: 0.38, top: 0.066, width: 0.24, square: true },
     tabs: { left: 0.26, right: 0.26, top: 0.112, height: 0.356 },
-    /** 五个一级页签：歌单、电台、专辑、本地、Navidrome。 */
+    /** 一级页签的位置（首页两级页签的组：Folia、当前在线音源、本地、Navidrome，示意图画前四个；第五个位置留给模组的首页页面）。 */
     tab: [homeTab(0), homeTab(1), homeTab(2), homeTab(3), homeTab(4)],
     /** 二级切换（本地四行）：激活那一项写出竖排文字，其余只有图标。 */
     sections: { left: 0.3, width: 0.4, top: 0.482, height: 0.18 },

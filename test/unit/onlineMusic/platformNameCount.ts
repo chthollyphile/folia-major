@@ -35,20 +35,23 @@ export const PLATFORM_NAMES = {
     qishui: /qishui|汽水音乐/i,
     appleMusic: /applemusic|apple music|苹果音乐/i,
     fnmusic: /fnmusic|飞牛/i,
+    lxmusic: /lxmusic|洛雪/i,
 } as const;
 
 export type CountedPlatform = keyof typeof PLATFORM_NAMES;
 export const COUNTED_PLATFORMS = Object.keys(PLATFORM_NAMES) as CountedPlatform[];
 
-// Folders whose code runs the app. Tests and dev probes hold fixtures and are not counted.
-const ROOTS = ['src', 'electron', 'api', 'api-ts', 'worker'];
+// Folders whose code runs the app. Tests and dev probes hold fixtures and are not counted. Folium 2.0: the source
+// mods (sources/<id>/, a platform's own folder by its name like the old ones) and the packages they share
+// (packages/folium-source-kit) run the app too; while the platforms move there one by one, both places are counted.
+const ROOTS = ['src', 'electron', 'api', 'api-ts', 'worker', 'sources', 'packages'];
 const SOURCE_FILE = /\.(ts|tsx|cjs|mjs|js|css|md)$/;
 // The language files are where a platform's texts are written, and a document describes the
 // platforms: both are free to name one, and are counted apart.
 const LANGUAGE_FILE = /^src\/i18n\/locales\//;
 const DOCUMENT = /\.md$/;
 // Never read: it holds no platform rule of ours and must not be opened.
-const SKIPPED_FILE = /^electron\/ytm\/poToken\.cjs$/;
+const SKIPPED_FILE = /^sources\/ytm\/main\/poToken\.cjs$/;
 // Letters of other things that happen to spell a platform's name.
 const NOT_A_NAME = /MmLlHhVvCcSsQqTtAaZz|'quanqiu', 'qq'/g;
 const COMMENT_LINE = /^\s*(\/\/|\/?\*|\{\/\*)/;

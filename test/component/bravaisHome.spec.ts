@@ -5,12 +5,15 @@ import { HOME_FM_COUNT, HOME_FM_PREFIX, homeUserName, onlinePlaybackKey, onlineS
 import { HOME_LOCAL_FOLDER_IDS, homeFolderId } from '../../dev/probes/homeBehavior/homeFixtureRules';
 import { buildServiceStubModule, LOCAL_MUSIC_SERVICE_ROUTE } from '../../dev/probes/homeBehavior/serviceStubModule';
 import '../../dev/probes/homeBehavior/probeApi';
+import { homeGroupTab, selectOnlinePage } from './bravaisHomeNav';
 
 // test/component/bravaisHome.spec.ts
 // B9 bravais 首页的组件用例（homeBehavior 探针 + setSuite('bravais')），覆盖参数化用例（homeBehavior.spec）摸不到的
-// bravais 专属界面：换页签的整墙出场 / 入场与 F6、私人 FM 直接播放、本地四行是缝里的二级切换（不换层）、目录树面板
+// bravais 专属界面：换页的整墙出场 / 入场与 F6、私人 FM 直接播放、本地三行是缝里的二级切换（不换层）、目录树面板
 // （批量模式：墙退化为有限拼贴、点卡片只切换选中、批量按键、确认态、关面板丢掉选择）、管理隐藏视图与眼睛按钮、
 // 缝里的全局搜索（提交走 onSearchCommitted）、本地「⋯」与 Navidrome 刷新。
+// 首页是两级页签：缝里一级是组（Folia、当前在线音源、本地、Navidrome），在线组的歌单 / 电台 / 专辑是缝里的二级切换
+// （bravaisHomeNav 的 selectOnlinePage：先确保在在线组，再点二级）。
 // 墙是虚拟化的：只找此刻在 DOM 里的磁贴；探针左下角的 DEV 浮层可能盖住磁贴，点磁贴用派发点击（同一个 onClick）。
 
 const stage = (page: Page) => page.locator('[data-library-stage="bravais"]');
@@ -33,7 +36,7 @@ const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page)
     await settled(page);
 };
 
-/** fb3：二级切换（本地四行、Navidrome 的 section）只有激活项有文字，按 role / 可访问名（全名）找；只在中段里找，
+/** fb3：二级切换（在线组的页、本地三行、Navidrome 的 section）只有激活项有文字，按 role / 可访问名（全名）找；只在中段里找，
  * 免得撞上同名的一级页签（Albums）。 */
 const section = (page: Page, name: string) => seam(page).locator('[data-bravais-home-body]').getByRole('tab', { name, exact: true });
 
@@ -50,7 +53,7 @@ const runMenuItem = async (page: Page, id: string) => {
 };
 
 const showLocal = async (page: Page) => {
-    await seam(page).locator('[data-bravais-tab="local"]').click();
+    await homeGroupTab(page, 'local').click();
     await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
     await settled(page);
     await expect(page.locator('.bravais-tile[data-library-card^="card:folder:"]').first()).toBeAttached();
@@ -61,7 +64,7 @@ test.describe('[bravais-only] home', () => {
         await mountBravais(mount, page);
     });
 
-    test('switching tabs lifts the whole wall off and lands the next one; F6 cycles the tabs', async ({ page }) => {
+    test('switching pages lifts the whole wall off and lands the next one; F6 cycles the pages', async ({ page }) => {
         // 整墙出场 / 入场：内容层先抬起（出场的 WAAPI 动画往上抬 90 个世界单位），翻牌期间 stage 挂着 settling。
         // 点之前先装一个逐帧计数（记下同时在跑的「抬起」动画最多有几个）。
         await page.evaluate(() => {
@@ -78,7 +81,7 @@ test.describe('[bravais-only] home', () => {
             };
             requestAnimationFrame(count);
         });
-        await seam(page).locator('[data-bravais-tab="albums"]').click();
+        await selectOnlinePage(page, 'albums');
         await expect(stage(page)).toHaveAttribute('data-bravais-settling', 'true');
         await expect.poll(() => page.evaluate(() => (window as unknown as { __b9Lifted: number }).__b9Lifted)).toBeGreaterThan(5);
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:albums');
@@ -86,15 +89,20 @@ test.describe('[bravais-only] home', () => {
         await expect(page.locator('.bravais-tile[data-library-card^="card:album:"]').first()).toBeAttached();
         await expect(page.locator('.bravais-tile[data-library-card^="card:playlist:"]')).toHaveCount(0);
 
+        // F6 按页一个个轮（不按组）：在线组的最后一页（专辑）之后是本地，一级页签跟着换组；Shift+F6 回到专辑。
+        await expect(homeGroupTab(page, 'online')).toHaveAttribute('aria-selected', 'true');
         await page.keyboard.press('F6');
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
+        await expect(homeGroupTab(page, 'local')).toHaveAttribute('aria-selected', 'true');
+        await expect(homeGroupTab(page, 'online')).toHaveAttribute('aria-selected', 'false');
         await page.keyboard.press('Shift+F6');
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:albums');
+        await expect(homeGroupTab(page, 'online')).toHaveAttribute('aria-selected', 'true');
         expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('albums');
     });
 
     test('Personal FM plays straight away and stays on the radio wall', async ({ page }) => {
-        await seam(page).locator('[data-bravais-tab="radio"]').click();
+        await selectOnlinePage(page, 'radio');
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:radio');
         await settled(page);
         await page.evaluate(() => window.__homeProbe!.clearLog());
@@ -106,7 +114,7 @@ test.describe('[bravais-only] home', () => {
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:radio');
     });
 
-    test('the four local rows switch inside the seam without changing the layer', async ({ page }) => {
+    test('the local rows switch inside the seam without changing the layer', async ({ page }) => {
         await showLocal(page);
         await expect(section(page, 'Folders')).toHaveAttribute('aria-selected', 'true');
         // fb3：只有激活项显示竖排文字，其余只有图标（全名在 aria-label / title）。
@@ -351,7 +359,7 @@ test.describe('[bravais-only] home', () => {
         await runMenuItem(page, 'home-import-folder');
         await expect.poll(async () => (await calls(page, 'service')).map(call => call.key)).toEqual(['importFolder']);
 
-        await seam(page).locator('[data-bravais-tab="navidrome"]').click();
+        await homeGroupTab(page, 'navidrome').click();
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:navidrome');
         await expect(section(page, 'Albums')).toHaveAttribute('aria-selected', 'true');
         const refresh = seam(page).locator('[data-bravais-page-tools] [data-bravais-seam-action="refresh-navidrome"]');
@@ -697,8 +705,16 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.title.height).toBeGreaterThan(10);
         // 标题是横排的一行小字，不再与页签列并排占一大块。
         expect(layout.title.height).toBeLessThan(30);
-        expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
+        // 一级那一排是组：Folia、当前在线音源（名字是音源的名字）、本地、Navidrome。
+        expect(layout.tabs.map(tab => tab.key)).toEqual(['folia', 'online', 'local', 'navidrome']);
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
+        expect(layout.tabs.map(tab => tab.name)).toEqual(['Folia', PROBE_PROVIDER_A, 'Folder', 'Navi']);
+        // 在线组的页是中段的二级切换：歌单（激活，带文字）、电台、专辑。
+        expect(layout.sections.map(entry => [entry.name, entry.active, entry.label])).toEqual([
+            ['Playlists', true, 'Playlists'],
+            ['Radio', false, null],
+            ['Albums', false, null],
+        ]);
         // 工具格固定的几格（探针没有队列入口）；本页签的与 app 级的入口都在「⋯」里，本页签的在前、分隔线、app 级的在后。
         expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
         // 「回到播放页」只在有当前歌曲时出现（与左上角返回同一个判断，selectBravaisHasCurrentSong）：探针起始没有歌。
@@ -743,10 +759,10 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.fit).toBe('short');
         expect(layout.title.state).toBe('hidden');
         expect(layout.tabs.map(tab => [tab.text, tab.name, tab.title])).toEqual([
-            ['P', 'Playlists', 'Playlists'],
-            ['R', 'Radio', 'Radio'],
-            ['A', 'Albums', 'Albums'],
-            ['F', 'Folder', 'Folder'],
+            // 一级是组。首字撞了的（Folia / Folder）各取两个字：首字加第一个分得开的字（前三个字母相同 → Fi / Fd）。
+            ['Fi', 'Folia', 'Folia'],
+            ['P', PROBE_PROVIDER_A, PROBE_PROVIDER_A],
+            ['Fd', 'Folder', 'Folder'],
             ['N', 'Navi', 'Navi'],
         ]);
         // 本地页签：二级切换在中段，激活项的文字与页签同级退让（short 时也是一个字）。
@@ -759,14 +775,16 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(active.name).toBe('Folders');
         expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders');
 
-        // 再拉高：回到全名。方案 C：本地页签的工具格上面多了本页一组（目录、导入……），1100 高时只有标题让给它（全名还在）。
+        // 再拉高：回到全名。方案 C：本地页签的工具格上面多了本页一组（目录、导入……）。两级页签之后一级只有四个组、
+        // 本地只剩三行、本页一组少了导入歌单文件，1100 高时标题也放得下了（原先五个页签 + 四行时标题要让出来）。
         await resize(page, 1100);
-        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'untitled');
+        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'titled');
         await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
         await expectTidy(page);
 
         // 三级下折叠按钮都能点：小高度（标题隐藏、页签一个字）点它，缝折起来。
-        await resize(page, firstAt.get('short')!);
+        // firstAt 是在线组那一页量的；现在停在本地页签（三行，比在线页松），同一高度不一定到 short，压到最小的 480。
+        await resize(page, 480);
         await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'short');
         await seam(page).locator('[data-bravais-home-seam] [data-bravais-seam-action="hide"]').click();
         await expect(seam(page)).toHaveAttribute('data-bravais-seam-level', 'hidden');
@@ -776,11 +794,11 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await showLocal(page);
         const layout = await expectTidy(page);
         expect(layout.fit).toBe('titled');
+        // 本地歌单并进了 Folia：本地只剩三行。
         expect(layout.sections.map(entry => [entry.name, entry.active, entry.label])).toEqual([
             ['Folders', true, 'Folders'],
             ['Albums', false, null],
             ['Artists', false, null],
-            ['Playlists', false, null],
         ]);
         expect(layout.sections.every(entry => entry.icon)).toBe(true);
         expect(layout.sections.find(entry => entry.active)!.writingMode).toBe('vertical-rl');
@@ -789,11 +807,11 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             expect(layout.sections[i].top).toBeGreaterThanOrEqual(layout.sections[i - 1].bottom - 0.5);
             expect(Math.abs((layout.sections[i].left + layout.sections[i].right) - (layout.sections[0].left + layout.sections[0].right))).toBeLessThanOrEqual(2);
         }
-        // 方案 C：本地页签的目录、导入文件夹、刷新、导入歌单文件在工具格上面的本页一组里（按优先级），目录是开关；
+        // 方案 C：本地页签的目录、导入文件夹、刷新在工具格上面的本页一组里（按优先级；导入歌单文件搬去了 Folia 页），目录是开关；
         // 「⋯」里只剩本页的其余项，分隔线后是 app 级的（有当前歌曲才有「回到播放页」）。
         const pageTools = seam(page).locator('[data-bravais-page-tools] > *');
         await expect.poll(() => pageTools.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-bravais-seam-action'))))
-            .toEqual(['directory', 'home-import-folder', 'home-refresh-folders', 'home-import-playlist']);
+            .toEqual(['directory', 'home-import-folder', 'home-refresh-folders']);
         await expect(seam(page).locator('[data-bravais-page-tools] [data-bravais-seam-action="directory"]')).toHaveAttribute('aria-pressed', 'false');
         await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();

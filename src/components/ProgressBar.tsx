@@ -2,12 +2,16 @@ import React, { useCallback, useLayoutEffect, useRef } from 'react';
 import { MotionValue, useMotionValueEvent } from 'framer-motion';
 import { FoliumProgressButtons, FoliumProgressLayers, useFoliumProgressContext } from '../mods/folium/registries/progress';
 import { getProgressFillStep, getProgressFillStepFraction } from './progressFillStep';
+import { SongNoteMarks } from './song-notes/SongNoteProgress';
+import { useChorusMarkerFraction } from './progressChorusMarker';
 
 // Folium public parts (mods/README.md): `data-folium-part` marks what mod CSS may
 // restyle — progress.root / track / fill / thumb / time / duration. Colors come
 // in as CSS custom properties rather than inline colors, so a mod stylesheet in
 // `@layer folium-mods` can override them without !important. Everything else
 // about this markup is not API.
+// Song notes (src/components/song-notes/) draw here too: a row of dots under the track for the playing song's timed comments
+// (tips go to document.body, the capsule clips). Jotting one down is a capsule slot action (mark-moment), not a button on this bar.
 
 interface ProgressBarProps {
     currentTime: MotionValue<number>;
@@ -27,6 +31,8 @@ interface ProgressBarProps {
      * a 3px track, and a taller invisible hit area so it can still be dragged.
      */
     variant?: 'default' | 'line';
+    /** False for a bar that is not the song on screen: the chorus tick belongs to the lyrics shown. */
+    chorusMarker?: boolean;
 }
 
 
@@ -50,6 +56,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     edgeStyle = 'rounded',
     collapsed = false,
     variant = 'default',
+    chorusMarker = true,
 }) => {
     const isLine = variant === 'line';
     const progressRef = useRef<HTMLDivElement>(null);
@@ -61,6 +68,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const lastInputSecondRef = useRef<number | null>(null);
     const trackDeviceWidthRef = useRef(0);
     const lastFillStepRef = useRef<number | null>(null);
+    const chorusFraction = useChorusMarkerFraction(duration, chorusMarker);
 
     // Keeps continuous progress on the compositor while coarse values update only when needed.
     const updateUI = useCallback((value: number, force = false, syncInput = true, bypassDrag = false) => {
@@ -218,6 +226,15 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                         willChange: 'clip-path',
                     }}
                 />
+                {chorusFraction !== null && (
+                    // The chorus start: a thin tick in the fill colour that stands a little proud of
+                    // the track, so it shows ahead of the fill and its ends still show once filled.
+                    <div
+                        className={`absolute top-1/2 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none bg-[var(--folium-progress-fill)] opacity-50 ${isLine ? 'h-[7px]' : 'h-2.5'}`}
+                        style={{ left: `${(chorusFraction * 100).toFixed(3)}%` }}
+                        data-chorus-marker=""
+                    />
+                )}
                 <div
                     ref={thumbRef}
                     className="absolute inset-0 pointer-events-none"
@@ -243,6 +260,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                     onClick={(e) => e.stopPropagation()}
                     className={`absolute w-full opacity-0 ${isLine ? 'inset-x-0 -top-1.5 h-[calc(100%+12px)]' : 'inset-0 h-full'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 />
+                <SongNoteMarks duration={duration} onSeek={onSeek} disabled={disabled} />
                 <FoliumProgressLayers ctx={foliumCtx} />
             </div>
 

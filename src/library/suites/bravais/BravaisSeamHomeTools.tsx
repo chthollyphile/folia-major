@@ -129,11 +129,11 @@ const BravaisSeamHomeTools: React.FC<{
         if (!hasMenu && menuOpen) closeBravaisHomePopover('menu');
     }, [hasMenu, menuOpen]);
 
-    // 书脊上点了「⋯」：缝展开成窄缝后在这里把菜单打开。
+    // 书脊上点了「⋯」：缝展开成窄缝后在这里把它打开。
     useEffect(() => {
-        if (compact || request !== 'menu') return;
+        if (compact || request === null) return;
         setBravaisHomeOpenRequest(null);
-        setBravaisHomePopover('menu');
+        setBravaisHomePopover(request);
     }, [compact, request]);
 
     // 卸载时收起自己开着的菜单，下次挂载不带着旧的开合。只收「这个实例开着的」：书脊翻成窄缝时新实例先挂上、经

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dropLoginRequestLimits, LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, withLoginRequestLimit } from '@/services/onlineMusic/login/loginRequestLimit';
+import { dropLoginRequestLimits, isLoginRequestTimeout, LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, withLoginRequestLimit } from '@folia/folium-source-kit';
 
 // test/unit/login/loginRequestLimit.test.ts
 // The time limit of the requests a sign-in makes, under fake timers. Which requests of which
@@ -81,5 +81,21 @@ describe('the time limit of a sign-in request', () => {
         const next = withLoginRequestLimit(neverAnswers).catch((error: unknown) => error);
         await vi.advanceTimersByTimeAsync(20_000);
         expect(await next).toBeInstanceOf(LoginRequestTimeout);
+    });
+});
+
+describe('isLoginRequestTimeout', () => {
+    // The kit is bundled into each source mod: a timeout thrown by a mod's own copy of the class is still one.
+    it('knows a timeout by its name, whichever copy of the kit threw it', () => {
+        class OtherCopyTimeout extends Error {
+            constructor() {
+                super('not answered');
+                this.name = 'LoginRequestTimeout';
+            }
+        }
+        expect(isLoginRequestTimeout(new LoginRequestTimeout())).toBe(true);
+        expect(isLoginRequestTimeout(new OtherCopyTimeout())).toBe(true);
+        expect(isLoginRequestTimeout(new Error('LoginRequestTimeout'))).toBe(false);
+        expect(isLoginRequestTimeout({ name: 'LoginRequestTimeout' })).toBe(false);
     });
 });

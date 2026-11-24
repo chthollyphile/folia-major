@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { FROM_MAIN_WINDOW, MAIN_WINDOW } from './mainWindowFake';
 
 // test/unit/mod-system/modSystemFileGrants.test.ts
 // folium.ui.pickFile({ persist }) / restoreFile / releaseFile end to end
@@ -69,7 +70,7 @@ const launch = () => {
             isPackaged: false,
         },
         BrowserWindow: { getAllWindows: () => [] },
-        getMainWindow: () => null,
+        getMainWindow: () => MAIN_WINDOW,
         getLocaleKey: () => 'en',
         isFeatureEnabled: () => true,
     });
@@ -78,7 +79,7 @@ const launch = () => {
     return system;
 };
 
-const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(null, ...args);
+const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(FROM_MAIN_WINDOW, ...args);
 
 const fetchModUrl = async (url: string) => {
     const response = protocolHandler!(new Request(url));

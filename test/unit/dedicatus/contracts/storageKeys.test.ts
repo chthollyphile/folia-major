@@ -66,4 +66,28 @@ describe('D507 scanner resolves constants per file', () => {
     it('reads the main-process keys the renderer writes through saveSettings', () => {
         expect(scanStorageKeys(dir)).toEqual(expect.arrayContaining(['main:CLOSE_TO_TRAY', 'main:SOME_FLAG']));
     });
+
+    // Folium 2.0：音源模组（sources/<id>/）的 main/ 算主进程（api.legacy.store），client/、core/ 算窗口；平台搬过去后照样查到。
+    it('reads the keys of the source mods in sources/, main/ as the main process and the rest as the window', () => {
+        write('sources/demo/main/session.ts', "const SESSION_KEY = 'DEMO_SESSION_V1';\napi.legacy.store.get(SESSION_KEY);\n");
+        write('sources/demo/client/state.ts', "localStorage.getItem('demo_client_flag');\n");
+        write('sources/demo/core/notMain.ts', "store.get('NOT_A_MAIN_KEY');\n");
+        const keys = scanStorageKeys(dir);
+        expect(keys).toEqual(expect.arrayContaining(['main:DEMO_SESSION_V1', 'web:demo_client_flag']));
+        expect(keys).not.toContain('main:NOT_A_MAIN_KEY');
+    });
+
+    // S5：client 的 folium.sources.pageStore(id) 落在 providerStorage 的同一个键（online_provider:<id>:<键>）。
+    it('reads the page-store keys of a source’s client, by the id given or by its folder', () => {
+        write('sources/demo/client/session.ts', [
+            "const TOKEN_KEY = 'token';",
+            "folium.sources.pageStore('demo').set(TOKEN_KEY, value);",
+            'const store = folium.sources.pageStore(sourceId);',
+            "store.get('device_id');",
+            "notAStore.set('not_a_key', 1);",
+        ].join('\n'));
+        const keys = scanStorageKeys(dir);
+        expect(keys).toEqual(expect.arrayContaining(['provider:demo:token', 'provider:demo:device_id']));
+        expect(keys.some(key => key.includes('not_a_key'))).toBe(false);
+    });
 });

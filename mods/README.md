@@ -1,8 +1,9 @@
 # Folium 1：Folia 模组平台
 
-> **实验性功能，默认关闭。** 需先在「设置 → 模组 → 模组系统」中开启，命令面板的「模组」命令与模组
-> 管理面板才会出现，加载器也才会扫描目录。开关关闭时**不加载任何模组代码**——不是隐藏 UI，而是已启用
-> 的模组也会被停用（执行它的清理函数），相关 IPC 一律拒绝。开关本身不替代单个模组的启用确认。
+> **Folium 2 起模组系统默认开启，社区模组默认关闭。** 「设置 → 模组 → 模组系统」关着时命令面板没有「模组」命令，
+> 加载器也不扫描模组目录：**不加载模组目录里的任何模组代码**——不是隐藏 UI，而是已启用的模组也会被停用（执行它的
+> 清理函数），相关 IPC 一律拒绝。总开关下面的「社区模组」关着时，只有官方签名的音源模组能安装、能加载；这里的
+> 示范模组和其它模组要先打开它（开发版从仓库 `mods/` 加载时不受它限制）。开关都不替代单个模组的启用确认。
 
 Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**注册表**往宿主里加东西，
 通过**事件总线**介入宿主行为，通过**服务**调用宿主能力。
@@ -12,7 +13,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 
 > **模组开发与上架注意事项**
 >
-> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及宿主均衡器（`folium.equalizer` 与 `equalizer.changed`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线；读不需要权限，写需 `equalizer.control`）；1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量（`visualizer.renderQualityChanged`：读写「性能与动效」里 canvas / WebGL 歌词样式默认跟随的全局分辨率与抗锯齿），以及歌词动画模式、内置模式的样式参数和智能动感效果（`visualizer.modeChanged`、`visualizer.tuningChanged`、`visualizer.beatEffectsChanged`）；读都不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
+> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及宿主均衡器（`folium.equalizer` 与 `equalizer.changed`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线；读不需要权限，写需 `equalizer.control`）；1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量（`visualizer.renderQualityChanged`：读写「性能与动效」里 canvas / WebGL 歌词样式默认跟随的全局分辨率与抗锯齿），以及歌词动画模式、内置模式的样式参数和智能动感效果（`visualizer.modeChanged`、`visualizer.tuningChanged`、`visualizer.beatEffectsChanged`）；读都不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。完整的音源模组改用 Folium 2 的音源接口（`"folium": 2` 的清单 `sources`、`folium.sources` 与 main 入口给音源的 `api`），见[写一个音源模组](../docs/folium/sources.md)；这套接口和其它稳定接口一样只加不改。
 > - 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 
 公开类型全部在 [`src/mods/folium/contract.ts`](../src/mods/folium/contract.ts)，这是契约的唯一来源；
@@ -31,7 +32,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `sample-rickroll` | 在播放页嵌入外部网页（stageLayers + ui.embed + embedOrigins） |
 | `sample-beta-hello` | 先行测试渠道的最小示例：启用后在控制台打印 hello world，用先行测试密钥签名 |
 
-`dev/folium/` 下还有几个示范模组：下表是 1.5 和 1.7 的，实验接口 `player.layout`、`remote.actions` 的示例见各自的小节。
+`dev/folium/` 下还有几个示范模组：下表是 1.5、1.7 和 Folium 2 的，实验接口 `player.layout`、`remote.actions` 的示例见各自的小节。
 它们**没有签名**，开发版也**不会自动扫描**这个目录，需要手动安装：
 把模组目录打成 zip 拖到模组面板，或复制到用户模组目录（见[从 UI 安装与管理](#从-ui-安装与管理)），装好后显示为「未验证」。
 
@@ -42,6 +43,8 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `dev/folium/sample-account-console` | Folium 1.7：设置区块里的 `secret` 字段（client 与 main 入口各读一次，只显示「已设置 / 未设置」）；main 入口定时和在 `rpc.handle` 里用 `api.rpc.send` 推消息，client 用 `folium.rpc.on` 收；`folium.account.getState()` 与 `account.changed`；实验接口 `platform.raw` 读 `user_record`（听歌排行），清单选用 `platform.raw`、声明 `platform.netease.read`；可以绑到系统级全局快捷键的命令（`globalShortcut`） |
 | `dev/folium/sample-omni-console` | Folium 1.7：`folium.omni` 列出音源与 `supports`、搜歌并用 `nextCursor` 翻页、`describeSong` 与歌词前几行、专辑第一页曲目（`getAlbum` → `getTracks`）、把存进 `folium.storage` 的 `{ source, id }` 在重启后用 `resolveSongs` 解析回来；`playback.control` 只用于加入队列，`filesystem.data` 只用于存键 |
 | `dev/folium/sample-equalizer-console` | Folium 1.7：设置分区里用 `folium.equalizer.getState()` 与 `equalizer.changed` 显示此刻听到的均衡器和最近一次变化的来源；`setMode` 切到内置音效、`applyCurve` 施加本模组的曲线、`releaseCurve` 撤下；「按歌自动施加」在换歌时施加曲线，来源是用户、命令面板或别的模组时停下（给用户让步），被拒 `panel-open` 时等 `writable` 变回 true 的那次 `equalizer.changed` 再补写；只有写需要 `equalizer.control`，纯 client |
+| `dev/folium/sample-source-full` | Folium 2：音源类模组，一个实现每个标准能力族的契约测试音源、一个外部播放器音源和一个自定义能力；不声明 `net.fetch`、`filesystem.data`，见[写一个音源模组](../docs/folium/sources.md) |
+| `dev/folium/sample-video-source` | Folium 2：`playback.surface@1`，三段测试视频在播放页上由模组自己的 `<video>` 放，一首歌走宿主音频（`routeOf`、`itemKinds`） |
 
 ## 安全声明（重要）
 
@@ -49,7 +52,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 主界面所在的渲染进程，能读写界面里的一切。`mod.json` 的 `permissions` 是功能开关约定（未声明的 API
 调用 fail closed），**不构成安全边界**。
 
-- **两道开关**：「设置 → 模组」里的「模组系统」总开关决定加载器是否工作；总开关开启后，单个模组仍默认禁用，需逐个确认启用。
+- **三道开关**：「设置 → 模组」里的「模组系统」总开关决定加载器是否工作；「社区模组」决定官方签名的音源模组以外的模组能不能装、能不能加载（主进程判断，打开时确认一次）；之后单个模组仍默认禁用，需逐个确认启用。
 - **启用需二次确认**：主进程原生确认窗口列出模组 id、安装位置、声明的权限、界面代码入口、选用的实验接口、
   可嵌入的外部网页、需要的 Folia 版本与内容指纹，默认按钮为「取消」。窗口刻意不在渲染
   进程绘制——那里的弹窗可被模组代码伪造或自动点击。
@@ -161,6 +164,8 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
 | `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions`、`platform.raw`（1.7） |
 | `folia` | 可选。宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
+| `repository` | 可选，Folium 2.1，只限 `folium: 2`。源码仓库的 https 链接。「设置 → 模组」的详情里显示，用户由此找到作者 |
+| `bugs` | 可选，Folium 2.1，只限 `folium: 2`。反馈问题的 https 链接（例如仓库的 issues 页）。没写时面板用 `repository` 推出 `/issues`，再没有就用模组市场登记的来源仓库 |
 
 | 权限 | 解锁 |
 | --- | --- |
@@ -1691,7 +1696,7 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   由平台的 provider 补上会话后发出，模组碰不到凭据。
 - **`describe(providerId)`** 不需要权限，说这个平台能不能直通，以及后端库的名字和版本（取自包本身，随宿主更新）。
 - **`endpoint`** 是钉住的后端库自己的模块名（网易云：`@neteasecloudmusicapienhanced/api` 的 `module/` 下的文件名，如 `user_record`、`listen_data_total`）。
-  哪些能调由平台自己的分类表决定（网易云的在 `src/services/onlineMusic/netease/neteaseRaw.ts`）：
+  哪些能调由平台自己的分类表决定（网易云的在 `sources/netease/core/neteaseRaw.ts`）：
   - 读接口要 `read`：听歌记录与听歌足迹、用户资料与关注、歌曲、歌单、专辑、歌手、排行榜、搜索、推荐等；
   - 写接口另要 `write`：点赞、歌单增删歌和改名、收藏、关注、听歌上报、签到等；
   - 永远拒绝：登录、注册、验证码、会话刷新、账号与绑定、设备、改资料，以及能把任意请求转发出去或解密流量的模块；
@@ -1761,6 +1766,11 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 - 模组停掉之后，它原来那个 `folium` 对象的 `register` 和 `events.on` 不再生效；挂载结束之后经 `ctx` 订的监听同样不再生效。
 - 监听属于订阅它的那一次挂载：同一个函数在两处挂载里各订一次，每次变化各调用一次。
 
+**Folium 2.1 的变化**（只加不改，为 2.0 写的模组不用改）：
+
+- 清单加两个可选字段 `repository`、`bugs`（https 链接，只限 `folium: 2`），「设置 → 模组」的详情与出错提示旁的「向作者反馈」用它们，让用户把模组的问题带给作者，而不是 Folia 主仓库。
+  `folium: 1` 的模组冻结在 1.10，不能写这两个字段；面板改用模组市场登记的来源仓库。
+
 **Folium 1.10 的变化**（都是新增，为 1.9 写的模组不用改）：
 
 - 屏幕上的主题：`folium.theme` 加 `getCurrent`、`getOverride`、`fromColors`、`apply`、`release`，通知事件 `theme.overrideChanged`；新权限 `theme.write`（`apply`、`release` 需要，别的不需要）。
@@ -1805,14 +1815,22 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 
 ## 从 UI 安装与管理
 
-- **打开模组目录**：模组面板右上角按钮，打开用户模组目录 `userData/mods`（打包版为 `%APPDATA%\Folia\mods`）。
-- **拖放 zip 安装**：把 `.zip` 拖到模组面板；`mod.json` 可以在根目录或唯一顶层文件夹里。
-  - 安全校验：拒绝路径穿越与绝对路径；压缩包 ≤ 64 MB，解压后 ≤ 64 MB，单文件 ≤ 32 MB，条目 ≤ 2000。
+「设置 → 模组」（和命令面板里的「模组」）是一个仿 VS Code 扩展视图的界面：左边是已安装的模组和模组市场合在一起的列表，右边是选中模组的详情；窄时只有一栏，点开一项进详情、带返回。代码在 `src/mods/market/`，主进程一侧在 `electron/modSystem/market.cjs`。
+
+- **列表**：没有搜索词时分段列出「有更新」「版本声明过期」「已安装」、按分类分组的市场模组、「Awesome-Folia · 外部作品」，每段可以折叠。搜索框支持筛选词 `@installed` `@updates` `@enabled` `@disabled` `@builtin` `@source` `@beta` `@awesome` `@expired` `@category:<id>`，其余的词都要命中（名称、id、作者、描述、分类、标签）。
+- **从市场安装与更新**：主进程按目录里的地址下载（只接受市场站点 `/downloads/` 下的地址，大小上限同下面的 zip），校验 SHA-256，再交给同一个 zip 安装器，并多查三项：包里的模组 id、签名渠道（正式发布要「官方认证」，先行测试要「先行测试」）、签名摘要都必须和目录登记的一致，不一致就不换入（`market-id-mismatch`、`market-signature:*`、`market-digest-mismatch`）。信任锚定在应用内置的公钥上，目录只是一张清单。装好后照常弹原生确认窗；原来启用着的模组更新后同样要再确认。「全部更新」逐个进行。
+- **检查更新**：启动约一分钟后读一次目录，之后最多每 6 小时一次（「⋯」菜单里的「自动检查模组更新」可以关）；命令面板有「打开模组市场」「检查模组更新」。目录在 `userData/mod-market/` 缓存 10 分钟，带 ETag；离线时用上次的目录并注明。
+- **卸载**：只处理用户模组目录里的模组（`user` 与 `override` 层）。原生确认后先停用、卸载运行时，再把文件夹移进回收站（`shell.trashItem`，不直接删除），清掉启用与放行记录；数据目录保留。卸掉内置音源的覆盖副本后回落到内置副本。
+- **反馈问题**：详情页头、「⋯」菜单和错误提示旁都有「反馈问题」。地址依次取清单的 `bugs`、由 `repository` 推出的 issues 页、市场目录登记的仓库；内置模组指向 Folia 的 issues，官方模组指向 folium-compound 的 issues。
+- **版本声明过期**：`folia` 范围只是上界不满足（`<`、`<=`、`^` 的主版本、低于当前的精确版本）、下界都满足时，模组停在 `host-range-expired`，不报 `host-version-mismatch`。点「仍然尝试加载」（或该段的「全部尝试加载」）弹原生确认，写明声明的范围、当前版本和反馈地址；确认后按内容摘要记一条放行，照常加载，并标「强制加载」。模组文件变了，放行随之失效。可以在「⋯」里撤销。下界不满足（`too-old`）或范围写错的不给放行。启用一个只是范围过期的模组时，这条说明并进启用确认窗，一次确认就够。
+- **打开模组目录**：「⋯」菜单里的按钮，打开用户模组目录 `userData/mods`（打包版为 `%APPDATA%\Folia\mods`）。
+- **拖放 zip 安装**：把 `.zip` 拖到模组视图上；`mod.json` 可以在根目录或唯一顶层文件夹里。
+  - 安全校验：拒绝路径穿越与绝对路径；压缩包 ≤ 96 MB，解压后 ≤ 96 MB，单文件 ≤ 64 MB（Folium 2.0 方案 §6.2：音源模组的依赖归档是一个大文件），条目 ≤ 2000。
   - **原子安装**：先解压到 `userData/mods/.staging/` 校验（清单、声明的 `main` / `client` 文件必须存在），通过后才换入；
     失败则回滚，旧版本原样保留。
   - 同 id 覆盖即升级；内容指纹改变后模组保持禁用，直到重新确认。
-- **占用与清空缓存**：声明了 `filesystem.data` 的模组，展开它的行时会显示「数据 X」「缓存 Y」两行和「清空缓存」按钮。
-  - 只在展开时统计，停用的模组也能查、能清。统计只算普通文件，不跟随符号链接或 junction。
+- **占用与清空缓存**：声明了 `filesystem.data` 的模组，详情的「运行状态」页签里会显示「数据 X」「缓存 Y」两行和「清空缓存」按钮。
+  - 只在打开这个页签时统计，停用的模组也能查、能清。统计只算普通文件，不跟随符号链接或 junction。
   - 「数据」是整个 `mods-data/<id>`（含 `api.storage` 的数据文件和 1.7 起的密钥文件 `secrets.json`），「缓存」是 `mods-cache/<id>`。
   - 「清空缓存」删除缓存目录里的所有内容，保留目录本身，然后重新统计，并在面板上方的提示条里报告释放了多少。缓存为 0 或目录不存在时按钮不可用。
     缓存目录的位置上是一个文件或目标已经不在的链接时（这时模组读 `paths.cache` 会一直抛错），面板显示缓存目录已损坏，按钮可用，

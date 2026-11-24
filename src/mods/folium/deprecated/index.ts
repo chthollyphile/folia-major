@@ -33,9 +33,9 @@ import { noteFoliumOldName } from './warnings';
 //     import; contract.ts: FoliumLegacyLyricsResult, its place in getLyrics,
 //     and the header's words on it; registries/omniProviders.ts: the imports
 //     of ../deprecated/ and the line in getLyrics that says the old answer;
-//   - src/mods/manager/ModListItem.tsx: the import of ./warnings, NO_OLD_NAMES,
+//   - src/mods/market/ModDetailSections.tsx: the import of ./warnings, NO_OLD_NAMES,
 //     the two lines that read both sides' lines, the box that lists them, and
-//     the locale key mods.oldNames (zh-CN, en, in);
+//     the locale key mods.oldNames (zh-CN, en, in, vi);
 //   - dev/folium/check.mjs: its old-name warnings (oldNameWarningsIn, `warnings`)
 //     and the FOLIUM_OLD_REGISTRY_NAMES line in the registries loop;
 //   - dev/folium/api-docs.mjs: the table of old names (oldNamesSection and

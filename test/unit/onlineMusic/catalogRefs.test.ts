@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import type { UnifiedSong } from '@/types';
 import {

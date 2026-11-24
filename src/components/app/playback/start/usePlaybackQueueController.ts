@@ -9,6 +9,7 @@ import { askPlayedSong, isSongUnavailable } from '../../../../services/onlineMus
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
 import { getPersonalFmSelection, getStationRequestOptions } from '../../../../stores/usePersonalFmModeStore';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { itemTraits } from '../../../../services/onlineMusic/itemTraits';
 import { announceExternalPlayback, beginExternalPlayback, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../../../../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs, refreshPrefetchAfterQueueEdit } from '../../../../services/prefetchService';
@@ -17,10 +18,11 @@ import { retireBlobUrl } from '../../../../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
 import { loadOnlineLyricsState } from '../../../../utils/onlineLyricsState';
 import { PlayerState, type StageExternalPlayRequest, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../../../../types';
-import type { LocalPlaylist, LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
+import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
 import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
 import type { NextTrackOptions, PlaybackNavigationOptions, UnavailableReplacementRequest } from '../../../../types/appPlayback';
 import type { NavidromeSong } from '../../../../types/navidrome';
+import type { FoliaPlaylistSummary } from '../../../../types/foliaPlaylist';
 import {
     getOnlineProviderIdForSong,
     getPlaybackSongKey,
@@ -106,8 +108,8 @@ type UsePlaybackQueueControllerParams = {
     isNowPlayingStageActive: boolean;
     shouldNavigateToPlayerOnTrackChange: boolean;
     localSongs: LocalSong[];
-    /** 本地歌单：搜索「本地」来源的歌单时从这里筛。 */
-    localPlaylists: LocalPlaylist[];
+    /** Folia 聚合歌单的摘要：搜索「本地」来源的歌单时从这里筛。 */
+    localPlaylists: readonly FoliaPlaylistSummary[];
     /** 曲库目录；ready 为 false 时（还没读好）本地专辑按歌曲原始标签分组。 */
     localLibraryCatalog: LocalLibraryDisplayCatalog & { ready?: boolean };
     userId?: MediaId;
@@ -1121,8 +1123,9 @@ export function usePlaybackQueueController({
                 },
             });
             if (askedSongKeyRef.current !== songKey || startOfAskedSong() !== askedStart) cancelStatusLoading(loadingMessage);
-            // The load has ended; a song still asked for that it left without lyrics may get some from a mod.
-            if (askedSongKeyRef.current === songKey) supplyLyricsAfterEmptyLoad();
+            // The load has ended; a song still asked for that it left without lyrics may get some from a mod
+            // (not an item of a kind with no lyrics, plan §4.4).
+            if (askedSongKeyRef.current === songKey && itemTraits(song).lyrics !== 'none') supplyLyricsAfterEmptyLoad();
         } catch (error) {
             console.warn('[App] Lyric fetch failed', error);
             failStatusLoading(loadingMessage, t('status.bestLyricsMatchFailed'));

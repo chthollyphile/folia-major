@@ -17,7 +17,7 @@
 
 - **一个功能的代码放在一起。** 先按功能分，再按代码种类（界面、状态、数据读取）分：一个功能的文件放进它自己的一处，它之外只留几个接入点。删掉那一处和那几个接入点，功能就删干净了。例子：`src/components/login/`、`src/components/app/home/explore/`。
 - 先平铺，目录难以一眼看完（大约 15 个文件以上）才加子目录，不提前建空目录。
-- 只服务一个变体（一个平台、一种后端、一种设备）的代码放在那个变体那里，两个功能都用到才挪去共用的地方。平台的目录名就是 `src/services/onlineMusic/providerRegistry.ts` 里登记的 id：`src/services/onlineMusic/<id>/`、主进程的 `electron/<id>/`。
+- 只服务一个变体（一个平台、一种后端、一种设备）的代码放在那个变体那里，两个功能都用到才挪去共用的地方。一个平台是一个音源模组，放在 `sources/<id>/`，目录名就是它的短音源 id（受信表 `electron/modSystem/builtinSources.cjs` 那一行认领的 id）；client、main 入口、core、语言表都在这个目录里，宿主的 `src/services/onlineMusic/`、`electron/` 里不再给平台开目录。
 - 语言或工具按路径找到的文件（测试的收集范围、`import.meta.glob`、检查脚本扫的目录）留在原处。
 - 新加的代码和正在整理的模块按这几条放，不这样放要写明原因；没人在动的旧代码留在原处，怎么挪见 `file-modularization`。
 - 入口文件只做组装。`src/App.tsx` 已经远超大小警戒值，新行为放进相邻的 `components/app/*`、hooks、stores、services。各类文件的大小警戒值和挪文件的做法见 `file-modularization`。
@@ -25,9 +25,9 @@
 ### 模块边界
 
 - **依赖方向**：`stores`、`utils`、`types`、`services` 不在运行时依赖 `components`；`utils` 也不依赖 `hooks`、`stores`；`types` 不依赖任何实现；`components`、`hooks`、`stores` 不直接用平台的 `*Provider.ts`、`*Transport.ts`。检查规则是 `dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES`（Dedicatus，`npm run dedicatus`，CI 上也跑）；现有的违规和循环依赖记在 `dev/dedicatus/baseline.json`，只减不增：修好一条就 `npm run dedicatus -- --prune` 删掉，不往里加新的。
-- **在线歌曲只走 omni。** 搜索、播放、歌词、歌单、账户都调 `src/services/onlineMusic/omni.ts`；只有各平台的 `<id>Provider.ts` 和 `<id>Transport.ts` 碰平台的原始接口（网易云没有 Transport，请求在 `src/services/onlineMusic/netease/netease.ts`）。omni 缺一项能力时，在 `src/types/onlineMusic.ts` 和 `omni.ts` 加上，再在各平台实现，不另开旁路。细则见 `online-song-omni-routing`。
+- **在线歌曲只走 omni。** 搜索、播放、歌词、歌单、账户都调 `src/services/onlineMusic/omni.ts`；只有各平台音源模组（`sources/<id>/`）里的 `<id>Provider.ts` 和 `<id>Transport.ts` 碰平台的原始接口（网易云没有 Transport，请求在 `sources/netease/core/netease.ts`）。omni 缺一项能力时，在 `src/types/onlineMusic.ts` 和 `omni.ts` 加上，需要音源提供的进公开契约（`src/mods/folium/sources/contract.ts`，Folium 2 音源接口），再在各平台实现，不另开旁路。细则见 `online-song-omni-routing`。
 - **一个平台的规则留在那个平台的目录里。** 只是看着像的不要合并成共用规则。平台目录外每个文件提到平台名的次数记在 `test/unit/onlineMusic/platformNamePlaces.ts`，`test/unit/onlineMusic/omniArchitecture.test.ts` 核对它。
-- **加一个同类的东西只动它自己的目录和注册点**：歌词样式和背景放各自的 `entry.tsx`，由 registry 自动发现；平台在 `providerRegistry.ts` 登记；命令放 `src/components/command-palette/commands/`，一组命令一个 `<组>Commands.ts`，自带界面的单条命令一个 `*Command.ts`，都用 `commandFactories.ts` 里的函数建，切换歌词样式的命令写在那个样式的 `entry.tsx` 里。不在 `App.tsx` 里加分支。衡量一个模块看“再加一个平台、一个歌词样式、一种模组要改哪些地方”。
+- **加一个同类的东西只动它自己的目录和注册点**：歌词样式和背景放各自的 `entry.tsx`，由 registry 自动发现；平台是 `sources/<id>/` 下的音源模组，自己在 client 里 `folium.sources.register`，宿主只在受信表 `builtinSources.cjs` 加一行；命令放 `src/components/command-palette/commands/`，一组命令一个 `<组>Commands.ts`，自带界面的单条命令一个 `*Command.ts`，都用 `commandFactories.ts` 里的函数建，切换歌词样式的命令写在那个样式的 `entry.tsx` 里。不在 `App.tsx` 里加分支。衡量一个模块看“再加一个平台、一个歌词样式、一种模组要改哪些地方”。
 - **账号凭据只在登记过的入口写。** 处理一般响应的代码不改登录账号。代表“谁登录着”的 token、userid、cookie 只在小而专一的函数里写：要么只在确认的登录（或同一会话的续期）之后调用，要么函数自己挡掉账号项。写入点登记在 `dev/dedicatus/credentialWriters.mjs`，Dedicatus D604 检查渲染进程经 `providerStorage` 的写入和酷狗桥接层的会话对象；其他平台主进程里的会话仓库还没纳入检查，照同样的规矩写。
 - **渲染进程只经 `electron/preload.cjs` 暴露的接口找主进程。** 窗口都开 `contextIsolation`、关 `nodeIntegration`。
 
@@ -80,7 +80,7 @@
 
 ### 依赖
 
-音乐平台用的库钉死版本，不写 `^` 或 `~`：我们会替换或直接读其中一些库的内部文件，小版本变了也可能坏。每个平台用哪个库、版本钉在哪几处、上游变了怎么跟，见 `src/services/onlineMusic/UPSTREAMS.md`。
+音乐平台用的库钉死版本，不写 `^` 或 `~`：我们会替换或直接读其中一些库的内部文件，小版本变了也可能坏。每个平台用哪个库、版本钉在哪几处、上游变了怎么跟，见它的 `sources/<id>/README.md`（`src/services/onlineMusic/UPSTREAMS.md` 是索引和通用规矩）。
 
 ## 代码定位
 
@@ -105,9 +105,9 @@
 
 四份开发者指南：
 
-- 接入一个新的在线平台：`src/services/onlineMusic/README.md` 的“接入一个新平台”。
+- 接入一个新的在线平台（写一个 `sources/<id>/` 音源模组）：`src/services/onlineMusic/README.md` 的“接入一个新平台”；音源模组的接口与约定见 `docs/folium/sources.md`。
 - 平台接入探索页：`src/services/onlineMusic/EXPLORE_ADAPTER.md`。
-- 各平台依赖的上游、版本钉在哪、上游变了怎么跟：`src/services/onlineMusic/UPSTREAMS.md`。
+- 各平台依赖的上游、版本钉在哪、上游变了怎么跟：各家的 `sources/<id>/README.md`，通用的规矩在 `src/services/onlineMusic/UPSTREAMS.md`。
 - 加一个歌词动画样式：`src/components/visualizer/README.md` 的“加一个歌词动画样式”。
 
 ## 全局沟通规则

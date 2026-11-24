@@ -398,14 +398,14 @@ test.describe('wall tools queue island', () => {
         await expect(island(page)).toBeVisible();
     });
 
-    test('saving the queue as a local playlist uses an inline name field', async ({ mount, page }) => {
+    test('saving the queue as a playlist uses an inline name field', async ({ mount, page }) => {
         await mountProbe(mount, page);
         await openPanel(page);
-        // 在线队列不能存。
-        await expect(island(page).locator('[data-queue-island-action="save"]')).toHaveCount(0);
-        await probe(page, api => api.seed({ count: 12, local: true }));
+        // 队列存成 Folia 歌单，在线队列也能存。
         const save = island(page).locator('[data-queue-island-action="save"]');
-        await expect(save).toHaveAccessibleName('Save as local playlist');
+        await expect(save).toHaveAccessibleName('Save as playlist');
+        await probe(page, api => api.seed({ count: 12, local: true }));
+        await expect(save).toHaveAccessibleName('Save as playlist');
 
         await save.click();
         const input = island(page).getByRole('textbox', { name: 'Enter playlist name' });

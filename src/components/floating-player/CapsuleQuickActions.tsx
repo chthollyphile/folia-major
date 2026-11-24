@@ -2,23 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Command } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { COMMAND_PALETTE_COMMANDS } from '../command-palette/commandRegistry';
-import { readCommandFrequencyState } from '../command-palette/commandFrequency';
-import { getCommandTitle } from '../command-palette/commandText';
-import type { CommandPaletteCommand } from '../command-palette/types';
 import { capsuleGlassClass, capsuleGlassStyle } from './capsuleGlass';
 import { openCommandPalette } from '../../stores/useAppViewStore';
+import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
 import { resolveCapsuleQuickActions } from './capsuleQuickActionSelection';
 import {
-    playerControlSlotActionForCommand,
     resolvePlayerControlSlot,
     type PlayerControlSlotActionId,
     type PlayerControlSlotContext,
 } from './playerControlSlotActions';
 
 // src/components/floating-player/CapsuleQuickActions.tsx
-// 胶囊上方浮出的一排命令：指针在胶囊上停一会儿才出现，挑哪几条见 capsuleQuickActionSelection。
-// 最右边固定一个打开命令面板的按钮，不受名单、上限和频次影响。
+// 胶囊上方浮出的一排控件（浮岛）：指针在胶囊上停一会儿才出现。放哪几个、什么顺序是用户在设置里摆的
+// （和右侧两个槽位共用一个控件池），此刻画哪几个见 capsuleQuickActionSelection。
+// 最右边固定一个打开命令面板的按钮，不受名单和上限影响。
 // 手指没有悬停：播放页上点开胶囊、或者暂停时，由 FloatingPlayerControls 直接浮出 4 秒。
 
 /** 胶囊悬停展开后再停这么久才浮出：路过的指针不该每次都带出一排按钮。 */
@@ -54,22 +51,6 @@ interface CapsuleQuickActionsProps {
     limit?: number;
 }
 
-/** 一条命令画成按钮要的东西。能放进槽位的命令借槽位的解析，喜爱的实心心、打乱的可用性才跟胶囊一致。 */
-const resolveButton = (command: CommandPaletteCommand, context: PlayerControlSlotContext) => {
-    const slotAction = playerControlSlotActionForCommand(command.id);
-    if (slotAction) {
-        const slot = resolvePlayerControlSlot(slotAction, context);
-        return { icon: slot.icon, filled: slot.filled, active: slot.active, disabled: slot.disabled, onActivate: slot.onActivate };
-    }
-    return {
-        icon: command.icon ?? Command,
-        filled: false,
-        active: false,
-        disabled: false,
-        onActivate: () => context.invokeCommandById(command.id),
-    };
-};
-
 const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
     slotPrimary,
     slotSecondary,
@@ -80,23 +61,15 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
     limit,
 }) => {
     const { t } = useTranslation();
-    // 频次只在放不下时用来取舍，浮出那一刻读一次就够，不跟着播放刷新。
-    const [counts] = useState(() => readCommandFrequencyState().counts);
+    const island = usePlayerChromeSettingsStore(state => state.playerCapsuleIsland);
     // 不可用的在截断之前就去掉：灰掉的按钮占着位置，还会把能用的挤出这一排。
-    const commands = useMemo(() => resolveCapsuleQuickActions({
-        commands: COMMAND_PALETTE_COMMANDS,
+    const actions = useMemo(() => resolveCapsuleQuickActions({
+        island,
         slots: [slotPrimary, slotSecondary],
-        canInvoke: commandId => {
-            if (!context.canInvokeCommandById(commandId)) {
-                return false;
-            }
-            const slotAction = playerControlSlotActionForCommand(commandId);
-            return !slotAction || !resolvePlayerControlSlot(slotAction, context).disabled;
-        },
-        counts,
+        isAvailable: id => !resolvePlayerControlSlot(id, context).disabled,
         touch,
         limit,
-    }), [context, counts, slotPrimary, slotSecondary, touch, limit]);
+    }).map(id => ({ id, ...resolvePlayerControlSlot(id, context) })), [context, island, slotPrimary, slotSecondary, touch, limit]);
     const buttonPadding = touch ? 'p-3' : 'p-2';
     const iconSize = touch ? 20 : 16;
 
@@ -124,18 +97,16 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
             >
                 {/* 紧凑档的这一行把命令在整行里匀开，不挤在左边；命令面板那一格连同分隔线留在最右，和最下一行的挂件位上下对齐。 */}
                 <div className={inline ? 'flex min-w-0 flex-1 items-center justify-between' : 'contents'}>
-                    {commands.map(command => {
-                        const button = resolveButton(command, context);
+                    {actions.map(button => {
                         const Icon = button.icon;
-                        const title = getCommandTitle(command, t);
+                        const title = t(button.labelKey);
                         return (
                             <button
-                                key={command.id}
+                                key={button.id}
                                 type="button"
-                                data-capsule-action={command.id}
-                                disabled={button.disabled}
-                                onClick={() => button.onActivate()}
-                                className={`rounded-full ${buttonPadding} transition-colors disabled:cursor-not-allowed disabled:opacity-25 ${
+                                data-capsule-action={button.id}
+                                onClick={event => button.onActivate(event.currentTarget.getBoundingClientRect())}
+                                className={`rounded-full ${buttonPadding} transition-colors ${
                                     button.active ? 'bg-current/12' : 'opacity-70 hover:bg-current/10 hover:opacity-100'
                                 }`}
                                 title={title}
@@ -146,7 +117,7 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                         );
                     })}
                 </div>
-                {commands.length > 0 && (
+                {actions.length > 0 && (
                     <span aria-hidden="true" className={`h-4 w-px shrink-0 bg-current opacity-15 ${inline ? 'mx-2' : 'mx-0.5'}`} />
                 )}
                 {/* 固定在最右：不管上面挑出了几条，总有一条路通到完整的命令面板，从进度条原地长出来。 */}

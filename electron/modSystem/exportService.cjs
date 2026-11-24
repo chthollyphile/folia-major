@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { ALPHA_FORMAT_IDS, findAlphaFormat } = require('../alphaExport/ffmpegCapabilities.cjs');
 
 const EXPORT_LIMITS = {
     minWidth: 320,
@@ -117,7 +118,8 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
                 alphaGuaranteed,
                 backgroundMode,
                 transparent,
-                codec: spec.codec === 'prores' ? 'prores' : 'vp9',
+                // Mods name vp9 or prores (the Folium contract); the host's own export also offers qtrle.
+                codec: ALPHA_FORMAT_IDS.includes(spec.codec) ? spec.codec : 'vp9',
             },
         };
     };
@@ -127,7 +129,7 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
         const artistPart = sanitizeFileName(songMeta && (songMeta.artist || songMeta.artists?.[0]?.name));
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         const base = artistPart ? `${artistPart} - ${titlePart}` : titlePart;
-        const extension = codec === 'prores' ? '.mov' : '.webm';
+        const extension = `.${(findAlphaFormat(codec) ?? findAlphaFormat('vp9')).extension}`;
         return path.join(getExportDirectory(), `${base} - ${stamp}${extension}`);
     };
 
@@ -149,7 +151,10 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
 
     const getModExportPageUrl = () => {
         if (isElectronDevRuntime()) {
-            return new URL('http://localhost:3000/mod-export.html').toString();
+            // The same Vite the main window loads: FOLIA_DEV_SERVER_PORT when a second dev copy runs.
+            const port = Number(process.env.FOLIA_DEV_SERVER_PORT);
+            const origin = `http://localhost:${Number.isInteger(port) && port > 0 && port < 65536 ? port : 3000}`;
+            return new URL('/mod-export.html', origin).toString();
         }
         return path.join(__dirname, '../../dist/mod-export.html');
     };
@@ -176,7 +181,7 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
      * Runs one export session to completion. Returns { ok, outputPath?, error?,
      * cancelled?, warnings }. `onProgress` receives throttled updates.
      */
-    const runExport = async ({ modId, spec, hostState, onProgress }) => {
+    const runExport = async ({ modId, spec, hostState, onProgress, outputPath: chosenOutputPath = null }) => {
         const normalized = normalizeSpec(spec, hostState);
         if (!normalized.ok) {
             return { ok: false, error: normalized.errors[0] ?? 'export-invalid-spec' };
@@ -192,7 +197,15 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
             return { ok: false, error: 'export-ffmpeg-not-found' };
         }
 
-        const outputPath = buildDefaultOutputPath(renderSpec.songMeta, renderSpec.codec);
+        // A build that lacks this format's encoder would fail only after the window was up.
+        if (Array.isArray(ffmpeg.formats) && !ffmpeg.formats.includes(renderSpec.codec)) {
+            return { ok: false, error: 'export-codec-unavailable' };
+        }
+
+        // The host's own export asks where to save first; a mod's export goes to Folia Exports.
+        const outputPath = typeof chosenOutputPath === 'string' && chosenOutputPath
+            ? chosenOutputPath
+            : buildDefaultOutputPath(renderSpec.songMeta, renderSpec.codec);
         fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
         const totalFrames = Math.max(1, Math.ceil((renderSpec.endSec - renderSpec.startSec) * renderSpec.fps));
@@ -201,13 +214,12 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
         // main process (the UI jank source) and speeds the whole export up.
         // Electron getBitmap() is BGRA on Windows/Linux and RGBA on macOS.
         const rawPixelFormat = process.platform === 'darwin' ? 'rgba' : 'bgra';
-        // Encoder selection: ProRes 4444 is an intraframe editing codec (large, universally
-        // compatible MOV); VP9 carries alpha and is ~10x smaller (WebM), but some editors
-        // don't import WebM alpha. libx265 in this ffmpeg build has no alpha layer, so HEVC
-        // is not offered.
-        const encoderArgs = renderSpec.codec === 'prores'
-            ? ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le']
-            : ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '30', '-row-mt', '1'];
+        // Encoder and pixel format per format (ffmpegCapabilities.cjs): ProRes 4444 is an intraframe
+        // editing codec (large MOV, opens almost anywhere); VP9 carries alpha and is ~10x smaller (WebM),
+        // but some editors don't import WebM alpha; QuickTime Animation is lossless RLE in a MOV.
+        // libx265 in common builds has no alpha layer, so HEVC is not offered.
+        const alphaFormat = findAlphaFormat(renderSpec.codec);
+        const encoderArgs = [...alphaFormat.args, '-f', alphaFormat.muxer];
         const ffmpegArgs = [
             '-hide_banner', '-loglevel', 'error',
             '-y',
@@ -234,6 +246,8 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
         const cancelRequested = new Promise((resolve) => { noteCancelled = resolve; });
 
         const session = {
+            // null for the host's own export (alphaExportIpc.cjs): a cancel names whose export it ends.
+            modId: modId ?? null,
             get cancelled() { return cancelled; },
             cancel: () => {
                 cancelled = true;
@@ -548,8 +562,16 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
 
     const isExportRunning = () => Boolean(activeSession);
 
-    const cancelActiveExport = () => {
+    /*
+     * Cancels the running export. `owner`: 'host' ends only the host's own export, 'mod' only a
+     * mod's, so the cancel of one never ends the other; left out (quit, teardown) it ends either.
+     */
+    const cancelActiveExport = (owner) => {
         if (!activeSession) {
+            return false;
+        }
+        const isHost = activeSession.modId === null;
+        if ((owner === 'host' && !isHost) || (owner === 'mod' && isHost)) {
             return false;
         }
         activeSession.cancel();

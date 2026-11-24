@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/neteaseExplore.test.ts
 // The reader of NetEase's explore page: which home blocks become shelves and under which ids,
 // what a cursor brings, and what a shelf hands out in one read after another (a refresh is a
 // read anew: a shelf's cursor is for its "more" alone). The home page is the one NetEase answered
 // a guest with on 2026-10-08, cut down to a few entries a block and the fields read.
+// Read as the source mod hands it (explore@1): song and collection ids as text, the mod's own headings as text keys
+// (createNeteaseCore writes a key as itself).
 
 const api = vi.hoisted(() => ({
     hasAccountSession: vi.fn(),
@@ -18,16 +20,15 @@ const api = vi.hoisted(() => ({
     getSimilarSongs: vi.fn(),
     getPlaylistTracks: vi.fn(),
 }));
-vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => {
-    const actual = await importOriginal<typeof import('@/services/onlineMusic/netease/netease')>();
+vi.mock('../../../sources/netease/core/netease', async importOriginal => {
+    const actual = await importOriginal<typeof import('../../../sources/netease/core/netease')>();
     return { ...actual, neteaseApi: { ...actual.neteaseApi, ...api } };
 });
 vi.mock('@/utils/lyrics/workerClient', () => ({ parseLyricsAsync: vi.fn() }));
-import i18n from '@/i18n/config';
-import { createNeteaseExplore } from '@/services/onlineMusic/netease/neteaseExplore';
-import { neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
-import type { ProviderExploreItem, ProviderExploreSection } from '@/types/onlineMusic';
-import type { UnifiedSong } from '@/types';
+import { createNeteaseExplore } from '../../../sources/netease/core/neteaseExplore';
+import { normalizeNeteaseCollection, normalizeNeteaseSong } from '../../../sources/netease/core/neteaseProvider';
+import type { FoliumSourceExploreItem, FoliumSourceExploreSection, FoliumSourceSong } from '@/mods/folium/sources/contract';
+import { createNeteaseCore } from '../helpers/neteaseSource';
 
 const image = (path: string) => ({ imageUrl: `http://p3.music.126.net/${path}.jpg` });
 const listEntry = (id: string, title: string, path: string, playCount: number) => ({
@@ -109,9 +110,15 @@ const albumsOf = (total: number) => async (limit: number, offset: number) => ({
 const idsFrom = (first: number, count: number) => Array.from({ length: count }, (_, index) => first + index);
 const refreshLines = () => vi.mocked(console.log).mock.calls.map(([line]) => String(line)).filter(line => line.startsWith('[Netease] Explore refresh: '));
 
-const idsOf = (sections: ProviderExploreSection[]) => sections.map(section => section.id);
-const entryIds = (items: ProviderExploreItem[]) => items.map(item => (item.kind === 'song' ? item.song.id : item.collection.id));
-const newExplore = () => createNeteaseExplore({ song: neteaseProvider.normalizeSong, collection: neteaseProvider.normalizeCollection! });
+const idsOf = (sections: FoliumSourceExploreSection[]) => sections.map(section => section.id);
+// The entries' ids as NetEase's numbers (the source hands them as text).
+const entryIds = (items: FoliumSourceExploreItem[]) => items.map(item => Number(item.kind === 'song' ? item.song.id : item.collection.id));
+const newExplore = () => createNeteaseExplore({ song: normalizeNeteaseSong, collection: normalizeNeteaseCollection });
+
+// The source's env (its texts, its page store): the explore page asks it for whether there is an account and for its headings.
+beforeAll(async () => {
+    await createNeteaseCore();
+});
 
 beforeEach(() => {
     Object.values(api).forEach(mock => mock.mockReset());
@@ -134,22 +141,21 @@ describe('NetEase explore page', () => {
         expect(page.nextCursor).toBeTruthy();
 
         const [lists, songs, fresh, charts] = page.sections;
-        expect(lists.items[0]).toMatchObject({ kind: 'collection', collection: { providerId: 'netease', type: 'playlist', id: 17744833377, name: '2026火遍全网的歌曲精选', playCount: 27004044 } });
+        expect(lists.items[0]).toMatchObject({ kind: 'collection', collection: { type: 'playlist', id: '17744833377', name: '2026火遍全网的歌曲精选', playCount: 27004044 } });
         expect(songs.items).toHaveLength(4);
         expect(songs.items[0]).toMatchObject({
             kind: 'song',
             song: {
-                id: 3392959216, name: 'Sea Mistt Beat', durationMs: 90000, privilege: { st: 0, pl: 320000 },
+                id: '3392959216', title: 'Sea Mistt Beat', durationMs: 90000, data: { privilege: { st: 0, pl: 320000 } },
                 artists: [{ name: 'Jasr' }, { name: 'Master666' }],
-                album: { id: 381344362, coverUrl: 'https://p3.music.126.net/BBxSItG872dzWsaFVnU2vw==/109951173350553742.jpg' },
-                sourceRef: { kind: 'online', providerId: 'netease', mediaId: '3392959216' },
+                album: { id: '381344362', coverUrl: 'https://p3.music.126.net/BBxSItG872dzWsaFVnU2vw==/109951173350553742.jpg' },
             },
         });
         // Two new songs, then two new albums: the link to the shop and the album on sale are no entries.
         expect(entryIds(fresh.items)).toEqual([3440552022, 3437948530, 397805510, 397921409]);
         expect(fresh.items[2]).toMatchObject({ kind: 'collection', collection: { type: 'album', name: '吴琳珂', artists: [{ name: '吴琳珂Moske' }] } });
         expect(charts.items).toHaveLength(5);
-        expect(charts.items[0]).toMatchObject({ kind: 'collection', collection: { type: 'playlist', id: 1000 }, subtitle: '每天更新' });
+        expect(charts.items[0]).toMatchObject({ kind: 'collection', collection: { type: 'playlist', id: '1000' }, subtitle: '每天更新' });
     });
 
     it("puts an account's daily songs first and its daily playlists after the blocks, and leaves out the one NetEase does not give", async () => {
@@ -159,7 +165,7 @@ describe('NetEase explore page', () => {
         api.getDailyRecommendedPlaylists.mockResolvedValue({ code: 200, recommend: [{ id: 31, type: 1, name: 'For the account', picUrl: 'https://p3.music.126.net/l.jpg', playcount: 9, trackCount: 3, creator: { userId: 7, nickname: 'Maker' } }] });
         const page = await newExplore().getFeed();
         expect(idsOf(page.sections)).toEqual(['netease-daily-songs', `netease-block-${LISTS}`, `netease-block-${SONGS}`, `netease-block-${FRESH}`, 'netease-daily-playlists', 'netease-charts']);
-        expect(page.sections[4].items[0]).toMatchObject({ kind: 'collection', collection: { type: 'playlist', id: 31, playCount: 9, creator: { nickname: 'Maker' } } });
+        expect(page.sections[4].items[0]).toMatchObject({ kind: 'collection', collection: { type: 'playlist', id: '31', playCount: 9, creator: { nickname: 'Maker' } } });
 
         // A session NetEase no longer takes: an answer with a code and no list.
         api.getDailyRecommendedSongs.mockResolvedValue({ code: 301, songs: [] });
@@ -366,8 +372,8 @@ describe('NetEase explore page', () => {
         api.getNewAlbums.mockImplementation(async (limit: number, offset: number) => ({
             code: 200, total: 500, albums: Array.from({ length: limit }, (_, index) => ({ id: 9000 + offset + index, name: `Album ${offset + index}`, type: '专辑', size: 10, picUrl: 'https://p3.music.126.net/a.jpg', artists: [{ id: 5, name: 'Singer' }] })),
         }));
-        const played = { id: 11, name: 'Played here', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '11' } } as UnifiedSong;
-        const uploaded = { id: 12, name: 'Uploaded', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '12', variant: 'cloud' } } as UnifiedSong;
+        const played = { id: '11', title: 'Played here', artists: [] } as unknown as FoliumSourceSong;
+        const uploaded = { id: '12', title: 'Uploaded', artists: [], variant: 'cloud' } as unknown as FoliumSourceSong;
         const explore = newExplore();
         const first = await explore.getFeed(undefined, [played, uploaded]);
 
@@ -375,7 +381,7 @@ describe('NetEase explore page', () => {
         // Asked with the song played, then with the songs of the home page; not with the uploaded one.
         expect(api.getSimilarSongs.mock.calls.map(([id]) => id)).toEqual([11, 3392959216, 19827042]);
         expect(similar.sections).toHaveLength(3);
-        expect(similar.sections[0]).toMatchObject({ title: i18n.t('home.exploreSimilar', { name: 'Played here' }), changesWithRead: true });
+        expect(similar.sections[0]).toMatchObject({ title: { i18nKey: 'explore.similar', params: { name: 'Played here' } }, changesWithRead: true });
         expect(entryIds(similar.sections[0].items)).toEqual([7, 111, 112, 113, 114]);
         expect(entryIds(similar.sections[1].items)).not.toContain(7);
         expect(new Set(idsOf(similar.sections)).size).toBe(3);
@@ -386,7 +392,7 @@ describe('NetEase explore page', () => {
         const lists = await explore.getFeed(similar.nextCursor);
         expect(idsOf(lists.sections)).toEqual(['netease-new-songs', 'netease-new-albums']);
         expect(lists.sections[0].items).toHaveLength(12);
-        expect(lists.sections[1].items[0]).toMatchObject({ kind: 'collection', collection: { type: 'album', id: 9000 } });
+        expect(lists.sections[1].items[0]).toMatchObject({ kind: 'collection', collection: { type: 'album', id: '9000' } });
         // (Both lists go on beyond the batch shown: each shelf has a cursor, for its "more".)
         expect(lists.sections.map(section => Boolean(section.moreCursor))).toEqual([true, true]);
         expect(lists.nextCursor).toBeTruthy();

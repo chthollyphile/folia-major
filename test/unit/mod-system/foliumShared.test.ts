@@ -4,6 +4,7 @@ import path from 'path';
 import shared from '../../../electron/modSystem/foliumShared.json';
 import { FOLIUM_VERSION } from '@/mods/folium/contract';
 import { FOLIUM_KINDS } from '@/mods/folium/kinds';
+import { FOLIUM_SOURCE_CAPABILITY_VERSIONS } from '@/mods/folium/sources/capabilities';
 
 // test/unit/mod-system/foliumShared.test.ts
 // The Folium version, the permission names and the IPC channel names are
@@ -19,6 +20,11 @@ const root = path.resolve(__dirname, '../../..');
 describe('the copies of what foliumShared.json holds', () => {
     it('the contract states the same Folium version', () => {
         expect({ major: FOLIUM_VERSION.major, minor: FOLIUM_VERSION.minor }).toEqual(shared.version);
+    });
+
+    // Folium 2.0: the window's capability table (folium.sources.supports) and the main process's (sources[].requires).
+    it('the sources contract implements the same capability versions', () => {
+        expect(FOLIUM_SOURCE_CAPABILITY_VERSIONS).toEqual(shared.sourceCapabilities);
     });
 
     // Each preload method of the mods bridge, with the key of the channel it must use. Comparing
@@ -40,16 +46,37 @@ describe('the copies of what foliumShared.json holds', () => {
         getFfmpegStatus: 'ffmpegStatus',
         openModsDirectory: 'openDirectory',
         installModFromZip: 'installZip',
+        installModFromPickedZip: 'installZipPicked',
+        setCommunityMods: 'setCommunity',
         getModStorageUsage: 'storageUsage',
         clearModCache: 'clearCache',
         getModCallStats: 'callStats',
         reportModsStartSettled: 'startSettled',
         reportModsStartAlive: 'startAlive',
+        getSourceStates: 'sourceStates',
+        setSourceState: 'setSourceState',
+        answerSourcesOnboarding: 'answerSourcesOnboarding',
+        describeSourceData: 'sourceData',
+        getSourceStorageUsage: 'sourceUsage',
+        clearSourceData: 'clearSourceData',
+        confirmModOverride: 'confirmOverride',
+        assignSourceClaim: 'assignSourceClaim',
+        reportSourcesRegistered: 'sourcesRegistered',
+        uninstallMod: 'uninstall',
+        allowExpiredModRange: 'allowExpiredRange',
+        revokeExpiredModRange: 'revokeExpiredRange',
+        getMarketCatalog: 'marketCatalog',
+        getMarketReadme: 'marketReadme',
+        installFromMarket: 'marketInstall',
+        onMarketProgress: 'fMarketProgress',
         onModsStateChanged: 'fStateChanged',
         onExportProgress: 'fExportProgress',
         onModLog: 'fLog',
         onModRpcMessage: 'fRpcMessage',
         onModSecretChanged: 'fSecretChanged',
+        onSourceStatesChanged: 'fSourceStatesChanged',
+        onCommunityModsChanged: 'fCommunityChanged',
+        onSourcesStopping: 'fSourcesStopping',
     };
 
     it('each preload method of the mods bridge uses the channel of its own key, and every channel has its method', () => {
