@@ -38,6 +38,7 @@ import { createQqExplore } from './qqExplore';
 import { getQqListeningRankCollections, getQqListeningRankTracks } from './qqListeningRank';
 import { areQqSongsLiked, resetQqVipMemory, withQqVipType } from './qqAccount';
 import { qqPlaybackUrl, requestQqPreviewSource } from './qqPreview';
+import { getQqSongReplacement, qqSongAvailability } from './qqAvailability';
 import { noteQqBackendDeclaration, qqBackendSessionMode, resetQqBackendDeclaration } from './qqBackendDeclaration';
 import { keepQqSessionFresh, resetQqSessionRefresh, stopQqSessionRefresh } from './qqSessionRefresh';
 import { qqCovers } from './qqCovers';
@@ -428,10 +429,9 @@ const getAudioSource = async (song: FoliumSourceSong, quality: FoliumSourceAudio
             });
             const playUrl = response?.data?.playUrl;
             const playUrlMap = playUrl && typeof playUrl === 'object' ? playUrl : {};
-            const direct = playUrlMap[songmid];
-            const fallback = Object.values(playUrlMap)[0] as any;
-            const entry = direct ?? fallback;
-            const url = qqPlaybackUrl(playUrlOf(direct) || playUrlOf(fallback));
+            // 只认这首自己的条目：后端 3.3.7 起一定给请求的 mid（拿不到时是空链接），别的条目是别首歌。
+            const entry = playUrlMap[songmid];
+            const url = qqPlaybackUrl(playUrlOf(entry));
             if (url) return { url, quality: candidate.resolvedQuality };
             if (entry && typeof entry === 'object') {
                 sawEmptyPlayLink = true;
@@ -1090,6 +1090,8 @@ export const createQqSource = (): FoliumSourceDef => ({
             getSong: id => getQqSongDetailById(id),
             getSongs: ids => getQqSongDetails(ids),
             songsPerRequest: QQ_SONG_DETAILS_PER_REQUEST,
+            getAvailability: qqSongAvailability,
+            getReplacement: getQqSongReplacement,
             getPageUrl,
         },
         'playback.audio@1': {

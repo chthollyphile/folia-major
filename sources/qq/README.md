@@ -72,7 +72,12 @@ Folia 内置的 QQ 音乐音源模组（Folium 2.0）。原来是 `src/services/
   一批 25 个）。搜歌在 `core/qqSearch.ts`：有会话时走后端的 `/search` 带会话搜（匿名搜歌常被上游以 2001 风控拒绝），没有会话或后端
   用不了时退回匿名直连；被拒一律报错，不当成搜不到。
 - 试听：所有音质都没给链接、又有会话时，多要一次试听文件，拿到就交出 `preview: true` 的片段（`core/qqPreview.ts`）；有档连不上、
-  标准音质又没回空链接时不要试听，照「连不上」报，交给播放那边再要。失败的情况由 `core/qqFailure.ts` 说。
+  标准音质又没回空链接时不要试听，照「连不上」报，交给播放那边再要。失败的情况由 `core/qqFailure.ts` 说。取链接只认请求的那首
+  自己的条目：后端 3.3.7 起一定给它（拿不到时是空链接），回包里别的条目是别首歌，不拿来顶替。
+- 下架与替代版本（`core/qqAvailability.ts`）：歌曲条目的 `action.switch` 带 bit 27（`0x8000000`）时，官方各端都放不了（下架，
+  多数只剩 MV），归一时记成 `data.takenDown`，`songs@1.getAvailability` 答 `unavailable` / `taken-down`；别的歌一律 `unknown`，
+  会员、地区这些限制照旧在播放时才知道。宿主遇到下架的歌会先问 `getReplacement`，它问后端的 `/song/replacement`（要会话；
+  后端 3.3.9 起下架的歌也会找），找到能放的其他版本就由宿主的对话框让听的人选；没会话、旧后端（404）或没有能放的版本时回 null。
 - `core/qqLists.ts`：当成集合打开的排行榜、电台（探索页的卡片，`data.list` 记是哪一种）和音乐云盘（`/user/cloud`，只列对得上曲库、
   `playable` 的歌）。`core/qqListeningRank.ts`：听歌排行。
 - `core/qqExplore.ts`：QQ 的探索页，个人化的在前（刷歌模式 `/recommend/radar`、每日 30 首、客户端首页 feed、推荐歌单与榜单），

@@ -34,6 +34,7 @@ export const REGISTERED_SITES = [
         sites: {
             'sources/netease/core/netease.ts': { resolveNeteaseSongAvailability: 'privilege.st 是网易云的下架码（NETEASE_TAKEN_DOWN_ST），且没有可播的音质、不是云盘' },
             'sources/bodian/client/bodianProvider.ts': { bodianSongAvailability: '波点自己标的 off-shelf（offline / online 0，normalizeBodianSong 记成 availability）' },
+            'sources/qq/core/qqAvailability.ts': { qqSongAvailabilityOf: 'QQ 歌曲条目 action.switch 的 bit 27（0x8000000），normalizeQqSong 记成 data.takenDown；对照官方客户端，带这一位的歌各端都放不了' },
             'src/components/app/playback/start/usePlaybackQueueController.ts': { playSong: '只在 isSongUnavailable(song) 为真时：那是 provider 依据平台记录给的静态可用性，这里只是呈现' },
         },
     },
