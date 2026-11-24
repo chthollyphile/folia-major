@@ -8,7 +8,7 @@ import { hasUsableQqSession, requestQq } from './qqTransport';
 // 猜你喜欢（QQ 的电台 99）作为 QQ 的额外电台（station）：电台页多一张卡，点了开 FM；FM 模式选择器在它播的时候
 // 换成它自己的「听歌模式」。手机上排的探索、默认、熟悉对上同名的模式，下面那一格（R&B、助眠、动感 DJ……）当场景，
 // 场景的 id 就是模式的 poolId。取歌只带 poolId，不写账号的模式设置；模式选择只在内存里，换台、FM 结束、重开都回默认。
-// 默认（或认不出的模式）读 `/user/guess-you-like` 的默认一批。
+// 默认模式照官方 Android 带 pool 1000 取歌；认不出的模式、或按 pool 取不到时读 `/user/guess-you-like` 的默认一批。
 
 export const QQ_GUESS_YOU_LIKE_STATION = 'guess-you-like';
 
@@ -152,8 +152,12 @@ export const getQqGuessYouLikeCatalog = async (): Promise<FoliumSourceFmCatalog>
 /** What getPersonalFm is asked with. */
 export interface QqFmRequest { mode?: string; submode?: string | null; station?: string | null }
 
-/** 选中的模式对应哪个 poolId；默认、认不出或目录读不到时是 null，读默认的一批。 */
+/** 官方 Android 选「默认模式」时取歌带的 poolId（3.3.6 抓包）。 */
+const DEFAULT_MODE_POOL = '1000';
+
+/** 选中的模式对应哪个 poolId；默认模式是 DEFAULT_MODE_POOL；认不出或目录读不到时是 null，读默认的一批。 */
 const poolOfSelection = async (selected: QqFmRequest): Promise<string | null> => {
+    if (selected.mode === 'DEFAULT' || selected.mode === undefined) return DEFAULT_MODE_POOL;
     if (selected.mode === 'SCENE_RCMD') {
         const scene = String(selected.submode ?? '');
         return /^[1-9]\d{0,9}$/.test(scene) ? scene : null;
@@ -174,7 +178,8 @@ const songsOf = (response: any): FoliumSourceSong[] => (Array.isArray(response?.
 export const getQqGuessYouLikeBatch = async (selected: QqFmRequest): Promise<FoliumSourceSong[]> => {
     if (!hasUsableQqSession()) return [];
     const pool = await poolOfSelection(selected);
-    if (!pool && coverBatch && Date.now() - coverBatch.at < COVER_BATCH_TTL_MS) {
+    // 点卡片开播（默认模式）时先放卡片封面那一批，不白白多耗一批；之后照默认模式的 pool 要。
+    if ((!pool || pool === DEFAULT_MODE_POOL) && coverBatch && Date.now() - coverBatch.at < COVER_BATCH_TTL_MS) {
         const kept = coverBatch.songs;
         coverBatch = null;
         return kept;
