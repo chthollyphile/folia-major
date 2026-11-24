@@ -37,9 +37,12 @@ const PERSONAL_FM_LAST_PAGE = 100;
 // 失败的那页下次再要；到上限回到第 1 页。分不清这一批是进了队列还是只给首页电台卡当封面：封面多吃一页只是跳过一批，
 // 不影响续歌。换账号、登出时回到第 1 页（resetQqPersonalFmPage）。
 let personalFmPage = 1;
+// 重设的次数：重设之前就在路上的那一批（上一个账号的）回来时，不推页码，也不交出去。
+let personalFmGeneration = 0;
 
 /** 换账号、登出、重新创建音源时：私人 FM 从第 1 页重新要。 */
 export const resetQqPersonalFmPage = (): void => {
+    personalFmGeneration += 1;
     personalFmPage = 1;
 };
 
@@ -47,11 +50,14 @@ export const resetQqPersonalFmPage = (): void => {
 const loadPersonalFmBatch = async (): Promise<FoliumSourceSong[]> => {
     if (!hasUsableQqSession()) return [];
     const page = personalFmPage;
+    const generation = personalFmGeneration;
     try {
         const songs = songsOf(await requestQq<any>('user_personal_fm', { page }));
+        if (generation !== personalFmGeneration) return [];
         if (songs.length > 0 && personalFmPage === page) personalFmPage = page >= PERSONAL_FM_LAST_PAGE ? 1 : page + 1;
         return songs;
     } catch (error) {
+        if (generation !== personalFmGeneration) return [];
         if (isQqError(error, 'unsupported')) return loadRecommendedSongs('user_guess_you_like');
         if (isEmptyAnswer(error)) return [];
         throw error;

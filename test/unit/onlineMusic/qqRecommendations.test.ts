@@ -118,6 +118,23 @@ describe('QQ recommendations', () => {
             expect(requestMock).toHaveBeenLastCalledWith('user_personal_fm', { page: 1 });
         });
 
+        // 重设（换账号、登出）之前就在路上的那一批是上一个账号的：回来时不推页码，也不交出去。
+        it('drops a batch that comes back after a reset, without moving the page', async () => {
+            let release!: (value: unknown) => void;
+            requestMock
+                .mockImplementationOnce(() => new Promise(resolve => { release = resolve; }))
+                .mockResolvedValue({ code: 200, songs: [song('new', 2)] });
+
+            const pending = qq.recommendations!.getPersonalFm!();
+            await vi.waitFor(() => expect(release).toBeDefined());
+            resetQqPersonalFmPage();
+            release({ code: 200, songs: [song('old', 1)] });
+
+            await expect(pending).resolves.toEqual([]);
+            await qq.recommendations!.getPersonalFm!();
+            expect(requestMock.mock.calls.map(call => (call[1] as { page: number }).page)).toEqual([1, 1]);
+        });
+
         it('asks nothing without a session', async () => {
             transportState.hasSession = false;
             await expect(qq.recommendations!.getPersonalFm!()).resolves.toEqual([]);
