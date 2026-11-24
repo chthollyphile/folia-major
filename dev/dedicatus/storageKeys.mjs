@@ -299,6 +299,7 @@ export const STORAGE_KEYS = [
     'web:show_subtitle_translation',
     'web:sleep_timer_hours',
     'web:sleep_timer_minutes',
+    'web:song_notes_music_notes_hint',
     'web:stage_track_pill_in_obs',
     'web:stage_track_pill_mode',
     'web:stage_track_pill_on_home',

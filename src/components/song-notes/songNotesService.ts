@@ -115,6 +115,16 @@ export const countSongNotes = async (): Promise<number> => {
     }
 };
 
+/** 全部写过评论或打过标签的歌的 key（只读主键）。 */
+export const listSongNoteKeys = async (): Promise<Set<string>> => {
+    try {
+        return new Set(await songNotesDatabase().songs.toCollection().primaryKeys());
+    } catch (error) {
+        console.warn('[SongNotes] key list failed', error);
+        return new Set();
+    }
+};
+
 /** 全部标签，按先后。 */
 export const listSongNoteTags = async (): Promise<SongNoteTag[]> => {
     try {
@@ -398,4 +408,154 @@ export const untagSongs = async (songKeys: readonly string[], tagKey: string, no
         if (keys.length > 0 && await db.songs.where('tags').equals(tagKey).count() === 0) await db.tags.delete(tagKey);
         return { ok: true, value: keys.length };
     }, () => keys);
+};
+
+/** 导出用：全部歌、标签、评论。读不出来回 null（界面报错，不导出一个空文件）。 */
+export const readAllSongNotesForExport = async (): Promise<{ rows: SongNoteRow[]; tags: SongNoteTag[]; comments: SongNoteComment[] } | null> => {
+    try {
+        const db = songNotesDatabase();
+        return await db.transaction('r', db.songs, db.comments, db.tags, async () => {
+            const [rows, tags, comments] = await Promise.all([
+                db.songs.orderBy('updatedAt').reverse().toArray(),
+                db.tags.orderBy('order').toArray(),
+                db.comments.toArray(),
+            ]);
+            return { rows, tags, comments };
+        });
+    } catch (error) {
+        console.warn('[SongNotes] export read failed', error);
+        return null;
+    }
+};
+
+/** 一次导入的结果。songsAdded：新出现的歌；songsMerged：原来就有、这次添了东西的歌。 */
+export type SongNotesImportResult = {
+    songsAdded: number;
+    songsMerged: number;
+    commentsAdded: number;
+    tagsAdded: number;
+    /** 已经有了、没重复添加的评论（同一首歌、同样的字和时刻）。 */
+    commentsDuplicate: number;
+    /** 一首歌的评论、标签到了上限，没添进去的条数。 */
+    overLimit: number;
+};
+
+const commentIdentity = (text: string, at: number | undefined) => `${text}\u0001${at ?? ''}`;
+
+/**
+ * 导入（自己的文件、模组的数据都走这里）：只添加缺少的，已有的不改——
+ * - 标签：没有的按导入的先后排在已有标签之后，写法照导入的；已有的写法、先后不动；
+ * - 歌：没有的新建一行（快照用导入的）；已有的留着自己的快照，只添标签与评论；
+ * - 评论：同一首歌里字和时刻都一样的算已经有了，不重复添加；
+ * - 上限照常：一首歌 32 个标签、1000 条评论，多出来的不添，计数报给界面。
+ * 外部播放器的歌不导入。最近改动的时间取两边和这次添进来的最晚的那个。整个一个事务：写不进去就什么都不变。
+ */
+export const importSongNotes = (
+    data: { tags: ReadonlyArray<{ name: string; createdAt: number }>; songs: ReadonlyArray<SongNotesImportSongInput> },
+    now = Date.now(),
+): Promise<SongNoteResult<SongNotesImportResult>> => runWrite('import', async db => {
+    const result: SongNotesImportResult = { songsAdded: 0, songsMerged: 0, commentsAdded: 0, tagsAdded: 0, commentsDuplicate: 0, overLimit: 0 };
+    // 文件说的时间不晚于现在：写着将来时间的歌会一直排在「最近」最前，之后正常写的评论也压不下它。没写（0）的当现在。
+    const past = (at: number | undefined): number => (at && at > 0 ? Math.min(at, now) : now);
+    let nextOrder = ((await db.tags.orderBy('order').last())?.order ?? 0) + 1;
+    const knownTags = new Set(await db.tags.toCollection().primaryKeys());
+    const addedTags: string[] = [];
+    // 新标签要写的那一行；已有的回 null。只在真要写的时候 await 库（事务里等别的 promise，Dexie 会当事务已经结束）。
+    const newTag = (name: string, createdAt: number): SongNoteTag | null => {
+        const key = tagKeyOf(name);
+        if (knownTags.has(key)) return null;
+        knownTags.add(key);
+        addedTags.push(key);
+        const tag = { key, name, order: nextOrder, createdAt: createdAt || now };
+        nextOrder += 1;
+        return tag;
+    };
+    for (const tag of data.tags) {
+        const name = normalizeTagName(tag.name);
+        const added = name ? newTag(name, past(tag.createdAt)) : null;
+        if (added) await db.tags.put(added);
+    }
+
+    for (const item of data.songs) {
+        if (isStagePlaybackSong(item.song)) continue;
+        const key = getPlaybackSongKey(item.song);
+        const row = await db.songs.get(key);
+        const tags = [...(row?.tags ?? [])];
+        const tagAddedAt = { ...(row?.tagAddedAt ?? {}) };
+        let changedSong = false;
+        // 这次添进来的最晚的时间：「最近评论过」按 updatedAt 排，文件里 updatedAt 写早了也不让新添的评论沉底。
+        let latestAdded = 0;
+        for (const ref of item.tags) {
+            const name = normalizeTagName(ref.name);
+            if (!name) continue;
+            const added = newTag(name, past(ref.addedAt));
+            if (added) await db.tags.put(added);
+            const tagKey = tagKeyOf(name);
+            if (tags.includes(tagKey)) continue;
+            if (tags.length >= SONG_NOTE_MAX_TAGS) {
+                result.overLimit += 1;
+                continue;
+            }
+            tags.push(tagKey);
+            tagAddedAt[tagKey] = past(ref.addedAt);
+            latestAdded = Math.max(latestAdded, tagAddedAt[tagKey]);
+            changedSong = true;
+        }
+        const comments = await db.comments.where('songKey').equals(key).toArray();
+        const seen = new Set(comments.map(comment => commentIdentity(comment.text, comment.at)));
+        for (const input of item.comments) {
+            const text = normalizeCommentText(input.text);
+            const at = normalizeCommentAt(input.at);
+            if (!isKeepableComment(text, at)) continue;
+            const identity = commentIdentity(text, at);
+            if (seen.has(identity)) {
+                result.commentsDuplicate += 1;
+                continue;
+            }
+            if (comments.length >= SONG_NOTE_MAX_COMMENTS) {
+                result.overLimit += 1;
+                continue;
+            }
+            seen.add(identity);
+            const createdAt = past(input.createdAt);
+            const comment: SongNoteComment = {
+                id: newCommentId(createdAt),
+                songKey: key,
+                text,
+                ...(at !== undefined ? { at } : {}),
+                createdAt,
+                ...(input.editedAt ? { editedAt: Math.max(createdAt, past(input.editedAt)) } : {}),
+            };
+            await db.comments.add(comment);
+            comments.push(comment);
+            result.commentsAdded += 1;
+            latestAdded = Math.max(latestAdded, createdAt);
+            changedSong = true;
+        }
+        if (!changedSong) continue;
+        if (row) result.songsMerged += 1;
+        else result.songsAdded += 1;
+        await db.songs.put({
+            key,
+            song: row?.song ?? toStoredSongSnapshot(item.song),
+            tags,
+            tagAddedAt,
+            ...summarizeComments(comments),
+            updatedAt: Math.max(row?.updatedAt ?? 0, past(item.updatedAt), latestAdded),
+        });
+    }
+    // 只有到了上限的歌用的新标签，最后没落到任何一首歌上：不留一个空标签。
+    for (const key of addedTags) {
+        if (await db.songs.where('tags').equals(key).count() === 0) await db.tags.delete(key);
+        else result.tagsAdded += 1;
+    }
+    return { ok: true, value: result };
+}, () => 'all');
+
+/** 要导入的一首歌（已经认成了 SongResult）。和 songNotesFile 的 SongNotesImportSong<SongResult> 同形，这里不引它免得成环。 */
+export type SongNotesImportSongInput = {
+    song: SongResult;
+    tags: ReadonlyArray<{ name: string; addedAt: number }>;
+    comments: ReadonlyArray<{ text: string; at?: number; createdAt: number; editedAt?: number }>;
+    updatedAt: number;
 };
