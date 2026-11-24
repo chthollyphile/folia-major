@@ -354,7 +354,8 @@ const CHORUS_EFFECTS = new Set(['bars', 'circles', 'beams']);
  * taken from the mod: the host recomputes them from the rebuilt timing, and a
  * word split that no longer joins back to the text is dropped. A rebuilt
  * chorus line keeps where its chorus came from (Line.chorusOrigin, which mods
- * do not see) from the original chorus line that started at the same time.
+ * do not see) from the original chorus line that started at the same time;
+ * one with no such line counts as guessed.
  */
 export const fromFoliumLines = (original: readonly Line[], originalDtos: readonly FoliumLine[], next: readonly FoliumLine[]): Line[] => {
     const indexByDto = new Map(originalDtos.map((dto, index) => [dto, index] as const));
@@ -393,8 +394,9 @@ export const fromFoliumLines = (original: readonly Line[], originalDtos: readonl
             ...optionalNumber('blockIndex', dto.blockIndex),
             ...optionalBoolean('isChorus', dto.isChorus),
             ...(CHORUS_EFFECTS.has(dto.chorusEffect as string) ? { chorusEffect: dto.chorusEffect } : {}),
-            ...(dto.isChorus === true && chorusOriginByStart.has(dto.startTime)
-                ? { chorusOrigin: chorusOriginByStart.get(dto.startTime) }
+            // A chorus line the mod moved or marked itself is not one the lyric data vouches for: guessed.
+            ...(dto.isChorus === true
+                ? { chorusOrigin: chorusOriginByStart.get(dto.startTime) ?? 'text' }
                 : {}),
             ...(backgroundVocals ? { backgroundVocals } : {}),
             ...(wordSegments ? { wordSegments } : {}),

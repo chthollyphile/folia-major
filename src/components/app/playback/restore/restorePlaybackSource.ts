@@ -25,6 +25,7 @@ import {
 import { getLocalCoverAssetUrl } from '../../../../services/localCoverAssetUrl';
 import { isPureMusicLyricText } from '../../../../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../../../../utils/lyrics/renderHints';
+import { readCachedPlaybackLyrics } from '../../../../services/onlineMusic/cachedPlaybackLyrics';
 import { resolveLocalSongLyrics } from '../../../../utils/lyrics/localSongLyrics';
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
@@ -440,7 +441,7 @@ const restoreSourceForSong = async (
     // the session restore would take back the autoplay and the window hand-off would put the old
     // address back over the fresh one. A throw that comes after the listener moved on is stale.
     try {
-        const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
+        const cachedLyrics = await readCachedPlaybackLyrics(song);
         if (overtaken()) return 'stale';
         const restoredPreferredLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
         if (restoredPreferredLyrics) {

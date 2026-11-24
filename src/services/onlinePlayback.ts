@@ -2,7 +2,7 @@ import { LyricData, OnlineLyricsState, ReplayGainInfo, SongResult } from '../typ
 import { saveToCache } from './db';
 import { PrefetchedSongData, isUrlValid, updatePrefetchedAudioUrl } from './prefetchService';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
-import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
+import { readCachedPlaybackLyrics } from './onlineMusic/cachedPlaybackLyrics';
 import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, resolveOnlineLyricsPureMusic, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
@@ -13,7 +13,7 @@ import { omni } from './onlineMusic/omni';
 import { autoRetryDelaysMs, logOnlineFailure, onlineFailureOf, type OnlineFailure } from './onlineMusic/failure/onlineFailureCase';
 import { noteOnlineRequestCooldown, onlineRequestCooldown } from './onlineMusic/failure/onlineRequestCooldown';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
-import { deleteCachedSongAudio, getCachedSongAudioBlob, getCachedSongReplayGain, getSongCacheWithLegacyMigration } from './onlineMusic/resourceCache';
+import { deleteCachedSongAudio, getCachedSongAudioBlob, getCachedSongReplayGain } from './onlineMusic/resourceCache';
 import { measureSongAudio, notTheSongWhy } from './wholeSongCheck';
 import { isCachedSongAudioDistrusted } from './playbackRecovery/mediaCacheGuard';
 import { toPlayableAudioUrl } from '../utils/appPlaybackHelpers';
@@ -220,7 +220,10 @@ export async function loadOnlineSongLyrics(
     if (!isCurrent()) return;
     onStateChange?.(onlineLyricsState);
 
-    const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
+    // With the best-lyric search on, the cached entry is not what plays (only an imported or chosen lyric is, and the
+    // reader leaves the entry alone under those): the lyrics are fetched below and written over it, so an entry saved
+    // before chorus origins is not fetched a second time here, ahead of the audio.
+    const cachedLyrics = await readCachedPlaybackLyrics(song, { refresh: !initialSettingsLyricSettings.autoUseBestLyric });
     if (!isCurrent()) return;
     const preferredCachedLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
     const hasAuthoritativeLyricsSelection = onlineLyricsState?.lyricsSource === 'imported'

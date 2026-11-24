@@ -680,8 +680,11 @@ describe('autoMatchBestLyric', () => {
             expect.objectContaining({ id: 201 }));
         expect(result.lyrics.lines[0].isChorus).toBeUndefined();
         expect(result.lyrics.lines[0].chorusEffect).toBeUndefined();
+        // The QQ lyric's own mark carries no origin (a guess): KuGou's range is put over it as the source's chorus.
         expect(result.lyrics.lines[1].isChorus).toBe(true);
-        expect(result.lyrics.lines[1].chorusEffect).toBe('bars');
+        expect(result.lyrics.lines[1].chorusOrigin).toBe('source');
+        expect(['bars', 'circles', 'beams']).toContain(result.lyrics.lines[1].chorusEffect);
+        expect(result.lyrics.sourceChorusRanges).toEqual([{ startTime: 34, endTime: 89 }]);
     });
 
     it('reuses a preprocessed NetEase candidate for the same song id', async () => {
