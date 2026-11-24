@@ -252,7 +252,7 @@ Docker / NAS、HTTPS、反向代理和本地镜像验证见 [Docker 全栈部署
 mkdir qq-api
 cd qq-api
 npm init -y
-npm install @yakult-green-tea/qq-music-api@^3.3.6
+npm install @yakult-green-tea/qq-music-api@^3.3.8
 ```
 
 macOS / Linux：
@@ -283,7 +283,7 @@ VITE_QQ_API_BASE=https://你的-qq-api-域名
 
 常驻 Node 服务支持 QQ 扫码、微信扫码和 QQ 音乐 App 扫码；后端 3.3.2 起，Folia 只显示 QQ 音乐 App 扫码的二维码，手机 QQ、微信、QQ 音乐 App 都能扫。`QQ_AUTH_STATE_PATH` 保存非凭证的设备标识；`QQ_AUTH_SESSION_PATH` 保存使用 `QQ_SESSION_SECRET` 加密后的登录态。不要让多个实例共用同一份状态文件。
 
-Folia 的每日推荐、私人 FM、推荐歌单、往自建歌单加歌删歌和收藏歌单用到 3.3.0 新增的接口，红心和收藏专辑用到 3.3.1 新增的接口。Folia 现在锁定 3.3.6，自行部署的旧服务请升级到这个版本或更高。3.3.6 提供独立的私人 FM、每日推荐历史、歌曲不喜欢、探索页首页 feed 和听歌排行。3.3.0 起常驻服务会在登录凭证到期前自动续期，不用再隔几天重新扫码；Vercel、Cloudflare 这类 serverless 部署从 3.3.2 起由开着的 Folia 网页版在快到期时续期，最多 30 天（见 [Serverless 上的扫码登录](#serverless-上的扫码登录)）。
+Folia 的每日推荐、私人 FM、推荐歌单、往自建歌单加歌删歌和收藏歌单用到 3.3.0 新增的接口，红心和收藏专辑用到 3.3.1 新增的接口。Folia 现在锁定 3.3.8，自行部署的旧服务请升级到这个版本或更高。3.3.6 起提供独立的私人 FM、每日推荐历史、歌曲不喜欢、探索页首页 feed 和听歌排行。3.3.0 起常驻服务会在登录凭证到期前自动续期，不用再隔几天重新扫码；Vercel、Cloudflare 这类 serverless 部署从 3.3.2 起由开着的 Folia 网页版在快到期时续期，最多 30 天（见 [Serverless 上的扫码登录](#serverless-上的扫码登录)）。
 
 探索页、音乐云盘和会员等级用到 3.3.3 才齐的接口（`/recommend/radar`、`/recommend/toplists`、`/recommend/new-albums`、`/song/similar`、`/user/cloud` 等）。后端低于 3.3.3 时，探索页读不出 QQ 的内容，歌单里没有音乐云盘，会员账号不显示皇冠，其他功能照旧。
 

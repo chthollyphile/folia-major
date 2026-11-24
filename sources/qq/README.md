@@ -4,7 +4,7 @@ Folia 内置的 QQ 音乐音源模组（Folium 2.0）。原来是 `src/services/
 `src/services/onlineMusic/README.md` 里 QQ 的几段，随平台搬到这里。构建、布局和依赖的规矩见 `dev/sources/README.md`。
 
 - **上游**：第三方库 `@yakult-green-tea/qq-music-api`（仓库 yakult-green-tea/qq-music-api），代我们向 QQ 音乐的接口发请求。
-- **版本**：3.3.6。本目录的 `package.json`、根目录 `package.json`（网页版的 serverless 入口和单测用，钉死）和
+- **版本**：3.3.8。本目录的 `package.json`、根目录 `package.json`（网页版的 serverless 入口和单测用，钉死）和
   `deploy/docker/qq-api/package.json` 都是；升级时几处一起改，连同各自的锁文件。
 - **桌面端怎么用**：包声明成 `asar`，构建把它和它的依赖装进 `deps.<指纹>.asar`。包在加载时自己起一个 HTTP 服务，所以 main 入口
   （`main/index.ts`）不在启动时加载它：client 第一次问 `status`（要向后端发请求）时才拉起（`main/qqBackend.cjs` 的 `start`：找空端口、
