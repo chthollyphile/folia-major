@@ -5,7 +5,7 @@ import type { FoliaEntryAvailability, FoliaEntryAvailabilityDeps } from '../../l
 import { resolveFoliaEntryAvailability } from '../../library/core/foliaPlaylist/foliaPlaylistAvailability';
 import { getPlaybackSongKey, getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { getFoliaEntryLocalSongId } from '../../utils/foliaPlaylistEntries';
-import { buildLocalEntry } from './foliaPlaylistRows';
+import { buildLocalEntry, buildLocalEntrySong } from './foliaPlaylistRows';
 import { normalizeM3uPath } from './foliaPlaylistM3u';
 
 // src/services/foliaPlaylist/foliaPlaylistFile.ts
@@ -247,7 +247,7 @@ const onlineIdAgrees = (rawId: unknown, song: UnifiedSong): boolean => {
 };
 
 /** Navidrome 的歌在文件里的样子：没有任何地址（它们带着账号的令牌），封面只留图的 id。 */
-type FoliaFileNavidromeSong = {
+export type FoliaFileNavidromeSong = {
     id: string;
     albumId?: string;
     artistId?: string;
@@ -302,6 +302,35 @@ const localHintOf = (song: LocalSong): FoliaFileLocalHint => {
     };
 };
 
+/**
+ * 一首歌写进 Folia 文件的样子（歌单文件的条目、时刻文件里的歌共用）：`source` 加上 `song`，本地歌另带 `local`（认回文件的线索），
+ * Navidrome 的另带 `navidrome`。`key` 是它在歌单或时刻里的 key（本地歌按它找曲库里的记录）。
+ * 写不出来的回 null：曲库里找不到的本地歌（没有能让别处认回它的东西），认不出来源的歌。
+ */
+export const writeFoliaFileSong = (
+    { key, song }: { key: string; song: SongResult },
+    localSongsById: ReadonlyMap<string, LocalSong>,
+): ({ source: 'online' | 'navidrome' | 'local' } & Json) | null => {
+    const raw = song as unknown as Json;
+    const localSongId = getFoliaEntryLocalSongId({ key });
+    if (localSongId !== null) {
+        const localSong = localSongsById.get(localSongId);
+        if (!localSong) return null;
+        // 显示用的字段取曲库此刻的记录（存着的快照只是引用）。
+        const display = displayFieldsOf(buildLocalEntry(localSong, 0).song as unknown as Json, null, false);
+        return { source: 'local', song: display, local: localHintOf(localSong) };
+    }
+    const ref = getPlaybackSourceRef(song);
+    if (ref.kind === 'navidrome' && ref.mediaId) {
+        const data = isRecord(raw.navidromeData) ? raw.navidromeData : {};
+        const album = isRecord(raw.album) ? raw.album : {};
+        const coverArtId = coverArtIdOf(data.coverArtUrl) ?? coverArtIdOf(album.coverUrl);
+        return { source: 'navidrome', song: displayFieldsOf(raw, null, false), navidrome: navidromeFieldsOf(data, ref.mediaId, coverArtId) };
+    }
+    const online = ref.kind === 'online' ? onlineSongOf({ ...raw, sourceRef: ref }) : null;
+    return online ? { source: 'online', song: online } : null;
+};
+
 export interface FoliaPlaylistFileExport {
     content: string;
     /** 写进文件的条目数。 */
@@ -327,36 +356,13 @@ export const serializeFoliaPlaylistFile = (
             ...(typeof entry.originalKey === 'string' && ENTRY_KEY.test(entry.originalKey) ? { originalKey: entry.originalKey } : {}),
             ...(entry.fromOrigin === true ? { fromOrigin: true } : {}),
         };
-        const raw = entry.song as unknown as Json;
-        const localSongId = getFoliaEntryLocalSongId(entry);
-        if (localSongId !== null) {
-            const localSong = songsById.get(localSongId);
-            if (!localSong) {
-                skippedCount += 1;
-                return [];
-            }
-            // 显示用的字段取曲库此刻的记录（歌单里的快照只是引用）。
-            const display = displayFieldsOf(buildLocalEntry(localSong, 0).song as unknown as Json, null, false);
-            return [{ source: 'local', ...common, song: display, local: localHintOf(localSong) }];
-        }
-        const ref = getPlaybackSourceRef(entry.song);
-        if (ref.kind === 'navidrome' && ref.mediaId) {
-            const data = isRecord(raw.navidromeData) ? raw.navidromeData : {};
-            const album = isRecord(raw.album) ? raw.album : {};
-            const coverArtId = coverArtIdOf(data.coverArtUrl) ?? coverArtIdOf(album.coverUrl);
-            return [{
-                source: 'navidrome',
-                ...common,
-                song: displayFieldsOf(raw, null, false),
-                navidrome: navidromeFieldsOf(data, ref.mediaId, coverArtId),
-            }];
-        }
-        const online = ref.kind === 'online' ? onlineSongOf({ ...raw, sourceRef: ref }) : null;
-        if (!online) {
+        const written = writeFoliaFileSong(entry, songsById);
+        if (!written) {
             skippedCount += 1;
             return [];
         }
-        return [{ source: 'online', ...common, song: online }];
+        const { source, ...rest } = written;
+        return [{ source, ...common, ...rest }];
     });
     const origin = playlist.origin;
     // 原歌单在音源那边的附带数据（origin.collectionData）不写：里面有只对导出者的账号有意义的目录号、主人 id，
@@ -388,10 +394,17 @@ export const serializeFoliaPlaylistFile = (
 
 // ---- 读回来 ----
 
+/** 文件里读出来的一首歌（歌单文件的条目、时刻文件里的歌共用）。 */
+export type FoliaFileSong =
+    | { source: 'online'; song: UnifiedSong }
+    | { source: 'navidrome'; song: SongResult; navidrome: FoliaFileNavidromeSong }
+    | { source: 'local'; title: string; local: FoliaFileLocalHint };
+
+type EntryCommon = { addedAt: number; fromOrigin?: true };
 export type FoliaPlaylistFileEntry =
-    | { source: 'online'; song: UnifiedSong; addedAt: number; originalKey?: string; fromOrigin?: true }
-    | { source: 'navidrome'; song: SongResult; navidrome: FoliaFileNavidromeSong; addedAt: number; originalKey?: string; fromOrigin?: true }
-    | { source: 'local'; title: string; local: FoliaFileLocalHint; addedAt: number; fromOrigin?: true };
+    | (Extract<FoliaFileSong, { source: 'online' }> & EntryCommon & { originalKey?: string })
+    | (Extract<FoliaFileSong, { source: 'navidrome' }> & EntryCommon & { originalKey?: string })
+    | (Extract<FoliaFileSong, { source: 'local' }> & EntryCommon);
 
 export interface ParsedFoliaPlaylistFile {
     name: string;
@@ -459,18 +472,17 @@ const localHintFrom = (value: unknown): FoliaFileLocalHint | null => {
     };
 };
 
-const entryOf = (value: unknown): FoliaPlaylistFileEntry | 'mismatched-id' | null => {
+/**
+ * 读文件里的一首歌（`source`、`song`，加上 `local` 或 `navidrome`）。不成样子回 null；在线歌的 id 和它的来源说的
+ * 不是同一首，回 'mismatched-id'。歌单文件的条目、时刻文件里的歌都走这一道。
+ */
+export const readFoliaFileSong = (value: unknown): FoliaFileSong | 'mismatched-id' | null => {
     if (!isRecord(value) || !isRecord(value.song)) return null;
-    const common = {
-        addedAt: timestamp(value.addedAt),
-        ...(value.fromOrigin === true ? { fromOrigin: true as const } : {}),
-    };
-    const originalKey = typeof value.originalKey === 'string' && ENTRY_KEY.test(value.originalKey) ? value.originalKey : undefined;
     if (value.source === 'online') {
         const song = onlineSongOf(value.song);
         if (!song) return null;
         if (!onlineIdAgrees(value.song.id, song)) return 'mismatched-id';
-        return { source: 'online', song, ...common, ...(originalKey ? { originalKey } : {}) };
+        return { source: 'online', song };
     }
     if (value.source === 'navidrome') {
         const data = isRecord(value.navidrome) ? value.navidrome : null;
@@ -479,19 +491,27 @@ const entryOf = (value: unknown): FoliaPlaylistFileEntry | 'mismatched-id' | nul
         const fields = displayFieldsOf(value.song, null, false);
         if (!fields.name) return null;
         const coverArtId = clip(data.coverArtId, 256) || undefined;
-        return {
-            source: 'navidrome',
-            song: { id, ...fields },
-            navidrome: navidromeFieldsOf(data, id, coverArtId),
-            ...common,
-            ...(originalKey ? { originalKey } : {}),
-        };
+        return { source: 'navidrome', song: { id, ...fields }, navidrome: navidromeFieldsOf(data, id, coverArtId) };
     }
     if (value.source === 'local') {
         const local = localHintFrom(value.local);
-        return local ? { source: 'local', title: clip(value.song.name, 500), local, ...common } : null;
+        return local ? { source: 'local', title: clip(value.song.name, 500), local } : null;
     }
     return null;
+};
+
+const entryOf = (value: unknown): FoliaPlaylistFileEntry | 'mismatched-id' | null => {
+    const song = readFoliaFileSong(value);
+    if (!song || song === 'mismatched-id') return song;
+    // 读得出歌，value 就是一个对象。
+    const record = value as Json;
+    const common: EntryCommon = {
+        addedAt: timestamp(record.addedAt),
+        ...(record.fromOrigin === true ? { fromOrigin: true as const } : {}),
+    };
+    if (song.source === 'local') return { ...song, ...common };
+    const originalKey = typeof record.originalKey === 'string' && ENTRY_KEY.test(record.originalKey) ? record.originalKey : undefined;
+    return { ...song, ...common, ...(originalKey ? { originalKey } : {}) };
 };
 
 /** 读一个 JSON 歌单文件的内容。什么都不写；不对的地方照实说是哪一种。 */
@@ -651,7 +671,7 @@ export interface FoliaPlaylistFilePreview {
     entries: FoliaPlaylistEntry[];
 }
 
-const navidromeSongOf = (entry: Extract<FoliaPlaylistFileEntry, { source: 'navidrome' }>, urls: FoliaFileNavidromeUrls | null): SongResult => {
+const navidromeSongOf = (entry: Extract<FoliaFileSong, { source: 'navidrome' }>, urls: FoliaFileNavidromeUrls | null): SongResult => {
     const { coverArtId, ...data } = entry.navidrome;
     const coverArtUrl = urls && coverArtId ? urls.coverArt(coverArtId) : undefined;
     const song = {
@@ -672,6 +692,19 @@ const navidromeSongOf = (entry: Extract<FoliaPlaylistFileEntry, { source: 'navid
         },
     };
     return song as unknown as SongResult;
+};
+
+/** 读进来的一首歌在这台设备上的样子：本地歌在曲库里认（认不出来回 null），Navidrome 的封面地址用这台设备上的账号拼。 */
+export const songOfFoliaFileSong = (
+    item: FoliaFileSong,
+    index: FoliaLocalMatchIndex,
+    navidromeUrls: FoliaFileNavidromeUrls | null,
+): SongResult | null => {
+    if (item.source === 'local') {
+        const match = matchFoliaLocalSong(item.local, index);
+        return match ? buildLocalEntrySong(match) : null;
+    }
+    return item.source === 'online' ? item.song : navidromeSongOf(item, navidromeUrls);
 };
 
 /**

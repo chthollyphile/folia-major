@@ -5,6 +5,8 @@ import { selectDisplayDuration, selectDisplaySong, usePlaybackStore } from '../.
 import { getPlaybackSongKey, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { useRecentSongNotes, useSongNote, useSongNoteTags, useSongNotesStore } from '../../song-notes/useSongNotesStore';
+import { markMusicNotesModHintDone, useMusicNotesModHint } from '../../song-notes/songNotesModHint';
+import { openSettings } from '../../../stores/useSettingsModalStore';
 import { formatNoteAt } from '../../song-notes/songNotesModel';
 import ScratchpadGreeting from './ScratchpadGreeting';
 import ScratchpadCommentsHead from './ScratchpadCommentsHead';
@@ -22,6 +24,31 @@ import type { ScratchpadPlayback } from './ScratchpadHost';
 // 展开整页按标签分组（ScratchpadCommentsSheet）：整组动作、整理标签、批量打标签、搜索。
 
 const RECENT_IN_PANEL = 12;
+
+/** 这台设备上有「音乐笔记」模组的库时提示一次：去设置 · 存储与备份「备份与导入」导入，或者不再提示。 */
+const ModImportHint: React.FC<{ count: number }> = ({ count }) => {
+    const { t } = useTranslation();
+    return (
+        <div className="scratchpad-comments-modhint" role="note">
+            <p>{t('songNotes.modHint', { count })}</p>
+            <div className="scratchpad-comments-modhint-actions">
+                <button
+                    type="button"
+                    className="scratchpad-comments-modhint-go"
+                    onClick={() => {
+                        markMusicNotesModHintDone();
+                        openSettings('options', 'storage', null, 'importExportTitle', 'songNotesTransfer');
+                    }}
+                >
+                    {t('songNotes.modHintImport')}
+                </button>
+                <button type="button" className="scratchpad-comments-modhint-dismiss" onClick={markMusicNotesModHintDone}>
+                    {t('songNotes.modHintDismiss')}
+                </button>
+            </div>
+        </div>
+    );
+};
 
 type ScratchpadCommentsProps = {
     playback: ScratchpadPlayback;
@@ -47,6 +74,8 @@ const ScratchpadComments: React.FC<ScratchpadCommentsProps> = ({ playback, expan
     const tagNames = useSongNoteTags();
     const recent = useRecentSongNotes(RECENT_IN_PANEL, !expanded && target === null);
     const [lastWritten, setLastWritten] = useState<string | null>(null);
+    const modSongs = useMusicNotesModHint(!expanded);
+    const modHint = modSongs > 0 ? <ModImportHint count={modSongs} /> : null;
 
     const seek = useCallback((at: number) => playback.seek(at), [playback]);
     const openSong = useCallback((song: Parameters<typeof view>[0]) => {
@@ -63,6 +92,7 @@ const ScratchpadComments: React.FC<ScratchpadCommentsProps> = ({ playback, expan
             <div className="scratchpad-comments is-idle">
                 <ScratchpadGreeting long={false} headline />
                 <p className="scratchpad-hint">{t('songNotes.idleHint')}</p>
+                {modHint}
                 {recent.rows.length > 0 ? (
                     <ul className="scratchpad-comments-recent" aria-label={t('songNotes.recent')}>
                         {recent.rows.map(row => (
@@ -95,6 +125,7 @@ const ScratchpadComments: React.FC<ScratchpadCommentsProps> = ({ playback, expan
     const duration = isPlaying && playingDuration > 0 ? playingDuration : listedDuration;
     return (
         <div className="scratchpad-comments">
+            {modHint}
             <ScratchpadCommentsHead
                 song={target.song}
                 songKey={target.key}

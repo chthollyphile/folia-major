@@ -31,7 +31,8 @@ import {
 // 规则在 foliaPlaylistFile.ts（JSON）与 foliaPlaylistM3u.ts（M3U）；这里接上曲库、音源的状态、Navidrome 的配置和下载。
 // 读文件只读不写：预览出来之前、用户取消、文件不对，歌单都不动。
 
-const downloadText = (content: string, fileName: string, mimeType: string): void => {
+/** 把一段文字下载成文件（歌单文件、「时刻」的文件共用）。 */
+export const downloadText = (content: string, fileName: string, mimeType: string): void => {
     const url = createSafeObjectUrl(new Blob([content], { type: mimeType }));
     if (!url) throw new Error('Failed to create playlist download');
     const link = document.createElement('a');
@@ -91,7 +92,8 @@ const availabilityDeps = (): FoliaEntryAvailabilityDeps => ({
     isNavidromeConfigured: () => getNavidromeConfig() !== null,
 });
 
-const navidromeUrls = (): FoliaFileNavidromeUrls | null => {
+/** 用这台设备上配的 Navidrome 账号拼地址；没配回 null。 */
+export const navidromeUrls = (): FoliaFileNavidromeUrls | null => {
     const config = getNavidromeConfig();
     return config ? {
         stream: songId => navidromeApi.getStreamUrl(config, songId),

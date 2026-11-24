@@ -208,6 +208,31 @@
 .scratchpad-comments-sort-option:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
 .scratchpad-comments-sort-count { margin-left: auto; color: var(--scratchpad-text-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
 
+/* 「音乐笔记」模组库的一次性提示：左边一道点缀色竖线，字小，两个文字按钮。 */
+.scratchpad-comments-modhint {
+    flex: 0 0 auto;
+    margin: 10px 14px 4px 18px;
+    padding: 6px 0 6px 10px;
+    border-left: 2px solid var(--scratchpad-mark-wall);
+    color: var(--scratchpad-text-soft);
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+.scratchpad-comments-modhint p { margin: 0; }
+.scratchpad-comments-modhint-actions { display: flex; gap: 14px; margin-top: 4px; }
+.scratchpad-comments-modhint-actions button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+.scratchpad-comments-modhint-actions .scratchpad-comments-modhint-go { color: var(--scratchpad-text); }
+.scratchpad-comments-modhint-actions button:hover { color: var(--scratchpad-text); }
+.scratchpad-comments-modhint-actions button:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
+
 /* 评论列表：挂着时刻的前面一块点缀色时间块，普通评论前面一个「；悬停出现编辑、删除。 */
 .scratchpad-comment-scroll { min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; }
 .scratchpad-comment-list { margin: 0; padding: 0 0 8px; list-style: none; }
