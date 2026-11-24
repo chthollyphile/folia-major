@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
@@ -17,6 +17,7 @@ const WINDOW: SettingsGroupDef = { id: 'remoteControl', titleKey: 'options.remot
 const LYRICS: SettingsGroupDef = { id: 'remoteLyrics', titleKey: 'options.remoteLyricsGroup', electronOnly: true };
 
 const O = {
+    remoteOpen: option(WINDOW, 'remoteControlOpen', 'options.remoteControlOpen'),
     remoteTaskbarIcon: option(WINDOW, 'hideRemoteControlTaskbarIcon', 'options.hideRemoteControlTaskbarIcon'),
     remoteTitlebar: option(WINDOW, 'hideRemoteControlTitlebar', 'options.hideRemoteControlTitlebar'),
     remoteClickThrough: option(WINDOW, 'remoteControlClickThrough', 'options.remoteControlClickThrough'),
@@ -47,6 +48,33 @@ const SUB_ROW_KEYS: Record<RemoteLyricSubRow, string> = {
 
 type PairsValue = '1' | '2';
 
+// Whether the remote window is open: read once, then as the main process reports it opening or closing (from here,
+// the title bar, the tray or the palette).
+const useRemoteControlOpen = (): boolean => {
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        const electron = window.electron;
+        if (!electron) return undefined;
+        let alive = true;
+        void electron.getPlaybackSyncBridgeStatus()
+            .then((status) => { if (alive) setOpen(status.remoteControlOpen); })
+            .catch((error: unknown) => console.warn('[Settings] reading whether the remote window is open failed', error));
+        const unsubscribe = electron.onPlaybackSyncBridgeStatusChanged((status) => setOpen(status.remoteControlOpen));
+        return () => {
+            alive = false;
+            unsubscribe();
+        };
+    }, []);
+    return open;
+};
+
+const setRemoteControlOpen = (open: boolean) => {
+    const electron = window.electron;
+    if (!electron) return;
+    const request = open ? electron.openRemoteControl() : electron.closeRemoteControl();
+    void request.catch((error: unknown) => console.warn(`[Settings] ${open ? 'opening' : 'closing'} the remote window failed`, error));
+};
+
 const RemotePage: React.FC = () => {
     const { t } = useTranslation();
     const desktop = useDesktopSettingsStore(useShallow(state => ({
@@ -61,6 +89,7 @@ const RemotePage: React.FC = () => {
         setRemoteExpandCover: state.handleToggleRemoteControlExpandCover,
         setRemoteTextShade: state.handleToggleRemoteControlTextShade,
     })));
+    const remoteOpen = useRemoteControlOpen();
     const layout = useDesktopSettingsStore(state => state.remoteControlLyricLayout);
     const setLayout = useDesktopSettingsStore(state => state.handleSetRemoteControlLyricLayout);
     const mainOptions = REMOTE_LYRIC_MAIN_ROWS.map(value => ({ value, label: t(MAIN_ROW_KEYS[value]) }));
@@ -70,6 +99,9 @@ const RemotePage: React.FC = () => {
     return (
         <>
             <Group def={WINDOW}>
+                <Row option={O.remoteOpen} hint={t('options.remoteControlOpenHint')}>
+                    <Toggle checked={remoteOpen} onChange={setRemoteControlOpen} />
+                </Row>
                 <Row option={O.remoteTaskbarIcon}>
                     <Toggle checked={desktop.remoteTaskbarIcon} onChange={desktop.setRemoteTaskbarIcon} />
                 </Row>

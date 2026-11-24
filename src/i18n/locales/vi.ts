@@ -3354,6 +3354,8 @@ export default {
     "remoteLyricSourceAuto": "Theo nội dung phụ đề",
     "remoteLyricSourceAutoHint": "Hiển thị nội dung mà cài đặt Nội dung phụ đề chọn",
     "remoteLyricSourceNone": "Không hiển thị",
+    "remoteControlOpen": "Mở cửa sổ điều khiển",
+    "remoteControlOpenHint": "Cũng có thể mở từ thanh tiêu đề của ứng dụng",
     "hideRemoteControlTaskbarIcon": "Ẩn biểu tượng cửa sổ điều khiển trên thanh tác vụ",
     "hideRemoteControlTitlebar": "Ẩn thanh nổi trên cùng của cửa sổ điều khiển",
     "hideRemoteControlTitlebarHint": "Không hiện thanh điều khiển cửa sổ khi di chuột lại gần mép trên",

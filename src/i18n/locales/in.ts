@@ -3354,6 +3354,8 @@ export default {
     "remoteLyricSourceAuto": "Ikuti Konten Subtitle",
     "remoteLyricSourceAutoHint": "Menampilkan pilihan pengaturan Konten Subtitle",
     "remoteLyricSourceNone": "Tidak ada",
+    "remoteControlOpen": "Buka jendela Remote",
+    "remoteControlOpenHint": "Bisa juga dibuka dari bilah judul aplikasi",
     "hideRemoteControlTaskbarIcon": "Sembunyikan ikon taskbar jendela Remote",
     "hideRemoteControlTitlebar": "Sembunyikan bilah melayang atas jendela Remote",
     "hideRemoteControlTitlebarHint": "Bilah kontrol jendela tidak muncul saat kursor mendekati bagian atas",

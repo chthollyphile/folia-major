@@ -3354,6 +3354,8 @@ export default {
     "remoteLyricSourceAuto": "跟随副字幕内容",
     "remoteLyricSourceAutoHint": "显示“副字幕内容”选的内容",
     "remoteLyricSourceNone": "不显示",
+    "remoteControlOpen": "打开妙控窗",
+    "remoteControlOpenHint": "也可以通过应用标题栏打开妙控窗",
     "hideRemoteControlTaskbarIcon": "隐藏妙控窗任务栏图标",
     "hideRemoteControlTitlebar": "隐藏妙控窗顶部悬浮栏",
     "hideRemoteControlTitlebarHint": "鼠标靠近顶部时不再显示窗口控制栏",

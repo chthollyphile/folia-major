@@ -3354,6 +3354,8 @@ export default {
     "remoteLyricSourceAuto": "Follow Subtitle Content",
     "remoteLyricSourceAutoHint": "Shows what the Subtitle Content setting picks",
     "remoteLyricSourceNone": "None",
+    "remoteControlOpen": "Open Remote Control",
+    "remoteControlOpenHint": "You can also open it from the app’s title bar",
     "hideRemoteControlTaskbarIcon": "Hide Remote Control taskbar icon",
     "hideRemoteControlTitlebar": "Hide Remote Control top floating bar",
     "hideRemoteControlTitlebarHint": "No window control bar when the cursor nears the top",
