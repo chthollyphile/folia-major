@@ -38,20 +38,22 @@ export default defineVisualizerBackground({
     command: {
         title: 'Background: Nomand',
         description: 'Switch background to theme-colored image dithering',
-        keywords: ['nomand', 'dithering', 'dither', 'shader background', '漫游', '像素画', '像素画背景', '抖动背景', '网点背景', '主题色背景'],
+        keywords: ['nomand', 'dithering', 'dither', 'shader background', '漫游', '像素画', '像素画背景', '抖动背景', '网点背景', '主题色背景', 'ascii', '字符画', '字符背景'],
     },
     // The shader draws one image and cannot blend to another, so a new song's image comes as a new copy;
     // the copy on screen was already rebuilt for every new image (its elements are keyed by it).
     song: ({ config, coverUrl }) => [
         resolveNomandSourceUrl(fullCover(coverUrl), config?.customImage, { ...DEFAULT_NOMAND_BACKGROUND_TUNING, ...config?.nomand?.tuning }) ?? null,
     ],
-    render: ({ config, coverUrl, theme, isDaylight }) => (
+    render: ({ config, coverUrl, theme, isDaylight, paused, staticMode }) => (
         <NomandBackgroundLayer
             coverUrl={fullCover(coverUrl)}
             monetBackgroundImage={config?.customImage}
             tuning={config?.nomand?.tuning}
             theme={theme}
             isDaylight={isDaylight}
+            paused={paused}
+            staticMode={staticMode}
         />
     ),
     renderSettingsPanel: ({ config, actions, ...props }) => (

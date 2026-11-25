@@ -14,6 +14,7 @@ import {
     type CladdaghTuning,
     type DualTheme,
     type MonetTuning,
+    type NomandBackgroundTuning,
     type Theme,
 } from '../types';
 import { normalizeRandomVisualizerModes } from './randomVisualizerModes';
@@ -261,6 +262,26 @@ const decompressMonetBackground = (o: any): any => ({
     backgroundStreaksEnabled: o.mbse !== undefined ? o.mbse : DEFAULT_MONET_BACKGROUND_TUNING.backgroundStreaksEnabled,
 });
 
+/** The Nomand ASCII effect's fields under their short keys; absent fields stay absent. */
+interface CompressedNomandAscii {
+    as?: number;
+    am?: number;
+    aoc?: boolean;
+    ai?: boolean;
+}
+const compressNomandAscii = (t: Partial<NomandBackgroundTuning>): CompressedNomandAscii => ({
+    ...(t.asciiScale !== undefined ? { as: t.asciiScale } : {}),
+    ...(t.asciiMotion !== undefined ? { am: t.asciiMotion } : {}),
+    ...(t.asciiOriginalColors !== undefined ? { aoc: t.asciiOriginalColors } : {}),
+    ...(t.asciiInverted !== undefined ? { ai: t.asciiInverted } : {}),
+});
+const decompressNomandAscii = (o: CompressedNomandAscii): Partial<NomandBackgroundTuning> => ({
+    ...(o.as !== undefined ? { asciiScale: o.as } : {}),
+    ...(o.am !== undefined ? { asciiMotion: o.am } : {}),
+    ...(o.aoc !== undefined ? { asciiOriginalColors: o.aoc } : {}),
+    ...(o.ai !== undefined ? { asciiInverted: o.ai } : {}),
+});
+
 const compressNomandBackground = (t: any): any => ({
     is: t.imageSource,
     ...(t.effect !== undefined ? { e: t.effect } : {}),
@@ -283,6 +304,7 @@ const compressNomandBackground = (t: any): any => ({
     ...(t.lensDistortionSpread !== undefined ? { lds: t.lensDistortionSpread } : {}),
     ...(t.lensDistortionBulge !== undefined ? { ldb: t.lensDistortionBulge } : {}),
     ...(t.lensDistortionDispersion !== undefined ? { ldd: t.lensDistortionDispersion } : {}),
+    ...compressNomandAscii(t as Partial<NomandBackgroundTuning>),
     oe: t.overlayEnabled,
     oo: t.overlayOpacity,
 });
@@ -310,6 +332,7 @@ const decompressNomandBackground = (o: any): any => ({
     ...(o.lds !== undefined ? { lensDistortionSpread: o.lds } : {}),
     ...(o.ldb !== undefined ? { lensDistortionBulge: o.ldb } : {}),
     ...(o.ldd !== undefined ? { lensDistortionDispersion: o.ldd } : {}),
+    ...decompressNomandAscii(o as CompressedNomandAscii),
     overlayEnabled: o.oe !== undefined ? o.oe : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayEnabled,
     overlayOpacity: o.oo !== undefined ? o.oo : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayOpacity,
 });

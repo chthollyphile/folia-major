@@ -18,9 +18,10 @@ import {
 } from './nomandShaderAdjustments';
 import { useFirstFrameDrawn } from '../../styleTransition/firstFrame';
 import { PAPER_SHADER_CONTEXT_ATTRIBUTES } from '../../../../utils/paperShaderContext';
+import NomandAsciiLayer from './NomandAsciiLayer';
 
 // src/components/visualizer/backgrounds/nomand/NomandBackgroundLayer.tsx
-// Renders the selected Paper image shader with the current theme palette.
+// Renders the selected Paper image shader, or the ASCII effect, with the current theme palette.
 
 interface NomandBackgroundLayerProps {
     coverUrl?: string | null;
@@ -28,6 +29,9 @@ interface NomandBackgroundLayerProps {
     tuning?: NomandBackgroundTuning;
     theme: Theme;
     isDaylight?: boolean;
+    /** The ASCII effect's sway stops while paused and holds still in static mode. */
+    paused?: boolean;
+    staticMode?: boolean;
 }
 
 
@@ -63,7 +67,20 @@ export const resolveNomandSourceUrl = (
         : coverUrl ?? monetBackgroundImage?.url
 );
 
-const NomandBackgroundLayer: React.FC<NomandBackgroundLayerProps> = ({
+/** The overlay that keeps lyrics readable over any effect. */
+const ReadabilityOverlay: React.FC<{ tuning: NomandBackgroundTuning; theme: Theme; }> = ({ tuning, theme }) => (
+    tuning.overlayEnabled && tuning.overlayOpacity > 0 ? (
+        <div
+            className="absolute inset-0"
+            style={{
+                backgroundColor: theme.backgroundColor,
+                opacity: tuning.overlayOpacity,
+            }}
+        />
+    ) : null
+);
+
+const NomandPaperLayer: React.FC<NomandBackgroundLayerProps> = ({
     coverUrl,
     monetBackgroundImage,
     tuning: tuningOverride,
@@ -190,15 +207,30 @@ const NomandBackgroundLayer: React.FC<NomandBackgroundLayerProps> = ({
             style={{ backgroundColor: theme.backgroundColor, pointerEvents: 'none' }}
         >
             {renderShader()}
-            {tuning.overlayEnabled && tuning.overlayOpacity > 0 && (
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        backgroundColor: theme.backgroundColor,
-                        opacity: tuning.overlayOpacity,
-                    }}
-                />
-            )}
+            <ReadabilityOverlay tuning={tuning} theme={theme} />
+        </div>
+    );
+};
+
+const NomandBackgroundLayer: React.FC<NomandBackgroundLayerProps> = props => {
+    const tuning = { ...DEFAULT_NOMAND_BACKGROUND_TUNING, ...props.tuning };
+    const sourceUrl = resolveNomandSourceUrl(props.coverUrl, props.monetBackgroundImage, tuning);
+    if (tuning.effect !== 'ascii' || !sourceUrl) return <NomandPaperLayer {...props} />;
+
+    return (
+        <div
+            className="absolute inset-0 z-0 overflow-hidden"
+            style={{ backgroundColor: props.theme.backgroundColor, pointerEvents: 'none' }}
+        >
+            <NomandAsciiLayer
+                sourceUrl={sourceUrl}
+                tuning={tuning}
+                theme={props.theme}
+                isDaylight={props.isDaylight}
+                paused={props.paused}
+                staticMode={props.staticMode}
+            />
+            <ReadabilityOverlay tuning={tuning} theme={props.theme} />
         </div>
     );
 };

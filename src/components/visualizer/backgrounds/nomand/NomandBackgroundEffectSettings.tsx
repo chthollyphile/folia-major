@@ -1,6 +1,7 @@
 import React from 'react';
 import type { NomandBackgroundEffect } from '../../../../types';
 import { Group, PictureGrid, Row, type SettingsGroupDef } from '../../../modal/settings/kit';
+import NomandAsciiSettings from './NomandAsciiSettings';
 import NomandDitheringSettings from './NomandDitheringSettings';
 import NomandFlutedGlassSettings from './NomandFlutedGlassSettings';
 import NomandHalftoneDotsSettings from './NomandHalftoneDotsSettings';
@@ -9,8 +10,8 @@ import NomandPaperTextureSettings from './NomandPaperTextureSettings';
 import type { NomandBackgroundEffectPanelProps } from './NomandBackgroundEffectPanel';
 
 // src/components/visualizer/backgrounds/nomand/NomandBackgroundEffectSettings.tsx
-// The effect group: the choice of the active Paper shader as small pictures, and under it only
-// that effect's own rows.
+// The effect group: the choice of the active Paper shader (or the ASCII effect) as small
+// pictures, and under it only that effect's own rows.
 const EFFECT_GROUP: SettingsGroupDef = { id: 'bg-nomand-effect', titleKey: 'options.nomandBackgroundEffect' };
 
 /** The effects in the order the settings window and the player panel offer them. */
@@ -20,6 +21,7 @@ export const EFFECTS: NomandBackgroundEffect[] = [
     'paper-texture',
     'halftone-dots',
     'lens-distortion',
+    'ascii',
 ];
 
 export const EFFECT_LABEL_KEYS: Record<NomandBackgroundEffect, string> = {
@@ -28,6 +30,7 @@ export const EFFECT_LABEL_KEYS: Record<NomandBackgroundEffect, string> = {
     'paper-texture': 'options.nomandBackgroundEffectPaperTexture',
     'halftone-dots': 'options.nomandBackgroundEffectHalftoneDots',
     'lens-distortion': 'options.nomandBackgroundEffectLensDistortion',
+    ascii: 'options.nomandBackgroundEffectAscii',
 };
 
 /** What each effect does to a picture, as a pattern: a pixel grid, ribs, fibres, dots, a lens. */
@@ -48,6 +51,11 @@ const EFFECT_PATTERNS: Record<NomandBackgroundEffect, React.CSSProperties> = {
     },
     'lens-distortion': {
         backgroundImage: 'radial-gradient(circle at 50% 50%, transparent 0 22%, var(--st-t2) 24% 28%, transparent 30% 46%, var(--st-t3) 48% 52%, transparent 54%)',
+    },
+    // Slanted strokes in a cell grid, as the glyphs follow the picture's grain.
+    ascii: {
+        backgroundImage: 'repeating-linear-gradient(60deg, transparent 0 3px, var(--st-t2) 3px 4px, transparent 4px 7px)',
+        backgroundSize: '7px 9px',
     },
 };
 
@@ -78,6 +86,7 @@ const NomandBackgroundEffectSettings: React.FC<NomandBackgroundEffectPanelProps>
             {tuning.effect === 'paper-texture' && <NomandPaperTextureSettings {...props} />}
             {tuning.effect === 'halftone-dots' && <NomandHalftoneDotsSettings {...props} />}
             {tuning.effect === 'lens-distortion' && <NomandLensDistortionSettings {...props} />}
+            {tuning.effect === 'ascii' && <NomandAsciiSettings {...props} />}
         </Group>
     );
 };

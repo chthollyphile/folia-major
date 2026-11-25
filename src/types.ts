@@ -1123,7 +1123,7 @@ export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetBackgroundWashColorMode = 'theme' | 'custom';
 export type NomandBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type NomandBackgroundDitheringType = '2x2' | '4x4' | '8x8';
-export type NomandBackgroundEffect = 'dithering' | 'fluted-glass' | 'paper-texture' | 'halftone-dots' | 'lens-distortion';
+export type NomandBackgroundEffect = 'dithering' | 'fluted-glass' | 'paper-texture' | 'halftone-dots' | 'lens-distortion' | 'ascii';
 export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type LatentBackgroundColorSource = 'cover-theme' | 'cover-only';
 export type MonetAudioStyle = 'bar' | 'line';
@@ -1182,6 +1182,12 @@ export interface NomandBackgroundTuning {
   lensDistortionSpread: number;
   lensDistortionBulge: number;
   lensDistortionDispersion: number;
+  /** ASCII effect: CSS pixels per glyph pixel (a glyph is 5×7), in half steps; drawn rounded to whole device pixels. */
+  asciiScale: number;
+  /** ASCII effect: how far the strokes sway; 0 holds them still. */
+  asciiMotion: number;
+  asciiOriginalColors: boolean;
+  asciiInverted: boolean;
   overlayEnabled: boolean;
   overlayOpacity: number;
 }
@@ -1270,6 +1276,10 @@ export const DEFAULT_NOMAND_BACKGROUND_TUNING: NomandBackgroundTuning = {
   lensDistortionSpread: 0.45,
   lensDistortionBulge: 0.3,
   lensDistortionDispersion: 0.65,
+  asciiScale: 1.5,
+  asciiMotion: 1,
+  asciiOriginalColors: false,
+  asciiInverted: false,
   overlayEnabled: true,
   overlayOpacity: 0.35,
 };
