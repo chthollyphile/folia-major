@@ -9,7 +9,7 @@
 | 项 | 内容 |
 | --- | --- |
 | npm 包 | [`@yakult-green-tea/qq-music-api`](https://www.npmjs.com/package/@yakult-green-tea/qq-music-api) |
-| 版本 | `3.3.6`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
+| 版本 | `3.3.9`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
 | 原始上游 | [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api)，作者 Rain120 |
 | 许可证 | MIT；全文随包安装在 `node_modules/@yakult-green-tea/qq-music-api/LICENSE` |
 | 镜像定义 | [`images/qq-api.Dockerfile`](../images/qq-api.Dockerfile) |
@@ -236,6 +236,12 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 3.3.8 起：
 
 - 取播放地址时，上游明确说没给完整文件（104003）的歌，会换官方网页播放器的身份再要一次。想关掉可以设环境变量 `QQ_PLAYBACK_FALLBACK_ENABLED=0`。
+
+3.3.9 起：
+
+- 中国大陆网络下，部分公开歌单的旧接口回 `0/4000` 时，后端会改用匿名公开接口完整重读，最多 1500 首；匿名读不到且请求带会话时再用登录读，读不完整就保留原来的错误。歌单封面、空歌单与播放数字段保持兼容。
+- 对带下架特征的歌曲，`/song/replacement` 也会找其他版本，Folia 沿用现有的改播对话框。3.3.8 增加的会员取链备用方式也一并包含，官方网页同样拿不到音源的歌仍按原规则处理。
+- 升级镜像后重建并重新创建容器，保留已有状态卷与密钥。
 
 排查时先看容器日志：
 

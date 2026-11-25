@@ -31,15 +31,33 @@ const loadRecommendedSongs = async (operation: QqOperation): Promise<FoliumSourc
     }
 };
 
-/**
- * 私人 FM 的一批。每次都要第 1 页：这里分不清这一批是进了播放队列，还是只给首页电台卡当封面，
- * 不记页码去推进，免得一张封面就吃掉一批。旧后端没有这条路由（404）时照旧读猜你喜欢。
- */
+/** 私人 FM 后端认的页码上限（qq-music-api 3.3.6 的 `/user/personal-fm`，page 1–100）。 */
+const PERSONAL_FM_LAST_PAGE = 100;
+// 下一批要第几页：官方客户端每续一批页码加一（3.3.6 起后端照收），同一页再要常拿到差不多的歌。拿到一批才往前推，
+// 失败的那页下次再要；到上限回到第 1 页。分不清这一批是进了队列还是只给首页电台卡当封面：封面多吃一页只是跳过一批，
+// 不影响续歌。换账号、登出时回到第 1 页（resetQqPersonalFmPage）。
+let personalFmPage = 1;
+// 重设的次数：重设之前就在路上的那一批（上一个账号的）回来时，不推页码，也不交出去。
+let personalFmGeneration = 0;
+
+/** 换账号、登出、重新创建音源时：私人 FM 从第 1 页重新要。 */
+export const resetQqPersonalFmPage = (): void => {
+    personalFmGeneration += 1;
+    personalFmPage = 1;
+};
+
+/** 私人 FM 的一批，按页码往下要。旧后端没有这条路由（404）时照旧读猜你喜欢。 */
 const loadPersonalFmBatch = async (): Promise<FoliumSourceSong[]> => {
     if (!hasUsableQqSession()) return [];
+    const page = personalFmPage;
+    const generation = personalFmGeneration;
     try {
-        return songsOf(await requestQq<any>('user_personal_fm', { page: 1 }));
+        const songs = songsOf(await requestQq<any>('user_personal_fm', { page }));
+        if (generation !== personalFmGeneration) return [];
+        if (songs.length > 0 && personalFmPage === page) personalFmPage = page >= PERSONAL_FM_LAST_PAGE ? 1 : page + 1;
+        return songs;
     } catch (error) {
+        if (generation !== personalFmGeneration) return [];
         if (isQqError(error, 'unsupported')) return loadRecommendedSongs('user_guess_you_like');
         if (isEmptyAnswer(error)) return [];
         throw error;

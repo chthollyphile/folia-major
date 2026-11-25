@@ -252,7 +252,7 @@ Docker / NAS、HTTPS、反向代理和本地镜像验证见 [Docker 全栈部署
 mkdir qq-api
 cd qq-api
 npm init -y
-npm install @yakult-green-tea/qq-music-api@^3.3.8
+npm install @yakult-green-tea/qq-music-api@3.3.9
 ```
 
 macOS / Linux：
@@ -283,7 +283,7 @@ VITE_QQ_API_BASE=https://你的-qq-api-域名
 
 常驻 Node 服务支持 QQ 扫码、微信扫码和 QQ 音乐 App 扫码；后端 3.3.2 起，Folia 只显示 QQ 音乐 App 扫码的二维码，手机 QQ、微信、QQ 音乐 App 都能扫。`QQ_AUTH_STATE_PATH` 保存非凭证的设备标识；`QQ_AUTH_SESSION_PATH` 保存使用 `QQ_SESSION_SECRET` 加密后的登录态。不要让多个实例共用同一份状态文件。
 
-Folia 的每日推荐、私人 FM、推荐歌单、往自建歌单加歌删歌和收藏歌单用到 3.3.0 新增的接口，红心和收藏专辑用到 3.3.1 新增的接口。Folia 现在锁定 3.3.8，自行部署的旧服务请升级到这个版本或更高。3.3.6 起提供独立的私人 FM、每日推荐历史、歌曲不喜欢、探索页首页 feed 和听歌排行。3.3.0 起常驻服务会在登录凭证到期前自动续期，不用再隔几天重新扫码；Vercel、Cloudflare 这类 serverless 部署从 3.3.2 起由开着的 Folia 网页版在快到期时续期，最多 30 天（见 [Serverless 上的扫码登录](#serverless-上的扫码登录)）。
+Folia 的每日推荐、私人 FM、推荐歌单、往自建歌单加歌删歌和收藏歌单用到 3.3.0 新增的接口，红心和收藏专辑用到 3.3.1 新增的接口。Folia 现在锁定 3.3.9，自行部署的旧服务请升级到这个版本或更高。3.3.9 修复中国大陆网络下部分公开歌单的 `0/4000` 读取失败，补上播放数，并为带下架特征的歌查找其他版本。3.3.6 起提供独立的私人 FM、每日推荐历史、歌曲不喜欢、探索页首页 feed 和听歌排行。3.3.0 起常驻服务会在登录凭证到期前自动续期，不用再隔几天重新扫码；Vercel、Cloudflare 这类 serverless 部署从 3.3.2 起由开着的 Folia 网页版在快到期时续期，最多 30 天（见 [Serverless 上的扫码登录](#serverless-上的扫码登录)）。
 
 探索页、音乐云盘和会员等级用到 3.3.3 才齐的接口（`/recommend/radar`、`/recommend/toplists`、`/recommend/new-albums`、`/song/similar`、`/user/cloud` 等）。后端低于 3.3.3 时，探索页读不出 QQ 的内容，歌单里没有音乐云盘，会员账号不显示皇冠，其他功能照旧。
 
@@ -329,10 +329,11 @@ QQ 扫码失败后，登录界面与其它平台一样在二维码旁边给出�
 | 网页版大约 3 天就要重新扫码 | 两种原因：后端低于 3.3.2，没有续期接口；或者登录快到期的最后 6 小时里没有开着 Folia 网页版，没续上。到了 30 天要重扫是正常的 |
 | Cloudflare QQ 二维码打不开 | 确认依赖为 3.1.0 或更高版本，并检查 Worker 日志中的 WebSocket 错误 |
 | 正式 `workers.dev` 返回 1042，但 Preview 正常 | 等待新域名传播，不要因为这个现象修改 Static Assets 或 MQTT 代码 |
+| 中国大陆网络下部分公开歌单读不到，日志里有 `subcode 4000` | 升级后端到 3.3.9，后端会换公开接口完整重读，最多 1500 首；Folia 的旧后端回退仍保留 |
 | 自建歌单打不开，提示不是公开歌单 | 后端版本过旧，缺少带凭据的 `/user/playlist-detail` 路由；升级 `@yakult-green-tea/qq-music-api` 后即可读取不公开的自建歌单 |
 | 收藏的「百万收藏」「歌手漫游」等官方歌单打不开，报 `code 10` | 后端低于 3.1.4，或 serverless 部署未设置 `QQ_SESSION_SECRET`；这类歌单只能带登录会话读取 |
 | 扫码后上游返回 `20279` | 账号的登录设备满了：打开 QQ 音乐 App，进入「设置」，滑到最下面点「设备管理」，移除不用的设备后再扫码。serverless 部署换一次 `QQ_SESSION_SECRET` 或换一个部署，对 QQ 来说就是一台新设备 |
-| 电台页的每日推荐、私人 FM、推荐歌单都是空的，加歌、收藏歌单按钮点了提示失败 | 后端低于 3.3.0，缺少这些接口（Folia 不按后端版本隐藏这些入口）；内置的 Vercel、Cloudflare、Docker 入口锁定 3.3.6，自行部署的 Node 服务需要升级 |
+| 电台页的每日推荐、私人 FM、推荐歌单都是空的，加歌、收藏歌单按钮点了提示失败 | 后端低于 3.3.0，缺少这些接口（Folia 不按后端版本隐藏这些入口）；内置的 Vercel、Cloudflare、Docker 入口锁定 3.3.9，自行部署的 Node 服务需要升级 |
 | QQ 的歌点红心、专辑点收藏提示失败，其他功能正常 | 后端低于 3.3.1，缺少 `/user/song/like`、`/user/album/subscribe`；升级到 3.3.1 或更高版本 |
 | 网页版个别歌曲提示「暂时无法播放」，桌面版同一账号能播 | serverless 由平台机房向 QQ 取链接，QQ 看到的是机房的网络；见下面「Serverless 部署的网络」 |
 | 修改 `VITE_QQ_API_BASE` 后仍请求旧地址 | 该变量在构建时写入前端，必须重新构建；同时检查 `.env.local` 是否覆盖平台配置 |

@@ -23,7 +23,7 @@ export const QQ_OPERATIONS = [
     'user_vip', 'user_cloud', 'user_playlist_create',
     'recommend_new_songs', 'recommend_new_albums', 'recommend_toplists', 'recommend_toplist',
     'recommend_categories', 'recommend_category_playlists', 'recommend_radar',
-    'radio_list', 'radio_tracks', 'song_similar',
+    'radio_list', 'radio_tracks', 'song_similar', 'song_replacement',
     'music_play', 'song_list_detail', 'song_info',
     'album_info', 'artist_albums', 'artist_songs',
     'search',
@@ -101,6 +101,8 @@ const ENDPOINTS: Record<QqOperation, string> = {
     radio_list: '/radio/list',
     radio_tracks: '/radio/tracks',
     song_similar: '/song/similar',
+    // 3.3.6 的替代歌曲（要会话）：原曲拿不到链接、命中地区、会员或下架规则时找一个能放的其他版本；只读。旧后端 404。
+    song_replacement: '/song/replacement',
     music_play: '/getMusicPlay',
     song_list_detail: '/getSongListDetail',
     song_info: '/getSongInfo',
@@ -364,7 +366,7 @@ const assertUpstreamAccepted = (operation: QqOperation, body: any): void => {
         throw qqError('invalid-response', `QQMusicApi ${operation} was rejected upstream at ${path.join('.')} (code ${code}`
             + `${Number.isFinite(subcode) && subcode !== code ? `, subcode ${subcode}` : ''})`
             + `${message ? `: ${message}` : ''}`,
-            node,
+        node,
         );
     }
 };

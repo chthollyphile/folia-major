@@ -95,6 +95,21 @@ const isMadeSong = (item: Record<string, unknown>): boolean => (
     && item.data !== null && typeof item.data === 'object'
 );
 
+/**
+ * 歌曲 `action.switch` 的 bit 27（`0x8000000`）：官方各端都放不了的歌（下架，多数只剩 MV）才有，可播的歌都没有
+ * （qq-music-api 3.3.9 起据此给 `playback.maybe-taken-down`）。只认这一位，不推论别的位。
+ */
+const QQ_TAKEN_DOWN_SWITCH_BIT = 0x8000000;
+
+const fieldOf = (value: unknown, key: string): unknown => (
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>)[key] : undefined
+);
+
+const hasQqTakenDownBit = (action: unknown): boolean => {
+    const value = Number(fieldOf(action, 'switch'));
+    return Number.isSafeInteger(value) && value >= 0 && Math.floor(value / QQ_TAKEN_DOWN_SWITCH_BIT) % 2 === 1;
+};
+
 // Accepts the upstream `item_song` payload (the backend's, the lite search's) and a song this file made, as the host
 // hands it back, so kept songs survive a round trip through this normalizer.
 export const normalizeQqSong = (raw: unknown): FoliumSourceSong => {
@@ -140,6 +155,8 @@ export const normalizeQqSong = (raw: unknown): FoliumSourceSong => {
     // albummid 优先于数字 albumid：后者只在上游一个 mid 都不给时留作显示用的键（`ref: false`）。
     const albumId = albumMid || text(pick(album, 'id', 'albumid'));
     const albumName = text(pick(album, 'name', 'title', 'albumname'));
+    // 这里做过的歌（缓存、队列回填）照记下的读；上游条目看它自己的 action。
+    const takenDown = made ? fieldOf(fieldOf(raw, 'data'), 'takenDown') === true : hasQqTakenDownBit(fieldOf(raw, 'action'));
     const albumRef: FoliumSourceAlbumRef = {
         id: albumId,
         name: albumName,
@@ -162,6 +179,7 @@ export const normalizeQqSong = (raw: unknown): FoliumSourceSong => {
             ['albumMid', albumMid],
             ['mediaMid', mediaMid],
             ['originalName', originalName && originalName !== name ? originalName : undefined],
+            ['takenDown', takenDown ? true : undefined],
         ]),
     };
 };

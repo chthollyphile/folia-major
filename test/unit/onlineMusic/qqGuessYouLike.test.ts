@@ -67,6 +67,7 @@ describe('QQ Guess You Like station', () => {
         expect(card.coverUrl).toContain('cover-album');
     });
 
+    // 卡片封面那一批先放一次；之后照官方 Android 的默认模式带 pool 1000 取。
     it('plays the batch read for the cover first, once, when the card starts in the default mode', async () => {
         answer();
         await qq.recommendations!.getRecommendedCollections!(10);
@@ -74,8 +75,8 @@ describe('QQ Guess You Like station', () => {
         expect(reads()).toBe(1);
         expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['default']);
         expect(reads()).toBe(1);
-        await qq.recommendations!.getPersonalFm!(station());
-        expect(reads()).toBe(2);
+        expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['pool1000']);
+        expect(reads()).toBe(1);
     });
 
     it('does not keep a cover batch that comes back after the account was cleared', async () => {
@@ -91,7 +92,7 @@ describe('QQ Guess You Like station', () => {
         release({ code: 200, songs: [song('old-account', 9)] });
         await loading;
         // The next start reads a batch of its own instead of the one of the account before.
-        expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['default']);
+        expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['pool1000']);
     });
 
     it('borrows the cover of the default mode when no song can be read', async () => {
@@ -173,12 +174,22 @@ describe('QQ Guess You Like station', () => {
         expect((await qq.recommendations!.getPersonalFmCatalog!(QQ_GUESS_YOU_LIKE_STATION)).modes).toHaveLength(4);
     });
 
-    it('reads a batch by the pool of the chosen mode, and the default batch for the default mode', async () => {
+    // 默认模式照官方 Android 带 pool 1000（API 3.3.6 起有按 pool 取歌）。
+    it('reads a batch by the pool of the chosen mode, pool 1000 for the default mode', async () => {
         answer();
-        expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['default']);
+        expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['pool1000']);
         expect((await qq.recommendations!.getPersonalFm!(station({ mode: 'EXPLORE' }))).map(entry => entry.qqMid)).toEqual(['pool7101']);
         expect((await qq.recommendations!.getPersonalFm!(station({ mode: 'SCENE_RCMD', submode: '7112' }))).map(entry => entry.qqMid)).toEqual(['pool7112']);
-        expect(requestMock.mock.calls.filter(call => call[0] === 'user_guess_you_like_tracks').map(call => call[1])).toEqual([{ pool: '7101' }, { pool: '7112' }]);
+        expect(requestMock.mock.calls.filter(call => call[0] === 'user_guess_you_like_tracks').map(call => call[1])).toEqual([{ pool: '1000' }, { pool: '7101' }, { pool: '7112' }]);
+        expect(requestMock.mock.calls.some(call => call[0] === 'user_guess_you_like')).toBe(false);
+    });
+
+    it.each([
+        ['a backend without the mode route', new OnlineProviderError('unsupported', 'QQMusicApi has no user_guess_you_like_tracks route', 'qq', undefined, 404)],
+        ['pool 1000 giving no songs', new OnlineProviderError('network', 'QQMusicApi failed: HTTP 422', 'qq', undefined, 422)],
+    ])('reads the default batch for the default mode on %s', async (_what, failure) => {
+        answer({ user_guess_you_like_tracks: failure });
+        expect((await qq.recommendations!.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['default']);
     });
 
     it('reads the default batch on a backend without the mode route', async () => {

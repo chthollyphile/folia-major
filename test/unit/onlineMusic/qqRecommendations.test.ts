@@ -17,6 +17,7 @@ vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
 
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { lazyQq, songIdOf } from '../helpers/qqSource';
+import { resetQqPersonalFmPage } from '../../../sources/qq/core/qqRecommendations';
 
 const qq = lazyQq();
 
@@ -38,6 +39,7 @@ describe('QQ recommendations', () => {
     beforeEach(() => {
         requestMock.mockReset();
         transportState.hasSession = true;
+        resetQqPersonalFmPage();
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });
 
@@ -77,9 +79,8 @@ describe('QQ recommendations', () => {
     });
 
     describe('personal FM', () => {
-        // 批内去重；跨批的重复由续歌的地方按队列去掉（utils/fmQueue），这里不记跨批的状态。
-        // 每批都要第 1 页：分不清这批是续歌还是首页电台卡的封面，不在这里记页码去推进。
-        it('hands out a batch without repeats inside it, and keeps no memory across batches', async () => {
+        // 批内去重；跨批的重复由续歌的地方按队列去掉（utils/fmQueue）。官方客户端每续一批页码加一，这里也是。
+        it('hands out a batch without repeats inside it, and asks the next page for the next batch', async () => {
             requestMock
                 .mockResolvedValueOnce({ code: 200, station: 'personal-fm', page: 1, songs: [song('a', 1), song('b', 2), song('a', 1)], more: true, nextPage: 2 })
                 .mockResolvedValueOnce({ code: 200, station: 'personal-fm', page: 1, songs: [song('b', 2), song('c', 3)], more: true, nextPage: 2 });
@@ -91,8 +92,47 @@ describe('QQ recommendations', () => {
             expect(second.map(item => item.qqMid)).toEqual(['b', 'c']);
             expect(requestMock.mock.calls).toEqual([
                 ['user_personal_fm', { page: 1 }],
-                ['user_personal_fm', { page: 1 }],
+                ['user_personal_fm', { page: 2 }],
             ]);
+        });
+
+        it('asks the same page again after a failed or empty batch, wraps after page 100 and starts over on reset', async () => {
+            requestMock
+                .mockRejectedValueOnce(upstreamFailure())
+                .mockRejectedValueOnce(emptyAnswer())
+                .mockResolvedValue({ code: 200, songs: [song('a', 1)] });
+
+            await qq.recommendations!.getPersonalFm!();
+            await qq.recommendations!.getPersonalFm!();
+            await qq.recommendations!.getPersonalFm!();
+            expect(requestMock.mock.calls.map(call => (call[1] as { page: number }).page)).toEqual([1, 1, 1]);
+
+            for (let page = 2; page <= 100; page += 1) await qq.recommendations!.getPersonalFm!();
+            requestMock.mockClear();
+            await qq.recommendations!.getPersonalFm!();
+            expect(requestMock).toHaveBeenLastCalledWith('user_personal_fm', { page: 1 });
+
+            await qq.recommendations!.getPersonalFm!();
+            resetQqPersonalFmPage();
+            await qq.recommendations!.getPersonalFm!();
+            expect(requestMock).toHaveBeenLastCalledWith('user_personal_fm', { page: 1 });
+        });
+
+        // 重设（换账号、登出）之前就在路上的那一批是上一个账号的：回来时不推页码，也不交出去。
+        it('drops a batch that comes back after a reset, without moving the page', async () => {
+            let release!: (value: unknown) => void;
+            requestMock
+                .mockImplementationOnce(() => new Promise(resolve => { release = resolve; }))
+                .mockResolvedValue({ code: 200, songs: [song('new', 2)] });
+
+            const pending = qq.recommendations!.getPersonalFm!();
+            await vi.waitFor(() => expect(release).toBeDefined());
+            resetQqPersonalFmPage();
+            release({ code: 200, songs: [song('old', 1)] });
+
+            await expect(pending).resolves.toEqual([]);
+            await qq.recommendations!.getPersonalFm!();
+            expect(requestMock.mock.calls.map(call => (call[1] as { page: number }).page)).toEqual([1, 1]);
         });
 
         it('asks nothing without a session', async () => {
