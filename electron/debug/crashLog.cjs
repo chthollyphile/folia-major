@@ -97,6 +97,38 @@ const describeEnvironment = (app) => [
     `Uptime     ${Math.round(process.uptime())}s`,
 ].join('\n');
 
+/** 0x80000003 as Electron reports an exit code (signed 32-bit): Chromium stopping itself. */
+const STATUS_BREAKPOINT = -2147483645;
+
+/**
+ * A page process on Windows that ended with Chromium's own stop code before it loaded anything.
+ *
+ * That is security software holding the sandboxed process (#1346: Kaspersky, confirmed by two
+ * users; #806 has the same signature). Reinstalling, an older version and a fresh profile all leave
+ * it as it is, so the report and the dialog say what does help. The empty URL is what tells it from
+ * a page that crashed while running: that one has its address.
+ */
+const isBlockedPageStart = ({ platform, reason, exitCode, url }) => (
+    platform === 'win32' && reason === 'crashed' && url === '' && (exitCode | 0) === STATUS_BREAKPOINT
+);
+
+/** The line a report of such a start carries: the file is read by whoever the user sends it to. */
+const BLOCKED_PAGE_START_HINT = 'the page process ended before loading anything; usually security software'
+    + ' (Kaspersky, #1346) blocking the sandboxed process. Trusting Folia.exe there fixes it;'
+    + ' starting with --no-sandbox confirms the diagnosis.';
+
+/**
+ * What the dialog says about such a start, by locale entry: the cause as the heading, the way out
+ * above the file's path, and a button that quits. The app is still running behind its dead window,
+ * and opening it again would only bring that window forward (second-instance), so the way out is
+ * to quit first.
+ */
+const BLOCKED_PAGE_START_ADVICE = Object.freeze({
+    messageKey: 'crashBlockedStartMessage',
+    detailKey: 'crashBlockedStartDetail',
+    offerQuit: true,
+});
+
 const describeError = (error) => {
     if (error instanceof Error) {
         return error.stack || `${error.name}: ${error.message}`;
@@ -167,28 +199,40 @@ const createCrashLog = ({ app, dialog, shell, getLocale, onLine }) => {
      *        app-level `render-process-gone` listener runs BEFORE the per-window ones (verified on
      *        Electron 43), so a sync dialog there would hold the wallpaper recovery behind a modal
      *        until someone clicked it.
+     * @param advice for a failure with a known way out (BLOCKED_PAGE_START_ADVICE): the locale
+     *        entries the dialog says in place of the general message, and whether it offers to
+     *        quit. An entry the locale lacks leaves that part as the general dialog has it.
      */
-    const announce = (file, blocking) => {
+    const announce = (file, blocking, advice) => {
         const locale = getLocale();
+        const message = (advice && locale[advice.messageKey]) || locale.crashMessage;
+        const wayOut = advice ? locale[advice.detailKey] : null;
+        const detail = wayOut ? `${wayOut}\n\n${file}` : file;
         if (!app.isReady()) {
             // Before `ready` there is no window and no message box; showErrorBox is the one dialog
             // Electron will put up this early.
-            try { dialog.showErrorBox(locale.crashTitle, `${locale.crashMessage}\n\n${file}`); } catch { /* headless */ }
+            try { dialog.showErrorBox(locale.crashTitle, `${message}\n\n${detail}`); } catch { /* headless */ }
             return;
         }
+        const quitLabel = advice?.offerQuit ? locale.crashQuit : null;
+        const buttons = quitLabel
+            ? [locale.crashOpenFolder, quitLabel, locale.crashClose]
+            : [locale.crashOpenFolder, locale.crashClose];
         const options = {
             type: 'error',
             title: locale.crashTitle,
-            message: locale.crashMessage,
-            detail: file,
-            buttons: [locale.crashOpenFolder, locale.crashClose],
+            message,
+            detail,
+            buttons,
             defaultId: 0,
-            cancelId: 1,
+            cancelId: buttons.length - 1,
             noLink: true,
         };
         const openIfAsked = (choice) => {
             if (choice === 0) {
                 shell.showItemInFolder(file);
+            } else if (quitLabel && choice === 1) {
+                app.quit();
             }
         };
         try {
@@ -209,12 +253,13 @@ const createCrashLog = ({ app, dialog, shell, getLocale, onLine }) => {
      *        bug worth a file, but interrupting playback with a modal over one is not proportionate.
      * @param blocking       for the fatal path only: hold the process until the dialog is answered,
      *        because the exit that follows would otherwise take the dialog with it.
+     * @param advice         what the dialog says for a failure with a known way out (see announce).
      *
      * The file is always written inline. Only the dialog is deferred, and the two are separated for
      * a reason: a wallpaper renderer crash recovers by relaunching the app, so a report scheduled
      * whole would never reach the disk.
      */
-    const report = (kind, detail, { announceToUser = true, blocking = false } = {}) => {
+    const report = (kind, detail, { announceToUser = true, blocking = false, advice = null } = {}) => {
         if (isReporting) return null;
         isReporting = true;
         try {
@@ -224,11 +269,11 @@ const createCrashLog = ({ app, dialog, shell, getLocale, onLine }) => {
                 return file;
             }
             if (blocking) {
-                announce(file, true);
+                announce(file, true, advice);
             } else {
                 // Yields to whatever else is listening for the same event — in this app, the
                 // wallpaper watchdog and the in-place renderer reload.
-                setImmediate(() => announce(file, false));
+                setImmediate(() => announce(file, false, advice));
             }
             return file;
         } finally {
@@ -263,6 +308,8 @@ const installCrashHandlers = ({
     // Runs right before the exit below: app.exit() skips before-quit and will-quit, so children
     // that would outlive the app (HiFi's mpv) are killed here.
     beforeExit = () => {},
+    // Which system this is, for the one failure only Windows has (isBlockedPageStart).
+    platform = process.platform,
 }) => {
     // A shutdown is not a crash: renderers legitimately go away while the app exits, and a modal
     // put up over a closing window is one nobody can act on. Tracked here rather than read off
@@ -297,12 +344,18 @@ const installCrashHandlers = ({
         try { url = contents?.getURL?.() ?? null; } catch { /* already destroyed */ }
         let recovered = false;
         try { recovered = isRendererCrashRecovered(details, contents) === true; } catch { /* advisory only */ }
+        // A start security software blocked: the report and the dialog say what helps (#1346).
+        const blockedStart = isBlockedPageStart({ platform, reason: details?.reason, exitCode: details?.exitCode, url });
         crashLog.report('render-process-gone', [
             `Reason     ${details?.reason ?? 'unknown'}`,
             `Exit code  ${details?.exitCode ?? 'unknown'}`,
             `URL        ${url ?? 'unknown'}`,
             `Recovered  ${recovered}`,
-        ].join('\n'), { announceToUser: !isQuitting && !recovered });
+            ...(blockedStart ? [`Hint       ${BLOCKED_PAGE_START_HINT}`] : []),
+        ].join('\n'), {
+            announceToUser: !isQuitting && !recovered,
+            ...(blockedStart ? { advice: BLOCKED_PAGE_START_ADVICE } : {}),
+        });
     });
 
     // GPU and utility processes are restarted by Chromium on their own, often without the window
@@ -319,4 +372,4 @@ const installCrashHandlers = ({
     });
 };
 
-module.exports = { createCrashLog, installCrashHandlers, resolveCrashLogDir, orderedCrashFiles, describeError, flushPageStorage };
+module.exports = { createCrashLog, installCrashHandlers, resolveCrashLogDir, orderedCrashFiles, describeError, flushPageStorage, isBlockedPageStart, BLOCKED_PAGE_START_ADVICE };

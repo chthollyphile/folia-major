@@ -9,7 +9,7 @@ import path from 'path';
 // directory refuses it, what the file says, how many are kept, and when the user is interrupted.
 // Registering the process and app listeners is left to the app — it is four `on` calls.
 
-const { createCrashLog, installCrashHandlers, orderedCrashFiles, resolveCrashLogDir } = require('../../../electron/debug/crashLog.cjs');
+const { BLOCKED_PAGE_START_ADVICE, createCrashLog, installCrashHandlers, isBlockedPageStart, orderedCrashFiles, resolveCrashLogDir } = require('../../../electron/debug/crashLog.cjs');
 
 let workspace = '';
 
@@ -19,6 +19,7 @@ const fakeApp = (paths: { exe: string; userData: string }, isReady = true) => ({
     getVersion: () => '9.9.9',
     isPackaged: true,
     isReady: () => isReady,
+    quit: vi.fn(),
 });
 
 const locale = {
@@ -49,14 +50,15 @@ const build = (overrides: Record<string, unknown> = {}) => {
         showErrorBox: vi.fn(),
     };
     const shell = { showItemInFolder: vi.fn() };
+    const app = fakeApp({ exe: path.join(exeDir, 'Folia'), userData });
     const crashLog = createCrashLog({
-        app: fakeApp({ exe: path.join(exeDir, 'Folia'), userData }),
+        app,
         dialog,
         shell,
         getLocale: () => locale,
         ...overrides,
     });
-    return { crashLog, dialog, shell, exeDir, userData };
+    return { crashLog, dialog, shell, exeDir, userData, app };
 };
 
 describe('where crash reports are written', () => {
@@ -147,6 +149,58 @@ describe('what a report contains and does', () => {
 
         expect(fs.existsSync(file)).toBe(true);
         expect(dialog.showMessageBoxSync).not.toHaveBeenCalled();
+    });
+
+    // #1346：已知出路的崩溃（安全软件拦住页面进程），弹窗说原因和办法，并给一个退出按钮。
+    const adviceLocale = { ...locale, crashBlockedStartMessage: 'blocked', crashBlockedStartDetail: 'trust Folia.exe, then quit', crashQuit: 'quit' };
+    const announced = async (run: (built: ReturnType<typeof build>) => string | null, overrides = {}) => {
+        const built = build(overrides);
+        const file = run(built);
+        await new Promise(resolve => setImmediate(resolve));
+        return { ...built, file };
+    };
+
+    it('says the cause and the way out of a failure that has one, above the path of the file', async () => {
+        const { dialog, file } = await announced(
+            ({ crashLog }) => crashLog.report('render-process-gone', 'Reason     crashed', { advice: BLOCKED_PAGE_START_ADVICE }),
+            { getLocale: () => adviceLocale },
+        );
+
+        expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+            message: 'blocked',
+            detail: `trust Folia.exe, then quit
+
+${file}`,
+            buttons: ['open', 'quit', 'close'],
+            // Esc 和右上角的叉落在「关闭」上，不是「退出」。
+            cancelId: 2,
+        }));
+    });
+
+    it('quits when asked to, and only then: the app is still running behind its dead window', async () => {
+        for (const [response, quits, opens] of [[0, 0, 1], [1, 1, 0], [2, 0, 0]] as const) {
+            const { app, shell } = await announced(({ crashLog, dialog }) => {
+                dialog.showMessageBox.mockResolvedValue({ response });
+                return crashLog.report('render-process-gone', 'Reason     crashed', { advice: BLOCKED_PAGE_START_ADVICE });
+            }, { getLocale: () => adviceLocale });
+            // 弹窗的回答在下一拍才到。
+            await new Promise(resolve => setImmediate(resolve));
+
+            expect(app.quit).toHaveBeenCalledTimes(quits);
+            expect(shell.showItemInFolder).toHaveBeenCalledTimes(opens);
+        }
+    });
+
+    it('keeps the general dialog for every other crash, and where the locale has no such entries', async () => {
+        const general = expect.objectContaining({ message: 'message', buttons: ['open', 'close'], cancelId: 1 });
+
+        const plain = await announced(({ crashLog }) => crashLog.report('render-process-gone', 'Reason     crashed'), { getLocale: () => adviceLocale });
+        expect(plain.dialog.showMessageBox).toHaveBeenCalledWith(general);
+        expect(plain.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ detail: plain.file }));
+
+        const bare = await announced(({ crashLog }) => crashLog.report('render-process-gone', 'Reason     crashed', { advice: BLOCKED_PAGE_START_ADVICE }));
+        expect(bare.dialog.showMessageBox).toHaveBeenCalledWith(general);
+        expect(bare.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ detail: bare.file }));
     });
 
     it('uses the one dialog Electron has before ready', () => {
@@ -295,6 +349,45 @@ describe('which failures reach the user', () => {
             app.emit('render-process-gone', {}, { getURL: () => 'x' }, gone('killed'));
             expect(report.mock.calls[0][2]).toEqual({ announceToUser: true });
         });
+    });
+
+    // #1346：安全软件（卡巴斯基）拦住沙箱里的页面进程，页面没加载就以 0x80000003 结束。
+    const blocked = { reason: 'crashed', exitCode: -2147483645 };
+
+    it('tells a start that security software blocked from every other renderer crash', () => {
+        const start = { platform: 'win32', ...blocked, url: '' };
+        expect(isBlockedPageStart(start)).toBe(true);
+        // 同一个退出码的无符号写法。
+        expect(isBlockedPageStart({ ...start, exitCode: 0x80000003 })).toBe(true);
+        // 页面加载过（有地址）的是运行中崩的；地址读不到（窗口已销毁）时不猜。
+        expect(isBlockedPageStart({ ...start, url: 'file:///index.html' })).toBe(false);
+        expect(isBlockedPageStart({ ...start, url: null })).toBe(false);
+        expect(isBlockedPageStart({ ...start, exitCode: -1073741819 })).toBe(false);
+        expect(isBlockedPageStart({ ...start, exitCode: undefined })).toBe(false);
+        expect(isBlockedPageStart({ ...start, reason: 'oom' })).toBe(false);
+        expect(isBlockedPageStart({ ...start, platform: 'linux' })).toBe(false);
+    });
+
+    it('writes the way out into the report of a blocked start and has the dialog say it', () => {
+        withHandlers((app, report) => {
+            app.emit('render-process-gone', {}, { getURL: () => '' }, blocked);
+            expect(report.mock.calls[0][1]).toContain('Hint       ');
+            expect(report.mock.calls[0][1]).toContain('security software');
+            expect(report.mock.calls[0][2]).toEqual({ announceToUser: true, advice: BLOCKED_PAGE_START_ADVICE });
+        }, { platform: 'win32' });
+    });
+
+    it('adds nothing to a crash that only looks like one: another system, or a page that had loaded', () => {
+        withHandlers((app, report) => {
+            app.emit('render-process-gone', {}, { getURL: () => '' }, blocked);
+            expect(report.mock.calls[0][1]).not.toContain('Hint');
+            expect(report.mock.calls[0][2]).toEqual({ announceToUser: true });
+        }, { platform: 'linux' });
+        withHandlers((app, report) => {
+            app.emit('render-process-gone', {}, { getURL: () => 'file:///index.html' }, blocked);
+            expect(report.mock.calls[0][1]).not.toContain('Hint');
+            expect(report.mock.calls[0][2]).toEqual({ announceToUser: true });
+        }, { platform: 'win32' });
     });
 
     it('stays quiet once a shutdown has started', () => {
