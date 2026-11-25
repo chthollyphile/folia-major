@@ -2645,6 +2645,7 @@ export default {
     "shapeWhole": "整行是",
     "shapeEnds": "结尾是",
     "colonChip": "后接冒号",
+    "ignoreCaseChip": "忽略大小写",
     "wordsPlaceholder": "输入文字",
     "wordsAddPlaceholder": "再加一个，按回车",
     "wordsJoin": "」或「",

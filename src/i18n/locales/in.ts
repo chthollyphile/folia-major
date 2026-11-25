@@ -2645,6 +2645,7 @@ export default {
     "shapeWhole": "Persis",
     "shapeEnds": "Diakhiri",
     "colonChip": "Diikuti titik dua",
+    "ignoreCaseChip": "Abaikan besar-kecil huruf",
     "wordsPlaceholder": "Kata yang dicari",
     "wordsAddPlaceholder": "Tambah lagi, tekan Enter",
     "wordsJoin": "” atau “",

@@ -196,6 +196,43 @@ describe('character width', () => {
     });
 });
 
+describe('a written rule that asks to ignore case', () => {
+    const hits = (draft: Omit<LyricLineRule, 'id' | 'on'>, text: string) => (
+        matchLyricLines([{ fullText: text }], compileLyricLineRules([rule(draft)]))[0] !== null
+    );
+
+    it('matches in any case, while a pattern that never asked keeps matching exactly', () => {
+        expect(hits({ shape: 'written', text: 'copyright' }, 'Copyright © 2020')).toBe(false);
+        expect(hits({ shape: 'written', text: 'copyright', ignoreCase: true }, 'Copyright © 2020')).toBe(true);
+        // The old single expression keeps removing exactly the lines it removed, too
+        // (a pattern saved before the field existed has no ignoreCase).
+        expect(hits({ shape: 'written', text: '^OP' }, 'op：拾光音乐')).toBe(false);
+    });
+
+    it('carries the field only where a rule asked for it', () => {
+        const asked = { id: 'a', on: true, shape: 'written', text: 'copyright', ignoreCase: true } as const;
+        const raw = JSON.stringify([asked]);
+        const [readAsked, readPlain] = [
+            readLyricLineRules(storage({ lyrics_filter_rules: raw }))[0],
+            rule({ id: 'b', shape: 'written', text: 'copyright' }),
+        ];
+
+        expect(readAsked).toEqual(asked);
+        expect(JSON.parse(storedLyricLineRules([readAsked], raw))).toEqual([asked]);
+        // Saving a rule that never asked for it does not add the field.
+        expect(JSON.parse(storedLyricLineRules([readPlain], null)))
+            .toEqual([{ id: 'b', on: true, shape: 'written', text: 'copyright' }]);
+    });
+
+    it('makes a different rule where the field is read, so the lines are laid out again', () => {
+        const plain = rule({ shape: 'written', text: 'copyright' });
+        expect(lyricLineRulesKey([{ ...plain, ignoreCase: true }])).not.toBe(lyricLineRulesKey([plain]));
+        // Only a written rule reads it.
+        expect(lyricLineRulesKey([{ ...rule({ shape: 'contains', text: 'copyright' }), ignoreCase: true }]))
+            .toBe(lyricLineRulesKey([rule({ shape: 'contains', text: 'copyright' })]));
+    });
+});
+
 describe('saving', () => {
     it('keeps the saved items this version cannot read, unchanged', () => {
         const later = { id: 'b', on: true, shape: 'sounds-like', text: 'x', extra: [1] };

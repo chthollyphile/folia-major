@@ -213,6 +213,16 @@ const RuleCard: React.FC<RuleCardProps> = ({ rule, songLines, perRule, verdicts,
                         error={error}
                         onClear={() => update({ text: '' })}
                     />
+                    {/* The other shapes have always matched ignoring case; this is how a written
+                        pattern asks for the same, since JavaScript has no inline (?i). */}
+                    <div className="mt-1.5">
+                        <Chips items={[{
+                            id: `${rule.id}-ignore-case`,
+                            label: t('lyricFilter.ignoreCaseChip'),
+                            checked: rule.ignoreCase === true,
+                            onChange: ignoreCase => update({ ignoreCase }),
+                        }]} />
+                    </div>
                 </div>
             )}
             <div className="mt-1.5 flex items-center justify-between gap-2 text-xs leading-[18px] text-[color:var(--st-t2)]">
@@ -309,7 +319,7 @@ const LyricRuleList: React.FC<LyricRuleListProps> = ({ rules, songLines, perRule
                             disabled: hasPreset(preset.id),
                             onSelect: () => add({ shape: 'preset', text: preset.id }),
                         })),
-                        { id: 'written', label: t('lyricFilter.addWritten'), onSelect: () => add({ shape: 'written', text: '' }) },
+                        { id: 'written', label: t('lyricFilter.addWritten'), onSelect: () => add({ shape: 'written', text: '', ignoreCase: true }) },
                     ]}
                 />
             </div>

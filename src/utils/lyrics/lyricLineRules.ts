@@ -20,6 +20,12 @@ export interface LyricLineRule {
     text: string;
     /** 'starts' only: the words are followed by a colon. */
     colon?: boolean;
+    /**
+     * 'written' only: match ignoring upper/lower case, as the other shapes already do. Off unless the
+     * rule asked for it, so a pattern saved before this field existed keeps matching exactly as it did.
+     * JavaScript has no inline `(?i)`, so a written pattern cannot ask for it itself.
+     */
+    ignoreCase?: boolean;
     /** Lines in the middle of a song stay (isMidSongLine). */
     edgesOnly?: boolean;
 }
@@ -74,11 +80,12 @@ export const withLyricLineRuleWord = (text: string, word: string): string => lyr
  * The expression a rule tests each line with, or null when it removes nothing (no words, an
  * unknown preset, an expression that is not valid). Words match ignoring upper/lower case and
  * full width (ＯＰ： is OP:), the line being folded the same way (lyricLineAsRuleSees); a written rule
- * is compiled exactly as the single expression of older versions was.
+ * is compiled as the single expression of older versions was, unless it asked to ignore case
+ * (ignoreCase, which a pattern written before that field existed never did).
  */
 export const compileLyricLineRule = (rule: LyricLineRuleDraft): RegExp | null => {
     if (rule.shape === 'written') {
-        return compileLyricFilterPattern(rule.text);
+        return compileLyricFilterPattern(rule.text, rule.ignoreCase === true);
     }
     if (rule.shape === 'preset') {
         const words = getLyricLinePresetWords(rule.text);
@@ -230,6 +237,7 @@ const readRule = (value: unknown): LyricLineRule | null => {
         shape: item.shape as LyricLineRuleShape,
         text: item.text,
         ...(item.colon === true ? { colon: true } : {}),
+        ...(item.ignoreCase === true ? { ignoreCase: true } : {}),
         ...(item.edgesOnly === true ? { edgesOnly: true } : {}),
     };
 };
@@ -276,7 +284,14 @@ export const storedLyricLineRules = (rules: readonly LyricLineRule[], stored: st
     }));
     return JSON.stringify([
         // The switches this version knows are written as the rule has them: one turned off goes.
-        ...rules.map(rule => ({ ...savedById.get(rule.id), ...rule, colon: rule.colon || undefined, edgesOnly: rule.edgesOnly || undefined })),
+        ...rules.map(rule => ({
+            ...savedById.get(rule.id),
+            ...rule,
+            colon: rule.colon || undefined,
+            // Off is the default, so only the rules that asked for it carry the field.
+            ignoreCase: rule.shape === 'written' && rule.ignoreCase === true ? true : undefined,
+            edgesOnly: rule.edgesOnly || undefined,
+        })),
         ...items.filter(item => !readRule(item)),
     ]);
 };
@@ -290,6 +305,7 @@ export const lyricLineRulesKey = (rules: readonly LyricLineRule[]): string => JS
     rule.shape,
     rule.shape === 'preset' || rule.shape === 'written' ? rule.text.trim() : lyricLineRuleWords(rule.text).sort(),
     rule.shape === 'starts' && Boolean(rule.colon),
+    rule.shape === 'written' && rule.ignoreCase === true,
     Boolean(rule.edgesOnly),
 ])).sort());
 
