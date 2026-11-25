@@ -825,6 +825,9 @@ export default function App() {
         getPlayerCapDisplayTime,
         playerCapConnectionStatus,
         playerCapPlayers,
+        isMprisStageActive,
+        getMprisDisplayTime,
+        mprisConnectionStatus,
         mainPlaybackSnapshotRef,
         stageLyricsClockRef,
         syncStageLyricsClock,
@@ -1505,6 +1508,7 @@ export default function App() {
         effectiveLoopMode,
         isNowPlayingStageActive,
         isPlayerCapStageActive,
+        isMprisStageActive,
         stageActiveEntryKind,
         stageLyricsSession,
         stageLyricsClockRef,
@@ -1512,6 +1516,7 @@ export default function App() {
         syncStageLyricsClock,
         getNowPlayingDisplayTime,
         getPlayerCapDisplayTime,
+        getMprisDisplayTime,
         syncNowPlayingClock,
         lyricTimelineOffsetMs: effectiveLyricTimelineOffsetMs,
         incomingLyricTimelineOffsetMs,
@@ -2882,6 +2887,7 @@ export default function App() {
                 stageActiveEntryKind={stageActiveEntryKind}
                 nowPlayingConnectionStatus={nowPlayingConnectionStatus}
                 playerCapConnectionStatus={playerCapConnectionStatus}
+                mprisConnectionStatus={mprisConnectionStatus}
             />
 
             <AppOverlays model={appOverlaysModel} />

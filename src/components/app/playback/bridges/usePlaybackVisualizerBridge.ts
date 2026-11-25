@@ -40,6 +40,7 @@ type UsePlaybackVisualizerBridgeParams = {
     effectiveLoopMode: 'off' | 'all' | 'one';
     isNowPlayingStageActive: boolean;
     isPlayerCapStageActive: boolean;
+    isMprisStageActive: boolean;
     stageActiveEntryKind: string | null;
     stageLyricsSession: StageLyricsSession | null;
     stageLyricsClockRef: MutableRefObject<{
@@ -52,6 +53,7 @@ type UsePlaybackVisualizerBridgeParams = {
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
     getNowPlayingDisplayTime: () => number;
     getPlayerCapDisplayTime: () => number;
+    getMprisDisplayTime: () => number;
     syncNowPlayingClock: (progressSec: number, durationSec: number, paused: boolean) => void;
     lyricTimelineOffsetMs: number;
     /**
@@ -81,6 +83,7 @@ export function usePlaybackVisualizerBridge({
     effectiveLoopMode,
     isNowPlayingStageActive,
     isPlayerCapStageActive,
+    isMprisStageActive,
     stageActiveEntryKind,
     stageLyricsSession,
     stageLyricsClockRef,
@@ -88,6 +91,7 @@ export function usePlaybackVisualizerBridge({
     syncStageLyricsClock,
     getNowPlayingDisplayTime,
     getPlayerCapDisplayTime,
+    getMprisDisplayTime,
     syncNowPlayingClock,
     lyricTimelineOffsetMs,
     incomingLyricTimelineOffsetMs = lyricTimelineOffsetMs,
@@ -196,7 +200,7 @@ export function usePlaybackVisualizerBridge({
     // Only the main player's own clock: a stage or PlayerCap clock is written by its own branch below.
     const pausedDeckSyncRef = useRef({ ownsClock: false, lyrics });
     pausedDeckSyncRef.current = {
-        ownsClock: activePlaybackContext === 'main' && !isNowPlayingStageActive && !isPlayerCapStageActive,
+        ownsClock: activePlaybackContext === 'main' && !isNowPlayingStageActive && !isPlayerCapStageActive && !isMprisStageActive,
         lyrics,
     };
     useEffect(() => {
@@ -367,6 +371,14 @@ export function usePlaybackVisualizerBridge({
             const effectiveLyricTime = nextTime - displayOffsetMsRef.current / 1000;
             showLyricTime(effectiveLyricTime);
             showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
+        } else if (isMprisStageActive) {
+            // System media: position comes from MPRIS samples; the external player owns playback, so no end/loop handling here.
+            const nextTime = getMprisDisplayTime();
+            currentTime.set(nextTime);
+
+            const effectiveLyricTime = nextTime - displayOffsetMsRef.current / 1000;
+            showLyricTime(effectiveLyricTime);
+            showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
         } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession) {
             // A session without lyrics (an external player's track whose lyrics are not found) still keeps time.
             const nextTime = getSyntheticStageLyricsTime();
@@ -426,9 +438,11 @@ export function usePlaybackVisualizerBridge({
         effectiveLoopMode,
         getNowPlayingDisplayTime,
         getPlayerCapDisplayTime,
+        getMprisDisplayTime,
         getSyntheticStageLyricsTime,
         isNowPlayingStageActive,
         isPlayerCapStageActive,
+        isMprisStageActive,
         lyrics,
         incomingLyrics,
         playerState,

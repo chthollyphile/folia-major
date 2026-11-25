@@ -368,7 +368,7 @@ declare global {
   }
 
   type StageActiveEntryKind = 'lyrics' | 'media';
-  type StageSource = 'stage-api' | 'now-playing';
+  type StageSource = 'stage-api' | 'now-playing' | 'playercap' | 'mpris';
 
   interface StageEmbeddedUsltTag {
     language?: string;

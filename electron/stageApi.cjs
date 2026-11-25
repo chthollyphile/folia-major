@@ -292,6 +292,7 @@ function createStageApi({
     const configuredSource = store.get(stageModeSourceSettingKey);
     if (configuredSource === 'now-playing') return 'now-playing';
     if (configuredSource === 'playercap') return 'playercap';
+    if (configuredSource === 'mpris') return 'mpris';
     return 'stage-api';
   };
 
