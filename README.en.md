@@ -160,6 +160,13 @@ Self-hosters can use the [Docker Compose full-stack deployment](deploy/docker/RE
 > [!IMPORTANT]
 > If GitHub Releases is slow from mainland China, download from [Quark](https://pan.quark.cn/s/6e4c6fa3bc6f) or [Baidu](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia) instead. These links host stable installers for Windows and Apple silicon only.
 
+> [!WARNING]
+> **Kaspersky installed, and Folia opens to a black window with a crash dialog?**
+>
+> Kaspersky does not recognize the unsigned `Folia.exe`, puts it in a restricted group, and its System Watcher stops the page process.
+>
+> Fix: in Kaspersky, add `Folia.exe` to "Trusted applications" and tick "Do not monitor application activity", then quit Folia and open it again. Moving it to the Trusted group alone does not help. See [#1346](https://github.com/chthollyphile/folia-major/issues/1346).
+
 For Linux packages, the Wayland / Hyprland remote control window, and other desktop details, see [Technical Notes](docs/technical.md) (Chinese).
 
 ### Mobile

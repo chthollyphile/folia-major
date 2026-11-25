@@ -162,6 +162,13 @@ Vercel 与 Cloudflare 上的 QQ 音乐不再需要额外部署一个常驻 API �
 > [!IMPORTANT]
 > 如果国内网络从 GitHub Releases 下载较慢，可以使用 [夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) 或 [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia) 下载。网盘链接仅提供 Windows 与 Apple silicon 的正式版安装包.
 
+> [!WARNING]
+> **装了卡巴斯基，Folia 打开后是黑窗口并弹出崩溃提示？**
+>
+> 卡巴斯基不认识没有代码签名的 `Folia.exe`，会把它放进受限制的组，由「系统监控」拦下页面进程。
+>
+> 解决办法：在卡巴斯基的「受信任的应用程序」里添加 `Folia.exe`，并勾选「不监控应用程序活动」，然后退出 Folia 再重新打开。只把信任组改成「受信任」不管用。详见 [#1346](https://github.com/chthollyphile/folia-major/issues/1346)。
+
 Linux 包、Wayland / Hyprland 遥控窗和桌面端细节见 [技术与开发说明](docs/technical.md)。
 
 ### 移动端
