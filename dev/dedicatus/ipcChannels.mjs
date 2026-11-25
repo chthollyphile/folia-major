@@ -160,4 +160,5 @@ export const IPC_DYNAMIC_PREFIXES = {
     // 收尾补项 A 新加的 source-usage（「设置 → 音源」每行的占用，只读）同在这张表里。
     'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，每条都只答主窗口的主 frame（isMainWindowFrame）',
     'hifi:': 'electron/hifi/hifiIpc.cjs 按通道表循环注册',
+    'mpris:': 'electron/mpris/mprisSourceIpc.cjs 经本地 handle 包装注册（通道名是变量），只给主窗口',
 };
