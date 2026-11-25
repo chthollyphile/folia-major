@@ -320,7 +320,7 @@
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
     "dexie": "^4.4.6",
-    "electron": "^43.7.5",
+    "electron": "^43.8.13",
     "electron-builder": "^26.15.3",
     "fake-indexeddb": "^6.2.5",
     "framer-motion": "^13.4.3",
