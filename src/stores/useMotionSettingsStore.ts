@@ -36,8 +36,8 @@ export const MOTION_SURFACE_IDS = [
 
 export const SYSTEM_REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
-// 每个 key 都写成独立常量而不是模板拼出来：test/unit/stores/storeContract.test.ts 的快照靠扫描
-// 源码里的字面量来盯住改名，拼出来的 key 它看不见，而看不见的改名会静默丢掉用户的选择。
+// 每个 key 都写成独立常量而不是模板拼出来：test/unit/stores/storedKeys.ts 的扫描器读的是源码里的
+// 字面量，模板拼出来的 key 它看不见，而看不见的改名会静默丢掉用户的选择（快照和设置目录都靠这个扫描）。
 const FOLLOW_SYSTEM_KEY = 'reduce_motion_follow_system';
 const LATTICE_KEY = 'reduce_motion_lattice';
 const TRANSITION_OVERLAY_KEY = 'reduce_motion_transitionOverlay';

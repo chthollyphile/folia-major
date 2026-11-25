@@ -45,6 +45,17 @@ export const getStoredString = (key: string, fallback: string) => {
     return localStorage.getItem(key) || fallback;
 };
 
+/**
+ * The raw string stored under `key`, or null when nothing is stored there.
+ *
+ * Every other reader takes a fallback, so "never set" and "set to the fallback" read the same.
+ * A caller that has to tell them apart — an export that only carries settings the listener has
+ * actually changed — asks for the raw value with this.
+ */
+export const readStoredKey = (key: string): string | null => (
+    typeof window === 'undefined' ? null : localStorage.getItem(key)
+);
+
 /** Every stored key that starts with one of `prefixes` (Folium 2.0: a source's own keys, for its "clear data"). */
 export const listStoredKeysStartingWith = (prefixes: readonly string[]): string[] => {
     if (typeof window === 'undefined') {
