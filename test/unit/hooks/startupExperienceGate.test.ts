@@ -14,6 +14,8 @@ const readyState = {
     needsSourcesPrompt: false,
     isPlaybackEntryViewPromptOpen: false,
     isPonderOnboardingOpen: false,
+    needsLocalFolderAccessPrompt: false,
+    isLocalFolderAccessPromptOpen: false,
 };
 
 describe('startup experience gate', () => {
@@ -90,5 +92,16 @@ describe('startup experience gate', () => {
         expect(resolveStartupExperienceStep(answered)).toBe('playback-entry-view');
         expect(resolveStartupExperienceStep({ ...answered, isPlaybackEntryViewPromptOpen: true })).toBeNull();
         expect(resolveStartupExperienceStep({ ...answered, needsSourcesPrompt: false })).toBeNull();
+    });
+    it('ends with the local folder access page, after everything else and outside the release', () => {
+        const owed = { ...readyState, needsLocalFolderAccessPrompt: true };
+        expect(resolveStartupExperienceStep(owed)).toBe('release-notes');
+        expect(resolveStartupExperienceStep({ ...owed, hasSeenReleaseNotes: true, hasChosenPlaybackEntryView: true })).toBe('ponder');
+        expect(resolveStartupExperienceStep({
+            ...owed, hasSeenReleaseNotes: true, hasChosenPlaybackEntryView: true, hasSeenPonder: true,
+        })).toBe('local-folder-access');
+        expect(resolveStartupExperienceStep({ ...owed, isCurrentRelease: false })).toBe('local-folder-access');
+        expect(resolveStartupExperienceStep({ ...owed, isCurrentRelease: false, isPonderOnboardingOpen: true })).toBeNull();
+        expect(resolveStartupExperienceStep({ ...owed, isCurrentRelease: false, isLocalFolderAccessPromptOpen: true })).toBeNull();
     });
 });

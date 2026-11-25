@@ -149,6 +149,7 @@ export const STORAGE_KEYS = [
     'web:folia_hifi_volume_confirmed',
     'web:folia_last_seen_guide_version',
     'web:folia_last_seen_ponder_onboarding_version',
+    'web:folia_local_folder_access_checked',
     'web:folia_local_music_last_row',
     'web:folia_loop_shuffle_hint_count',
     'web:folia_media_cache_limit_gb',

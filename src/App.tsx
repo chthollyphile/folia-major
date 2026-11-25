@@ -34,6 +34,7 @@ import { UserGuideModal } from './components/modal/UserGuideModal';
 import ReleaseNotesDialog from './components/modal/ReleaseNotesDialog';
 import LegacyModelsPrompt from './components/modal/LegacyModelsPrompt';
 import { PlaybackEntryViewPrompt } from './components/modal/playback-entry-view/PlaybackEntryViewPrompt';
+import { LocalFolderAccessPrompt } from './components/local-folder-access/LocalFolderAccessPrompt';
 import { useStartupExperienceGate } from './hooks/useStartupExperienceGate';
 import { useAppDialogsModel } from './components/app/dialogs/useAppDialogsModel';
 import { useHomeModel } from './components/app/home/useHomeModel';
@@ -2984,6 +2985,7 @@ export default function App() {
             />
             <UserGuideModal theme={theme} />
             <PlaybackEntryViewPrompt theme={theme} />
+            <LocalFolderAccessPrompt theme={theme} />
             {/* With 自动 AI 分词 on, segments a song that has no saved split by itself (issue #960). */}
             <AutoLyricSegmentationHost visualizerMode={visualizerMode} isLyricsLoading={isLyricsLoading} save={lyricSegmentationActions.save} />
             <TrackEndCountdownHost enabled={stageTrackPillOnScreen && nextUpTrack !== null} duration={displayDuration} />

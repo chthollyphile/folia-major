@@ -6078,6 +6078,25 @@ export default {
     "navidromeNote": "Navidrome is a music server you run yourself. It is not in this list; connect it in Settings.",
     "navidromeButton": "Connect in Settings"
   },
+  "localFolderAccess": {
+    "title": "Pick your local folders again",
+    "description": "A security change in this update voided the folder access older versions saved, so the songs in the folders below can't play for now. Pick each one again, choosing the same folder as before, to restore it; playlists, matched lyrics and notes are all kept.",
+    "songCount_one": "{{count}} song",
+    "songCount_other": "{{count}} songs",
+    "pick": "Pick again",
+    "result": {
+      "restored": "Restored",
+      "scanning": "Working…",
+      "mismatch": "These songs aren't in that folder. Pick the original folder",
+      "failed": "Couldn't restore it. Try again",
+      "retry": "Click \"Pick again\" once more"
+    },
+    "laterHint": "This page is shown only once. Later, click \"Re-import\" on a local folder to pick it again.",
+    "later": "Not now",
+    "done": "Done",
+    "mismatch": "The songs of \"{{folder}}\" aren't in the folder you picked. Pick the original folder.",
+    "clickAgain": "Click once more to pick the folder of \"{{folder}}\"."
+  },
   "librarySuiteOnboarding": {
     "title": "How should your library look?",
     "description": "The home screen, playlists, albums and artist pages are all browsed in the interface you pick here. Both do the same things; they just browse differently.",

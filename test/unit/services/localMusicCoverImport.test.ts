@@ -19,7 +19,7 @@ import type { LocalLibrarySnapshot, LocalSong } from '../../../src/types';
 // Verifies one-pass per-song cover hydration, folder-cover priority, and coverless retry behavior.
 
 vi.mock('../../../src/services/db', () => ({
-    deleteDirHandle: vi.fn(),
+    deleteDirHandle: vi.fn(async () => true),
     deleteLocalLibrarySnapshot: vi.fn(),
     deleteLocalSong: vi.fn(),
     deleteLocalSongs: vi.fn(),
@@ -117,7 +117,7 @@ describe('local music cover import', () => {
         vi.mocked(getLocalLibrarySnapshot).mockResolvedValue(null);
         vi.mocked(getDirHandles).mockResolvedValue({});
         vi.mocked(getFromCache).mockResolvedValue([]);
-        vi.mocked(saveDirHandles).mockResolvedValue(undefined);
+        vi.mocked(saveDirHandles).mockImplementation(async handles => Object.keys(handles));
         vi.mocked(saveLocalSongs).mockResolvedValue(undefined);
         vi.mocked(saveLocalLibrarySnapshot).mockResolvedValue(undefined);
         vi.mocked(prepareLocalCoverBlob).mockResolvedValue(null);

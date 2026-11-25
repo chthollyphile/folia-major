@@ -6076,6 +6076,25 @@ export default {
     "navidromeNote": "Navidrome 是你自己架设的音乐服务器，不在上面这张表里，在设置里连接。",
     "navidromeButton": "去设置连接"
   },
+  "localFolderAccess": {
+    "title": "重新选择本地文件夹",
+    "description": "这次更新带来的安全改动让旧版本记下的文件夹访问权限失效了，下面这些文件夹里的歌暂时放不了。逐个点「重新选择」，选回原来的文件夹就能恢复，歌单、歌词匹配和评论都会保留。",
+    "songCount_one": "{{count}} 首歌",
+    "songCount_other": "{{count}} 首歌",
+    "pick": "重新选择",
+    "result": {
+      "restored": "已恢复",
+      "scanning": "正在处理…",
+      "mismatch": "选的文件夹里没有这些歌，请选原来的文件夹",
+      "failed": "没能恢复，请再试一次",
+      "retry": "请再点一次「重新选择」"
+    },
+    "laterHint": "这一页只出现一次。以后也可以在本地文件夹上点「重新导入」，选回原来的文件夹。",
+    "later": "以后再说",
+    "done": "完成",
+    "mismatch": "选的文件夹里找不到「{{folder}}」的歌，请选原来的文件夹。",
+    "clickAgain": "再点一次就能选「{{folder}}」的文件夹。"
+  },
   "librarySuiteOnboarding": {
     "title": "资料库用哪种界面？",
     "description": "首页、歌单、专辑与歌手页都用这里选的界面浏览。两种能做的事一样，只是浏览的方式不同。",

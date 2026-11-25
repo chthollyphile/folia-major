@@ -6078,6 +6078,25 @@ export default {
     "navidromeNote": "Navidrome là máy chủ nhạc do bạn tự dựng. Nó không có trong danh sách này; hãy kết nối trong Cài đặt.",
     "navidromeButton": "Kết nối trong Cài đặt"
   },
+  "localFolderAccess": {
+    "title": "Chọn lại thư mục cục bộ",
+    "description": "Một thay đổi bảo mật trong bản cập nhật này đã vô hiệu quyền truy cập thư mục mà các phiên bản cũ đã lưu, nên tạm thời không phát được bài hát trong các thư mục dưới đây. Hãy chọn lại từng thư mục, đúng thư mục như trước, để khôi phục; danh sách phát, lời bài hát đã khớp và ghi chú đều được giữ nguyên.",
+    "songCount_one": "{{count}} bài hát",
+    "songCount_other": "{{count}} bài hát",
+    "pick": "Chọn lại",
+    "result": {
+      "restored": "Đã khôi phục",
+      "scanning": "Đang xử lý…",
+      "mismatch": "Thư mục đó không chứa các bài hát này. Hãy chọn thư mục gốc",
+      "failed": "Không khôi phục được. Hãy thử lại",
+      "retry": "Hãy bấm \"Chọn lại\" thêm một lần"
+    },
+    "laterHint": "Trang này chỉ hiện một lần. Sau này, bấm \"Nhập lại\" trên thư mục cục bộ để chọn lại.",
+    "later": "Để sau",
+    "done": "Xong",
+    "mismatch": "Không tìm thấy bài hát của \"{{folder}}\" trong thư mục đã chọn. Hãy chọn thư mục gốc.",
+    "clickAgain": "Bấm thêm một lần để chọn thư mục của \"{{folder}}\"."
+  },
   "librarySuiteOnboarding": {
     "title": "Giao diện thư viện mong muốn?",
     "description": "Trang chủ, danh sách phát, album và nghệ sĩ đều duyệt theo giao diện bạn chọn ở đây. Cả hai đều đủ tính năng, chỉ khác cách duyệt.",
