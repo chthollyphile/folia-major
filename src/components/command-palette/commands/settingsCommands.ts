@@ -661,6 +661,18 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ],
         'bottomUiSettings',
     ),
+    {
+        id: 'settings-visualizer-background',
+        group: 'settings',
+        title: 'Background settings',
+        description: 'Open the background page of the lyric style window: the background type and its effect settings',
+        keywords: ['background effect', 'wallpaper settings', '背景效果', '漫游背景设置', '字符画设置'],
+        settingsTarget: { subview: 'visualizer' },
+        execute: (_input, context) => {
+            context.settings.openSettings('options', 'visualizer', 'background');
+            return true;
+        },
+    },
     createSettingsCommand('settings-visualizer', 'Visualizer settings', 'Open lyrics animation workbench', ['visualizer workbench', '可视化', '歌词动画', 'donghua'], 'options', 'visualizer'),
     createSettingsCommand('settings-theme-park', 'Color', 'Open theme editor', ['theme park', 'theme', '配色', '主题', '主题公园', '主题乐园'], 'options', 'themePark', { executeShortcut: 't' }),
     createSettingsCommand('settings-global-lyric-offset', 'Global timing offset', 'Calibrate lyric timing against Bluetooth or device audio latency', ['lyric delay', 'audio latency', 'bluetooth delay', 'sync lyrics', '全局时间偏移', '歌词延迟', '音画同步', '蓝牙延迟'], 'options', 'globalLyricOffset'),

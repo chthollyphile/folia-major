@@ -2,6 +2,7 @@ import { COMMAND_PALETTE_COMMANDS, matchCommandsExactly } from '../../../command
 import { normalizeSearchText } from '../../../command-palette/search/normalize';
 import { isDrawnHere, type SettingsOptionDef } from '../kit/options';
 import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
+import type { VisualizerSettingsSection } from '../../../../stores/useSettingsModalStore';
 
 // src/components/modal/settings/navigation/settingsNavSearch.ts
 // The settings search: what it can find and how a query is matched. An entry is a category, a group
@@ -21,6 +22,11 @@ export type SettingsSearchEntry = {
     targetId: string | null;
     /** The group a row is in, where the hit lands while the row itself is not shown. */
     groupId?: string;
+    /**
+     * The page of the lyric style window the hit opens, for a place in that window rather than on a
+     * settings page (lyricStyleWindowSearch). Such an entry is found by its own name only.
+     */
+    workWindowSection?: VisualizerSettingsSection;
     label: string;
     /** Where the entry is: the category, then the group. Empty for a category. */
     path: string;
@@ -92,7 +98,7 @@ export const searchSettings = (
     for (const entry of entries) {
         if (contains(entry.label)) {
             byLabel.push(entry);
-        } else if (contains(entry.path) || (entry.targetId ? targetHits.has(entry.targetId) : sectionHits.has(entry.sectionId))) {
+        } else if (!entry.workWindowSection && (contains(entry.path) || (entry.targetId ? targetHits.has(entry.targetId) : sectionHits.has(entry.sectionId)))) {
             byOther.push(entry);
         }
     }

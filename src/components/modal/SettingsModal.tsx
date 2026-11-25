@@ -38,6 +38,7 @@ import SettingsCompactNav from './settings/navigation/SettingsCompactNav';
 import { settingsAnchorSubview } from '../../utils/settingsAnchorModel';
 import { buildSettingsNavGroups, findSettingsNavItem, type SettingsSectionId } from './settings/navigation/settingsNavModel';
 import { buildSettingsSearchEntries, searchSettings, type SettingsSearchEntry } from './settings/navigation/settingsNavSearch';
+import { buildLyricStyleWindowEntries } from './settings/navigation/lyricStyleWindowSearch';
 import { isSettingsSectionSubview, resolveInitialSettingsSection, sectionForSettingsSubview, writeLastSettingsSection } from './settings/navigation/settingsLastSection';
 import { useSettingsLanding, type SettingsLandingTarget } from './settings/navigation/useSettingsLanding';
 import { runsOnWindows } from '../../utils/platform';
@@ -321,6 +322,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     };
     const handleSelectSearchHit = (hit: SettingsSearchEntry) => {
         handleSelectSettingsSection(hit.sectionId);
+        if (hit.workWindowSection) {
+            // A place in the lyric style window: open it on that page, over the page it is reached from.
+            setVisPlaygroundSection(hit.workWindowSection);
+            setShowVisPlayground(true);
+            return;
+        }
         if (hit.targetId) {
             landOn(hit.targetId, hit.groupId);
         }
@@ -333,6 +340,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const settingsAnchors = useSettingsAnchorList(settingsAnchorStore);
 
     const [showVisPlayground, setShowVisPlayground] = useState(false);
+    /** The page a settings search hit opened the lyric style window on; null keeps the requested one. */
+    const [visPlaygroundSection, setVisPlaygroundSection] = useState<VisualizerSettingsSection | null>(null);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showSceneWindow, setShowSceneWindow] = useState(false);
     const [showModsWindow, setShowModsWindow] = useState(false);
@@ -347,6 +356,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     useEffect(() => {
         setActiveTab(initialTab);
         setShowVisPlayground(initialSubview === 'visualizer');
+        setVisPlaygroundSection(null);
         setShowThemePark(initialSubview === 'themePark');
         setShowSceneWindow(initialSubview === 'scene');
         setShowModsWindow(initialSubview === 'modsWindow');
@@ -1017,7 +1027,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     // A category this build does not list (a desktop-only one on web) has no page to show.
     const ActivePage = activeSettingsNavItem ? SETTINGS_PAGES[activeSettingsSection] : null;
     const searchEntries = useMemo(
-        () => buildSettingsSearchEntries(settingsNavGroups, SETTINGS_PAGE_OPTIONS, t, { isElectron }),
+        () => [
+            ...buildSettingsSearchEntries(settingsNavGroups, SETTINGS_PAGE_OPTIONS, t, { isElectron }),
+            ...buildLyricStyleWindowEntries(
+                t,
+                `${findSettingsNavItem(settingsNavGroups, 'appearance')?.label ?? ''} › ${t('options.lyricsAnimationAdjust')}`,
+            ),
+        ],
         [settingsNavGroups, t, isElectron],
     );
     const searchHits = useMemo(
@@ -1063,7 +1079,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             onToggleSongThemeAutoGenerate,
             onChangeThemeGenerationSource,
         },
-        onOpenVisPlayground: () => setShowVisPlayground(true),
+        onOpenVisPlayground: () => {
+            setVisPlaygroundSection(null);
+            setShowVisPlayground(true);
+        },
         onOpenThemePark: () => setShowThemePark(true),
         onOpenSceneWindow: () => setShowSceneWindow(true),
         onOpenModsWindow: () => setShowModsWindow(true),
@@ -1310,7 +1329,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         theme={theme}
                         isDaylight={isDaylight}
                         visualizerMode={visualizerMode}
-                        initialEditSection={initialVisualizerSection ?? 'visualizer'}
+                        initialEditSection={visPlaygroundSection ?? initialVisualizerSection ?? 'visualizer'}
                         visualizerOpacity={visualizerOpacity}
                         staticMode={staticMode}
                         backgroundConfig={{

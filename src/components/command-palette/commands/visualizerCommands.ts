@@ -5,6 +5,7 @@ import { Camera, LayoutGrid, Wallpaper } from 'lucide-react';
 import type { CommandPaletteCommand } from '../types';
 import { createBackgroundCommand, createToggleCommand, createVisualizerCommand } from '../commandFactories';
 import { lyricSegmentationCommand } from './lyricSegmentationCommand';
+import { NOMAND_EFFECT_COMMANDS } from './nomandEffectCommands';
 import { VISUALIZER_REGISTRY } from '../../visualizer/registry';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '../../visualizer/backgrounds/registry';
 import { isMachiCameraBarOpen, toggleMachiCameraBar } from '../../visualizer/machi/cameraBar';
@@ -199,9 +200,10 @@ export const visualizerCommands: CommandPaletteCommand[] = [
             return true;
         },
     },
-    // Monet has no plain switch command (the two above pick a layout); Latent's variants follow its own.
+    // Monet has no plain switch command (the two above pick a layout); Latent's and Nomand's variants follow their own.
     ...VISUALIZER_BACKGROUND_REGISTRY.flatMap(({ mode, command }) => [
         ...(command ? [createBackgroundCommand(mode, command.title, command.description, command.keywords)] : []),
         ...(mode === 'latent' ? LATENT_VARIANT_COMMANDS : []),
+        ...(mode === 'nomand' ? NOMAND_EFFECT_COMMANDS : []),
     ]),
 ];

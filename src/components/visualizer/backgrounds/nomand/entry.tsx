@@ -38,7 +38,7 @@ export default defineVisualizerBackground({
     command: {
         title: 'Background: Nomand',
         description: 'Switch background to theme-colored image dithering',
-        keywords: ['nomand', 'dithering', 'dither', 'shader background', '漫游', '像素画', '像素画背景', '抖动背景', '网点背景', '主题色背景', 'ascii', '字符画', '字符背景'],
+        keywords: ['nomand', 'dithering', 'dither', 'shader background', '漫游', '像素画', '像素画背景', '抖动背景', '网点背景', '主题色背景'],
     },
     // The shader draws one image and cannot blend to another, so a new song's image comes as a new copy;
     // the copy on screen was already rebuilt for every new image (its elements are keyed by it).

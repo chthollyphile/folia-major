@@ -239,6 +239,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setVisualizerBackgroundMode: vi.fn(),
             setMonetBackgroundTuning: vi.fn(),
             setLatentBackgroundTuning: vi.fn(),
+            setNomandBackgroundTuning: vi.fn(),
             cycleNebbiaBehind: vi.fn(() => 'aquarium' as const),
             cycleNebbiaGlass: vi.fn(() => 'dew' as const),
             toggleVideoLayer: vi.fn(),
@@ -903,6 +904,19 @@ describe('command palette registry', () => {
         expect(matchLatentFluid.command.id).toBe('background-latent-mesh');
         matchLatentFluid.command.execute('', context);
         expect(context.visualizer.setLatentBackgroundTuning).toHaveBeenCalledWith({ displayMode: 'mesh' });
+
+        const [matchAscii] = getCommandPaletteMatches('字符画');
+        expect(matchAscii.command.id).toBe('background-nomand-ascii');
+        void matchAscii.command.execute('', context);
+        expect(context.visualizer.setVisualizerBackgroundMode).toHaveBeenLastCalledWith('nomand');
+        expect(context.visualizer.setNomandBackgroundTuning).toHaveBeenCalledWith({ effect: 'ascii' });
+    });
+
+    it('opens the background page of the lyric style window', () => {
+        const context = createContext();
+        const command = getCommandPaletteMatches('背景设置').find(match => match.command.id === 'settings-visualizer-background')!.command;
+        void command.execute('', context);
+        expect(context.settings.openSettings).toHaveBeenCalledWith('options', 'visualizer', 'background');
     });
 
     it('matches and executes the Diorama visualizer command', () => {

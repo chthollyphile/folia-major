@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { SearchKind, SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
 import type { NebbiaBehind, NebbiaGlass } from '../visualizer/nebbia/types';
-import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning, SmartBeatMode } from '../../types';
+import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning, NomandBackgroundTuning, SmartBeatMode } from '../../types';
 import type { LyricSegmentationRecord, LyricSegmentationSource } from '../../types/lyricSegmentation';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
@@ -524,6 +524,7 @@ export type CommandPaletteVisualizerContext = {
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
     setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
+    setNomandBackgroundTuning: (patch: Partial<NomandBackgroundTuning>) => void;
     /** 雾笺: the next window scene (the front glass changes to that scene's usual pair, as in its settings) and the next front glass; each returns what it switched to. */
     cycleNebbiaBehind: () => NebbiaBehind;
     cycleNebbiaGlass: () => NebbiaGlass;
