@@ -114,8 +114,10 @@ const isBlockedPageStart = ({ platform, reason, exitCode, url }) => (
 
 /** The line a report of such a start carries: the file is read by whoever the user sends it to. */
 const BLOCKED_PAGE_START_HINT = 'the page process ended before loading anything; usually security software'
-    + ' (Kaspersky, #1346) blocking the sandboxed process. Trusting Folia.exe there fixes it;'
-    + ' starting with --no-sandbox confirms the diagnosis.';
+    + ' (Kaspersky, #1346) blocking the sandboxed process. Kaspersky puts an executable it does not'
+    + ' know in a restricted group and its System Watcher stops the renderer; adding Folia.exe to'
+    + ' Trusted applications with "Do not monitor application activity" fixes it (the Trusted group'
+    + ' alone does not); starting with --no-sandbox confirms the diagnosis.';
 
 /**
  * What the dialog says about such a start, by locale entry: the cause as the heading, the way out
