@@ -18,8 +18,8 @@ type NewFeaturesRelease = {
 
 // Defines the current release's cards; their localized text lives under i18nKey in every locale.
 export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
-    i18nKey: 'releaseNotes.v0_8_0',
-    majorUpdate: { codename: 'Severance' },
+    i18nKey: 'releaseNotes.v0_8_1',
+    majorUpdate: { codename: 'Severance', servicePack: 1 },
     features: [
         { id: 'sourceMods', icon: Puzzle },
         { id: 'modMarket', icon: Store },
