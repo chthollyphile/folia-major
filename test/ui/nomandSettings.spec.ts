@@ -55,9 +55,10 @@ test('switches Nomand Paper effects and exposes matching tuning controls', async
     await page.getByRole('radio', { name: 'ASCII', exact: true }).click();
     await expect(page.getByRole('slider', { name: 'Glyph Size' })).toBeVisible();
     await expect(page.getByRole('slider', { name: 'Sway' })).toBeVisible();
-    await expect(page.getByText('Invert Image Luminance', { exact: true })).toBeVisible();
-    await page.getByRole('switch', { name: 'Keep Original Image Colors', exact: true }).click();
+    // The picture's own colours are on by default, which leaves nothing to invert.
     await expect(page.getByText('Invert Image Luminance', { exact: true })).toHaveCount(0);
+    await page.getByRole('switch', { name: 'Keep Original Image Colors', exact: true }).click();
+    await expect(page.getByText('Invert Image Luminance', { exact: true })).toBeVisible();
     await expect(page.getByRole('slider', { name: 'Color Spread' })).toHaveCount(0);
 
     await page.getByRole('radio', { name: 'Dithering', exact: true }).click();
