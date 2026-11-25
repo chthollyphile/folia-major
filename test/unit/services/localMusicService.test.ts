@@ -11,6 +11,8 @@ import {
     getAudioFromLocalSong,
     importFolder,
     LocalFolderUnavailableError,
+    probeLocalRootAccess,
+    reauthorizeLocalRoot,
     resyncAllFolders,
     resyncFolder,
     removeImportedRoot,
@@ -222,7 +224,7 @@ describe('localMusicService', () => {
     });
 
     beforeEach(() => {
-        vi.mocked(deleteDirHandle).mockReset();
+        vi.mocked(deleteDirHandle).mockReset().mockResolvedValue(true);
         vi.mocked(deleteLocalLibrarySnapshot).mockReset();
         vi.mocked(deleteLocalSong).mockReset();
         vi.mocked(deleteLocalSongs).mockReset();
@@ -240,7 +242,7 @@ describe('localMusicService', () => {
         vi.mocked(getLocalSongs).mockResolvedValue([]);
         vi.mocked(getLocalLibrarySnapshot).mockResolvedValue(null);
         vi.mocked(getDirHandles).mockResolvedValue({});
-        vi.mocked(saveDirHandles).mockResolvedValue(undefined);
+        vi.mocked(saveDirHandles).mockImplementation(async handles => Object.keys(handles));
         vi.mocked(saveLocalSongs).mockResolvedValue(undefined);
         vi.mocked(saveLocalLibrarySnapshot).mockResolvedValue(undefined);
         vi.mocked(getFromCache).mockResolvedValue([]);
@@ -1031,6 +1033,204 @@ describe('localMusicService', () => {
 
             expect(saveLocalLibrarySnapshot).toHaveBeenCalledWith(expect.objectContaining({ rootFolderName: 'Other' }));
             expect(useStatusMessageStore.getState().message?.text).toContain('“Music”');
+        });
+    });
+    // Electron 43.8.12 drops the folder handles earlier versions saved: every call on one then never settles.
+    describe('folder access lost to a dropped handle', () => {
+        const deadHandle = () => {
+            const handle = createLibraryHandle('dead-root');
+            handle.queryPermission = () => new Promise<PermissionState>(() => { });
+            handle.isSameEntry = () => new Promise<boolean>(() => { });
+            return handle;
+        };
+
+        afterEach(() => {
+            vi.useRealTimers();
+            vi.restoreAllMocks();
+        });
+
+        it('tells reachable, dead and missing roots apart without hanging', async () => {
+            vi.useFakeTimers();
+            vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue([
+                createSong({ id: 'a', filePath: 'Music/Disc 1/Track 01.mp3' }),
+                createSong({ id: 'b', filePath: 'Dead/x.mp3', folderName: 'Dead' }),
+                createSong({ id: 'c', filePath: 'Dead/y.mp3', folderName: 'Dead' }),
+                createSong({ id: 'd', filePath: 'Unsaved/z.mp3', folderName: 'Unsaved' }),
+            ]);
+            vi.mocked(getDirHandles).mockResolvedValue({
+                Music: createLibraryHandle() as unknown as FileSystemDirectoryHandle,
+                Dead: deadHandle() as unknown as FileSystemDirectoryHandle,
+            });
+
+            const probing = probeLocalRootAccess();
+            await vi.advanceTimersByTimeAsync(3000);
+
+            expect(await probing).toEqual(expect.arrayContaining([
+                { rootFolderName: 'Music', songCount: 1, access: 'ok' },
+                { rootFolderName: 'Dead', songCount: 2, access: 'dead' },
+                { rootFolderName: 'Unsaved', songCount: 1, access: 'missing' },
+            ]));
+        });
+
+        it('puts a picked folder back under the old root, keeping the song ids', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            const existing = createSong({ id: 'kept-id', fileSize: 1, matchedLyricsSongId: 'kept-lyric' });
+            vi.mocked(getLocalSongs).mockResolvedValue([existing]);
+            vi.mocked(getDirHandles).mockResolvedValue({ Music: deadHandle() as unknown as FileSystemDirectoryHandle });
+            const picked = createLibraryHandle('picked');
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(picked);
+
+            expect(await reauthorizeLocalRoot('Music')).toBe('restored');
+
+            expect(saveDirHandles).toHaveBeenCalledWith({ Music: picked });
+            expect(saveLocalSongs).toHaveBeenCalledWith([
+                expect.objectContaining<Partial<LocalSong>>({ id: 'kept-id', matchedLyricsSongId: 'kept-lyric' }),
+            ]);
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+        });
+
+        it('refuses a folder that holds none of the root songs, writing nothing', async () => {
+            vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue([createSong({ id: 'kept-id' })]);
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(
+                new FakeDirectoryHandle('Other', [new FakeFileHandle('Elsewhere.mp3')]),
+            );
+
+            expect(await reauthorizeLocalRoot('Music')).toBe('mismatch');
+
+            expect(saveDirHandles).not.toHaveBeenCalled();
+            expect(saveLocalSongs).not.toHaveBeenCalled();
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+        });
+
+        // Four songs in four album folders; `present` says which of them the picked folder holds.
+        const fourAlbums = (present: readonly number[], token = 'picked') => new FakeDirectoryHandle('Music', [0, 1, 2, 3]
+            .filter(index => present.includes(index))
+            .map(index => new FakeDirectoryHandle(`Album ${index}`, [new FakeFileHandle('Track.mp3')], `${token}:${index}`)), token);
+        const fourAlbumSongs = () => [0, 1, 2, 3].map(index => createSong({
+            id: `song-${index}`,
+            filePath: `Music/Album ${index}/Track.mp3`,
+            folderName: `Music/Album ${index}`,
+            fileName: 'Track.mp3',
+            fileSignature: `Music/Album ${index}/Track.mp3::5::1000`,
+        }));
+
+        it('refuses a folder holding fewer than half of the sampled songs', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue(fourAlbumSongs());
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(fourAlbums([0]));
+
+            expect(await reauthorizeLocalRoot('Music')).toBe('mismatch');
+            expect(saveDirHandles).not.toHaveBeenCalled();
+        });
+
+        it('accepts a folder holding half of them, which loses only the songs really gone', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue(fourAlbumSongs());
+            const picked = fourAlbums([0, 1]);
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(picked);
+
+            expect(await reauthorizeLocalRoot('Music')).toBe('restored');
+            expect(saveDirHandles).toHaveBeenCalledWith({ Music: picked });
+        });
+
+        it('refuses a rescan that would remove most of the root even when the sample passed', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            // 72 songs sampled every third one (24): the picked folder holds exactly the sampled third, so the
+            // sample passes while the rescan would remove the other 48.
+            const songs = Array.from({ length: 72 }, (_, index) => createSong({
+                id: `song-${index}`,
+                fileName: `Track ${index}.mp3`,
+                filePath: `Music/Track ${index}.mp3`,
+                folderName: 'Music',
+            }));
+            vi.mocked(getLocalSongs).mockResolvedValue(songs);
+            const picked = new FakeDirectoryHandle('Music', songs
+                .filter((_, index) => index % 3 === 0)
+                .map(song => new FakeFileHandle(song.fileName)), 'picked');
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(picked);
+
+            expect(await reauthorizeLocalRoot('Music')).toBe('mismatch');
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+            expect(deleteLocalSongs).not.toHaveBeenCalled();
+            expect(saveDirHandles).not.toHaveBeenCalled();
+        });
+
+        it('puts a lost root back in place when its folder is imported again, instead of a copy', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue([createSong({ id: 'kept-id' })]);
+            vi.mocked(getDirHandles).mockResolvedValue({});
+            const picked = createLibraryHandle('picked');
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(picked);
+
+            await importFolder();
+
+            expect(saveDirHandles).toHaveBeenCalledWith({ Music: picked });
+            expect(saveLocalSongs).toHaveBeenCalledWith([expect.objectContaining<Partial<LocalSong>>({ id: 'kept-id' })]);
+        });
+
+        it('imports a partial copy named like a lost root as a new root, deleting nothing', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue(fourAlbumSongs());
+            vi.mocked(getDirHandles).mockResolvedValue({});
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(fourAlbums([0, 1, 2]));
+
+            await importFolder();
+
+            expect(saveDirHandles).toHaveBeenCalledWith(expect.objectContaining({ 'Music (2)': expect.anything() }));
+            expect(deleteLocalSong).not.toHaveBeenCalled();
+            expect(deleteLocalSongs).not.toHaveBeenCalled();
+        });
+
+        it('reports a folder whose new handle did not store as failed', async () => {
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue([createSong({ id: 'kept-id' })]);
+            vi.mocked(saveDirHandles).mockResolvedValue(null);
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(createLibraryHandle('picked'));
+
+            expect(await reauthorizeLocalRoot('Music')).toBe('failed');
+        });
+
+        it('says to click again when the picker refuses a click whose activation ran out', async () => {
+            vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            vi.mocked((window as any).showDirectoryPicker).mockRejectedValue(Object.assign(new Error('no activation'), { name: 'SecurityError' }));
+            expect(await reauthorizeLocalRoot('Music')).toBe('retry');
+        });
+
+        it('takes a handle waiting for permission (the browser after a restart) for reachable', async () => {
+            const handle = createLibraryHandle();
+            handle.queryPermission = async () => 'prompt';
+            vi.mocked(getLocalSongs).mockResolvedValue([createSong({ filePath: 'Browser/Track 01.mp3', folderName: 'Browser' })]);
+            vi.mocked(getDirHandles).mockResolvedValue({ Browser: handle as unknown as FileSystemDirectoryHandle });
+            expect(await probeLocalRootAccess()).toEqual([{ rootFolderName: 'Browser', songCount: 1, access: 'ok' }]);
+        });
+
+        it('returns cancelled when the picker is dismissed', async () => {
+            vi.mocked((window as any).showDirectoryPicker).mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+            expect(await reauthorizeLocalRoot('Music')).toBe('cancelled');
+            expect(saveDirHandles).not.toHaveBeenCalled();
+        });
+
+        it('asks for the folder again when a rescan finds its saved handle dead', async () => {
+            vi.useFakeTimers();
+            vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            vi.mocked(getLocalSongs).mockResolvedValue([createSong({ id: 'kept-id' })]);
+            vi.mocked(getDirHandles).mockResolvedValue({ Music: deadHandle() as unknown as FileSystemDirectoryHandle });
+            const picked = createLibraryHandle('picked');
+            vi.mocked((window as any).showDirectoryPicker).mockResolvedValue(picked);
+
+            const rescanning = resyncFolder('Music');
+            await vi.advanceTimersByTimeAsync(3000);
+            vi.useRealTimers();
+            const songs = await rescanning;
+
+            expect((window as any).showDirectoryPicker).toHaveBeenCalledTimes(1);
+            expect(saveDirHandles).toHaveBeenCalledWith({ Music: picked });
+            expect(songs?.map(song => song.id)).toEqual(['kept-id']);
         });
     });
 });

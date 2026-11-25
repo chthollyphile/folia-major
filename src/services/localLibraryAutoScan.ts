@@ -1,5 +1,5 @@
 import { getDirHandles } from './db';
-import { LOCAL_MUSIC_UPDATED_EVENT, LocalFolderUnavailableError, resyncFolder } from './localMusicService';
+import { LOCAL_MUSIC_UPDATED_EVENT, LocalFolderUnavailableError, querySavedHandlePermission, resyncFolder } from './localMusicService';
 import { summarizeLocalLibraryChanges } from '../utils/localLibraryWatchRecords';
 import { useLocalLibrarySettingsStore } from '../stores/useLocalLibrarySettingsStore';
 import type {
@@ -122,7 +122,7 @@ const drainScanQueue = async (): Promise<void> => {
 
             try {
                 // 文件夹读不到时不弹提示（没有人在等这次扫描），原因只记在 lastError 里。
-                await resyncFolder(rootFolderName, { announceUnavailable: false });
+                await resyncFolder(rootFolderName, { announceUnavailable: false, reauthorizeIfLost: false });
                 patchState({ lastScanAt: Date.now(), lastScanRootFolderName: rootFolderName, lastError: null });
             } catch (error) {
                 if (error instanceof LocalFolderUnavailableError) {
@@ -340,13 +340,12 @@ const runRefresh = async (): Promise<void> => {
             // A re-import replaces the stored handle; the old observer points at the previous one.
             if (existing) detachWatch(rootFolderName);
 
+            // A handle Electron 43.8.12 dropped never answers: timed out, it counts as refused rather than
+            // holding up every root after it.
             const permissionAware = handle as PermissionAwareDirectoryHandle;
-            let permission: PermissionState = 'granted';
-            try {
-                permission = (await permissionAware.queryPermission?.({ mode: 'read' })) ?? 'granted';
-            } catch {
-                permission = 'denied';
-            }
+            const permission = typeof permissionAware.queryPermission === 'function'
+                ? await querySavedHandlePermission(handle, rootFolderName)
+                : 'granted';
 
             if (permission !== 'granted') {
                 // Never prompt from here: requesting permission needs a user gesture, and this runs

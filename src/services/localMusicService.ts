@@ -95,6 +95,18 @@ export class LocalFolderUnavailableError extends Error {
     }
 }
 
+/**
+ * The root's saved handle is gone or no longer answers (see DEAD_HANDLE_TIMEOUT_MS): the folder may be fine,
+ * but it can only be reached again by picking it (reauthorizeLocalRoot). A kind of unreadable folder, so the
+ * callers that report unreadable folders report this one too.
+ */
+export class LocalFolderAccessLostError extends LocalFolderUnavailableError {
+    constructor(rootFolderName: string) {
+        super(rootFolderName, 'unreadable');
+        this.name = 'LocalFolderAccessLostError';
+    }
+}
+
 const isUnderAnyPath = (path: string, parents: ReadonlySet<string>): boolean => {
     for (const parent of parents) {
         if (path === parent || path.startsWith(`${parent}/`)) return true;
@@ -161,7 +173,6 @@ export const LOCAL_MUSIC_SCAN_PROGRESS_EVENT = 'folia-local-music-scan-progress'
 const HYDRATION_BATCH_SIZE = 25;
 const HYDRATION_REFRESH_EVERY = 100;
 const SNAPSHOT_HASH_SEED = 2166136261;
-const REIMPORT_HANDLE_MISSING_ERROR = 'Missing persisted directory handle for reimport';
 const PREFERRED_FOLDER_COVER_FILES = ['cover.png', 'cover.jpg', 'cover.jpeg'];
 
 interface LocalMusicScanProgressDetail {
@@ -196,21 +207,68 @@ function notifyLocalMusicScanProgress(detail: LocalMusicScanProgressDetail) {
     window.dispatchEvent(new CustomEvent(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, { detail }));
 }
 
+// How long a saved handle may take to answer before it counts as dead. Electron 43.8.12 took in Chromium's
+// "[FSA] Validate StorageKey and origin when serializing handles" (71ea1e9367a7): a directory handle an earlier
+// version saved in IndexedDB carries no origin, is dropped when it is read back, and every call on it -
+// queryPermission, isSameEntry, values() - then never settles. A live handle answers in milliseconds.
+const DEAD_HANDLE_TIMEOUT_MS = 3000;
+const DEAD_HANDLE = Symbol('dead-handle');
+
+/** Settles with the call's result, or with DEAD_HANDLE when a saved handle does not answer in time. */
+function answerOrDead<T>(call: Promise<T>): Promise<T | typeof DEAD_HANDLE> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<typeof DEAD_HANDLE>(resolve => { timer = setTimeout(() => resolve(DEAD_HANDLE), DEAD_HANDLE_TIMEOUT_MS); });
+    return Promise.race([call, timeout]).finally(() => clearTimeout(timer));
+}
+
+type PermissionAwareDirectoryHandle = FileSystemDirectoryHandle & {
+    queryPermission: (descriptor: { mode: 'read' | 'readwrite'; }) => Promise<PermissionState>;
+    requestPermission: (descriptor: { mode: 'read' | 'readwrite'; }) => Promise<PermissionState>;
+};
+
+/**
+ * Roots whose saved handle was found dead in this run. Asked again, they fail at once instead of waiting
+ * DEAD_HANDLE_TIMEOUT_MS each time: playback would otherwise stall on every song of the root, and a click that
+ * leads to the folder picker would spend most of its user activation waiting. Saving a new handle for the
+ * root takes it off the list.
+ */
+const lostRootNames = new Set<string>();
+
+/** A saved root handle's read permission, or 'dead' when the handle no longer answers or throws. */
+export async function querySavedHandlePermission(handle: FileSystemDirectoryHandle, rootFolderName?: string): Promise<PermissionState | 'dead'> {
+    if (rootFolderName && lostRootNames.has(rootFolderName)) return 'dead';
+    let permission: PermissionState | 'dead';
+    try {
+        const call = (handle as PermissionAwareDirectoryHandle).queryPermission({ mode: 'read' });
+        const answer = await answerOrDead(call);
+        permission = answer === DEAD_HANDLE ? 'dead' : answer;
+        // A dropped handle never answers; one that was only slow (a busy start) answers late and is let back.
+        if (answer === DEAD_HANDLE && rootFolderName) {
+            call.then(() => { lostRootNames.delete(rootFolderName); }, () => undefined);
+        }
+    } catch (error) {
+        console.warn(`[LocalMusic] Saved directory handle "${handle.name}" failed its permission check`, error);
+        permission = 'dead';
+    }
+    if (permission === 'dead' && rootFolderName) lostRootNames.add(rootFolderName);
+    return permission;
+}
+
 async function getImportDirectoryHandle(expectedRootName?: string): Promise<FileSystemDirectoryHandle | null> {
     if (expectedRootName) {
         const dirHandles = await getDirHandles();
         const persistedHandle = dirHandles[expectedRootName];
 
         if (!persistedHandle) {
-            throw new Error(REIMPORT_HANDLE_MISSING_ERROR);
+            throw new LocalFolderAccessLostError(expectedRootName);
         }
 
-        const permissionAwareHandle = persistedHandle as FileSystemDirectoryHandle & {
-            queryPermission: (descriptor: { mode: 'read' | 'readwrite'; }) => Promise<PermissionState>;
-            requestPermission: (descriptor: { mode: 'read' | 'readwrite'; }) => Promise<PermissionState>;
-        };
+        const permissionAwareHandle = persistedHandle as PermissionAwareDirectoryHandle;
 
-        let permission = await permissionAwareHandle.queryPermission({ mode: 'read' });
+        let permission = await querySavedHandlePermission(persistedHandle, expectedRootName);
+        if (permission === 'dead') {
+            throw new LocalFolderAccessLostError(expectedRootName);
+        }
         if (permission !== 'granted') {
             permission = await permissionAwareHandle.requestPermission({ mode: 'read' });
         }
@@ -239,15 +297,24 @@ async function findImportedRootForHandle(dirHandle: FileSystemDirectoryHandle): 
         return null;
     }
 
-    for (const [rootFolderName, persistedHandle] of Object.entries(dirHandles)) {
+    // Side by side: a dropped handle answers only by timing out, and one after another they would add up.
+    const matches = await Promise.all(Object.entries(dirHandles).map(async ([rootFolderName, persistedHandle]) => {
+        if (lostRootNames.has(rootFolderName)) return null;
         try {
-            if (await selectedHandle.isSameEntry(persistedHandle)) {
-                return rootFolderName;
+            const same = await answerOrDead(selectedHandle.isSameEntry(persistedHandle));
+            if (same === DEAD_HANDLE) {
+                lostRootNames.add(rootFolderName);
+                console.warn(`[LocalMusic][Import] Saved handle of "${rootFolderName}" did not answer; not comparing with it`);
+                return null;
             }
+            return same ? rootFolderName : null;
         } catch (error) {
             console.warn(`[LocalMusic][Import] Failed to compare imported directory with "${rootFolderName}":`, error);
+            return null;
         }
-    }
+    }));
+    const matched = matches.find((rootFolderName): rootFolderName is string => rootFolderName !== null);
+    if (matched) return matched;
 
     return null;
 }
@@ -1209,12 +1276,17 @@ export async function importDirectoryHandle(dirHandle: FileSystemDirectoryHandle
     return await runLocalFolderMutation(() => importFolderContents(dirHandle));
 }
 
-async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expectedRootName?: string): Promise<LocalSong[]> {
+async function importFolderContents(
+    dirHandle: FileSystemDirectoryHandle,
+    expectedRootName?: string,
+    options: { reauthorizing?: boolean } = {},
+): Promise<LocalSong[]> {
     try {
         const importStartedAt = performance.now();
 
         let rootFolderName = expectedRootName || dirHandle.name;
         let isRescanningExistingRoot = Boolean(expectedRootName);
+        let reauthorizing = options.reauthorizing ?? false;
 
         // If the picked directory is already imported, rescan the existing root instead of duplicating it.
         if (!expectedRootName) {
@@ -1223,6 +1295,12 @@ async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expect
                 rootFolderName = existingRootName;
                 isRescanningExistingRoot = true;
                 console.log(`[LocalMusic][Import] Directory "${dirHandle.name}" already imported as "${rootFolderName}", rescanning existing root.`);
+            } else if (await isLostRootPickedAgain(dirHandle)) {
+                // A root of the same name whose handle is lost (or was never saved), and the picked folder holds
+                // its songs: put it back in place rather than importing a copy named "<name> (2)" with new ids.
+                isRescanningExistingRoot = true;
+                reauthorizing = true;
+                console.log(`[LocalMusic][Import] Directory "${dirHandle.name}" picked again for its lost root, rescanning it in place.`);
             }
         }
 
@@ -1273,13 +1351,25 @@ async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expect
             throw new LocalFolderUnavailableError(rootFolderName, 'empty');
         }
 
+        // A folder picked again for a lost root passed a sample of its songs, but rescanning a different folder
+        // would still take most of the root for deleted - from the library and from every playlist. Refuse when
+        // more than half of the root's songs would go.
+        if (reauthorizing && existingRootSongs.length > 0 && diffPlan.removedSongs.length * 2 > existingRootSongs.length) {
+            throw new PickedFolderMismatchError(rootFolderName, diffPlan.removedSongs.length, existingRootSongs.length);
+        }
+
         // Save directory handle for persistence after a successful scan plan is built
         try {
             const { getDirHandles, saveDirHandles } = await import('./db');
             const dirHandles = await getDirHandles();
             dirHandles[rootFolderName] = dirHandle;
-            await saveDirHandles(dirHandles);
-            console.log(`[LocalMusic] Saved directory handle for ${rootFolderName}`);
+            const savedRoots = await saveDirHandles(dirHandles);
+            if (savedRoots?.includes(rootFolderName)) {
+                lostRootNames.delete(rootFolderName);
+                console.log(`[LocalMusic] Saved directory handle for ${rootFolderName}`);
+            } else {
+                console.error(`[LocalMusic] Directory handle for ${rootFolderName} was not saved; its songs will need a re-import after a restart`);
+            }
         } catch (e) {
             console.error('[LocalMusic] Failed to save directory handle:', e);
         }
@@ -1657,10 +1747,7 @@ async function recoverFileHandleFromPersistedDirectory(song: LocalSong): Promise
         return null;
     }
 
-    const permissionAwareHandle = rootDirHandle as FileSystemDirectoryHandle & {
-        queryPermission: (descriptor: { mode: 'read' | 'readwrite'; }) => Promise<PermissionState>;
-    };
-    const permission = await permissionAwareHandle.queryPermission({ mode: 'read' });
+    const permission = await querySavedHandlePermission(rootDirHandle, rootFolderName);
     if (permission !== 'granted') {
         return null;
     }
@@ -1705,9 +1792,10 @@ async function cleanupDirHandleIfUnused(rootFolderName: string): Promise<void> {
     });
 
     if (!stillUsed) {
-        await deleteDirHandle(rootFolderName);
+        const removed = await deleteDirHandle(rootFolderName);
         await deleteLocalLibrarySnapshot(rootFolderName);
-        console.log(`[LocalMusic] Removed persisted directory handle for ${rootFolderName}`);
+        if (removed) console.log(`[LocalMusic] Removed persisted directory handle for ${rootFolderName}`);
+        else console.warn(`[LocalMusic] Persisted directory handle for ${rootFolderName} could not be removed`);
     }
 }
 
@@ -1882,7 +1970,9 @@ export async function deleteSongsByIds(songIds: string[]): Promise<void> {
         ...uniqueSongIds.map(id => removeCachedCover(`cover_local_${id}`)),
     ]);
     await dropDeletedSongsFromPlaylists(uniqueSongIds);
-    await Promise.all(Array.from(affectedRoots).map(cleanupDirHandleIfUnused));
+    // One root at a time: each cleanup reads and rewrites the same handle row, and side by side
+    // the last write would put back the roots the others had just removed.
+    for (const root of affectedRoots) await cleanupDirHandleIfUnused(root);
     notifyLocalMusicUpdated();
     console.log(`[LocalMusic] Deleted ${uniqueSongIds.length} songs by ID`);
 }
@@ -1918,6 +2008,11 @@ export interface LocalFolderRescanOptions {
      * 自动扫描传 false，它只把原因记在自己的状态里。不管说不说，错都照样抛给调用方。
      */
     announceUnavailable?: boolean;
+    /**
+     * Whether a root whose saved handle is lost opens the folder picker to be put back in place. Default yes: a
+     * manual rescan is the listener's click. The automatic scan passes false - nothing unattended opens a picker.
+     */
+    reauthorizeIfLost?: boolean;
 }
 
 // 手动重扫的入口有好几个（歌单页、目录树、首页、歌词设置），各自对失败的处理不一样，有的只记日志。
@@ -1929,6 +2024,147 @@ const announceUnavailableFolders = (errors: readonly LocalFolderUnavailableError
     setStatusMessage({ type: 'error', text: i18n.t(key, { folder }), note: i18n.t('localMusic.folderUnavailableNote') });
 };
 
+/** Whether an imported root can still be reached through its saved handle. */
+export type LocalRootAccess = 'ok' | 'dead' | 'missing';
+
+/**
+ * Each imported root that holds songs, with whether its saved handle still reaches the folder: 'dead' when
+ * the handle no longer answers (see DEAD_HANDLE_TIMEOUT_MS) or refuses, 'missing' when there is no saved
+ * handle at all (a save that failed, as it did in 0.8.1 beside a dead handle). Such a root's songs cannot be
+ * found again after a restart until the folder is picked again (reauthorizeLocalRoot).
+ */
+export async function probeLocalRootAccess(): Promise<Array<{ rootFolderName: string; songCount: number; access: LocalRootAccess }>> {
+    const [songs, handles] = await Promise.all([getLocalSongs(), getDirHandles()]);
+    const songCounts = new Map<string, number>();
+    songs.forEach(song => {
+        const root = getRootFolderName(song);
+        if (root) songCounts.set(root, (songCounts.get(root) ?? 0) + 1);
+    });
+    return await Promise.all(Array.from(songCounts, async ([rootFolderName, songCount]) => {
+        const handle = handles[rootFolderName] as FileSystemDirectoryHandle | undefined;
+        if (!handle) return { rootFolderName, songCount, access: 'missing' as const };
+        // Only a handle that does not answer is lost. 'prompt' is the browser build after a restart: a rescan
+        // asks for the permission again, no folder needs picking.
+        const permission = await querySavedHandlePermission(handle, rootFolderName);
+        return { rootFolderName, songCount, access: permission === 'dead' ? 'dead' as const : 'ok' as const };
+    }));
+}
+
+export type LocalRootReauthorizeResult = 'restored' | 'cancelled' | 'mismatch' | 'retry' | 'failed';
+
+/** The picked folder is not the lost root's: rescanning it would take most of the root's songs for deleted. */
+class PickedFolderMismatchError extends Error {
+    constructor(rootFolderName: string, removed: number, total: number) {
+        super(`Picked folder would remove ${removed} of ${total} songs of "${rootFolderName}"`);
+        this.name = 'PickedFolderMismatchError';
+    }
+}
+
+// How many of a root's songs are looked up in the picked folder to tell it is the same folder.
+const REAUTHORIZE_SAMPLE_SIZE = 24;
+
+const relativePathInRoot = (song: LocalSong, rootFolderName: string) => (
+    song.filePath.startsWith(`${rootFolderName}/`) ? song.filePath.slice(rootFolderName.length + 1) : song.filePath
+);
+
+/**
+ * Whether a picked folder holds a root's songs: up to REAUTHORIZE_SAMPLE_SIZE of them, spread evenly over the
+ * root (not its first ones, which are one album), are looked up at their paths, and at least half must be there.
+ * A root without songs matches any folder.
+ */
+async function pickedFolderHoldsRoot(dirHandle: FileSystemDirectoryHandle, rootFolderName: string, rootSongs: readonly LocalSong[]) {
+    const withPaths = rootSongs.filter(song => song.filePath);
+    const step = Math.max(1, withPaths.length / REAUTHORIZE_SAMPLE_SIZE);
+    const sample: LocalSong[] = [];
+    for (let index = 0; index < withPaths.length && sample.length < REAUTHORIZE_SAMPLE_SIZE; index += step) {
+        sample.push(withPaths[Math.floor(index)]);
+    }
+    let found = 0;
+    for (const song of sample) {
+        try {
+            await resolveFileHandleFromDirHandle(dirHandle, relativePathInRoot(song, rootFolderName));
+            found += 1;
+        } catch {
+            // Not at that path in the picked folder.
+        }
+    }
+    const holds = sample.length === 0 || found * 2 >= sample.length;
+    console.log(`[LocalMusic] Picked folder "${dirHandle.name}" holds ${found}/${sample.length} sampled songs of "${rootFolderName}": ${holds ? 'same folder' : 'not it'}`);
+    return holds;
+}
+
+/**
+ * A folder picked through plain import whose name is a lost root's (no saved handle, or a dead one this run)
+ * and which holds every one of that root's songs at its path. Every one, not a sample: the listener did not
+ * say this folder is that root, and putting a partial copy (a phone's "Music") in its place would delete the
+ * songs it lacks from the library and from every playlist. Short of that it imports as a new root.
+ */
+async function isLostRootPickedAgain(dirHandle: FileSystemDirectoryHandle): Promise<boolean> {
+    const rootFolderName = dirHandle.name;
+    const rootSongs = (await getLocalSongs()).filter(song => getRootFolderName(song) === rootFolderName && song.filePath);
+    if (rootSongs.length === 0) return false;
+    const handles = await getDirHandles();
+    if (rootFolderName in handles && !lostRootNames.has(rootFolderName)) return false;
+    for (const song of rootSongs) {
+        try {
+            await resolveFileHandleFromDirHandle(dirHandle, relativePathInRoot(song, rootFolderName));
+        } catch {
+            console.log(`[LocalMusic][Import] "${dirHandle.name}" lacks some songs of its lost namesake root; importing it as a new root`);
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Lets the listener pick an imported root's folder again and puts it back in place: the new handle is saved
+ * under the root's old name and the root is rescanned as itself, so every song keeps its id - and with it its
+ * playlists, matched lyrics, notes and the rest. A folder that does not hold the root's songs is refused
+ * ('mismatch') before anything is written (pickedFolderHoldsRoot), and so is one whose rescan would remove
+ * most of them, since that would take them for deleted. 'retry' when the picker refused to open because the
+ * click's user activation ran out.
+ *
+ * Call it straight from a click: the picker needs the click's user activation.
+ */
+export async function reauthorizeLocalRoot(rootFolderName: string): Promise<LocalRootReauthorizeResult> {
+    const availability = getLocalLibraryAvailability();
+    if (!availability.supported) throw new Error(`Local library unavailable: ${availability.reason}`);
+    let dirHandle: FileSystemDirectoryHandle;
+    try {
+        const picker = window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> };
+        dirHandle = await picker.showDirectoryPicker();
+    } catch (error) {
+        if ((error as Error).name === 'AbortError') return 'cancelled';
+        if ((error as Error).name === 'SecurityError') {
+            console.warn(`[LocalMusic] The folder picker for "${rootFolderName}" needs a fresh click`, error);
+            return 'retry';
+        }
+        throw error;
+    }
+
+    const rootSongs = (await getLocalSongs()).filter(song => getRootFolderName(song) === rootFolderName);
+    if (!await pickedFolderHoldsRoot(dirHandle, rootFolderName, rootSongs)) return 'mismatch';
+
+    // Saving the new handle takes the root off the lost list; still on it afterwards, the handle did not store
+    // and the root would be lost again at the next start.
+    lostRootNames.add(rootFolderName);
+    try {
+        await runLocalFolderMutation(() => importFolderContents(dirHandle, rootFolderName, { reauthorizing: true }));
+    } catch (error) {
+        if (error instanceof PickedFolderMismatchError) {
+            console.warn('[LocalMusic] Not rescanning the picked folder', error);
+            return 'mismatch';
+        }
+        throw error;
+    }
+    if (lostRootNames.has(rootFolderName)) {
+        console.error(`[LocalMusic] Rescanned "${rootFolderName}" but its new folder handle was not saved`);
+        return 'failed';
+    }
+    console.log(`[LocalMusic] Folder access to "${rootFolderName}" restored from "${dirHandle.name}"`);
+    return 'restored';
+}
+
 // Resync folder: refresh an imported folder in place using the persisted root handle
 export async function resyncFolder(folderName: string, options: LocalFolderRescanOptions = {}): Promise<LocalSong[] | null> {
     // Only root imports have persisted directory handles. Derived child folders
@@ -1938,6 +2174,16 @@ export async function resyncFolder(folderName: string, options: LocalFolderResca
     try {
         importedSongs = await importFolder(rootFolderName);
     } catch (error) {
+        // The saved handle is lost (Electron 43.8.12 dropped the ones older versions saved): asking for the
+        // folder again is the only way back, and this is the listener's own click asking to rescan it.
+        if (error instanceof LocalFolderAccessLostError && options.reauthorizeIfLost !== false) {
+            const result = await reauthorizeLocalRoot(rootFolderName);
+            if (result === 'restored') return (await getLocalSongs()).filter(song => getRootFolderName(song) === rootFolderName);
+            if (result === 'mismatch') setStatusMessage({ type: 'error', text: i18n.t('localFolderAccess.mismatch', { folder: rootFolderName }) });
+            if (result === 'retry') setStatusMessage({ type: 'info', text: i18n.t('localFolderAccess.clickAgain', { folder: rootFolderName }) });
+            if (result === 'failed') setStatusMessage({ type: 'error', text: i18n.t('localFolderAccess.result.failed') });
+            return null;
+        }
         if (error instanceof LocalFolderUnavailableError && options.announceUnavailable !== false) announceUnavailableFolders([error]);
         throw error;
     }

@@ -6076,6 +6076,25 @@ export default {
     "navidromeNote": "Navidrome adalah server musik yang Anda jalankan sendiri. Tidak ada di daftar ini; hubungkan di Pengaturan.",
     "navidromeButton": "Hubungkan di Pengaturan"
   },
+  "localFolderAccess": {
+    "title": "Pilih ulang folder lokal",
+    "description": "Perubahan keamanan dalam pembaruan ini membatalkan akses folder yang disimpan versi lama, jadi lagu di folder berikut untuk sementara tidak bisa diputar. Pilih ulang setiap folder, folder yang sama seperti sebelumnya, untuk memulihkannya; playlist, lirik yang dicocokkan, dan catatan tetap tersimpan.",
+    "songCount_one": "{{count}} lagu",
+    "songCount_other": "{{count}} lagu",
+    "pick": "Pilih ulang",
+    "result": {
+      "restored": "Dipulihkan",
+      "scanning": "Memproses…",
+      "mismatch": "Lagu-lagu ini tidak ada di folder itu. Pilih folder aslinya",
+      "failed": "Gagal dipulihkan. Coba lagi",
+      "retry": "Klik \"Pilih ulang\" sekali lagi"
+    },
+    "laterHint": "Halaman ini hanya muncul sekali. Nanti, klik \"Impor Ulang\" pada folder lokal untuk memilihnya lagi.",
+    "later": "Nanti saja",
+    "done": "Selesai",
+    "mismatch": "Lagu dari \"{{folder}}\" tidak ada di folder yang dipilih. Pilih folder aslinya.",
+    "clickAgain": "Klik sekali lagi untuk memilih folder \"{{folder}}\"."
+  },
   "librarySuiteOnboarding": {
     "title": "Pustaka mau tampil seperti apa?",
     "description": "Beranda, playlist, album, dan halaman artis dijelajahi dengan antarmuka yang Anda pilih di sini. Keduanya bisa melakukan hal yang sama, hanya cara menjelajahnya berbeda.",

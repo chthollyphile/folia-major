@@ -5,12 +5,13 @@ import { hasOnboardingLibrarySuiteChoice } from '../library/app/librarySuiteChoi
 import { requestPlaybackEntryViewPrompt, usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
 import { loadSourcesOnboarding, useSourcesOnboardingStore } from '../components/modal/playback-entry-view/sourcesOnboarding';
 import { useSettingsModalStore } from '../stores/useSettingsModalStore';
+import { loadLocalFolderAccessCheck, openLocalFolderAccessPrompt, useLocalFolderAccessStore } from '../components/local-folder-access/localFolderAccessCheck';
 
 // src/hooks/useStartupExperienceGate.ts
 
 const LAST_SEEN_RELEASE_NOTES_VERSION_STORAGE_KEY = 'folia_last_seen_guide_version';
 
-export type StartupExperienceStep = 'release-notes' | 'playback-entry-view' | 'ponder' | null;
+export type StartupExperienceStep = 'release-notes' | 'playback-entry-view' | 'ponder' | 'local-folder-access' | null;
 
 type StartupExperienceState = {
     isCurrentRelease: boolean;
@@ -36,6 +37,12 @@ type StartupExperienceState = {
     needsSourcesPrompt: boolean;
     isPlaybackEntryViewPromptOpen: boolean;
     isPonderOnboardingOpen: boolean;
+    /**
+     * Imported folders can no longer be reached and the one-time page asking for them again is still owed
+     * (localFolderAccessCheck.ts). Not gated by the release: it is the last step whenever it is owed.
+     */
+    needsLocalFolderAccessPrompt: boolean;
+    isLocalFolderAccessPromptOpen: boolean;
 };
 
 /** Chooses the next blocking surface while ensuring that two startup dialogs never overlap. */
@@ -50,8 +57,10 @@ export const resolveStartupExperienceStep = ({
     needsSourcesPrompt,
     isPlaybackEntryViewPromptOpen,
     isPonderOnboardingOpen,
+    needsLocalFolderAccessPrompt,
+    isLocalFolderAccessPromptOpen,
 }: StartupExperienceState): StartupExperienceStep => {
-    if (isReleaseNotesOpen || isPlaybackEntryViewPromptOpen || isPonderOnboardingOpen) {
+    if (isReleaseNotesOpen || isPlaybackEntryViewPromptOpen || isPonderOnboardingOpen || isLocalFolderAccessPromptOpen) {
         return null;
     }
     // The release sequence (notes, the playback choice, the Ponder gate) only runs on the release that auto-opens
@@ -66,7 +75,8 @@ export const resolveStartupExperienceStep = ({
     if ((releaseDue && !hasChosenPlaybackEntryView) || needsLibrarySuitePrompt || needsSourcesPrompt) {
         return 'playback-entry-view';
     }
-    return releaseDue && !hasSeenPonder ? 'ponder' : null;
+    if (releaseDue && !hasSeenPonder) return 'ponder';
+    return needsLocalFolderAccessPrompt ? 'local-folder-access' : null;
 };
 
 const readLastSeenReleaseNotesVersion = (): string | null => (
@@ -77,7 +87,8 @@ const readLastSeenReleaseNotesVersion = (): string | null => (
 
 /**
  * Runs the first-launch sequence: release notes, the choice prompt (the sources a fresh profile uses, library
- * interface, then playback destination), then the Ponder shortcut gate. The prompt is gated by the playback
+ * interface, then playback destination), then the Ponder shortcut gate, and last the one-time page asking again for
+ * imported folders that can no longer be reached. The prompt is gated by the playback
  * choice alone, so installs that answered the older single-page prompt are not asked again.
  */
 export const useStartupExperienceGate = () => {
@@ -90,6 +101,8 @@ export const useStartupExperienceGate = () => {
     const isPlaybackEntryViewPromptOpen = usePlaybackEntryViewStore(state => state.isPlaybackEntryViewPromptOpen);
     const sourcesOnboardingStatus = useSourcesOnboardingStore(state => state.status);
     const needsSourcesPrompt = sourcesOnboardingStatus === 'owed';
+    const needsLocalFolderAccessPrompt = useLocalFolderAccessStore(state => state.status === 'owed');
+    const isLocalFolderAccessPromptOpen = useLocalFolderAccessStore(state => state.isOpen);
     const [lastSeenReleaseNotesVersion, setLastSeenReleaseNotesVersion] = useState(readLastSeenReleaseNotesVersion);
     const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
     const appVersion = typeof __APP_VERSION__ === 'undefined' ? null : __APP_VERSION__;
@@ -106,13 +119,18 @@ export const useStartupExperienceGate = () => {
         needsSourcesPrompt,
         isPlaybackEntryViewPromptOpen,
         isPonderOnboardingOpen,
+        needsLocalFolderAccessPrompt,
+        isLocalFolderAccessPromptOpen,
     });
 
     // Whether a fresh profile owes the sources page, asked of the main process once (the web build: never). Not
     // asked under the dev shortcut: nothing opens and nothing is recorded, so a fresh profile runs no source until
     // one is switched in "Settings → Sources" (which counts as the answer).
     useEffect(() => {
-        if (!skipsStartupExperience) void loadSourcesOnboarding();
+        if (!skipsStartupExperience) {
+            void loadSourcesOnboarding();
+            void loadLocalFolderAccessCheck();
+        }
     }, []);
 
     useEffect(() => {
@@ -127,6 +145,8 @@ export const useStartupExperienceGate = () => {
             });
         } else if (nextStep === 'ponder') {
             setIsPonderOnboardingOpen(true);
+        } else if (nextStep === 'local-folder-access') {
+            openLocalFolderAccessPrompt();
         }
     }, [nextStep, sourcesOnboardingStatus, setIsPonderOnboardingOpen]);
 

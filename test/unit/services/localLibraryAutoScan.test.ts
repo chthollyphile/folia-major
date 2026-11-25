@@ -26,6 +26,7 @@ vi.mock('@/services/localMusicService', () => {
     return {
         LOCAL_MUSIC_UPDATED_EVENT: 'local-music-updated',
         LocalFolderUnavailableError,
+        querySavedHandlePermission: (handle: { queryPermission: (descriptor: { mode: 'read' }) => Promise<PermissionState> }) => handle.queryPermission({ mode: 'read' }),
         resyncFolder: vi.fn(),
     };
 });
@@ -84,13 +85,13 @@ describe('local library auto scan', () => {
         changeUnder('Music');
         await vi.advanceTimersByTimeAsync(2000);
 
-        expect(resyncFolder).toHaveBeenCalledWith('Music', { announceUnavailable: false });
+        expect(resyncFolder).toHaveBeenCalledWith('Music', { announceUnavailable: false, reauthorizeIfLost: false });
         expect(getLocalLibraryAutoScanState()).toMatchObject({ lastError: 'Local folder "Music" is unreadable', lastScanRootFolderName: 'Music', scanning: false });
 
         changeUnder('Other');
         await vi.advanceTimersByTimeAsync(2000);
 
-        expect(resyncFolder).toHaveBeenCalledWith('Other', { announceUnavailable: false });
+        expect(resyncFolder).toHaveBeenCalledWith('Other', { announceUnavailable: false, reauthorizeIfLost: false });
         expect(getLocalLibraryAutoScanState()).toMatchObject({ lastError: null, lastScanRootFolderName: 'Other' });
     });
 });
