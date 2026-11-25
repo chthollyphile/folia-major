@@ -30,6 +30,40 @@ LangString foliaInstallerInsideInstDir 1066 "Trình cài đặt đang nằm tron
   !macroend
 !endif
 
+!macro customInstall
+  ; Chromium's sandboxed child processes run with a restricted token. When the
+  ; folder's DACL holds any AppContainer package SID (S-1-15-2-*, usually
+  ; inherited from a parent folder where other software left it), Windows
+  ; checks that token as if it were an AppContainer: only ALL APPLICATION
+  ; PACKAGES (S-1-15-2-1) or ALL RESTRICTED APPLICATION PACKAGES can grant
+  ; access. Without such an entry the children cannot read icudtl.dat in their
+  ; own folder and the GPU process crash-loops with exit code -2147483645
+  ; (electron/electron#51761). Program Files has both entries already; per-user
+  ; and custom folders do not, so grant read and execute to both here.
+  ;
+  ; The app writes crash reports and native dumps to "logs" in this folder when
+  ; it is writable (electron/debug/crashLog.cjs), and no sandboxed process reads
+  ; them. Create it, stop it inheriting and take the two entries off it, so the
+  ; grant does not make them readable to every AppContainer app. The removal
+  ; is a separate call because icacls applies /remove before /inheritance:d
+  ; when given both, and it is needed because a reinstall or update keeps the
+  ; folder and its earlier grant, which a new "logs" then starts out with.
+  ;
+  ; "$INSTDIR\." keeps the closing quote from being escaped when a silent
+  ; install passes /D= with a trailing backslash. The results are thrown away:
+  ; a failure must not fail the installation. Nothing to undo on uninstall, the
+  ; folder is removed.
+  Push $0
+  CreateDirectory "$INSTDIR\logs"
+  nsExec::Exec /TIMEOUT=60000 '"$SYSDIR\icacls.exe" "$INSTDIR\logs" /inheritance:d'
+  Pop $0
+  nsExec::Exec /TIMEOUT=60000 '"$SYSDIR\icacls.exe" "$INSTDIR\logs" /remove:g *S-1-15-2-1 *S-1-15-2-2'
+  Pop $0
+  nsExec::Exec /TIMEOUT=60000 '"$SYSDIR\icacls.exe" "$INSTDIR\." /grant *S-1-15-2-1:(OI)(CI)(RX) *S-1-15-2-2:(OI)(CI)(RX)'
+  Pop $0
+  Pop $0
+!macroend
+
 !macro customUnInstall
   ; Electron always uses per-user app data, so look under the current user's
   ; roaming profile even when the installation itself is per-machine.
