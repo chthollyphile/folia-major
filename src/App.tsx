@@ -1603,7 +1603,8 @@ export default function App() {
         theme,
         visualizerMode,
     ]);
-    const isNowPlayingControlDisabled = isNowPlayingStageActive;
+    // 被动源没有可控制的播放器：跟随 MPRIS 时也把 Folia 自己的传输控制关掉。
+    const isNowPlayingControlDisabled = isNowPlayingStageActive || isMprisStageActive;
     const playbackRoute = usePlaybackStore(state => state.playbackRoute);
     const hasHifiTrack = useHifiTrackStore(state => state.current !== null);
 
