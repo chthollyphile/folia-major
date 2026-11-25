@@ -2242,7 +2242,7 @@ const mainLocale = {
     crashTitle: 'Folia 遇到了問題',
     crashMessage: '程式發生了一次崩潰，日誌已儲存。把它發給開發者能幫助定位問題。',
     crashBlockedStartMessage: '頁面程序剛啟動就被結束了，通常是安全軟體攔下了 Folia。',
-    crashBlockedStartDetail: '卡巴斯基不認識 Folia.exe 時，會把它放進受限制的群組，由「系統監控」攔下頁面程序。\n\n辦法：在卡巴斯基的「受信任的應用程式」裡加入 Folia.exe，並勾選「不監控應用程式活動」。只把信任群組改成「受信任」沒有用。其他安全軟體請把 Folia.exe 加進信任名單或排除項。\n\n改完後退出 Folia 再重新開啟。日誌已儲存在下面的位置，還是不行請把它發給開發者。',
+    crashBlockedStartDetail: '卡巴斯基不認識 Folia.exe 時，會把它放進受限制的組，由「系統監控」攔下頁面程序。\n\n辦法：在卡巴斯基的「受信任的應用程式」裡新增 Folia.exe，並勾選「不監控應用程式活動」。只把信任組改成「受信任」不管用。其他安全軟體請把 Folia.exe 加進信任名單或排除項。\n\n改完後退出 Folia 再重新開啟。日誌已儲存在下面的位置，還是不行請把它發給開發者。',
     crashQuit: '退出 Folia',
     crashOpenFolder: '開啟日誌所在資料夾',
     crashClose: '關閉',
