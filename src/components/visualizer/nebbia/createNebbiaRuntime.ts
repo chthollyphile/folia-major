@@ -43,7 +43,7 @@ const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 /** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔顺模型给笔顺（nebbiaFontStrokes.ts）；没选时照旧用 AnimCJK。 */
 const wantsFontStrokes = (theme: Theme) => Boolean(theme.fontFamily?.trim());
 /** 字体笔画一批批到：最多这么久重排一次。 */
-const FONT_STROKES_REBUILD_MS = 400;
+const FONT_STROKES_REBUILD_MS = 1500;
 
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
 // 开关组是数组，每次合并都是新的一份：按内容比
@@ -310,9 +310,15 @@ export class NebbiaRuntime {
                 this.glyphs.want(order.flatMap(l => l.chars.map(c => c.ch)));
             }
             this.laid = buildNebbiaScene(source, this.glyphs, this.tuning, { W: this.W, H: this.H, fontScale: this.fontScale }, seed, keep);
-            if (!keepStarted) this.gl.trimInk();
-            this.hits = new NebbiaHits(hashVisualizerSeed(String(seed)));
             this.words = source.map(l => l.words);
+            // 只换了字形（字体笔画晚到）：字的位置没变，雨点、聚光接着用，不然每到一批画面就闪一下
+            // （buildBig 会清掉已经打上的小雨点，大雨点只看句子的位置，也不用重排）
+            if (keepStarted) {
+                this.requestFrame();
+                return;
+            }
+            this.gl.trimInk();
+            this.hits = new NebbiaHits(hashVisualizerSeed(String(seed)));
             this.rebuildHits();
             this.spot.reset();
             this.requestFrame();
