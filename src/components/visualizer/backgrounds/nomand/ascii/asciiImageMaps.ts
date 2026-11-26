@@ -1,7 +1,7 @@
 // src/components/visualizer/backgrounds/nomand/ascii/asciiImageMaps.ts
 // What the ASCII effect reads from the picture once, after living-ascii's maps.js (MIT,
 // Copyright (c) 2026 Yusen): heavily and lightly blurred luminance for the relighting, and the
-// direction the texture runs at every point (structure tensor), which the stroke glyphs follow.
+// direction the texture runs at every point (structure tensor), which the line characters follow.
 // The analysis runs on a copy ASCII_MAP_WIDTH wide, so blur sizes mean the same for any picture
 // and a large one does not stall the song change; the blurs are scaled down from the 640 px the
 // original was tuned at.

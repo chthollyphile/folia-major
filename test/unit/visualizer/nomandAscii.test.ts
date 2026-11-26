@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-    ASCII_ANGLE_BINS,
     ASCII_CELL_H,
     ASCII_CELL_W,
     ASCII_GLYPH_COUNT,
@@ -18,7 +17,7 @@ import { DEFAULT_NOMAND_BACKGROUND_TUNING } from '../../../src/types';
 const lit = (rows: string[]) => rows.join('').split('#').length - 1;
 
 describe('Nomand ASCII glyph atlas', () => {
-    it('has the ramp and 8 angles × 4 weights, inside the 4×6 box', () => {
+    it('has the ramp and the line characters, inside the box', () => {
         const glyphs = buildAsciiGlyphRows();
         expect(glyphs).toHaveLength(ASCII_GLYPH_COUNT);
         for (const rows of glyphs.slice(ASCII_RAMP_COUNT)) {
@@ -29,13 +28,13 @@ describe('Nomand ASCII glyph atlas', () => {
         }
     });
 
-    it('lights every weight about the same at every angle', () => {
-        const glyphs = buildAsciiGlyphRows().slice(ASCII_RAMP_COUNT);
-        for (let weight = 0; weight < 4; weight++) {
-            const counts = glyphs.slice(weight * ASCII_ANGLE_BINS, (weight + 1) * ASCII_ANGLE_BINS).map(lit);
-            // Horizontal strokes cannot reach the heavy targets in a 4 px wide box; the colour solve evens those out.
-            expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(6);
-        }
+    it('draws / | \\ as lines of the same weight', () => {
+        const [slash, bar, backslash] = buildAsciiGlyphRows().slice(ASCII_RAMP_COUNT);
+        expect([slash, bar, backslash].map(lit)).toEqual([5, 5, 5]);
+        // Bottom-up rows: '/' rises to the right, '\\' falls.
+        expect(slash[1].indexOf('#')).toBeLessThan(slash[5].indexOf('#'));
+        expect(backslash[1].indexOf('#')).toBeGreaterThan(backslash[5].indexOf('#'));
+        expect(new Set(bar.slice(1, 6).map(row => row.indexOf('#'))).size).toBe(1);
     });
 
     it('packs the strip with a cover fraction per glyph', () => {

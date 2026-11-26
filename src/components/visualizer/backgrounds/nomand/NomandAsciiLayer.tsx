@@ -9,8 +9,8 @@ import { resolveDaylightInversion } from './nomandShaderAdjustments';
 // src/components/visualizer/backgrounds/nomand/NomandAsciiLayer.tsx
 // The Nomand ASCII effect's layer: loads the picture, reads its maps once, and draws the glyphs
 // into a canvas one canvas pixel per glyph pixel, scaled up by whole device pixels without
-// smoothing. The sway runs in its own loop at 30 fps (the strokes turn in eighth-of-a-half-turn
-// steps, so more frames show nothing new), stops while the background is paused, and draws one
+// smoothing. The sway runs in its own loop at 30 fps (the line characters turn in 45° steps,
+// so more frames show nothing new), stops while the background is paused, and draws one
 // still frame in static mode or with the sway at 0. Nothing per frame goes through React.
 
 /** One sway loop, in seconds: every moving term repeats a whole number of times in it. */

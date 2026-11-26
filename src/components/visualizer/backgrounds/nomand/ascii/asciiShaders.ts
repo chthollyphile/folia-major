@@ -1,14 +1,15 @@
-import { ASCII_ANGLE_BINS, ASCII_CELL_H, ASCII_CELL_W, ASCII_GLYPH_COUNT, ASCII_RAMP_COUNT } from './asciiGlyphAtlas';
+import { ASCII_ANGLE_BINS, ASCII_CELL_H, ASCII_CELL_W, ASCII_DASH_INDEX, ASCII_GLYPH_COUNT, ASCII_RAMP_COUNT } from './asciiGlyphAtlas';
 
 // src/components/visualizer/backgrounds/nomand/ascii/asciiShaders.ts
 // The two passes of the Nomand ASCII effect, after living-ascii (MIT, Copyright (c) 2026 Yusen).
 // The cell pass reads, for each 5×7 cell, the picture's colour and the direction its texture
 // runs, and turns that direction with living-ascii's "school of fish" heading field, so whole
-// regions sway together and the stroke glyphs turn with them. living-ascii rebuilds the picture
+// regions sway together and the line characters turn with them. living-ascii rebuilds the picture
 // from ~160k drawn strands first; here the strands are left out (they smear faces and lettering,
 // which covers are made of, and cost two full-screen passes with 4× MSAA a frame), and the sway
 // only bends the direction and shifts where each cell takes its colour from.
-// The glyph pass draws each cell's glyph: the living-ascii colour solve for the picture's own
+// The glyph pass draws each cell's character — a line character where the texture runs one way
+// and the cell is neither dark nor bright, the ramp elsewhere — with the living-ascii colour solve for the picture's own
 // colours, or the theme palette like the other Nomand effects.
 
 const CELL_COUNT = ASCII_CELL_W * ASCII_CELL_H;
@@ -151,19 +152,19 @@ void main() {
     // Which luminance picks the glyph: in the theme palette it can be turned over, as the
     // dithering effect does for a light theme.
     float lv = uThemeColors && uInvert ? 1.0 - l : l;
-    // Shadows keep visible strokes; only the deepest gaps thin out to dots.
     float v = smoothstep(0.0, 0.8, lv);
     int idx;
-    if (conf > 0.3 && v > 0.03) {
-        int weight = v < 0.12 ? 0 : v < 0.35 ? 1 : v < 0.65 ? 2 : 3;
-        idx = ${ASCII_RAMP_COUNT} + weight * ${ASCII_ANGLE_BINS} + int(bin);
+    if (conf > 0.55 && v > 0.1 && v < 0.6) {
+        // Eight bins onto - / | \\ (0, 45, 90, 135 degrees).
+        int line = ((int(bin) + 1) / 2) % 4;
+        idx = line == 0 ? ${ASCII_DASH_INDEX} : ${ASCII_RAMP_COUNT} + line - 1;
     } else {
         idx = clamp(int(floor(pow(v, 1.3) * ${ASCII_RAMP_COUNT}.0)), 0, ${ASCII_RAMP_COUNT - 1});
     }
     float lit = texelFetch(tAtlas, ivec2(idx * ${ASCII_CELL_W} + local.x, local.y), 0).r;
 
     if (uThemeColors) {
-        // Strokes in the theme's front colour, the brightest toward its highlight, fading into the
+        // Characters in the theme's front colour, the brightest toward its highlight, fading into the
         // backdrop where the picture is dark; the gaps are the backdrop itself.
         vec3 ink = mix(uFront, uHighlight, smoothstep(0.55, 0.95, lv));
         ink = mix(uBack, ink, 0.45 + 0.55 * smoothstep(0.0, 0.7, lv));
@@ -175,18 +176,18 @@ void main() {
     // What the cell should average to. The cell colour leans toward its brightest pixel, so this
     // scale brings it back to the picture's exposure; shadows end a little deeper.
     float target = l * (0.82 + 0.17 * smoothstep(0.15, 0.7, l));
-    // Strokes: the cell's own colour, brightened a lot in shadow so they read, only a little in
+    // Characters: the cell's own colour, brightened a lot in shadow so they read, only a little in
     // highlights so they stay natural.
     float mxc = max(c.r, max(c.g, c.b));
     vec3 hue = c / max(mxc, 1e-4);
     float boost = mix(2.0, 1.3, smoothstep(0.2, 0.7, l));
     float gv = min(min(1.0, mxc * boost), target / max(f * max(luma(hue), 1e-4), 1e-4));
     vec3 ink = hue * gv;
-    // Soft shoulder: near full brightness a stroke eases toward warm cream instead of going neon.
+    // Soft shoulder: near full brightness a character eases toward warm cream instead of going neon.
     float shoulder = smoothstep(0.75, 1.0, gv);
     ink = mix(ink, vec3(luma(ink)) * vec3(1.04, 1.0, 0.82), 0.35 * shoulder);
     float lg = luma(ink);
-    // The glow behind the strokes makes up the rest of the cell's brightness.
+    // The glow behind the characters makes up the rest of the cell's brightness.
     float b = f < 0.999 ? clamp((target - f * lg) / ((1.0 - f) * max(l, 1e-4)), 0.0, 1.0 / max(mxc, 1e-4)) : 0.0;
     vec3 col = lit > 0.5 ? ink : c * b;
     vec2 vg = (gl_FragCoord.xy / uRes - 0.5) * vec2(1.15, 0.85);
