@@ -120,7 +120,7 @@ export class Full6Wgsl {
         if (paced && profile && !this.profiled[profile]) {
             this.profiled[profile] = true;
             await runner.flush();
-            const measured = await profileOps(this.device, ops);
+            const measured = await profileOps(this.device, ops, 1); // one op a submit: the profiling run stays sliced too
             if (measured) {
                 if (usableCosts(measured)) ops.forEach((op, index) => this.costs.set(op.label, Math.max(this.costs.get(op.label) ?? 0, measured[index])));
                 return;

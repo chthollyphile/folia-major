@@ -210,7 +210,7 @@ export class Own1Wgsl {
         if (paced && !this.profiled) {
             this.profiled = true;
             await runner.flush();
-            const measured = await profileOps(this.device, ops);
+            const measured = await profileOps(this.device, ops, 1); // one op a submit: the profiling run stays sliced too
             if (measured) {
                 if (usableCosts(measured)) ops.forEach((op, i) => this.costs.set(op.label, measured[i]));
                 return;
