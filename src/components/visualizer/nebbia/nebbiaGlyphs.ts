@@ -7,7 +7,7 @@ import { isModelChar, nebbiaFontStrokes, type NebbiaFontInk } from './nebbiaFont
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
 // 字形 = 按书写顺序的几笔中线（em 坐标 0..1，y 向下）。来源依次是：lucide 图标（每个 SVG 元素一笔）、
-// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和片假名先用笔顺模型对着主题字体算出的笔迹（带字体墨，nebbiaFontStrokes.ts）。
+// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和假名先用笔顺模型对着主题字体算出的笔迹（带字体墨，nebbiaFontStrokes.ts）。
 // 另有手写变形（warpGlyph）和沿笔画取点（pointAt）。
 
 export type Pt = [number, number];
@@ -83,7 +83,7 @@ const iconPolys = (name: string): Pt[][] | null => {
 export class NebbiaGlyphCache {
     private cache = new Map<string, Glyph | null>();
     private font = '';
-    /** 汉字、片假名先取笔顺模型对着这个字体算的笔迹（还没算好的照旧）。 */
+    /** 汉字、假名先取笔顺模型对着这个字体算的笔迹（还没算好的照旧）。 */
     fontStrokes = false;
 
     constructor(private fontFamily: string, private fontWeight: number) {

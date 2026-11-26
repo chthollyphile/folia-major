@@ -2,7 +2,7 @@ import { runStrokesGpu, STROKES_GPU_BATCH, type StrokesGpuGlyph } from '../../..
 import { measureGlyph, type Glyph, type Pt } from './nebbiaGlyphs';
 
 // src/components/visualizer/nebbia/nebbiaFontStrokes.ts
-// 雾笺的字体笔画：中日文字（汉字、片假名）用所选字体画出来，交给笔顺模型（bihua full6 + own2，GPU worker 里跑，
+// 雾笺的字体笔画：中日文字（汉字、假名）用所选字体画出来，交给笔顺模型（bihua full6 + own2，GPU worker 里跑，
 // beatThisGpu.ts runStrokesGpu）得到按书写顺序的笔迹和每个墨像素在整字书写里的位置；画的时候按这个位置把字体自己的墨
 // 一笔一笔显出来（nebbiaMaskGl.ts 的字块），笔迹本身给笔尖、水珠用。
 // 模型输入照 ~/bihua hf/code/preprocess.py：墨的外框等比放进 256² 画布、最长边占 [-0.8, 0.8]，三通道是墨、墨内距离 / 12、
@@ -33,8 +33,9 @@ export interface NebbiaFontInk {
     readonly width: number;
 }
 
-/** 交给模型的字：汉字和片假名（平假名、拉丁字母等照旧走 AnimCJK 或骨架）。 */
-export const isModelChar = (ch: string) => ch.length === 1 && ((ch >= '一' && ch <= '鿿') || (ch >= 'ァ' && ch <= 'ー'));
+/** 交给模型的字：汉字、平假名、片假名（模型训练时就有假名，同 AnimCJK 日文和 KanjiVG；拉丁字母等照旧走 AnimCJK 或骨架）。 */
+export const isModelChar = (ch: string) => ch.length === 1 && (
+    (ch >= '\u4e00' && ch <= '\u9fff') || (ch >= '\u3041' && ch <= '\u3096') || (ch >= '\u30a1' && ch <= '\u30fa') || ch === '\u30fc' || ch === '\u3005');
 
 let canvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
