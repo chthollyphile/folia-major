@@ -80,6 +80,84 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) l: vec3u
 }
 `;
 
+/** Rows a skinny (GEMV) linear workgroup takes; its 256 invocations are 8 output columns x 32 lanes along k. */
+export const SKINNY_ROWS = 8;
+
+/** LayerNorm row statistics for the skinny body's SKINNY_ROWS rows: 32 invocations a row, tree-reduced. */
+const LN_PROLOGUE_SKINNY = /* wgsl */ `
+  {
+    let tr = li / 32u;
+    let part = li % 32u;
+    let m = row0 + tr;
+    var s = 0.0;
+    if (m < M) { for (var k = part; k < K; k += 32u) { s += araw(m, k); } }
+    lnRed[li] = s;
+    workgroupBarrier();
+    for (var span = 16u; span > 0u; span >>= 1u) {
+      if (part < span) { lnRed[li] += lnRed[li + span]; }
+      workgroupBarrier();
+    }
+    if (part == 0u) { lnMu[tr] = lnRed[li] / f32(K); }
+    workgroupBarrier();
+    let mu = lnMu[tr];
+    s = 0.0;
+    if (m < M) { for (var k = part; k < K; k += 32u) { let d = araw(m, k) - mu; s += d * d; } }
+    lnRed[li] = s;
+    workgroupBarrier();
+    for (var span = 16u; span > 0u; span >>= 1u) {
+      if (part < span) { lnRed[li] += lnRed[li + span]; }
+      workgroupBarrier();
+    }
+    if (part == 0u) { lnRs[tr] = 1.0 / sqrt(lnRed[li] / f32(K) + 1e-5); }
+    workgroupBarrier();
+  }`;
+
+/**
+ * The skinny body for a few rows (a decode step's slots): each workgroup takes SKINNY_ROWS rows x 8 columns,
+ * a 32-lane group per column walking k (weights [n, k] read along k), partial sums reduced in workgroup
+ * memory. f32 products whatever the GemmMode: at this size the GEMM is latency-bound, not ALU-bound.
+ */
+const skinnyBody = (prologue: string) => /* wgsl */ `
+var<private> zi: u32;
+var<private> r0p: u32;
+var<workgroup> gred: array<f32, ${SKINNY_ROWS * 256}>;
+@compute @workgroup_size(256)
+fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u32) {
+  zi = wg.z;
+  let M = dimM();
+  let N = dimN();
+  let K = dimK();
+  let row0 = wg.y * ${SKINNY_ROWS}u;
+  let col0 = wg.x * 8u;
+  r0p = row0;
+  ${prologue}
+  let lane = li % 32u;
+  let cj = li / 32u;
+  let n = col0 + cj;
+  var acc: array<f32, ${SKINNY_ROWS}>;
+  if (n < N) {
+    for (var k = lane; k < K; k += 32u) {
+      let w = bload(k, n);
+      for (var r = 0u; r < ${SKINNY_ROWS}u; r++) {
+        if (row0 + r < M) { acc[r] += aload(row0 + r, k) * w; }
+      }
+    }
+  }
+  for (var r = 0u; r < ${SKINNY_ROWS}u; r++) { gred[(r * 8u + cj) * 32u + lane] = acc[r]; }
+  workgroupBarrier();
+  if (li < ${SKINNY_ROWS * 8}u) {
+    let r = li / 8u;
+    let c = li % 8u;
+    var s = 0.0;
+    for (var l = 0u; l < 32u; l++) { s += gred[(r * 8u + c) * 32u + l]; }
+    if (row0 + r < M && col0 + c < N) { store(row0 + r, col0 + c, s); }
+  }
+}
+`;
+
+/** Workgroups of a skinny linear over m rows and n outputs. */
+export const skinnyCount = (m: number, n: number): [number, number, number] => [Math.ceil(n / 8), Math.ceil(m / SKINNY_ROWS), 1];
+
 export interface Kernel {
     code: string;
     /** Storage bindings in binding order (W is always 0); the uniform `p`, when there is one, comes after them. */
@@ -173,8 +251,9 @@ const LN_PROLOGUE = /* wgsl */ `
  * major, LIN_CMAJOR), through LayerNorm (`ln`) and plus a2 (`lnAdd`: LN(q) + pos-MLP of the refine layer).
  * `dyn`: rows = state.active * rowMul. Outputs: f32 / f16 into y, or 'kv*': columns < d into y (q, f32),
  * the rest into the KV cache `kv` at row (slot's char * tmax + t) - the decoder's q|k|v in one dispatch.
+ * `skinny`: the GEMV body (skinnyBody) instead of the 64 x 64 tiles, for a decode step's few rows.
  */
-export const linearKernel = (mode: GemmMode, input: LinearInput, output: LinearOutput, dyn: boolean): Kernel => {
+export const linearKernel = (mode: GemmMode, input: LinearInput, output: LinearOutput, dyn: boolean, skinny = false): Kernel => {
     const kv = output === 'kv32' || output === 'kv16';
     const half = output === 'f16' || output === 'kv16' || mode === 'f16';
     const bindings = ['W', 'x', 'y'];
@@ -234,7 +313,7 @@ fn store(m: u32, n: u32, sum: f32) {
   let o = (g * p.ozs + p.ooz + m - g * p.rpz) * p.ldy + p.yoff + n;`}
   if ((p.flags & ${LIN_ACCUM}u) != 0u) { y[o] = y[o] + ${yType}(v); } else { y[o] = ${yType}(v); }
 }
-${gemmBody(mode, input === 'plain' ? '' : LN_PROLOGUE)}
+${skinny ? skinnyBody(input === 'plain' ? '' : LN_PROLOGUE_SKINNY) : gemmBody(mode, input === 'plain' ? '' : LN_PROLOGUE)}
 `,
     };
 };

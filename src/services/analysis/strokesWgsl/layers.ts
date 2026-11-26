@@ -1,7 +1,7 @@
 /// <reference types="@webgpu/types" />
 import { GpuGraph, gemmCount, type Buffers, type Op } from './graph';
 import {
-    CONV_ACCUM, GN_FINAL, GN_PARTIAL, convKernel, flat, gnApplyKernel, linearKernel, linearParams,
+    CONV_ACCUM, GN_FINAL, GN_PARTIAL, convKernel, flat, gnApplyKernel, linearKernel, linearParams, skinnyCount,
     type GemmMode, type LinearInput, type LinearOutput, type LinearParams,
 } from './kernels';
 import type { PackedEntry } from './packed';
@@ -19,10 +19,17 @@ export interface ConvMeta { cin: number; k: [number, number]; stride: [number, n
 export interface StepOp {
     op: Op;
     count: (rows: number) => [number, number, number];
+    /** A linear's skinny (GEMV) variant and the active rows up to which it is used instead. */
+    skinny?: { op: Op; count: (rows: number) => [number, number, number]; upTo: number };
 }
 
-/** An op's copy with the workgroups for `rows` active slots. */
-export const sized = (step: StepOp, rows: number): Op => ({ ...step.op, count: step.count(rows) });
+/** Active slots up to which a decode linear runs its skinny variant (times its rowMul: rows of the GEMM). */
+export const SKINNY_UP_TO = 32;
+
+/** An op's copy with the workgroups for `rows` active slots (the skinny variant for few rows). */
+export const sized = (step: StepOp, rows: number): Op => (step.skinny && rows <= step.skinny.upTo
+    ? { ...step.skinny.op, count: step.skinny.count(rows) }
+    : { ...step.op, count: step.count(rows) });
 
 /** Values a GroupNorm statistics pass parts its group into (keeps each workgroup's chunk near 8K values). */
 const gnParts = (n: number) => Math.max(1, Math.min(64, Math.ceil(n / 8192)));
@@ -108,6 +115,8 @@ export class Layers {
         const rowMul = given.rowMul ?? 1;
         const count = (rows: number) => gemmCount(dyn ? rows * rowMul : (given.m ?? 0), n);
         const op = this.graph.op(label, kernel, { W: this.weights, ...buffers }, params, count(dyn ? 1 : 0));
-        return { op, count };
+        if (!dyn) return { op, count };
+        const skinny = this.graph.op(`${label}.skinny`, linearKernel(this.mode, input, output, dyn, true), { W: this.weights, ...buffers }, params, [1, 1, 1]);
+        return { op, count, skinny: { op: skinny, count: rows => skinnyCount(rows * rowMul, n), upTo: Math.floor(SKINNY_UP_TO / rowMul) } };
     }
 }

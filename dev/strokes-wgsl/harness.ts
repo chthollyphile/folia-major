@@ -20,7 +20,7 @@ const fmt = (v: number) => v.toExponential(3);
 
 export interface Config {
     out: string; task: string; f16: boolean; full6: string; own1: string; ref: string;
-    batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[];
+    batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[]; alignB: number;
 }
 
 /** The reference's glyphs as runtime inputs. */
@@ -82,7 +82,7 @@ async function stages(device: GPUDevice, config: Config, ref: RefData) {
 /** Teacher-forced and free generation against the reference, as tools/mnn main.cpp checkFull6. */
 async function alignFull6(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
     const n = Math.min(config.chars, 126);
-    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: n, chunk: 8 });
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: config.alignB || n, chunk: 8 });
     const glyphs = glyphsOf(ref, n);
     for (const tag of config.modes) {
         const useReference = tag === 'ref';
