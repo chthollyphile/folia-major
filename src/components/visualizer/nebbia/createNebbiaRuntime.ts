@@ -2,7 +2,7 @@ import type { LyricRenderScale, Theme } from '../../../types';
 import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { loadLucideIcons, resolveLucideIconNames } from '../../../services/lucideIconResolver';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
-import { buildNebbiaLines, collectEmojiIcons, NEBBIA_DEFAULT_DOODLES } from './nebbiaChars';
+import { buildNebbiaLines, collectEmojiIcons, NEBBIA_DEFAULT_DOODLES, type NebbiaSourceLine } from './nebbiaChars';
 import { appendNebbiaCredits } from './nebbiaCredits';
 import { NEBBIA_FIXED } from './nebbiaConstants';
 import { NebbiaGlassMotion } from './nebbiaDrops';
@@ -14,7 +14,7 @@ import { resolveNebbiaPalette } from './nebbiaPalette';
 import { buildNebbiaScene, type LaidLine } from './nebbiaScene';
 import { NebbiaSpot } from './nebbiaSpot';
 import { loadNebbiaStrokes } from './nebbiaStrokes';
-import { nebbiaFontStrokes } from './nebbiaFontStrokes';
+import { NebbiaFontLines } from './nebbiaFontLines';
 import type { NebbiaRuntimeInput, NebbiaSong, NebbiaTuning } from './types';
 import { hashVisualizerSeed } from '../visualizerSeedHash';
 import type { VocalEnvelope } from '../../../services/analysis/vocalEnvelope';
@@ -42,8 +42,6 @@ const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 // 改了要重排整首的 tuning 项
 /** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔顺模型给笔顺（nebbiaFontStrokes.ts）；没选时照旧用 AnimCJK。 */
 const wantsFontStrokes = (theme: Theme) => Boolean(theme.fontFamily?.trim());
-/** 字体笔画一批批到：最多这么久重排一次。 */
-const FONT_STROKES_REBUILD_MS = 1500;
 
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
 // 开关组是数组，每次合并都是新的一份：按内容比
@@ -95,8 +93,9 @@ export class NebbiaRuntime {
     /** 建运行时的时刻和着色器编好是否已记日志：看预热有没有命中缓存。 */
     private readonly startedAt = performance.now();
     private shadersLogged = false;
-    private readonly unsubscribeFontStrokes: () => void;
-    private fontStrokesTimer: ReturnType<typeof setTimeout> | null = null;
+    /** 字体笔画：报需求，一批批到时只换还没开写的句子（nebbiaFontLines.ts）。 */
+    private readonly fontLines: NebbiaFontLines;
+    private source: NebbiaSourceLine[] = [];
 
     constructor(private readonly input: NebbiaRuntimeInput, theme: Theme, tuning: NebbiaTuning, renderScale: LyricRenderScale = 1) {
         this.theme = theme;
@@ -114,7 +113,10 @@ export class NebbiaRuntime {
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
         this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
         this.glyphs.fontStrokes = wantsFontStrokes(theme);
-        this.unsubscribeFontStrokes = nebbiaFontStrokes.subscribe(this.handleFontStrokes);
+        this.fontLines = new NebbiaFontLines({
+            glyphs: this.glyphs, laid: () => this.laid, source: () => this.source, tuning: () => this.tuning,
+            seed: () => this.song.seed, time: () => this.input.currentTime.get(), changed: () => this.requestFrame(),
+        });
         input.host.appendChild(this.canvas);
         try {
             this.gl = new NebbiaGl(this.canvas, input.seeThrough, input.scene, input.glass);
@@ -201,8 +203,7 @@ export class NebbiaRuntime {
         this.dead = true;
         cancelAnimationFrame(this.raf);
         this.observer?.disconnect();
-        this.unsubscribeFontStrokes();
-        if (this.fontStrokesTimer) clearTimeout(this.fontStrokesTimer);
+        this.fontLines.dispose();
         document.fonts?.removeEventListener('loadingdone', this.handleFontsLoaded);
         this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
         this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
@@ -231,15 +232,6 @@ export class NebbiaRuntime {
         if (!arrived) return;
         this.glyphs.clear();
         this.rebuild();
-    };
-
-    // 笔顺模型又算好一批字：攒一会儿重排，已经开写的句子沿用原来的字形
-    private handleFontStrokes = () => {
-        if (this.dead || !this.glyphs.fontStrokes || this.fontStrokesTimer) return;
-        this.fontStrokesTimer = setTimeout(() => {
-            this.fontStrokesTimer = null;
-            if (!this.dead) this.rebuild(true);
-        }, FONT_STROKES_REBUILD_MS);
     };
 
     private applyTheme() {
@@ -288,8 +280,7 @@ export class NebbiaRuntime {
     }
 
     // 换歌、改排版相关的设置、换尺寸时重排整首；图标先加载好（图标字形要用 lucide 的节点）
-    // keepStarted：已经开写（或就要开写）的句子沿用上次排好的字形，只给后面的句子换上新到的字体笔画
-    private rebuild(keepStarted = false) {
+    private rebuild() {
         const token = ++this.buildToken;
         const { lines, seed, title, artist } = this.song;
         const themeIcons = resolveLucideIconNames(this.theme.lyricsIcons);
@@ -297,26 +288,11 @@ export class NebbiaRuntime {
         void loadLucideIcons([...doodles, ...collectEmojiIcons(lines)]).catch(() => undefined).then(() => {
             if (token !== this.buildToken || this.dead || !this.W) return;
             const source = this.showText ? appendNebbiaCredits(buildNebbiaLines(lines, seed, this.tuning.doodle, doodles), this.tuning.credits ? title : null, artist) : [];
-            const prior = keepStarted ? this.laid : [];
-            const T = this.input.currentTime.get();
-            const keep = (li: number, i: number) => {
-                const line = prior[li];
-                if (!line || line.t !== source[li]?.t || line.chars.length !== source[li].chars.length || T < line.t - 1.5) return undefined;
-                return line.chars[i].base;
-            };
-            // 字体笔画按歌词顺序算：当前播放位置往后的句子先算
-            if (this.glyphs.fontStrokes) {
-                const order = [...source.filter(l => l.end >= T), ...source.filter(l => l.end < T)];
-                this.glyphs.want(order.flatMap(l => l.chars.map(c => c.ch)));
-            }
-            this.laid = buildNebbiaScene(source, this.glyphs, this.tuning, { W: this.W, H: this.H, fontScale: this.fontScale }, seed, keep);
+            this.source = source;
+            // 字体笔画从当前播放位置往后的句子先算（换歌、换字体时旧的需求被这一份顶掉）
+            this.fontLines.sceneBuilt(this.input.currentTime.get());
+            this.laid = buildNebbiaScene(source, this.glyphs, this.tuning, { W: this.W, H: this.H, fontScale: this.fontScale }, seed);
             this.words = source.map(l => l.words);
-            // 只换了字形（字体笔画晚到）：字的位置没变，雨点、聚光接着用，不然每到一批画面就闪一下
-            // （buildBig 会清掉已经打上的小雨点，大雨点只看句子的位置，也不用重排）
-            if (keepStarted) {
-                this.requestFrame();
-                return;
-            }
             this.gl.trimInk();
             this.hits = new NebbiaHits(hashVisualizerSeed(String(seed)));
             this.rebuildHits();
@@ -358,6 +334,7 @@ export class NebbiaRuntime {
         const frozen = this.paused || this.still;
         const dt = this.clock.tick(now, this.paused);
         const T = this.input.currentTime.get();
+        this.fontLines.tick(T);
         const t = this.tuning;
         // 疏雨轻车：车跟底鼓颠；人声轨包络到了或开关变了，就按它重排整首的雨点，强度每帧乘小雨点密度和大雨点大小
         // 车只在街景里颠（水族箱里不颠），雨只打在雨窗玻璃上（凝露没有雨打窗）

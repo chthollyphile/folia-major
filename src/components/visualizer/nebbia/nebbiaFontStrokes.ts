@@ -1,4 +1,4 @@
-import { runStrokesGpu, STROKES_GPU_BATCH, type StrokesGpuGlyph } from '../../../services/analysis/beatThisGpu';
+import type { StrokesGpuGlyph } from '../../../services/analysis/beatThisGpu';
 import { measureGlyph, type Glyph, type Pt } from './nebbiaGlyphs';
 
 // src/components/visualizer/nebbia/nebbiaFontStrokes.ts
@@ -7,7 +7,7 @@ import { measureGlyph, type Glyph, type Pt } from './nebbiaGlyphs';
 // 一笔一笔显出来（nebbiaMaskGl.ts 的字块），笔迹本身给笔尖、水珠用。
 // 模型输入照 ~/bihua hf/code/preprocess.py：墨的外框等比放进 256² 画布、最长边占 [-0.8, 0.8]，三通道是墨、墨内距离 / 12、
 // 墨外距离 / 24（cv2 DIST_L2 3×3 的倒角距离）。这里不是把位图再缩放，而是按算好的变换直接用字体重画一遍。
-// 结果按「字体 + 字」缓存在内存里，跨歌复用；按歌词顺序（从当前句起）一批 STROKES_GPU_BATCH 个地算，每批到了通知一次。
+// 结果按「字体 + 字」缓存在内存里，跨歌复用；缓存和推理队列在 nebbiaFontStrokesQueue.ts。
 
 const R = 256;
 /** 字块边长：模型网格的一半（雾笺的遮罩是半分辨率，字块再大也看不出来）。 */
@@ -18,8 +18,6 @@ const EM = 256;
 /** 同 nebbiaSkeleton.ts：字号 0.78 em，基线在 0.8 em。 */
 const FONT_EM = 0.78;
 const BASELINE = 0.8;
-/** 内存里最多留多少个字。 */
-const CACHE_MAX = 1500;
 
 /** 一个字的字体墨：字块（RG8：墨、书写位置 0..1，墨外按最近的墨延伸）和它在字内 em 坐标里的位置。 */
 export interface NebbiaFontInk {
@@ -164,7 +162,7 @@ const spread = (s: Float32Array, side: number, rounds: number) => {
 };
 
 /** 模型结果 → 雾笺的字形：笔迹换到 em 坐标，字块缩到 FONT_TILE²。 */
-const buildGlyph = (canon: { img: Float32Array; a: number; bx: number; by: number }, out: StrokesGpuGlyph): Glyph | null => {
+export const buildGlyph = (canon: { img: Float32Array; a: number; bx: number; by: number }, out: StrokesGpuGlyph): Glyph | null => {
     const { img, a, bx, by } = canon;
     // 画布坐标 → 网格像素 (u + 1) · 128 → em
     const toEm = (u: number, v: number): Pt => [(((u + 1) * R) / 2 - bx) / a, (((v + 1) * R) / 2 - by) / a];
@@ -199,95 +197,3 @@ const buildGlyph = (canon: { img: Float32Array; a: number; bx: number; by: numbe
     const ink: NebbiaFontInk = { id: nextInkId++, tile, x0: -bx / a, y0: -by / a, size: R / a, width };
     return { ...g, ink };
 };
-
-type Entry = { glyph: Glyph | null } | 'pending';
-
-/** 模型笔画的缓存和推理队列：一个实例跨运行时共用。 */
-class NebbiaFontStrokes {
-    private readonly cache = new Map<string, Entry>();
-    private queue: { key: string; ch: string; family: string; weight: number }[] = [];
-    private running = false;
-    /** 这一次没跑出来（没有模型、没有 WebGPU）：本会话不再试。 */
-    private unavailable = false;
-    private readonly listeners = new Set<() => void>();
-
-    private keyOf(ch: string, family: string, weight: number) {
-        return `${weight} ${family}|${ch}`;
-    }
-
-    /** 算好的字形；还没算、算不出来时 null。 */
-    get(ch: string, family: string, weight: number): Glyph | null {
-        const hit = this.cache.get(this.keyOf(ch, family, weight));
-        if (!hit || hit === 'pending') return null;
-        // 最近用过的挪到最后，超出上限时从最前面丢
-        const key = this.keyOf(ch, family, weight);
-        this.cache.delete(key);
-        this.cache.set(key, hit);
-        return hit.glyph;
-    }
-
-    /** 每批算完时通知；返回取消订阅。 */
-    subscribe(listener: () => void): () => void {
-        this.listeners.add(listener);
-        return () => { this.listeners.delete(listener); };
-    }
-
-    /** 按顺序要这些字（已算、在算的跳过）；排在队列最前面，前一首没算完的放到后面。 */
-    want(chars: string[], family: string, weight: number) {
-        if (this.unavailable) return;
-        const seen = new Set<string>();
-        const head: typeof this.queue = [];
-        for (const ch of chars) {
-            if (!isModelChar(ch)) continue;
-            const key = this.keyOf(ch, family, weight);
-            if (seen.has(key) || this.cache.has(key)) continue;
-            seen.add(key);
-            head.push({ key, ch, family, weight });
-        }
-        if (!head.length) return;
-        this.queue = [...head, ...this.queue.filter(q => !seen.has(q.key))];
-        void this.pump();
-    }
-
-    private async pump() {
-        if (this.running) return;
-        this.running = true;
-        try {
-            while (this.queue.length && !this.unavailable) {
-                const batch = this.queue.splice(0, STROKES_GPU_BATCH);
-                const inputs: { key: string; canon: NonNullable<ReturnType<typeof renderCanon>> }[] = [];
-                for (const q of batch) {
-                    const canon = renderCanon(q.ch, q.family, q.weight);
-                    if (canon) inputs.push({ key: q.key, canon });
-                    else this.cache.set(q.key, { glyph: null });
-                    if (canon) this.cache.set(q.key, 'pending');
-                }
-                if (!inputs.length) continue;
-                const started = performance.now();
-                const results = await runStrokesGpu(inputs.map(i => glyphFeatures(i.canon.img)));
-                if (!results) {
-                    // 没有模型或 WebGPU：这些字退回原来的笔顺，本会话不再要
-                    for (const i of inputs) this.cache.delete(i.key);
-                    this.unavailable = true;
-                    console.info('[Nebbia] font strokes unavailable, keeping the stroke-order data');
-                    break;
-                }
-                inputs.forEach((input, i) => this.cache.set(input.key, { glyph: buildGlyph(input.canon, results[i]) }));
-                console.info(`[Nebbia] font strokes: ${inputs.length} glyphs in ${Math.round(performance.now() - started)} ms`);
-                this.trim();
-                for (const listener of this.listeners) listener();
-            }
-        } finally {
-            this.running = false;
-        }
-    }
-
-    private trim() {
-        for (const key of this.cache.keys()) {
-            if (this.cache.size <= CACHE_MAX) break;
-            if (this.cache.get(key) !== 'pending') this.cache.delete(key);
-        }
-    }
-}
-
-export const nebbiaFontStrokes = new NebbiaFontStrokes();

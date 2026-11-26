@@ -3,7 +3,8 @@ import { clamp } from './nebbiaConstants';
 import { ICON_PREFIX } from './nebbiaChars';
 import { skeletonPolys } from './nebbiaSkeleton';
 import { getNebbiaStrokeMedians } from './nebbiaStrokes';
-import { isModelChar, nebbiaFontStrokes, type NebbiaFontInk } from './nebbiaFontStrokes';
+import { isModelChar, type NebbiaFontInk } from './nebbiaFontStrokes';
+import { nebbiaFontStrokes } from './nebbiaFontStrokesQueue';
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
 // 字形 = 按书写顺序的几笔中线（em 坐标 0..1，y 向下）。来源依次是：lucide 图标（每个 SVG 元素一笔）、
@@ -114,10 +115,9 @@ export class NebbiaGlyphCache {
         }
     }
 
-    /** 要笔顺模型按歌词顺序算这些字（开了字体笔画时）。 */
-    want(chars: string[]) {
-        if (this.fontStrokes) nebbiaFontStrokes.want(chars, this.fontFamily, this.fontWeight);
-    }
+    /** 当前字体（笔顺模型的队列按它分缓存）。 */
+    get family() { return this.fontFamily; }
+    get weight() { return this.fontWeight; }
 
     get(ch: string): Glyph | null {
         // 模型的结果晚到，不进下面的缓存：每次先问
