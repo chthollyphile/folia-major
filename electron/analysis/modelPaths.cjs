@@ -30,7 +30,9 @@ const MODEL_FILES = {
     htdemucs: 'htdemucs-wgsl.bin',
     htdemucs_gpu: 'htdemucs-wgsl.bin',
     // 雾笺's font strokes (bihua full6 + own2, FOLIABTW). Not in MODEL_NAMES: they do not ship yet, and
-    // modelsPresent answers for the shipped models only; a dev checkout puts them into models/ by hand.
+    // modelsPresent answers for the shipped models only; a dev checkout puts them into models/ by hand, else
+    // strokesModelFetch.cjs downloads them into userData/models. Never add these names to LEGACY_FILES:
+    // that directory is swept at startup.
     strokes_full6: 'strokes-full6-wgsl.bin',
     strokes_own2: 'strokes-own2-wgsl.bin',
 };
