@@ -206,6 +206,43 @@ export const runOwn2Align = async (device: GPUDevice, config: Own2Config, ref: R
         full6.destroy();
     }
     report.own2Batches = batchRows;
+    if (baseline) report.own2Pipeline = await pipelineChecks(device, config, glyphs, inputs, baseline, r2, img, log);
+};
+
+/**
+ * The app's call sequence at the largest SW_B: full6.generate (decode after the encode) then own2 on the
+ * reference pens must match the encode-only baseline bitwise (taps survive the decode); and own2 with the
+ * pens resampled on the host instead of the reference's, against torch.
+ */
+const pipelineChecks = async (device: GPUDevice, config: Own2Config, glyphs: Full6Glyph[], inputs: OwnInput[], baseline: Own2Result[], r2: RefData, img: Uint8Array, log: (line: string) => void) => {
+    const B = Math.max(...config.batches);
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(4, B), taps: true });
+    const own2 = await Own2Wgsl.create(device, new Uint8Array(fs.readFileSync(config.own2)), full6, { f16: config.f16 });
+    const argmax = r2.u8('own2_argmax');
+    let afterDecode = 0;
+    let hostDiff = 0;
+    let ink = 0;
+    for (let at = 0; at < glyphs.length; at += B) {
+        const batch = glyphs.slice(at, at + B);
+        await full6.generate(batch);
+        const own = inputs.slice(at, at + B);
+        const ref = await own2.run(own.map(x => ({ pens: x.pens, resampled: x.resampled })));
+        ref.forEach((r, k) => { afterDecode += resultDiff(r, baseline[at + k]); });
+        const host = await own2.run(own.map(x => ({ pens: x.pens })));
+        host.forEach((r, k) => {
+            const i = at + k;
+            if (!inputs[i].pens.length) return;
+            for (let p = 0; p < PIX; p += 1) {
+                if (img[i * 3 * PIX + p] / 255 <= 0.1) continue;
+                ink += 1;
+                if (r.pen[p] !== argmax[i * PIX + p]) hostDiff += 1;
+            }
+        });
+    }
+    own2.destroy();
+    full6.destroy();
+    log(`[own2 pipeline B=${B} chunk ${own2.chunk}] generate then own2: ${afterDecode} pixels differ from the encode-only baseline; host-resampled pens: ink owners differ ${hostDiff}/${ink} = ${((100 * hostDiff) / Math.max(ink, 1)).toFixed(4)}% vs torch`);
+    return { B, afterDecodePixelsDifferent: afterDecode, hostResampledInkDiff: `${hostDiff}/${ink}` };
 };
 
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1];

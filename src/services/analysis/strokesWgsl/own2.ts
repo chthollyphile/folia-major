@@ -114,7 +114,8 @@ export class Own2Wgsl {
         if (manifest.model !== 'strokenet-own2') throw new Error(`not own2 weights: ${manifest.model}`);
         const pair = manifest.hyper_parameters.full6_sha256;
         if (typeof pair === 'string' && taps.sha256 && pair !== taps.sha256) throw new Error(`own2 was trained on full6 ${pair.slice(0, 12)}, these taps are ${taps.sha256.slice(0, 12)}`);
-        const chunk = Math.max(1, options.chunk ?? 2);
+        // Default 2 (fuse's 3 x 3 convs ~1.2 ms a dispatch; 4 is ~4% faster at ~2.3 ms and +96 MB), 1 when 2 does not divide.
+        const chunk = Math.max(1, options.chunk ?? (taps.capacity % 2 ? 1 : 2));
         if (taps.capacity % chunk) throw new Error(`own2 chunk ${chunk} must divide full6's capacity ${taps.capacity}`);
         const packed = repack(weights, manifest, own2Spec(manifest));
         const graph = new GpuGraph(device);
@@ -239,6 +240,7 @@ export class Own2Wgsl {
         blk(s3, 'fuse.4', F2, T128, F1, 64, 128);
         s3.push(L.conv('fuse.5', F1, b.fm, z, 128));
         this.stages.push(s0, s1, s2, s3);
+        this.ensureVerts(1);
     }
 
     /** All ops of chunk `index` (glyphs index * chunk ..): the shared stages and the ones bound at its slots. */

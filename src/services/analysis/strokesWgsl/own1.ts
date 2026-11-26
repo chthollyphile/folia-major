@@ -17,7 +17,7 @@ import { repack, unpackStrokes, type StrokesManifest } from './packed';
 // reveal time (0..1).
 //
 // Inputs are precomputed: x [4, 256, 256] = ink, clip(inside/12), the trajectory time map and trajectory
-// mask (preprocess.own_input: cv2 line rasterisation of full6's pens, not done here) and the pens.
+// mask (preprocess.own_input: the caller rasterises full6's pens with ownInput.renderTrajectory) and the pens.
 
 export interface Own1Glyph {
     /** [4, 256, 256] own1 input. */
