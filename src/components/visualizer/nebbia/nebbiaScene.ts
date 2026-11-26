@@ -125,9 +125,9 @@ const applyAppear = (line: LaidLine, tuning: NebbiaTuning, idx: number, seed: nu
 };
 
 /** 片尾的歌手等曲名写完再写：整句的书写时刻往后挪到曲名最后一个字写完后 0.4 秒。 */
-const alignCredits = (laid: LaidLine[], source: NebbiaSourceLine[]) => {
+const alignCredits = (laid: LaidLine[], source: NebbiaSourceLine[], frozen: (li: number) => boolean = () => false) => {
     const ti = source.findIndex(l => l.credits === 'title'), ai = source.findIndex(l => l.credits === 'artist');
-    if (ti < 0 || ai < 0) return;
+    if (ti < 0 || ai < 0 || frozen(ai)) return;
     const written = laid[ti].chars.filter(c => c.glyph);
     const last = written[written.length - 1];
     if (!last) return;
@@ -198,14 +198,19 @@ export const buildNebbiaScene = (
  * 字形都配好之后的整首收尾：每句的出现节奏、片尾对齐、让位和哈气。只读字的位置、字形和歌词时间，可以重复跑
  * （先把要写的字段清回初值），所以某几句换了字形（nebbiaSceneUpdate.ts）后重跑一遍，结果和整首重排一样。
  */
-export const finishNebbiaScene = (laid: LaidLine[], source: NebbiaSourceLine[], tuning: NebbiaTuning, seed: string | number) => {
+export const finishNebbiaScene = (
+    laid: LaidLine[], source: NebbiaSourceLine[], tuning: NebbiaTuning, seed: string | number,
+    /** 已经开写的句子：时刻全部冻结不重算（重算会让正在淡出的句子跳回去），只把它对后面那句的影响照旧带上。 */
+    frozen: (li: number) => boolean = () => false,
+) => {
     const seedHash = hashVisualizerSeed(String(seed));
     const { fadeOf, fogAt, lingerAt } = timingOf(source, tuning, seedHash);
     laid.forEach((line, li) => {
+        if (frozen(li)) return;
         line.fogAt = fogAt(li); line.yieldAt = Infinity; line.breathAt = Infinity; line.breathUntil = Infinity; line.breathDur = NEBBIA_FIXED.breathSpread;
         applyAppear(line, tuning, li, seedHash);
     });
-    alignCredits(laid, source);
+    alignCredits(laid, source, frozen);
     // 让位：后面第一句和这句重叠、且在这句（多留之后）消失前开始的，记下它开始的时刻。
     // 多留：屏上还空着就晚点起雾，留到让位前 refog 秒（来得及慢慢起雾），不早于原来的时刻。
     // 到让位时还消失不了的（屏上满了），在那句开写前哈一口气把这句盖掉，那句写在白气上
@@ -217,11 +222,14 @@ export const finishNebbiaScene = (laid: LaidLine[], source: NebbiaSourceLine[], 
         let by = -1;
         for (let j = i + 1; j < laid.length && laid[j].t < gone; j += 1) {
             const a = rects[i], b = rects[j];
-            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { line.yieldAt = yieldMoment(laid[j].t, line); by = j; break; }
+            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { if (!frozen(i)) line.yieldAt = yieldMoment(laid[j].t, line); by = j; break; }
         }
-        line.fogAt = Math.max(fogAt(i), Math.min(lingerAt(i), line.yieldAt - fadeOf(i)));
+        const fixed = frozen(i);
+        const fog = fixed ? line.fogAt : Math.max(fogAt(i), Math.min(lingerAt(i), line.yieldAt - fadeOf(i)));
+        if (!fixed) line.fogAt = fog;
         // 给片尾让位的不哈气：前面已经在散了，按让位快速起雾就好
-        if (by >= 0 && !source[by].credits && line.yieldAt < line.fogAt + fadeOf(i)) {
+        if (by >= 0 && !source[by].credits && line.yieldAt < fog + fadeOf(i)) {
+            if (fixed) return;
             // 挤的时候（让位紧跟着写完）不提前那么多：从写完 YIELD_READ 秒后才哈，鼓开收短到让位前 0.3 秒鼓完，最短 0.3 秒
             const from = Math.max(line.yieldAt - breathSpread - 0.3, writtenAt(line) + YIELD_READ);
             line.breathAt = from;

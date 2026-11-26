@@ -91,7 +91,7 @@ export class NebbiaFontLines {
             if (line.chars.some(c => isModelChar(c.ch) && glyphs.get(c.ch) !== c.base)) lines.push(li);
         });
         if (!lines.length) return;
-        swapLineGlyphs(laid, source, glyphs, this.host.tuning(), this.host.seed(), lines);
+        swapLineGlyphs(laid, source, glyphs, this.host.tuning(), this.host.seed(), lines, li => !swappable(laid[li], T));
         this.host.changed();
     };
 }

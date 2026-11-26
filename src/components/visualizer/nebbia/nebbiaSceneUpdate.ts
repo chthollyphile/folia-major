@@ -7,9 +7,11 @@ import type { NebbiaTuning } from './types';
 // 字体笔画晚到时只换几句的字形，不重排整首：字的位置只由歌词和屏幕尺寸决定，换字形只影响这几句自己的水珠、书写节奏，
 // 和整首收尾里依赖字形的让位、哈气（finishNebbiaScene，对全部句子重跑一遍，没换字形的句子得到同样的值）。
 
-/** 第 lines 句的字用 glyphs 现在给的字形重配（随机量同整首排版），再收尾一次。 */
+/** 第 lines 句的字用 glyphs 现在给的字形重配（随机量同整首排版），再收尾一次；已经开写的句子的时刻不重算。 */
 export const swapLineGlyphs = (
     laid: LaidLine[], source: NebbiaSourceLine[], glyphs: Pick<NebbiaGlyphCache, 'get'>, tuning: NebbiaTuning, seed: string | number, lines: number[],
+    /** 已经开写的句子（时刻冻结，见 finishNebbiaScene）。 */
+    frozen?: (li: number) => boolean,
 ) => {
     for (const li of lines) {
         const line = laid[li];
@@ -22,5 +24,5 @@ export const swapLineGlyphs = (
         line.wipe = undefined;
         line.breath = undefined;
     }
-    if (lines.length) finishNebbiaScene(laid, source, tuning, seed);
+    if (lines.length) finishNebbiaScene(laid, source, tuning, seed, frozen);
 };

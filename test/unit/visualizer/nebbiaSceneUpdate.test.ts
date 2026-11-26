@@ -58,6 +58,22 @@ describe('nebbia scene update', () => {
     });
 });
 
+describe('nebbia scene update with started lines', () => {
+    const lineOf = (ch: string) => Math.floor((ch.codePointAt(0)! - 0x4e00) / 10);
+    it('keeps the timings of started lines and matches a full build on the rest', () => {
+        const laid = buildNebbiaScene(source, cache(() => 0), tuning, size, 's3');
+        const timings = (l: (typeof laid)[number]) => [l.fogAt, l.yieldAt, l.breathAt, l.breathUntil, l.breathDur, l.appearBreathAt, l.appearBreathUntil, ...l.chars.flatMap(c => [c.wt, c.wd])];
+        const before = laid.map(timings);
+        const model = cache(ch => ([4, 5].includes(lineOf(ch)) ? 1 : 0));
+        swapLineGlyphs(laid, source, model, tuning, 's3', [4, 5], li => li < 3);
+        const full = buildNebbiaScene(source, model, tuning, size, 's3');
+        for (let li = 0; li < LINES; li += 1) {
+            if (li < 3) expect(timings(laid[li])).toEqual(before[li]);
+            else expect(laid[li]).toEqual(full[li]);
+        }
+    });
+});
+
 describe('nebbia font demand', () => {
     it('starts at the first line that can still be swapped, marks the next few as near, and keeps earlier lines last', () => {
         // T = 7：第 0、1、2 句已经开写或将开写（t - 1.5 <= 7 的：t = 0、3、6），第 3 句（t = 9）起能换
