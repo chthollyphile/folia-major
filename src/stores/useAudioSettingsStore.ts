@@ -513,6 +513,12 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
         if (typeof window !== 'undefined') {
             localStorage.setItem('player_volume', String(val));
         }
+        // 静音中把音量调到 0 以上就是解除静音（和键盘音量键、命令面板的音量加减同一条规矩）：
+        // 不然静音里拖音量条，音量记上去了 isMuted 还在，输出按 getTargetPlaybackVolume 仍是 0，
+        // 界面显示静音、滑杆回弹，预览留下的 gain 却让声音真的在放。
+        if (val > 0 && get().isMuted) {
+            get().handleSetMuted(false);
+        }
         set({ volume: val });
     },
     // The toggles below delegate to these setters, so persistence and the toast live in one place

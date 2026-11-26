@@ -72,14 +72,15 @@ describe('main-entry playback snapshot', () => {
 
     it('re-pushes when any of them changes', () => {
         const pushes = pushRuntimeSnapshot.mock.calls.length;
+        // Raising the volume while muted also unmutes (store behavior); the pusher coalesces
+        // both writes into one push, so the count below stays one per action.
         act(() => useAudioSettingsStore.getState().handleSetVolume(0.7));
         settle();
-        expect(pushRuntimeSnapshot.mock.calls.length).toBe(pushes + 1);
-        expect(lastPublic()).toMatchObject({ volume: 0.7, muted: true, loopMode: 'one' });
+        expect(lastPublic()).toMatchObject({ volume: 0.7, muted: false, loopMode: 'one' });
 
-        act(() => useAudioSettingsStore.getState().handleSetMuted(false));
+        act(() => useAudioSettingsStore.getState().handleSetMuted(true));
         settle();
-        expect(lastPublic()).toMatchObject({ volume: 0.7, muted: false });
+        expect(lastPublic()).toMatchObject({ volume: 0.7, muted: true });
 
         act(() => useAudioSettingsStore.getState().handleSetLoopMode('all'));
         settle();

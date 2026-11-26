@@ -206,20 +206,23 @@ describe('folium host actions', () => {
 });
 
 describe('folium volume, mute and repeat mode', () => {
-    it('reads and writes the audio settings store; volume leaves the mute switch alone', () => {
+    it('reads and writes the audio settings store; volume above zero releases the mute switch', () => {
         render(appActions());
         const playback = createFoliumPlaybackService(mod, 'main');
         useAudioSettingsStore.setState({ volume: 0.6, isMuted: true, loopMode: 'off' });
         expect(playback.getVolume()).toEqual({ volume: 0.6, muted: true });
 
+        // Same rule as the player's volume slider: raising the volume unmutes.
         playback.setVolume(0.3);
-        expect(useAudioSettingsStore.getState()).toMatchObject({ volume: 0.3, isMuted: true });
-        expect(localStorage.getItem('player_volume')).toBe('0.3');
-
-        playback.setMuted(false);
         expect(useAudioSettingsStore.getState()).toMatchObject({ volume: 0.3, isMuted: false });
+        expect(localStorage.getItem('player_volume')).toBe('0.3');
         expect(localStorage.getItem('player_is_muted')).toBe('false');
         expect(playback.getVolume()).toEqual({ volume: 0.3, muted: false });
+
+        playback.setMuted(true);
+        expect(useAudioSettingsStore.getState()).toMatchObject({ volume: 0.3, isMuted: true });
+        expect(localStorage.getItem('player_is_muted')).toBe('true');
+        expect(playback.getVolume()).toEqual({ volume: 0.3, muted: true });
 
         // A stored value outside 0–1 (the store never clamped on read) is reported clamped.
         useAudioSettingsStore.setState({ volume: 1.4 });
