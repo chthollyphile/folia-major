@@ -90,7 +90,8 @@ export class Full6Wgsl {
 
     /**
      * Uploads full6-folia.bin's weights and allocates a batch of `capacity` characters (encoded `chunk`
-     * at a time). f16: GEMMs (and the KV / fmap storage) in f16; needs a device with shader-f16.
+     * at a time; default 4: each big encoder conv stays near 2.5 ms, half chunk 8's, for ~4% throughput).
+     * f16: GEMMs (and the KV / fmap storage) in f16; needs a device with shader-f16.
      */
     static async create(device: GPUDevice, file: Uint8Array, options: { f16?: boolean; capacity?: number; chunk?: number } = {}): Promise<Full6Wgsl> {
         if (options.f16 && !device.features.has('shader-f16')) throw new Error('full6 f16 needs a device opened with shader-f16');
@@ -102,7 +103,7 @@ export class Full6Wgsl {
         device.queue.writeBuffer(w, 0, packed.data);
         const convs: Record<string, ConvMeta> = {};
         for (const [name, tensor] of Object.entries(manifest.tensors)) if (tensor.conv) convs[name] = tensor.conv;
-        const chunk = Math.max(1, Math.min(options.chunk ?? 8, options.capacity ?? 64));
+        const chunk = Math.max(1, Math.min(options.chunk ?? 4, options.capacity ?? 64));
         const capacity = Math.ceil((options.capacity ?? 64) / chunk) * chunk;
         const layers = new Layers(graph, w, packed.entries, convs, options.f16 ? 'f16' : 'f32');
         const net = new Full6Graph(layers, capacity, chunk);

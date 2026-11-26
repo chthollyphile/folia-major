@@ -38,6 +38,7 @@ ipcMain.handle('sw-config', () => ({
     chars: Number(process.env.SW_CHARS || 126),
     paced: process.env.SW_PACED === '1',
     readEvery: Number(process.env.SW_READ_EVERY || 8),
+    chunk: Number(process.env.SW_CHUNK || 4),
     alignB: Number(process.env.SW_ALIGN_B || 0),
     modes: (process.env.SW_MODES || 'ref,noref').split(','),
 }));

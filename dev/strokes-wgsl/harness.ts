@@ -20,7 +20,7 @@ const fmt = (v: number) => v.toExponential(3);
 
 export interface Config {
     out: string; task: string; f16: boolean; full6: string; own1: string; ref: string;
-    batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[]; alignB: number;
+    batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[]; alignB: number; chunk: number;
 }
 
 /** The reference's glyphs as runtime inputs. */
@@ -152,11 +152,13 @@ async function bench(device: GPUDevice, config: Config, ref: RefData, report: Re
     const all = glyphsOf(ref, 126);
     const rows: unknown[] = [];
     for (const B of config.batches) {
-        const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(8, B) });
+        const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(config.chunk, B) });
         const count = Math.max(126, B);
         const glyphs = Array.from({ length: count }, (_, i) => all[i % all.length]);
         const pacing = config.paced ? { sliceMs: 2, inFlight: 1 } : undefined;
         const options = { useReference: false, pacing, readEvery: config.readEvery };
+        // Warm serially first: a pipeline's first Metal dispatch is slow and would land in the paced cost table.
+        await full6.generate(glyphs.slice(0, B), { ...options, pacing: undefined });
         await full6.generate(glyphs.slice(0, B), options);
         let encodeMs = 0;
         let decodeMs = 0;
@@ -183,9 +185,11 @@ async function bench(device: GPUDevice, config: Config, ref: RefData, report: Re
 /** Per-dispatch GPU costs (timestamps) of full6's encoder chunk and one decode step at SW_B[0], and of own1. */
 async function profile(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
     const B = config.batches[0];
-    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(8, B) });
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(config.chunk, B) });
     const all = glyphsOf(ref, 126);
-    await full6.generate(Array.from({ length: B }, (_, i) => all[i % 126]), { useReference: false, pacing: { sliceMs: 2, inFlight: 1 } });
+    const batch = Array.from({ length: B }, (_, i) => all[i % 126]);
+    await full6.generate(batch, { useReference: false });
+    await full6.generate(batch, { useReference: false, pacing: { sliceMs: 2, inFlight: 1 } });
     const table = [...full6.costTable.entries()];
     const groups = new Map<string, number>();
     for (const [label, ms] of table) {
