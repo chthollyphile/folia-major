@@ -8,7 +8,7 @@ import { nebbiaFontStrokes } from './nebbiaFontStrokesQueue';
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
 // 字形 = 按书写顺序的几笔中线（em 坐标 0..1，y 向下）。来源依次是：lucide 图标（每个 SVG 元素一笔）、
-// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和假名先用笔顺模型对着主题字体算出的笔迹（带字体墨，nebbiaFontStrokes.ts）。
+// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和假名先用笔顺模型对着主题字体算出的笔迹（按字体墨定逐点粗细，nebbiaFontGlyph.ts）。
 // 另有手写变形（warpGlyph）和沿笔画取点（pointAt）。
 
 export type Pt = [number, number];

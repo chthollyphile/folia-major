@@ -8,7 +8,7 @@ import { NebbiaMaskInkGl } from './nebbiaMaskInkGl';
 // 混合取最大值，代替原来 2D 画布上每段三次 stroke 加 lighten（Windows 的 D3D11 上每次都要拷一份目标像素，很贵）
 // 和每帧把画布上传成纹理。一段的三层由宽到窄、由暗到亮（原 strokePath 的 [1.3, 0.38] [1.0, 0.72] [0.62, 1]）在片元里一起算。
 // 程序和别的雾笺程序一起在后台编（nebbiaPrograms.ts，属性位置 aCorner 0、aSeg 1、aParam 2），编好后 attach 进来。
-// 笔顺模型给的字（nebbiaFontStrokes.ts）不画线段，画字块，由 nebbiaMaskInkGl.ts 画进同一张遮罩。
+// 笔顺模型给的字在 FONT_INK_TILE 开着时（nebbiaFontGlyph.ts）不画线段，画字块，由 nebbiaMaskInkGl.ts 画进同一张遮罩。
 
 export const NEBBIA_MASK_VS = /* glsl */ `#version 300 es
 in vec2 aCorner; in vec4 aSeg; in vec2 aParam;
