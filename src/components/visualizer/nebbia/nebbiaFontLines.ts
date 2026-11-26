@@ -1,5 +1,5 @@
 import type { NebbiaSourceLine } from './nebbiaChars';
-import { isModelChar } from './nebbiaFontStrokes';
+import { isModelChar } from './nebbiaFontGlyph';
 import { nebbiaFontStrokes, type FontDemandChar, type NebbiaFontStrokesHandle } from './nebbiaFontStrokesQueue';
 import type { NebbiaGlyphCache } from './nebbiaGlyphs';
 import type { LaidLine } from './nebbiaScene';

@@ -4,12 +4,13 @@
 // 圆头、圆角的折线描边正好是各段圆头线段的并集，所以按段拆开、在 GPU 上取最大值，和画布上 lighten 叠出来的一样
 // （只有几笔交叠处的抗锯齿边缘有一两级的差别）。
 
-import type { NebbiaFontInk } from './nebbiaFontStrokes';
+import type { NebbiaFontInk } from './nebbiaFontGlyph';
+import { CANON, GROW_MAX, GROW_MIN } from './nebbiaFontField';
 
 /** 每段 6 个数：x0, y0, x1, y1, 线宽（遮罩像素）, 亮度 0..1。 */
 export const SEGMENT_FLOATS = 6;
-/** 每个字块 10 个数：左上角 (x, y)、字块 u、v 两条边（遮罩像素）、贴图层（画时填）、显到的书写位置、亮度、羽化宽（书写位置单位）。 */
-export const TILE_FLOATS = 10;
+/** 每个字块 11 个数：左上角 (x, y)、字块 u、v 两条边（遮罩像素）、贴图层（画时填）、显到的书写位置、亮度、羽化宽（书写位置单位）、墨边外扩（模型网格像素）。 */
+export const TILE_FLOATS = 11;
 
 /** 点 (x, y) 到第 p 段（segs[p..p+3] 是两头；雪窗、凝露和歌词的水联动时用）的距离。 */
 export const segDist = (x: number, y: number, segs: readonly number[], p: number): number => {
@@ -64,9 +65,9 @@ export class NebbiaSegments {
 
     /**
      * 一个字的字体墨：字块在当前变换下（字内 em 坐标）的位置是 ink.x0、ink.y0、边长 ink.size；书写位置不超过 reveal 的墨显出来，
-     * feather 是显出的前沿有多宽（书写位置单位），v 是亮度。
+     * feather 是显出的前沿有多宽（书写位置单位），v 是亮度，grow 是墨边外扩多少（em，一侧，负为内缩；0 = 字体原样）。
      */
-    tile(ink: NebbiaFontInk, reveal: number, v: number, feather: number) {
+    tile(ink: NebbiaFontInk, reveal: number, v: number, feather: number, grow = 0) {
         const n = this.inks.length;
         if ((n + 1) * TILE_FLOATS > this.tiles.length) {
             const grown = new Float32Array(this.tiles.length * 2);
@@ -78,6 +79,7 @@ export class NebbiaSegments {
         t[o + 2] = this.a * size; t[o + 3] = this.b * size;
         t[o + 4] = this.c * size; t[o + 5] = this.d * size;
         t[o + 6] = 0; t[o + 7] = reveal; t[o + 8] = v; t[o + 9] = feather;
+        t[o + 10] = grow === 0 ? 0 : Math.max(GROW_MIN, Math.min(GROW_MAX, (grow * CANON) / ink.size));
         this.inks.push(ink);
     }
 

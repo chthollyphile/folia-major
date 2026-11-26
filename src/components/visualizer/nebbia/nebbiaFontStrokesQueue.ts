@@ -1,9 +1,9 @@
 import { runStrokesGpu, STROKES_GPU_BATCH } from '../../../services/analysis/beatThisGpu';
-import { buildGlyph, glyphFeatures, isModelChar, renderCanon } from './nebbiaFontStrokes';
+import { buildGlyph, glyphFeatures, isModelChar, renderCanon } from './nebbiaFontGlyph';
 import type { Glyph } from './nebbiaGlyphs';
 
 // src/components/visualizer/nebbia/nebbiaFontStrokesQueue.ts
-// 雾笺字体笔画的缓存和推理队列（光栅、特征、字块在 nebbiaFontStrokes.ts）：一个实例跨运行时共用。
+// 雾笺字体笔画的缓存和推理队列（光栅、特征、字块在 nebbiaFontGlyph.ts）：一个实例跨运行时共用。
 // 每个运行时 attach 一份「要哪些字」（按歌词顺序，标出马上要写的几句）；队列把所有运行时的需求合起来，
 // 马上要写的字用 onScreen 紧迫度、其余用 background，一批 STROKES_GPU_BATCH 个地算，每批到了通知一次。
 // 需求整份替换：换歌、换字体、拖进度时运行时重新报一份，旧的没算的字就自然丢掉；没有运行时 attach 时不再算。

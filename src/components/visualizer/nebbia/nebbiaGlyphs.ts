@@ -3,7 +3,7 @@ import { clamp } from './nebbiaConstants';
 import { ICON_PREFIX } from './nebbiaChars';
 import { skeletonPolys } from './nebbiaSkeleton';
 import { getNebbiaStrokeMedians } from './nebbiaStrokes';
-import { isModelChar, type NebbiaFontInk } from './nebbiaFontStrokes';
+import { isModelChar, type NebbiaFontInk } from './nebbiaFontGlyph';
 import { nebbiaFontStrokes } from './nebbiaFontStrokesQueue';
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
@@ -12,7 +12,11 @@ import { nebbiaFontStrokes } from './nebbiaFontStrokesQueue';
 // 另有手写变形（warpGlyph）和沿笔画取点（pointAt）。
 
 export type Pt = [number, number];
-export interface GlyphStroke { pts: Pt[]; cum: number[]; len: number }
+export interface GlyphStroke {
+    pts: Pt[]; cum: number[]; len: number;
+    /** 字体墨的字：每个点处的半笔宽（em），水珠按它挂到墨边上。 */
+    hw?: number[];
+}
 export interface Glyph {
     strokes: GlyphStroke[];
     total: number;

@@ -1,5 +1,6 @@
 import { checkLinked, compileShader, startProgram } from './nebbiaGlUtils';
-import { NEBBIA_MASK_FS, NEBBIA_MASK_INK_FS, NEBBIA_MASK_INK_VS, NEBBIA_MASK_VS } from './nebbiaMaskGl';
+import { NEBBIA_MASK_FS, NEBBIA_MASK_VS } from './nebbiaMaskGl';
+import { NEBBIA_MASK_INK_FS, NEBBIA_MASK_INK_VS } from './nebbiaMaskInkGl';
 import { NEBBIA_BLD_FILL_FS, NEBBIA_NOISE_FS, NEBBIA_SPRITE_FS, NEBBIA_SPRITE_VS, NEBBIA_VS, nebbiaSceneShaders } from './nebbiaShaders';
 import { NEBBIA_FLAKE_FS, NEBBIA_FLAKE_VS } from './nebbiaSnowGl';
 import { NEBBIA_FIREFLY_FS, NEBBIA_FIREFLY_VS } from './nebbiaFireflyGl';

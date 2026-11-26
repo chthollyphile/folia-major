@@ -2,6 +2,7 @@ import { clamp, NEBBIA_FIXED, MASK_SCALE, smooth } from './nebbiaConstants';
 import { windDrift, type NebbiaGlassMotion } from './nebbiaDrops';
 import { type Drip, type LaidChar } from './nebbiaScene';
 import { pointAt, type GlyphStroke } from './nebbiaGlyphs';
+import { fontInkLook, interpolateAt } from './nebbiaFontField';
 import type { NebbiaSegments } from './nebbiaSegments';
 import { putInkBead } from './nebbiaInkIce';
 
@@ -82,12 +83,12 @@ const pushWet = (wet: number[], c: LaidChar, st: GlyphStroke, drawn: number, wid
 
 // 一颗往下淌的水珠：从笔画最低处出发，走走停停，越走越小，留下一道擦开的水痕
 const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: number, width: number, clarity: number, beadV: number,
-    alive: ((x: number, y: number) => number) | null) => {
+    alive: ((x: number, y: number) => number) | null, scale: number) => {
     let bx = 0, by = -1e9;
     for (const q of st.pts) { const [x, y] = toScreen(c, q[0], q[1]); if (y > by) { bx = x; by = y; } }
     by += width * c.s * 0.35;
     const u = clamp(age / d.dur), f = u - Math.sin(u * 6 * Math.PI) / (6 * Math.PI);
-    const dist = d.len * f, r = d.r * (1 - 0.35 * u);
+    const dist = d.len * f, r = d.r * scale * (1 - 0.35 * u);
     const wob = (y: number) => Math.sin(y * 0.07 + d.seed) * 1.6 + Math.sin(y * 0.023 + d.seed * 2) * 2.5 + windDrift(y, ink.busSpeed);
     if (dist > 1 && clarity > 0.002) strokeTrail(ink.ctx, bx, by, by + dist, r * 1.5, clarity * 0.95, d.seed, y => wob(y - by));
     // 哈气盖掉的旧字只留擦痕的印子，水珠已经没了
@@ -129,8 +130,11 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     // 笔画多的字笔画收细一点，不然挤在一起糊成一团。宽度按字号（em）缩放：原来 8×thin 像素的下限在字号小于 8 / strokeWidth
     // （默认约 89 像素）时盖过笔画粗细设置，字越小笔画相对越粗、堵住字腔。只留 0.6 个遮罩纹素的下限，半分辨率遮罩上细笔画不断成点
     const thin = clamp(Math.sqrt(9 / g.strokes.length), 0.55, 1);
-    // 字体墨：笔画宽就是字体自己的，水珠按平均笔画宽挂在两边
-    const width = g.ink ? g.ink.width : Math.max(ink.strokeWidth * thin, 0.6 / (MASK_SCALE * c.s));
+    // 字体墨：墨边按笔画粗细设置外扩 / 内缩（默认值时原样），水痕、笔尖用典型笔宽乘上设置的倍数，水珠挂在各点实际的墨边上，大小对着骨架字形的比例
+    const look = g.ink ? fontInkLook(g.ink.width, ink.strokeWidth, thin) : null;
+    const minWidth = 0.6 / (MASK_SCALE * c.s);
+    const width = look ? Math.max(look.width, minWidth) : Math.max(ink.strokeWidth * thin, minWidth);
+    const beadScale = look ? look.beadScale : 1;
     const drips: [GlyphStroke, Drip, number][] = [];
     /** 字体墨：写到的弧长（前面写完的笔画全长加上正在写的这笔写到的）。 */
     let covered = 0;
@@ -146,13 +150,15 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
         if (!fadeIn) {
             for (const b of c.beads[si]) {
                 if (b.s > drawn) break;
-                const off = width / 2 + (b.r * 0.7 + b.j * 1.5) / c.s;
+                const br = b.r * beadScale;
+                const half = look ? Math.max(0.002, (st.hw ? interpolateAt(st.cum, st.hw, b.s) : g.ink!.width / 2) + look.grow) : width / 2;
+                const off = half + (br * 0.7 + b.j * 1.5 * beadScale) / c.s;
                 const [x, y] = toScreen(c, b.x + b.nx * off, b.y + b.ny * off);
                 const bv = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;
                 // 哈气盖掉的旧字只留擦痕的印子，水珠已经没了
                 if (bv <= 0.002) continue;
                 // 这一笔写完以后算结冰（nebbiaInkIce.ts）
-                putInkBead(ink, x, y, b.r * (0.55 + 0.45 * bv), bv, p >= 1 ? local - dur : -1, b.x * 131.7 + b.y * 71.3 + si, 1 + b.j * 0.25, 1 + (1 - b.j) * 0.3);
+                putInkBead(ink, x, y, br * (0.55 + 0.45 * bv), bv, p >= 1 ? local - dur : -1, b.x * 131.7 + b.y * 71.3 + si, 1 + b.j * 0.25, 1 + (1 - b.j) * 0.3);
             }
             // 收笔水珠：笔尖推着走的水越堆越多，写到哪跟到哪；大小跟字号走，字太小就不留
             if (NEBBIA_FIXED.endBead > 0 && drawn > 0 && c.s >= NEBBIA_FIXED.endBeadMin) {
@@ -161,7 +167,7 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
                 let dx = ux - vx, dy = uy - vy;
                 const dl = Math.hypot(dx, dy) || 1;
                 dx /= dl; dy /= dl;
-                const r = c.s * (0.031 + 0.018 * e.h) * NEBBIA_FIXED.endBead * (0.5 + 0.5 * smooth(p));
+                const r = c.s * (0.031 + 0.018 * e.h) * NEBBIA_FIXED.endBead * beadScale * (0.5 + 0.5 * smooth(p));
                 const [x, y] = toScreen(c, ux + (dx * r * 0.35) / c.s, uy + (dy * r * 0.35 + r * 0.15) / c.s);
                 const ev = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;
                 if (ev > 0.002) putInkBead(ink, x, y, r * (0.6 + 0.4 * ev), ev, p >= 1 ? local - dur : -1, c.x * 3.1 + c.y * 5.7 + si * 11, 1, 1.12 + e.j * 0.12);
@@ -173,8 +179,8 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     });
     // 前沿羽化约 FONT_FEATHER 个遮罩像素宽
     // 写完了就整个显出来（前沿的羽化不留在最后一笔的末端）
-    if (g.ink && clarity > 0.002) ctx.tile(g.ink, covered >= g.total * 0.999 ? 2 : covered / g.total, clarity, FONT_FEATHER / Math.max(1, g.total * c.s * MASK_SCALE));
+    if (g.ink && clarity > 0.002) ctx.tile(g.ink, covered >= g.total * 0.999 ? 2 : covered / g.total, clarity, FONT_FEATHER / Math.max(1, g.total * c.s * MASK_SCALE), look!.grow);
     ctx.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
-    for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV, alive);
+    for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV, alive, beadScale);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 };
