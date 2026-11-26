@@ -1,5 +1,5 @@
 import { MASK_SCALE } from './nebbiaConstants';
-import { makeTex, type Tex } from './nebbiaGlUtils';
+import { glObject, makeTex, type Tex } from './nebbiaGlUtils';
 import { SEGMENT_FLOATS, TILE_FLOATS, type NebbiaSegments } from './nebbiaSegments';
 import { FONT_TILE, type NebbiaFontInk } from './nebbiaFontStrokes';
 
@@ -79,7 +79,7 @@ class NebbiaInkAtlas {
     private dirty = false;
 
     constructor(private readonly gl: WebGL2RenderingContext, readonly unit: number) {
-        this.t = gl.createTexture()!;
+        this.t = glObject(gl.createTexture(), 'texture');
         gl.activeTexture(gl.TEXTURE0 + unit);
         gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.t);
         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
@@ -168,13 +168,13 @@ export class NebbiaMaskGl {
         gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, stride, 0); gl.vertexAttribDivisor(1, 1);
         gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 16); gl.vertexAttribDivisor(2, 1);
         // 字块：aCorner 0、aOrigin 1（左上角、u 边）、aAxisV 2（v 边、贴图层、显到的位置）、aParam 3（亮度、羽化）
-        this.inkVao = gl.createVertexArray()!;
+        this.inkVao = glObject(gl.createVertexArray(), 'vertex array');
         gl.bindVertexArray(this.inkVao);
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(0);
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-        this.inkBuf = gl.createBuffer()!;
+        this.inkBuf = glObject(gl.createBuffer(), 'buffer');
         gl.bindBuffer(gl.ARRAY_BUFFER, this.inkBuf);
         const tileStride = TILE_FLOATS * 4;
         gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, tileStride, 0); gl.vertexAttribDivisor(1, 1);

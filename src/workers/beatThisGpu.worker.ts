@@ -109,7 +109,7 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                     try {
                         strokes = await StrokesJob.create(opened, request.full6, request.own2, f16);
                     } catch (error) {
-                        self.postMessage({ id: request.id, error: String((error as Error)?.message ?? error), scope: 'model' });
+                        self.postMessage({ id: request.id, error: error instanceof Error ? error.message : String(error), scope: 'model' });
                         return;
                     }
                 }

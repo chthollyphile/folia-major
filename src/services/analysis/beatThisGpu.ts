@@ -385,7 +385,7 @@ const startStrokes = async (): Promise<boolean> => {
     measuredBytes.set('strokes', bytes);
     resident.set('strokes', { bytes, usedAt: performance.now(), timer: null });
     used('strokes');
-    console.log(`[beat-this-gpu] strokes loaded on ${reply.result}, ${megabytes(bytes)} on the GPU`);
+    console.log(`[beat-this-gpu] strokes loaded on ${String(reply.result)}, ${megabytes(bytes)} on the GPU`);
     return true;
 };
 

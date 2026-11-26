@@ -13,6 +13,8 @@ import type { Glyph } from './nebbiaGlyphs';
 const CACHE_MAX = 1500;
 /** 等字体加载最久多少毫秒；到点还没好的字先放下，字体 loadingdone 时再算。 */
 const FONT_WAIT_MS = 4000;
+/** 页面的字体集；worker 和单测里没有 document。 */
+const docFonts = (): FontFaceSet | undefined => (typeof document === 'undefined' ? undefined : document.fonts);
 
 type Entry = { glyph: Glyph | null } | 'pending';
 
@@ -63,7 +65,7 @@ class NebbiaFontStrokesQueue {
     attach(listener: () => void): NebbiaFontStrokesHandle {
         const id = Symbol('nebbia-font-strokes');
         this.listeners.set(id, listener);
-        if (this.listeners.size === 1) globalThis.document?.fonts?.addEventListener('loadingdone', this.handleFontsLoaded);
+        if (this.listeners.size === 1) docFonts()?.addEventListener('loadingdone', this.handleFontsLoaded);
         return {
             want: (chars, family, weight) => {
                 if (this.unavailable) return;
@@ -74,7 +76,7 @@ class NebbiaFontStrokesQueue {
             detach: () => {
                 this.demands.delete(id);
                 this.listeners.delete(id);
-                if (!this.listeners.size) globalThis.document?.fonts?.removeEventListener('loadingdone', this.handleFontsLoaded);
+                if (!this.listeners.size) docFonts()?.removeEventListener('loadingdone', this.handleFontsLoaded);
             },
         };
     }
@@ -103,7 +105,7 @@ class NebbiaFontStrokesQueue {
 
     /** 这批字的字体都加载好了才返回它们；没好的等一等（最多 FONT_WAIT_MS），还没好就放下。 */
     private async withFontsReady(batch: Job[]): Promise<Job[]> {
-        const fonts = globalThis.document?.fonts;
+        const fonts = docFonts();
         if (!fonts) return batch;
         const ready: Job[] = [];
         const byFont = new Map<string, Job[]>();
