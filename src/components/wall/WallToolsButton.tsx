@@ -18,7 +18,7 @@ import './WallToolsButton.css';
 // 海报墙右下角的工具按钮（Lattice 与 bravais 共用）：点按打开锚定的玻璃面板，向左滑打开命令面板。
 // 面板从上到下：一排纯图标快捷格 → 音量 → 墙自己的条目 → 海报叠色 → 开灯 / 关灯与帮助。
 // 两面墙结构一致，只有和场景有关的部分由使用方传入：按钮上方的定位按钮（above）、快捷排里的 destination
-// （bravais 前往 Lattice、Lattice 回到首页）、自己的条目（bravais 的「墙面外观」与透光、Lattice 的「墙面」与切歌自动聚焦）
+// （bravais 前往 Lattice、Lattice 回到首页）、自己的条目（bravais 的「墙面外观」与透光、Lattice 的墙面形态与切歌自动聚焦）
 // 和帮助内容。洗牌、主题、队列、播放器、设置五格与音量滑条是公共部分，由 useWallToolsCommonActions 从宿主（wallToolsHost）组装；
 // 快捷格的固定顺序是 shuffle-queue / generate-theme / queue / destination / open-player / open-settings，缺的跳过。
 // 面板与队列浮岛（WallToolsQueueIsland，由快捷排的「队列」格开合、偏好记在 useLatticeSettingsStore）都放在

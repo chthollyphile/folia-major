@@ -3308,6 +3308,8 @@ export default {
     "latticeWallForm_radio": "Tường radio",
     "latticeRadioHideUpcoming": "Ẩn bài tiếp theo",
     "latticeRadioHideUpcomingDesc": "Trên tường radio, các bài chưa phát được úp lại cho đến lượt. FM cá nhân luôn như vậy.",
+    "latticeAutoFocusOnSongChange": "Tự động lấy nét khi đổi bài",
+    "latticeAutoFocusOnSongChangeDesc": "Khi đổi bài, đưa poster đang phát về giữa tường poster. Khi tắt, tường giữ nguyên vị trí bạn đang xem; tường radio không bị ảnh hưởng.",
     "latticePosterTint": "Màu phủ làm nổi poster",
     "latticePosterTintDesc": "Phủ màu poster không hoạt động để poster đang phát, được chọn hoặc rê chuột nổi bật hơn.",
     "latticePosterTintCustomColor": "Bắt buộc dùng màu tùy chỉnh",

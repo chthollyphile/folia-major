@@ -3308,6 +3308,8 @@ export default {
     "latticeWallForm_radio": "Radio wall",
     "latticeRadioHideUpcoming": "Keep upcoming songs hidden",
     "latticeRadioHideUpcomingDesc": "On the radio wall, songs not played yet stay face down until their turn. Personal FM always works this way.",
+    "latticeAutoFocusOnSongChange": "Auto-focus on track change",
+    "latticeAutoFocusOnSongChangeDesc": "When the track changes, bring the playing poster back to the center of the poster wall. When off, the wall stays where you are browsing; the radio wall is not affected.",
     "latticePosterTint": "Poster focus tint",
     "latticePosterTintDesc": "Colour inactive posters so the playing, focused, or hovered poster stands out.",
     "latticePosterTintCustomColor": "Force a custom colour",

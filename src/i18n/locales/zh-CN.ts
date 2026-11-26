@@ -3308,6 +3308,8 @@ export default {
     "latticeWallForm_radio": "电台墙",
     "latticeRadioHideUpcoming": "接下来的歌先不揭晓",
     "latticeRadioHideUpcomingDesc": "电台墙上还没播的歌背面朝上，轮到时才翻开。私人 FM 下总是这样。",
+    "latticeAutoFocusOnSongChange": "切歌时自动聚焦",
+    "latticeAutoFocusOnSongChangeDesc": "切歌时把正在播放的海报拉回海报墙中央。关闭后，浏览到别处时墙不会被切歌拉回去；电台墙不受影响。",
     "latticePosterTint": "海报聚焦叠色",
     "latticePosterTintDesc": "为普通海报添加颜色叠层，突出正在播放、聚焦或悬停的海报。",
     "latticePosterTintCustomColor": "强制使用自定义颜色",

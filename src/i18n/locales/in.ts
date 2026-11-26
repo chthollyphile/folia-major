@@ -3308,6 +3308,8 @@ export default {
     "latticeWallForm_radio": "Dinding radio",
     "latticeRadioHideUpcoming": "Sembunyikan lagu berikutnya",
     "latticeRadioHideUpcomingDesc": "Di dinding radio, lagu yang belum diputar tetap tertutup sampai gilirannya. FM Pribadi selalu begini.",
+    "latticeAutoFocusOnSongChange": "Fokus otomatis saat lagu berganti",
+    "latticeAutoFocusOnSongChangeDesc": "Saat lagu berganti, bawa poster yang diputar kembali ke tengah dinding poster. Jika mati, dinding tetap di tempat Anda menjelajah; dinding radio tidak terpengaruh.",
     "latticePosterTint": "Warna fokus poster",
     "latticePosterTintDesc": "Warnai poster nonaktif agar poster yang diputar, difokuskan, atau disorot lebih menonjol.",
     "latticePosterTintCustomColor": "Paksa warna khusus",
