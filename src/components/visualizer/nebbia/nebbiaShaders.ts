@@ -127,13 +127,14 @@ void main() {
   // 白气铺开后，盖掉的旧字在遮罩上留着 BREATH_GHOST（nebbiaScene.ts）那么一点：比阈值低、不透出窗外，
   // 只让那儿的白气薄一点，糊糊的留个浅浅的印子。在周围四下取样糊开；新写的字在遮罩上是满的，取到的有一下超过 0.15
   // 就是挨着新字，不薄（不然新字外面也薄一圈）
+  // 薄印的门槛要和字自己消失的阈值（th 约 0.3）接上：门槛比它低时，字已经看不见了、印子还没出来，中间字会空一下再淡淡隐出
   if (breath > 0.001) {
     float gr = 0.006 * uRes.y, ga = hash(px + 17.0) * 6.2832, gm = 0.0, gx = m;
     for (int i = 0; i < 4; i++) {
       float a = ga + float(i) * 1.5708, g = texture(uMask, gv + vec2(cos(a), sin(a)) * gr / uRes).r;
       gm += g; gx = max(gx, g);
     }
-    breath *= 1.0 - 0.55 * smoothstep(0.0, 0.07, gm * 0.25) * (1.0 - smoothstep(0.1, 0.15, gx));
+    breath *= 1.0 - 0.55 * smoothstep(0.0, 0.07, gm * 0.25) * (1.0 - smoothstep(0.2, 0.5, gx));
   }
   // 雾：模糊的窗外提亮发灰，光晕散得更开，加浓淡起伏和细颗粒，下半部分略浓
   float dens = uMist * (0.82 + 0.3 * vnoise(px / 380.0 + uTime * 0.015)) * (0.9 + 0.2 * vUv.y) + breath * 0.9;
