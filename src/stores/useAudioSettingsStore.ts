@@ -516,8 +516,12 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
         // 静音中把音量调到 0 以上就是解除静音（和键盘音量键、命令面板的音量加减同一条规矩）：
         // 不然静音里拖音量条，音量记上去了 isMuted 还在，输出按 getTargetPlaybackVolume 仍是 0，
         // 界面显示静音、滑杆回弹，预览留下的 gain 却让声音真的在放。
+        // 音量变化和解除静音要落在同一次 set 里：订阅方（folium 的 hostEvents）是同步派发的，
+        // 分两次 set 会让模组收到一个从未存在过的中间状态（旧音量 + 已解除静音）。
         if (val > 0 && get().isMuted) {
-            get().handleSetMuted(false);
+            setStoredBoolean('player_is_muted', false);
+            set({ volume: val, isMuted: false });
+            return;
         }
         set({ volume: val });
     },
