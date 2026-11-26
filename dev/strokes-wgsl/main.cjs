@@ -1,0 +1,56 @@
+const { app, BrowserWindow, ipcMain } = require('electron');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// dev/strokes-wgsl/main.cjs
+// Test shell for the hand-written WGSL stroke-order runtime (src/services/analysis/strokesWgsl): a hidden
+// window runs full6 / own1 through the real WebGPU of this Electron build against the torch reference
+// data (~/bihua tools/mnn/build/ref: ref.bin + index.json, read in place, never copied) and prints the
+// alignment and timing figures. Never touches the app's own profile - userData is a throwaway dir.
+//
+//   npx rolldown dev/strokes-wgsl/harness.ts -o $OUT/harness.js -f iife -p browser
+//   SW_DIR=$OUT SW_TASK=align [SW_F16=1] npx electron dev/strokes-wgsl/main.cjs
+//
+// SW_TASK: stages (encoder / memory / step-0 intermediates against dbg_*), align (teacher-forced and free
+// generation, with and without the reference, plus own1), bench (timings, SW_B=1,16,64,128,256 batch
+// sizes), own (own1 only). SW_FULL6 / SW_OWN1 / SW_REF override the default paths under ~/bihua.
+// SW_PACED=1 runs with gpuSlices' default pacing (2 ms slices) and reports the longest dispatch.
+
+const dir = process.env.SW_DIR;
+if (!dir) {
+    console.error('SW_DIR is required');
+    process.exit(2);
+}
+const bihua = path.join(os.homedir(), 'bihua');
+app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'sw-userdata-')));
+// Unquantised timestamps for per-dispatch costs (dev shell only).
+app.commandLine.appendSwitch('enable-webgpu-developer-features');
+
+ipcMain.handle('sw-config', () => ({
+    out: dir,
+    task: process.env.SW_TASK || 'align',
+    f16: process.env.SW_F16 === '1',
+    full6: process.env.SW_FULL6 || path.join(bihua, 'models/full6/full6-folia.bin'),
+    own1: process.env.SW_OWN1 || path.join(bihua, 'models/own1/own1-folia.bin'),
+    ref: process.env.SW_REF || path.join(bihua, 'tools/mnn/build/ref'),
+    batches: (process.env.SW_B || '1,16,64,128,256').split(',').map(Number),
+    chars: Number(process.env.SW_CHARS || 126),
+    paced: process.env.SW_PACED === '1',
+    readEvery: Number(process.env.SW_READ_EVERY || 8),
+    modes: (process.env.SW_MODES || 'ref,noref').split(','),
+}));
+ipcMain.on('sw-log', (_event, line) => console.log(line));
+ipcMain.on('sw-done', (_event, code) => app.exit(code));
+
+app.whenReady().then(() => {
+    const html = path.join(dir, 'harness.html');
+    fs.writeFileSync(html, '<!doctype html><meta charset="utf-8"><script src="harness.js"></script>');
+    const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false, backgroundThrottling: false } });
+    win.webContents.on('console-message', (event) => console.log(`[renderer] ${event.message}`));
+    win.webContents.on('render-process-gone', (_event, details) => {
+        console.error('renderer gone', details);
+        app.exit(3);
+    });
+    win.loadFile(html);
+});

@@ -68,11 +68,11 @@ export type GemmMode = 'f32' | 'f16';
  * In f32 these are the scalar loop's FMAs in the same order, though Metal no longer returns them bit for
  * bit (red_line.py: the same 0.0006 dB and the same SNR against the graph).
  */
-const tiles = (mode: GemmMode) => /* wgsl */ `
+export const tiles = (mode: GemmMode) => /* wgsl */ `
 var<workgroup> as_: array<${mode === 'f16' ? 'vec4h' : 'vec4f'}, 256>;
 var<workgroup> bs_: array<${mode === 'f16' ? 'vec4h' : 'vec4f'}, 256>;`;
-const tileVector = (mode: GemmMode, value: string) => `${mode === 'f16' ? 'vec4h' : 'vec4f'}(${value})`;
-const kStep = (mode: GemmMode) => (mode === 'f16' ? /* wgsl */ `
+export const tileVector = (mode: GemmMode, value: string) => `${mode === 'f16' ? 'vec4h' : 'vec4f'}(${value})`;
+export const kStep = (mode: GemmMode) => (mode === 'f16' ? /* wgsl */ `
     var part: array<vec4h, 4>;
     for (var kk = 0u; kk < 16u; kk++) {
       let a = as_[kk * 16u + l.y];
@@ -85,7 +85,7 @@ const kStep = (mode: GemmMode) => (mode === 'f16' ? /* wgsl */ `
       let bb = bs_[kk * 16u + l.x];
       for (var i = 0u; i < 4u; i++) { acc[i] = fma(vec4f(a[i]), bb, acc[i]); }
     }`);
-const enableF16 = (mode: GemmMode) => (mode === 'f16' ? 'enable f16;' : '');
+export const enableF16 = (mode: GemmMode) => (mode === 'f16' ? 'enable f16;' : '');
 
 /**
  * The shared body of GEMM and GEMM_TR: Y[M, N] = W[M, K] . B[K, N] + bias[M], B gathered from the input
