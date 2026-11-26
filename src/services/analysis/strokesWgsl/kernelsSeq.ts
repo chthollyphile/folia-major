@@ -407,15 +407,13 @@ fn main() { st[0] = st[0] + 1u; }
  */
 export const OWN_QUERY: Kernel = {
     bindings: ['fm', 'pens', 'extra', 'pz', 'qin'],
-    uniform: true,
+    uniform: false,
     code: /* wgsl */ `
-struct P { pens: u32 }
 @group(0) @binding(0) var<storage, read> fm: array<f32>;
 @group(0) @binding(1) var<storage, read> pens: array<f32>;
 @group(0) @binding(2) var<storage, read> extra: array<f32>;
 @group(0) @binding(3) var<storage, read> pz: array<u32>;
 @group(0) @binding(4) var<storage, read_write> qin: array<f32>;
-@group(0) @binding(5) var<uniform> p: P;
 fn tap(base: u32, y: f32, x: f32) -> f32 {
   if (x < 0.0 || x > 255.0 || y < 0.0 || y > 255.0) { return 0.0; }
   return fm[base + u32(y) * 256u + u32(x)];
@@ -452,13 +450,13 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) c: u3
  * flag is set) keeps every pen's logit for the alignment check.
  */
 export const OWN_LOGITS: Kernel = {
-    bindings: ['fm', 'qv', 'meta', 'owner', 'gap', 'logits'],
+    bindings: ['fm', 'qv', 'info', 'owner', 'gap', 'logits'],
     uniform: true,
     code: /* wgsl */ `
 struct P { z: u32, keep: u32 }
 @group(0) @binding(0) var<storage, read> fm: array<f32>;
 @group(0) @binding(1) var<storage, read> qv: array<f32>;
-@group(0) @binding(2) var<storage, read> meta: array<u32>;
+@group(0) @binding(2) var<storage, read> info: array<u32>;
 @group(0) @binding(3) var<storage, read_write> owner: array<u32>;
 @group(0) @binding(4) var<storage, read_write> gap: array<f32>;
 @group(0) @binding(5) var<storage, read_write> logits: array<f32>;
@@ -467,8 +465,8 @@ var<workgroup> qs: array<f32, ${OWN_MAX_PENS * 64}>;
 @compute @workgroup_size(256)
 fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u32) {
   let z = wg.y;
-  let first = meta[z * 2u];
-  let n = meta[z * 2u + 1u];
+  let first = info[z * 2u];
+  let n = info[z * 2u + 1u];
   for (var e = li; e < n * 64u; e += 256u) { qs[e] = qv[first * 64u + e]; }
   workgroupBarrier();
   let px = wg.x * 256u + li;
@@ -492,9 +490,10 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u
 };
 
 /**
- * The reveal map (example.py): for each ink pixel (img ch0 > 0.1) the owner pen's nearest vertex (first
- * of equals) - its pen index, its arc-length position along the pen (0..1) and its time on the glyph's
- * time axis (0..1); -1 / -1 / -1 off the ink. Vertices: (x, y, along, time) per point, pens by offset.
+ * The reveal map (example.py): for each ink pixel (own1 input ch0 > 0.1, `ink` = the [z, 4, 256, 256] input)
+ * the owner pen's nearest vertex (first of equals) - its pen index, its arc-length position along the pen
+ * (0..1) and its time on the glyph's time axis (0..1); -1 / -1 / -1 off the ink. Vertices: (x, y, along,
+ * time) per point; pmeta = [z][first pen, pens], then [pen][first vertex, end].
  */
 export const PROJECT: Kernel = {
     bindings: ['ink', 'owner', 'verts', 'pmeta', 'out'],
@@ -512,7 +511,7 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u
   let z = wg.y;
   let px = wg.x * 256u + li;
   let at = z * 65536u + px;
-  if (ink[at] <= 0.1) { out[at] = vec4f(-1.0, -1.0, -1.0, 0.0); return; }
+  if (ink[z * 262144u + px] <= 0.1) { out[at] = vec4f(-1.0, -1.0, -1.0, 0.0); return; }
   let firstPen = pmeta[z * 2u];
   let pen = owner[at];
   let lo = pmeta[2u * p.z + 2u * (firstPen + pen)];
