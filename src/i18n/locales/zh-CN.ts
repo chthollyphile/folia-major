@@ -2332,7 +2332,6 @@ export default {
     "latticeLightsOn": "开灯",
     "latticeLightsOff": "关灯",
     "latticeTools": "Lattice 工具",
-    "latticeAutoFocusOnSongChange": "切歌时自动聚焦",
     "latticeHelp": "操作提示",
     "latticeHelpPoster": "Enter 展开选中歌曲，再次 Enter 播放",
     "latticeHelpReturn": "返回",

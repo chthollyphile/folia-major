@@ -2332,7 +2332,6 @@ export default {
     "latticeLightsOn": "Lampu nyala",
     "latticeLightsOff": "Lampu mati",
     "latticeTools": "Alat Lattice",
-    "latticeAutoFocusOnSongChange": "Fokus otomatis saat lagu berganti",
     "latticeHelp": "Panduan pengoperasian",
     "latticeHelpPoster": "Tekan Enter untuk membuka lagu terpilih, lalu Enter lagi untuk memutarnya",
     "latticeHelpReturn": "Kembali",

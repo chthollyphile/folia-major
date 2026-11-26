@@ -2332,7 +2332,6 @@ export default {
     "latticeLightsOn": "Bật đèn",
     "latticeLightsOff": "Tắt đèn",
     "latticeTools": "Công cụ Lattice",
-    "latticeAutoFocusOnSongChange": "Tự động lấy nét khi đổi bài",
     "latticeHelp": "Hướng dẫn thao tác",
     "latticeHelpPoster": "Nhấn Enter để mở rộng bài hát đã chọn, nhấn Enter lần nữa để phát",
     "latticeHelpReturn": "Quay lại",

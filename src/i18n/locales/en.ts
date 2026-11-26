@@ -2332,7 +2332,6 @@ export default {
     "latticeLightsOn": "Lights on",
     "latticeLightsOff": "Lights off",
     "latticeTools": "Lattice tools",
-    "latticeAutoFocusOnSongChange": "Auto-focus on track change",
     "latticeHelp": "Operation guide",
     "latticeHelpPoster": "Press Enter to expand the selected song, then Enter again to play",
     "latticeHelpReturn": "Back",
