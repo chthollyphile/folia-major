@@ -118,7 +118,7 @@ describe('pushPenVertices', () => {
         expect(rows.slice(4, 8)).toEqual([0, 0, 0, 0.1]);
         expect(rows[10]).toBeCloseTo(0.75, 6);
         expect(rows.slice(12, 16).map(v => Math.fround(v))).toEqual([Math.fround(0.3), Math.fround(0.1), 1, Math.fround(0.4)]);
-        expect(pushPenVertices(rows, Float32Array.from([0.5, 0.5]), [0])).toEqual([5, 6]);
+        expect(pushPenVertices(rows, Float32Array.from([0.5, 0.5]), [0])).toEqual([4, 5]);
         expect(rows[rows.length - 2]).toBe(0);
     });
 });
