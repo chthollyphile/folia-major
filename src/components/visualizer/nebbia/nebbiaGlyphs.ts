@@ -3,14 +3,21 @@ import { clamp } from './nebbiaConstants';
 import { ICON_PREFIX } from './nebbiaChars';
 import { skeletonPolys } from './nebbiaSkeleton';
 import { getNebbiaStrokeMedians } from './nebbiaStrokes';
+import { isModelChar, nebbiaFontStrokes, type NebbiaFontInk } from './nebbiaFontStrokes';
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
 // 字形 = 按书写顺序的几笔中线（em 坐标 0..1，y 向下）。来源依次是：lucide 图标（每个 SVG 元素一笔）、
-// AnimCJK 笔顺数据、主题字体的骨架追踪。另有手写变形（warpGlyph）和沿笔画取点（pointAt）。
+// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和片假名先用笔顺模型对着主题字体算出的笔迹（带字体墨，nebbiaFontStrokes.ts）。
+// 另有手写变形（warpGlyph）和沿笔画取点（pointAt）。
 
 export type Pt = [number, number];
 export interface GlyphStroke { pts: Pt[]; cum: number[]; len: number }
-export interface Glyph { strokes: GlyphStroke[]; total: number }
+export interface Glyph {
+    strokes: GlyphStroke[];
+    total: number;
+    /** 笔顺模型给的字：显出来的是字体自己的墨（nebbiaMaskGl.ts 的字块），笔画只给笔尖和水珠用；不做手写变形。 */
+    ink?: NebbiaFontInk;
+}
 
 /** 量出每一笔的累计弧长；太短的笔画丢掉。 */
 export const measureGlyph = (polys: Pt[][]): Glyph | null => {
@@ -76,6 +83,8 @@ const iconPolys = (name: string): Pt[][] | null => {
 export class NebbiaGlyphCache {
     private cache = new Map<string, Glyph | null>();
     private font = '';
+    /** 汉字、片假名先取笔顺模型对着这个字体算的笔迹（还没算好的照旧）。 */
+    fontStrokes = false;
 
     constructor(private fontFamily: string, private fontWeight: number) {
         this.font = `${fontWeight} ${fontFamily}`;
@@ -105,7 +114,17 @@ export class NebbiaGlyphCache {
         }
     }
 
+    /** 要笔顺模型按歌词顺序算这些字（开了字体笔画时）。 */
+    want(chars: string[]) {
+        if (this.fontStrokes) nebbiaFontStrokes.want(chars, this.fontFamily, this.fontWeight);
+    }
+
     get(ch: string): Glyph | null {
+        // 模型的结果晚到，不进下面的缓存：每次先问
+        if (this.fontStrokes && isModelChar(ch)) {
+            const model = nebbiaFontStrokes.get(ch, this.fontFamily, this.fontWeight);
+            if (model) return model;
+        }
         const hit = this.cache.get(ch);
         if (hit !== undefined) return hit;
         let polys: Pt[][] | null = null;
@@ -124,7 +143,8 @@ export class NebbiaGlyphCache {
  * j 是变形幅度；笔画多的字每笔的偏移收小，部件位置还对。
  */
 export const warpGlyph = (g: Glyph, rnd: () => number, j: number): Glyph => {
-    if (j <= 0) return g;
+    // 字体墨不能跟着变形，笔迹也就不动（不然笔尖、水珠会偏离墨）
+    if (j <= 0 || g.ink) return g;
     const r = () => rnd() * 2 - 1;
     const shear = r() * 0.16 * j, sx = 1 + r() * 0.1 * j, sy = 1 + r() * 0.1 * j;
     const bx = r() * 0.035 * j, by = r() * 0.035 * j, px = rnd() * 6.28, py = rnd() * 6.28;

@@ -752,6 +752,8 @@ declare global {
         weights: Uint8Array<ArrayBuffer>;
         manifest: import('./services/analysis/htdemucsWgsl/runtime').HtdemucsWgslManifest;
       } | null>;
+      /** 雾笺's font-stroke models (full6, own2), each its whole packed file, for the GPU worker; null when either is absent. */
+      getStrokesGpuWeights?: () => Promise<{ full6: Uint8Array<ArrayBuffer>; own2: Uint8Array<ArrayBuffer> } | null>;
       /** Opens the performance check's window (components/perfCheck/); main window only. */
       openPerfCheck?: () => Promise<boolean>;
       /** Every process's memory, MB, summed and by Chromium process type: the check's memory reading. */

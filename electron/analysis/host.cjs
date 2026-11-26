@@ -292,6 +292,25 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, isTrustedSender, idleM
     });
 
     /**
+     * 雾笺's stroke models for the renderer's GPU (beatThisGpu.ts runStrokesGpu): full6 and own2, each as
+     * its whole packed file (the renderer's strokesWgsl/packed.ts reads the trailer itself), or null when
+     * either is missing. Read once per renderer-side load, ~24 MB together.
+     */
+    ipcMain.handle('nebbia-strokes-gpu-weights', async () => {
+        const dirs = modelsDirs();
+        const full6 = resolveModelFile(dirs, 'strokes_full6');
+        const own2 = resolveModelFile(dirs, 'strokes_own2');
+        if (!full6 || !own2) return null;
+        try {
+            const [a, b] = await Promise.all([fs.promises.readFile(full6), fs.promises.readFile(own2)]);
+            return { full6: new Uint8Array(a.buffer, a.byteOffset, a.byteLength), own2: new Uint8Array(b.buffer, b.byteOffset, b.byteLength) };
+        } catch (error) {
+            console.warn(`[strokes-gpu] could not read the stroke models: ${error?.message || error}`);
+            return null;
+        }
+    });
+
+    /**
      * Which weights are on disk, without loading anything.
      *
      * The renderer could only find this out by ASKING for an inference, which forks the worker and loads a

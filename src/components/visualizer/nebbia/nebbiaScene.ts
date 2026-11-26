@@ -20,6 +20,8 @@ export interface LaidChar extends NebbiaChar {
     x: number; y: number; s: number; rot: number;
     /** 手写变形后的字形；空格、画不出来的字没有。 */
     glyph: Glyph | null;
+    /** 变形前的字形：重排时已经开写的句子沿用它（字体笔画晚到时不让屏上的字变样）。 */
+    base: Glyph | null;
     beads: Bead[][];
     drips: (Drip | null)[];
     ends: { h: number; j: number }[];
@@ -149,6 +151,8 @@ export const buildNebbiaScene = (
     tuning: NebbiaTuning,
     size: { W: number; H: number; fontScale: number },
     seed: string | number,
+    /** 第 li 句第 i 个字沿用的字形（undefined = 照常从 glyphs 取）。 */
+    keep?: (li: number, i: number) => Glyph | null | undefined,
 ): LaidLine[] => {
     const seedHash = hashVisualizerSeed(String(seed));
     const modes = source.map((l, i) => (l.credits ? 'fog' : lineModeOf(tuning.fade, i, seedHash)));
@@ -169,8 +173,10 @@ export const buildNebbiaScene = (
         appearBreathAt: Infinity, appearBreathUntil: Infinity,
         chars: line.chars.map((c, i) => {
             const p = pos[li][i], wide = isWideChar(c.ch) || isIconChar(c.ch);
-            const out: LaidChar = { ...c, x: p.x, y: p.y, s: p.s * (wide ? 1 : 1.15), rot: p.rot, glyph: null, beads: [], drips: [], ends: [], appearDur: 0, wt: c.t, wd: 0 };
-            const base = glyphs.get(c.ch);
+            const out: LaidChar = { ...c, x: p.x, y: p.y, s: p.s * (wide ? 1 : 1.15), rot: p.rot, glyph: null, base: null, beads: [], drips: [], ends: [], appearDur: 0, wt: c.t, wd: 0 };
+            const kept = keep?.(li, i);
+            const base = kept === undefined ? glyphs.get(c.ch) : kept;
+            out.base = base;
             if (base) decorate(out, base, createVisualizerRng((li * 131 + i * 17 + 5) >>> 0), tuning.warp);
             return out;
         }),

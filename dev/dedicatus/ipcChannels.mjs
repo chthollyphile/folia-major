@@ -57,6 +57,7 @@ export const IPC_CHANNELS = {
     'lyric-api-publish': { level: 'first-party', why: '现状：有来源校验' },
     'lyric-api-set-enabled': { level: 'first-party', why: '现状：有来源校验' },
     'lyric-proxy-fetch': { level: 'first-party', why: '现状：有来源校验' },
+    'nebbia-strokes-gpu-weights': { level: 'any', why: '只读本机模型目录里的笔顺模型权重（雾笺字体笔画）' },
     'obs-browser-source-get-status': { level: 'first-party', why: '现状：有来源校验' },
     'obs-browser-source-publish-audio': { level: 'first-party', why: '现状：有来源校验' },
     'obs-browser-source-publish-clock': { level: 'first-party', why: '现状：有来源校验' },

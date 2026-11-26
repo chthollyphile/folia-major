@@ -14,6 +14,7 @@ import { resolveNebbiaPalette } from './nebbiaPalette';
 import { buildNebbiaScene, type LaidLine } from './nebbiaScene';
 import { NebbiaSpot } from './nebbiaSpot';
 import { loadNebbiaStrokes } from './nebbiaStrokes';
+import { nebbiaFontStrokes } from './nebbiaFontStrokes';
 import type { NebbiaRuntimeInput, NebbiaSong, NebbiaTuning } from './types';
 import { hashVisualizerSeed } from '../visualizerSeedHash';
 import type { VocalEnvelope } from '../../../services/analysis/vocalEnvelope';
@@ -39,6 +40,11 @@ const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 // 水族箱里没有雨打窗、车也不颠（疏雨轻车不算）。玻璃是雪窗时雪花和雪化成的水归 nebbiaSnow.ts，写字的手指经过时把雪抹开。
 
 // 改了要重排整首的 tuning 项
+/** 选了自定义歌词字体时，汉字和片假名按这个字体的字形、由笔顺模型给笔顺（nebbiaFontStrokes.ts）；没选时照旧用 AnimCJK。 */
+const wantsFontStrokes = (theme: Theme) => Boolean(theme.fontFamily?.trim());
+/** 字体笔画一批批到：最多这么久重排一次。 */
+const FONT_STROKES_REBUILD_MS = 400;
+
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
 // 开关组是数组，每次合并都是新的一份：按内容比
 const sameValue = (a: unknown, b: unknown) => (Array.isArray(a) && Array.isArray(b) ? a.join() === b.join() : a === b);
@@ -89,6 +95,8 @@ export class NebbiaRuntime {
     /** 建运行时的时刻和着色器编好是否已记日志：看预热有没有命中缓存。 */
     private readonly startedAt = performance.now();
     private shadersLogged = false;
+    private readonly unsubscribeFontStrokes: () => void;
+    private fontStrokesTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private readonly input: NebbiaRuntimeInput, theme: Theme, tuning: NebbiaTuning, renderScale: LyricRenderScale = 1) {
         this.theme = theme;
@@ -105,6 +113,8 @@ export class NebbiaRuntime {
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
         this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
+        this.glyphs.fontStrokes = wantsFontStrokes(theme);
+        this.unsubscribeFontStrokes = nebbiaFontStrokes.subscribe(this.handleFontStrokes);
         input.host.appendChild(this.canvas);
         try {
             this.gl = new NebbiaGl(this.canvas, input.seeThrough, input.scene, input.glass);
@@ -150,8 +160,12 @@ export class NebbiaRuntime {
     setTheme(theme: Theme) {
         const iconsChanged = String(resolveLucideIconNames(theme.lyricsIcons)) !== String(resolveLucideIconNames(this.theme.lyricsIcons));
         this.theme = theme;
-        const fontChanged = this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
+        let fontChanged = this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
         if (fontChanged) this.fontReady = this.glyphs.fontReady();
+        if (wantsFontStrokes(theme) !== this.glyphs.fontStrokes) {
+            this.glyphs.fontStrokes = wantsFontStrokes(theme);
+            fontChanged = true;
+        }
         this.applyTheme();
         if (fontChanged || iconsChanged) this.rebuild();
         else this.requestFrame();
@@ -187,6 +201,8 @@ export class NebbiaRuntime {
         this.dead = true;
         cancelAnimationFrame(this.raf);
         this.observer?.disconnect();
+        this.unsubscribeFontStrokes();
+        if (this.fontStrokesTimer) clearTimeout(this.fontStrokesTimer);
         document.fonts?.removeEventListener('loadingdone', this.handleFontsLoaded);
         this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
         this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
@@ -215,6 +231,15 @@ export class NebbiaRuntime {
         if (!arrived) return;
         this.glyphs.clear();
         this.rebuild();
+    };
+
+    // 笔顺模型又算好一批字：攒一会儿重排，已经开写的句子沿用原来的字形
+    private handleFontStrokes = () => {
+        if (this.dead || !this.glyphs.fontStrokes || this.fontStrokesTimer) return;
+        this.fontStrokesTimer = setTimeout(() => {
+            this.fontStrokesTimer = null;
+            if (!this.dead) this.rebuild(true);
+        }, FONT_STROKES_REBUILD_MS);
     };
 
     private applyTheme() {
@@ -263,7 +288,8 @@ export class NebbiaRuntime {
     }
 
     // 换歌、改排版相关的设置、换尺寸时重排整首；图标先加载好（图标字形要用 lucide 的节点）
-    private rebuild() {
+    // keepStarted：已经开写（或就要开写）的句子沿用上次排好的字形，只给后面的句子换上新到的字体笔画
+    private rebuild(keepStarted = false) {
         const token = ++this.buildToken;
         const { lines, seed, title, artist } = this.song;
         const themeIcons = resolveLucideIconNames(this.theme.lyricsIcons);
@@ -271,7 +297,20 @@ export class NebbiaRuntime {
         void loadLucideIcons([...doodles, ...collectEmojiIcons(lines)]).catch(() => undefined).then(() => {
             if (token !== this.buildToken || this.dead || !this.W) return;
             const source = this.showText ? appendNebbiaCredits(buildNebbiaLines(lines, seed, this.tuning.doodle, doodles), this.tuning.credits ? title : null, artist) : [];
-            this.laid = buildNebbiaScene(source, this.glyphs, this.tuning, { W: this.W, H: this.H, fontScale: this.fontScale }, seed);
+            const prior = keepStarted ? this.laid : [];
+            const T = this.input.currentTime.get();
+            const keep = (li: number, i: number) => {
+                const line = prior[li];
+                if (!line || line.t !== source[li]?.t || line.chars.length !== source[li].chars.length || T < line.t - 1.5) return undefined;
+                return line.chars[i].base;
+            };
+            // 字体笔画按歌词顺序算：当前播放位置往后的句子先算
+            if (this.glyphs.fontStrokes) {
+                const order = [...source.filter(l => l.end >= T), ...source.filter(l => l.end < T)];
+                this.glyphs.want(order.flatMap(l => l.chars.map(c => c.ch)));
+            }
+            this.laid = buildNebbiaScene(source, this.glyphs, this.tuning, { W: this.W, H: this.H, fontScale: this.fontScale }, seed, keep);
+            if (!keepStarted) this.gl.trimInk();
             this.hits = new NebbiaHits(hashVisualizerSeed(String(seed)));
             this.words = source.map(l => l.words);
             this.rebuildHits();

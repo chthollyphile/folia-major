@@ -24,6 +24,9 @@ export interface InkContext {
 }
 
 
+/** 字体墨显出的前沿有几个遮罩像素宽。 */
+const FONT_FEATHER = 2.5;
+
 /** 水珠流下来的水痕：宽度接近水珠本身，边缘起伏，越往上越细；wob(y) 是 y 处的横向偏移，和水珠头同一条。 */
 export const strokeTrail = (ctx: NebbiaSegments, x: number, y0: number, y1: number, width: number, v: number, seed: number, wob: (y: number) => number) => {
     if (y1 - y0 < 2) return;
@@ -126,14 +129,18 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     // 笔画多的字笔画收细一点，不然挤在一起糊成一团。宽度按字号（em）缩放：原来 8×thin 像素的下限在字号小于 8 / strokeWidth
     // （默认约 89 像素）时盖过笔画粗细设置，字越小笔画相对越粗、堵住字腔。只留 0.6 个遮罩纹素的下限，半分辨率遮罩上细笔画不断成点
     const thin = clamp(Math.sqrt(9 / g.strokes.length), 0.55, 1);
-    const width = Math.max(ink.strokeWidth * thin, 0.6 / (MASK_SCALE * c.s));
+    // 字体墨：笔画宽就是字体自己的，水珠按平均笔画宽挂在两边
+    const width = g.ink ? g.ink.width : Math.max(ink.strokeWidth * thin, 0.6 / (MASK_SCALE * c.s));
     const drips: [GlyphStroke, Drip, number][] = [];
+    /** 字体墨：写到的弧长（前面写完的笔画全长加上正在写的这笔写到的）。 */
+    let covered = 0;
     g.strokes.forEach((st, si) => {
         const dur = fadeIn ? 0 : inkTime * st.len / g.total;
         if (local <= 0) return;
         const p = dur > 0 ? clamp(local / dur) : 1;
         const drawn = (p * 0.4 + smooth(p) * 0.6) * st.len;
-        if (clarity > 0.002) { partialPath(ctx, st, drawn); ctx.stroke(width, clarity); }
+        covered += drawn;
+        if (clarity > 0.002 && !g.ink) { partialPath(ctx, st, drawn); ctx.stroke(width, clarity); }
         if (ink.sweeps && !fadeIn && p > 0 && p < 1) pushPen(ink.sweeps, c, st, drawn, width);
         if (ink.wet && !fadeIn && drawn > 0 && beadV > 0.3) pushWet(ink.wet, c, st, drawn, width);
         if (!fadeIn) {
@@ -164,6 +171,9 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
         }
         local -= dur + (fadeIn ? 0 : gap);
     });
+    // 前沿羽化约 FONT_FEATHER 个遮罩像素宽
+    // 写完了就整个显出来（前沿的羽化不留在最后一笔的末端）
+    if (g.ink && clarity > 0.002) ctx.tile(g.ink, covered >= g.total * 0.999 ? 2 : covered / g.total, clarity, FONT_FEATHER / Math.max(1, g.total * c.s * MASK_SCALE));
     ctx.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
     for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV, alive);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
