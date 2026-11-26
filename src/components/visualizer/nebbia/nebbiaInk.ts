@@ -133,8 +133,10 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     // 字体墨：墨边按笔画粗细设置外扩 / 内缩（默认值时原样），水痕、笔尖用典型笔宽乘上设置的倍数，水珠挂在各点实际的墨边上，大小对着骨架字形的比例
     const look = g.ink ? fontInkLook(g.ink.width, ink.strokeWidth, thin) : null;
     const minWidth = 0.6 / (MASK_SCALE * c.s);
-    const width = look ? Math.max(look.width, minWidth) : Math.max(ink.strokeWidth * thin, minWidth);
-    const beadScale = look ? look.beadScale : 1;
+    // 字体笔画（中线笔画带字体笔宽剖面）：每点的笔宽 = 设置的笔宽 × 字体笔宽倍数，设置等于默认时和骨架字形一样粗；水痕、笔尖用倍数的中位数，水珠大小按它缩（细字体的水珠小一点）
+    const base = ink.strokeWidth * thin, pen = !g.ink && g.penRel !== undefined ? g.penRel : null;
+    const width = look ? Math.max(look.width, minWidth) : Math.max(pen !== null ? base * pen : base, minWidth);
+    const beadScale = look ? look.beadScale : pen !== null ? clamp(Math.sqrt(pen), 0.6, 1) : 1;
     const drips: [GlyphStroke, Drip, number][] = [];
     /** 字体墨：写到的弧长（前面写完的笔画全长加上正在写的这笔写到的）。 */
     let covered = 0;
@@ -144,14 +146,17 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
         const p = dur > 0 ? clamp(local / dur) : 1;
         const drawn = (p * 0.4 + smooth(p) * 0.6) * st.len;
         covered += drawn;
-        if (clarity > 0.002 && !g.ink) { partialPath(ctx, st, drawn); ctx.stroke(width, clarity); }
+        if (clarity > 0.002 && !g.ink) {
+            partialPath(ctx, st, drawn);
+            if (st.pw) ctx.strokeProfile(st.pw, base, minWidth, clarity); else ctx.stroke(width, clarity);
+        }
         if (ink.sweeps && !fadeIn && p > 0 && p < 1) pushPen(ink.sweeps, c, st, drawn, width);
         if (ink.wet && !fadeIn && drawn > 0 && beadV > 0.3) pushWet(ink.wet, c, st, drawn, width);
         if (!fadeIn) {
             for (const b of c.beads[si]) {
                 if (b.s > drawn) break;
                 const br = b.r * beadScale;
-                const half = look ? Math.max(0.002, (st.hw ? interpolateAt(st.cum, st.hw, b.s) : g.ink!.width / 2) + look.grow) : width / 2;
+                const half = look ? Math.max(0.002, (st.hw ? interpolateAt(st.cum, st.hw, b.s) : g.ink!.width / 2) + look.grow) : st.pw ? Math.max(base * interpolateAt(st.cum, st.pw, b.s), minWidth) / 2 : width / 2;
                 const off = half + (br * 0.7 + b.j * 1.5 * beadScale) / c.s;
                 const [x, y] = toScreen(c, b.x + b.nx * off, b.y + b.ny * off);
                 const bv = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;

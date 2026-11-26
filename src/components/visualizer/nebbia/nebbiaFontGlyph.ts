@@ -1,7 +1,7 @@
 import type { StrokesGpuGlyph } from '../../../services/analysis/beatThisGpu';
 import { clamp } from './nebbiaConstants';
 import { measureGlyph, type Glyph, type Pt } from './nebbiaGlyphs';
-import { CANON, chamferDistance, encodeSigned, halfWidthAt, median, propagateNearest, SPREAD_R, signedField } from './nebbiaFontField';
+import { CANON, chamferDistance, encodeSigned, halfWidthAt, median, PEN_STEP, penWidthProfile, propagateNearest, relativeWidth, resamplePolyline, SPREAD_R, signedField, type PenSpan } from './nebbiaFontField';
 
 // src/components/visualizer/nebbia/nebbiaFontGlyph.ts
 // 字体墨的字形：把字用所选字体画成模型网格（256²）上的墨、算模型输入特征，再把模型结果（笔迹 + 每个墨像素的书写位置）
@@ -22,6 +22,11 @@ export interface NebbiaFontInk {
 }
 
 const R = CANON;
+/**
+ * 字体笔画的两种画法：false（默认）= 模型笔迹当普通的中线笔画画（珠子、粗细、手写变形都照骨架字形，笔宽剖面取自字体）；
+ * true = 原来的字块（字体自己的墨按书写位置显出来，粗细设置靠有符号距离外扩）。
+ */
+export const FONT_INK_TILE = false;
 /** 典型笔宽的取值范围（em）。 */
 const WIDTH_MIN = 0.02, WIDTH_MAX = 0.12;
 /** 字块边长：模型网格的一半（雾笺的遮罩是半分辨率，字块再大也看不出来）。 */
@@ -121,6 +126,7 @@ export const buildGlyph = (canon: { img: Float32Array; a: number; bx: number; by
         for (let i = 0; i + 1 < pen.length; i += 2) { const [px, py] = toPx(pen[i], pen[i + 1]); pts.push([(px - bx) / a, (py - by) / a]); }
         return pts;
     });
+    if (!FONT_INK_TILE) return buildPenGlyph(canon, polys, out);
     const g = measureGlyph(polys);
     if (!g) return null;
     const n = R * R;
@@ -161,4 +167,31 @@ export const buildGlyph = (canon: { img: Float32Array; a: number; bx: number; by
     }
     const ink: NebbiaFontInk = { id: nextInkId++, tile, x0: -bx / a, y0: -by / a, size: R / a, width };
     return { ...g, ink };
+};
+
+/** 模型笔迹 → 普通的中线笔画字形：笔迹重采样到骨架字形的点密度，每个点带字体笔宽倍数（按书写位置分格算，不采样笔迹点处的距离）。 */
+const buildPenGlyph = (canon: { img: Float32Array; a: number; bx: number; by: number }, polys: Pt[][], out: StrokesGpuGlyph): Glyph | null => {
+    const { img, a } = canon;
+    // 整字笔迹总长按原始笔迹算（模型的书写位置按它归一）；太短的笔画 measureGlyph 会丢，这里先挑好
+    const lens = polys.map(p => p.reduce((sum, q, i) => (i ? sum + Math.hypot(q[0] - p[i - 1][0], q[1] - p[i - 1][1]) : 0), 0));
+    const total = lens.reduce((x, y) => x + y, 0);
+    const spans: PenSpan[] = [], kept: Pt[][] = [];
+    let start = 0;
+    polys.forEach((p, i) => {
+        if (p.length > 1 && lens[i] > 0.005) {
+            const pts = resamplePolyline(p, PEN_STEP);
+            kept.push(pts);
+            spans.push({ start, len: lens[i], n: pts.length });
+        }
+        start += lens[i];
+    });
+    const g = measureGlyph(kept);
+    if (!g) return null;
+    if (g.strokes.length === spans.length) {
+        const widths = penWidthProfile(out.along, img, a, total, spans);
+        const rel: number[] = [];
+        g.strokes.forEach((st, k) => { st.pw = widths[k].map(relativeWidth); rel.push(...st.pw); });
+        g.penRel = median(rel);
+    }
+    return g;
 };

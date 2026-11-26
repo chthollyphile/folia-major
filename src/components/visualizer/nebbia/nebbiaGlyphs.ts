@@ -16,12 +16,16 @@ export interface GlyphStroke {
     pts: Pt[]; cum: number[]; len: number;
     /** 字体墨的字：每个点处的半笔宽（em），水珠按它挂到墨边上。 */
     hw?: number[];
+    /** 字体笔画（笔迹带字体笔宽）：每个点处的笔宽相对骨架字形笔宽的倍数（nebbiaFontField.ts）。 */
+    pw?: number[];
 }
 export interface Glyph {
     strokes: GlyphStroke[];
     total: number;
     /** 笔顺模型给的字：显出来的是字体自己的墨（nebbiaMaskGl.ts 的字块），笔画只给笔尖和水珠用；不做手写变形。 */
     ink?: NebbiaFontInk;
+    /** 字体笔画走普通中线笔画的字：各点笔宽倍数 pw 的中位数（水珠大小、水痕宽度按它走）。 */
+    penRel?: number;
 }
 
 /** 量出每一笔的累计弧长；太短的笔画丢掉。 */
@@ -179,7 +183,14 @@ export const warpGlyph = (g: Glyph, rnd: () => number, j: number): Glyph => {
             return whole([u - ty / tl * k, v + tx / tl * k]);
         });
     });
-    return measureGlyph(polys) ?? g;
+    const out = measureGlyph(polys);
+    if (!out) return g;
+    // 字体笔宽剖面跟着各笔走（变形不改点数）
+    if (g.penRel !== undefined && out.strokes.length === g.strokes.length) {
+        out.strokes.forEach((st, i) => { st.pw = g.strokes[i].pw; });
+        out.penRel = g.penRel;
+    }
+    return out;
 };
 
 /** 折线上弧长 s 处的点和法线：[x, y, nx, ny]。 */

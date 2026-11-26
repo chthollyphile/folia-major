@@ -64,6 +64,20 @@ export class NebbiaSegments {
     }
 
     /**
+     * 描当前路径，每一段的宽 = base × 两端倍数 rel 的平均（rel 按路径点的序号取，超出的用最后一个），不小于 minWidth（宽度在当前变换下）。
+     * 相邻段宽度不同时圆头线段互相盖住，接缝处不会有缺口。
+     */
+    strokeProfile(rel: readonly number[], base: number, minWidth: number, v: number) {
+        const p = this.path, last = rel.length - 1;
+        for (let i = 2, j = 1; i < p.length; i += 2, j += 1) {
+            if (Number.isNaN(p[i]) || Number.isNaN(p[i - 2])) continue;
+            const w = Math.max(minWidth, base * (rel[Math.min(j - 1, last)] + rel[Math.min(j, last)]) * 0.5);
+            this.push(p[i - 2], p[i - 1], p[i], p[i + 1], w * this.k, v);
+        }
+        p.length = 0;
+    }
+
+    /**
      * 一个字的字体墨：字块在当前变换下（字内 em 坐标）的位置是 ink.x0、ink.y0、边长 ink.size；书写位置不超过 reveal 的墨显出来，
      * feather 是显出的前沿有多宽（书写位置单位），v 是亮度，grow 是墨边外扩多少（em，一侧，负为内缩；0 = 字体原样）。
      */
