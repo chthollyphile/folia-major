@@ -245,8 +245,11 @@ export type LinearParams = Partial<Record<(typeof LINEAR_FIELDS)[number], number
 
 /** A full uniform from the fields given; identity row mapping and no options by default. */
 export const linearParams = (given: LinearParams): number[] => {
-    const defaults: LinearParams = { rpz: 0x7fffffff, xzs: 0, xoz: 0, ozs: 0, ooz: 0, xoff: 0, yoff: 0, b: NO_BIAS, tabRows: 1, flags: 0, rowMul: 1, actN: 0xffffffff, d: 0, tmax: 0, kvld: 0, lg: 0, lb: 0, tab: 0, vec: 0, ld2: 0, m: 0 };
+    const defaults: LinearParams = { rpz: 0x7fffffff, xoz: 0, ooz: 0, xoff: 0, yoff: 0, b: NO_BIAS, tabRows: 1, flags: 0, rowMul: 1, actN: 0xffffffff, d: 0, tmax: 0, kvld: 0, lg: 0, lb: 0, tab: 0, vec: 0, ld2: 0, m: 0 };
     const all = { ...defaults, ...given };
+    // Group strides default to the group size: rows map to themselves unless a side is regrouped.
+    all.xzs ??= all.rpz;
+    all.ozs ??= all.rpz;
     if (all.ldx === undefined) all.ldx = all.k;
     if (all.ldy === undefined) all.ldy = all.n;
     return LINEAR_FIELDS.map((field) => {
