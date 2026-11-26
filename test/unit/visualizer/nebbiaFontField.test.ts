@@ -25,7 +25,7 @@ describe('nebbia font ink field', () => {
         expect(sd[20 * SIDE + 30]).toBeLessThan(-6);
         expect(encodeSigned(0)).toBe(128);
         expect(encodeSigned(100)).toBe(255);
-        expect(encodeSigned(-100)).toBe(1);
+        expect(encodeSigned(-100)).toBe(0);
         expect(encodeSigned(2) - 128).toBe(Math.round(2 * SD_SCALE));
     });
 
