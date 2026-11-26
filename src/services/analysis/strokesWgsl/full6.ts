@@ -69,6 +69,11 @@ export class Full6Wgsl {
 
     private constructor(private readonly device: GPUDevice, private readonly graph: GpuGraph, readonly net: Full6Graph) {}
 
+    /** Per-dispatch GPU ms by op label, from the first paced run's timestamps (empty before one). */
+    get costTable(): ReadonlyMap<string, number> {
+        return this.costs;
+    }
+
     /** GPU memory held, bytes. */
     get bytes(): number {
         return this.graph.owned.reduce((sum, buffer) => sum + buffer.size, 0);

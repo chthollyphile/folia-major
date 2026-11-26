@@ -144,30 +144,59 @@ async function alignFull6(device: GPUDevice, config: Config, ref: RefData, repor
     full6.destroy();
 }
 
-/** full6 generate timings over batch sizes (wall, serial or paced), as ms total and ms a character. */
+/**
+ * full6 generate timings over batch sizes: the 126 glyphs (256 for B = 256, wrapped) run B at a time without
+ * the reference, after one warm-up batch; ms in all and per glyph, with the encode / decode split summed.
+ */
 async function bench(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
     const all = glyphsOf(ref, 126);
     const rows: unknown[] = [];
     for (const B of config.batches) {
         const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(8, B) });
-        const glyphs = Array.from({ length: B }, (_, i) => all[i % all.length]);
+        const count = Math.max(126, B);
+        const glyphs = Array.from({ length: count }, (_, i) => all[i % all.length]);
         const pacing = config.paced ? { sliceMs: 2, inFlight: 1 } : undefined;
-        await full6.generate(glyphs.slice(0, Math.min(B, 4)), { useReference: false, pacing, readEvery: config.readEvery });
-        const runs: number[] = [];
-        let stats = full6.lastStats;
-        for (let r = 0; r < 3; r += 1) {
-            const started = performance.now();
-            await full6.generate(glyphs, { useReference: false, pacing, readEvery: config.readEvery });
-            runs.push(performance.now() - started);
-            stats = full6.lastStats;
+        const options = { useReference: false, pacing, readEvery: config.readEvery };
+        await full6.generate(glyphs.slice(0, B), options);
+        let encodeMs = 0;
+        let decodeMs = 0;
+        let steps = 0;
+        let submits = 0;
+        const started = performance.now();
+        for (let at = 0; at < count; at += B) {
+            await full6.generate(glyphs.slice(at, at + B), options);
+            const stats = full6.lastStats!;
+            encodeMs += stats.encodeMs;
+            decodeMs += stats.decodeMs;
+            steps += stats.steps;
+            submits += stats.submits;
         }
-        const best = Math.min(...runs);
-        const row = { B, totalMs: best, perCharMs: best / B, encodeMs: stats?.encodeMs, decodeMs: stats?.decodeMs, steps: stats?.steps, perStepMs: (stats?.decodeMs ?? 0) / (stats?.steps ?? 1), submits: stats?.submits, longestMs: stats?.longestMs, gpuMB: full6.bytes / 2 ** 20 };
+        const total = performance.now() - started;
+        const row = { B, glyphs: count, totalMs: total, perGlyphMs: total / count, encodeMs, decodeMs, steps, perStepMs: decodeMs / steps, submits, longestMs: full6.lastStats?.longestMs ?? null, gpuMB: full6.bytes / 2 ** 20 };
         rows.push(row);
-        log(`[bench B=${B}] total ${best.toFixed(1)} ms, ${(best / B).toFixed(2)} ms/char; encode ${stats?.encodeMs.toFixed(1)} decode ${stats?.decodeMs.toFixed(1)} ms over ${stats?.steps} steps (${row.perStepMs.toFixed(2)} ms/step), submits ${stats?.submits}, longest dispatch ${stats?.longestMs?.toFixed(3) ?? '-'} ms, GPU ${row.gpuMB.toFixed(0)} MB`);
+        log(`[bench B=${B}] ${count} glyphs ${total.toFixed(0)} ms = ${(total / count).toFixed(2)} ms/glyph; encode ${encodeMs.toFixed(0)} ms (${(encodeMs / count).toFixed(2)}/glyph), decode ${decodeMs.toFixed(0)} ms over ${steps} steps (${row.perStepMs.toFixed(2)} ms/step); submits ${submits}; longest dispatch ${row.longestMs?.toFixed(3) ?? '-'} ms; GPU ${row.gpuMB.toFixed(0)} MB`);
         full6.destroy();
     }
     report.bench = rows;
+}
+
+/** Per-dispatch GPU costs (timestamps) of full6's encoder chunk and one decode step at SW_B[0], and of own1. */
+async function profile(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
+    const B = config.batches[0];
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(8, B) });
+    const all = glyphsOf(ref, 126);
+    await full6.generate(Array.from({ length: B }, (_, i) => all[i % 126]), { useReference: false, pacing: { sliceMs: 2, inFlight: 1 } });
+    const table = [...full6.costTable.entries()];
+    const groups = new Map<string, number>();
+    for (const [label, ms] of table) {
+        const key = label.replace(/^layers\.\d+\./, 'layers.*.').replace(/^refs\.\d+\./, 'refs.*.').replace(/^enc\.s(\d)\.\d\.([ab]|n\d\.gn\d)$/, 'enc.s$1.res.$2');
+        groups.set(key, (groups.get(key) ?? 0) + ms);
+    }
+    const top = [...groups.entries()].sort((a, b) => b[1] - a[1]);
+    log(`[profile full6 B=${B}] total ${table.reduce((s, [, ms]) => s + ms, 0).toFixed(2)} ms over ${table.length} ops`);
+    for (const [label, ms] of top.slice(0, 40)) log(`  ${label.padEnd(28)} ${ms.toFixed(3)}`);
+    report.profile = Object.fromEntries(table);
+    full6.destroy();
 }
 
 async function main() {
@@ -190,6 +219,7 @@ async function main() {
     if (config.task === 'align' || config.task === 'full6') await alignFull6(device, config, ref, report);
     if (config.task === 'align' || config.task === 'own') await runOwnChecks(device, config, ref, report, log);
     if (config.task === 'bench') await bench(device, config, ref, report);
+    if (config.task === 'profile') await profile(device, config, ref, report);
     fs.writeFileSync(path.join(config.out, `report-${config.task}-${report.mode}.json`), JSON.stringify(report, null, 1));
     ipcRenderer.send('sw-done', 0);
 }

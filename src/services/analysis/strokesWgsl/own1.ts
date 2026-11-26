@@ -73,6 +73,11 @@ export class Own1Wgsl {
         this.build();
     }
 
+    /** Per-dispatch GPU ms by op label, from the first paced run's timestamps (empty before one). */
+    get costTable(): ReadonlyMap<string, number> {
+        return this.costs;
+    }
+
     get bytes(): number {
         return this.graph.owned.reduce((sum, buffer) => sum + buffer.size, 0);
     }
