@@ -83,13 +83,13 @@ export class Layers {
         ];
     }
 
-    /** own1's Block output: y = silu(GN(x)) + skip, all [z, c, hw]. */
+    /** own2's residual Blk output: y = silu(GN(x)) + skip, all [z, c, hw]. */
     gnSiluSkip(label: string, x: GPUBuffer, st: GPUBuffer, skip: GPUBuffer, y: GPUBuffer, z: number, c: number, hw: number, norm: string): Op {
         const total = z * c * hw;
         return this.graph.op(label, gnApplyKernel('siluSkip', false), { W: this.weights, x, st, s: skip, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), 0], flat(total));
     }
 
-    /** own2's norm before a residual block: y = silu(GN(x)), all [z, c, hw]. */
+    /** own2's conv -> GN -> SiLU: y = silu(GN(x)), all [z, c, hw]. */
     gnSilu(label: string, x: GPUBuffer, st: GPUBuffer, y: GPUBuffer, z: number, c: number, hw: number, norm: string): Op {
         const total = z * c * hw;
         return this.graph.op(label, gnApplyKernel('silu', false), { W: this.weights, x, st, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), 0], flat(total));

@@ -1,11 +1,10 @@
 import { WEIGHTS, type Kernel } from './kernels';
 
 // src/services/analysis/strokesWgsl/kernelsSeq.ts
-// WGSL for the parts of full6's decode step and own1's head that are not a GEMM: multi-head attention
-// (the decoder's KV cache, the cross-attention over the per-character memory, the refine layers' 16-point
-// self-attention, own1's bottleneck), the step's input embedding (seg_feat + grid_sample of fmap), the
-// refine layers' deformable sampling, the continue / end decision and snap, the step counter, own1's
-// pen queries, logits + argmax, and the nearest-point projection that turns owners into reveal times.
+// WGSL for the parts of full6's decode step that are not a GEMM: multi-head attention (the decoder's KV
+// cache, the cross-attention over the per-character memory, the refine layers' 16-point self-attention;
+// own2's bottleneck uses it too), the step's input embedding (seg_feat + grid_sample of fmap), the refine
+// layers' deformable sampling, the continue / end decision and snap, and the step counter.
 //
 // Always f32 (HANDOFF_FOLIA.md §4, and the brief): sampling coordinates, fourier, coordinate accumulation
 // and the decisions. Storage that may be f16 (KV caches, fmap) is read through `kvT` / `fmT`.
@@ -23,8 +22,6 @@ export const TMAX = 96;
 export const MEM_ROWS = 296;
 /** Floats recorded per (character, step): refined pos 32, coarse 32, cont logit, end logit. */
 export const REC = 66;
-/** own1 pens one logits pass takes (its pen queries live in workgroup memory). */
-export const OWN_MAX_PENS = 48;
 
 /**
  * sin and cos of an f32 angle up to a few thousand radians, to ~1 ulp: fourier's 2^7 pi * x reaches
@@ -398,159 +395,5 @@ export const ADVANCE: Kernel = {
 @group(0) @binding(0) var<storage, read_write> st: array<u32>;
 @compute @workgroup_size(1)
 fn main() { st[0] = st[0] + 1u; }
-`,
-};
-
-/**
- * The pen queries, one workgroup (64, a channel each) per pen: Fm (channel-major [64, side, side]: own1 256,
- * own2 128) of image pz[pen] sampled at its 32 resampled points -> [mean, pt 0, 10, 21, 31] (5 x 64) + the
- * host's 8 extras = 328 inputs of q.0.
- */
-export const ownQueryKernel = (side: number): Kernel => ({
-    bindings: ['fm', 'pens', 'extra', 'pz', 'qin'],
-    uniform: false,
-    code: /* wgsl */ `
-@group(0) @binding(0) var<storage, read> fm: array<f32>;
-@group(0) @binding(1) var<storage, read> pens: array<f32>;
-@group(0) @binding(2) var<storage, read> extra: array<f32>;
-@group(0) @binding(3) var<storage, read> pz: array<u32>;
-@group(0) @binding(4) var<storage, read_write> qin: array<f32>;
-fn tap(base: u32, y: f32, x: f32) -> f32 {
-  if (x < 0.0 || x > ${side - 1}.0 || y < 0.0 || y > ${side - 1}.0) { return 0.0; }
-  return fm[base + u32(y) * ${side}u + u32(x)];
-}
-@compute @workgroup_size(64)
-fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) c: u32) {
-  let pen = wg.x;
-  let base = (pz[pen] * 64u + c) * ${side * side}u;
-  var mean = 0.0;
-  for (var i = 0u; i < 32u; i++) {
-    let ix = ((pens[(pen * 32u + i) * 2u] + 1.0) * ${side}.0 - 1.0) / 2.0;
-    let iy = ((pens[(pen * 32u + i) * 2u + 1u] + 1.0) * ${side}.0 - 1.0) / 2.0;
-    let x0 = floor(ix);
-    let y0 = floor(iy);
-    let x1 = x0 + 1.0;
-    let y1 = y0 + 1.0;
-    let v = tap(base, y0, x0) * ((x1 - ix) * (y1 - iy)) + tap(base, y0, x1) * ((ix - x0) * (y1 - iy))
-      + tap(base, y1, x0) * ((x1 - ix) * (iy - y0)) + tap(base, y1, x1) * ((ix - x0) * (iy - y0));
-    mean += v;
-    if (i == 0u) { qin[pen * 328u + 64u + c] = v; }
-    if (i == 10u) { qin[pen * 328u + 128u + c] = v; }
-    if (i == 21u) { qin[pen * 328u + 192u + c] = v; }
-    if (i == 31u) { qin[pen * 328u + 256u + c] = v; }
-  }
-  qin[pen * 328u + c] = mean / 32.0;
-  if (c < 8u) { qin[pen * 328u + 320u + c] = extra[pen * 8u + c]; }
-}
-`,
-});
-
-/** own1's queries (Fm at 256 x 256). */
-export const OWN_QUERY = ownQueryKernel(256);
-
-/**
- * own1's owners, one invocation a pixel: logit_p = Fm[:, y, x] . q_p * 0.125 over the image's pens
- * (first max wins, as argmax), written as the owner and the top-1 minus top-2 gap; `logits` (when its
- * flag is set) keeps every pen's logit for the alignment check.
- */
-export const OWN_LOGITS: Kernel = {
-    bindings: ['fm', 'qv', 'info', 'owner', 'gap', 'logits'],
-    uniform: true,
-    code: /* wgsl */ `
-struct P { z: u32, keep: u32 }
-@group(0) @binding(0) var<storage, read> fm: array<f32>;
-@group(0) @binding(1) var<storage, read> qv: array<f32>;
-@group(0) @binding(2) var<storage, read> info: array<u32>;
-@group(0) @binding(3) var<storage, read_write> owner: array<u32>;
-@group(0) @binding(4) var<storage, read_write> gap: array<f32>;
-@group(0) @binding(5) var<storage, read_write> logits: array<f32>;
-@group(0) @binding(6) var<uniform> p: P;
-var<workgroup> qs: array<f32, ${OWN_MAX_PENS * 64}>;
-@compute @workgroup_size(256)
-fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u32) {
-  let z = wg.y;
-  let first = info[z * 2u];
-  let n = info[z * 2u + 1u];
-  for (var e = li; e < n * 64u; e += 256u) { qs[e] = qv[first * 64u + e]; }
-  workgroupBarrier();
-  let px = wg.x * 256u + li;
-  let base = z * 64u * 65536u + px;
-  var f: array<f32, 64>;
-  for (var d = 0u; d < 64u; d++) { f[d] = fm[base + d * 65536u]; }
-  var best = -3.0e38;
-  var second = -3.0e38;
-  var arg = 0u;
-  for (var k = 0u; k < n; k++) {
-    var s = 0.0;
-    for (var d = 0u; d < 64u; d++) { s += f[d] * qs[k * 64u + d]; }
-    s = s * 0.125;
-    if (p.keep != 0u) { logits[(first + k) * 65536u + px] = s; }
-    if (s > best) { second = best; best = s; arg = k; } else if (s > second) { second = s; }
-  }
-  owner[z * 65536u + px] = arg;
-  gap[z * 65536u + px] = select(1.0e4, best - second, n > 1u);
-}
-`,
-};
-
-/**
- * WGSL of ownInput.nearestOnPolyline over `verts` (x, y, along, time) lo..hi: the nearest point to (u, v) on
- * the pen's segments (projection clamped to each, first of equals) -> (along, time) there.
- */
-export const PEN_PROJECT = /* wgsl */ `
-fn nearestOnPen(lo: u32, hi: u32, u: f32, v: f32) -> vec2f {
-  let w = verts[lo];
-  var best = (u - w.x) * (u - w.x) + (v - w.y) * (v - w.y);
-  var res = vec2f(w.z, w.w);
-  for (var i = lo; i + 1u < hi; i++) {
-    let a = verts[i];
-    let b = verts[i + 1u];
-    let ex = b.x - a.x;
-    let ey = b.y - a.y;
-    let len2 = ex * ex + ey * ey;
-    var f = 0.0;
-    if (len2 > 0.0) { f = clamp(((u - a.x) * ex + (v - a.y) * ey) / len2, 0.0, 1.0); }
-    let du = u - (a.x + f * ex);
-    let dv = v - (a.y + f * ey);
-    let d = du * du + dv * dv;
-    if (d < best || i == lo) { best = d; res = vec2f(a.z + f * (b.z - a.z), a.w + f * (b.w - a.w)); }
-  }
-  return res;
-}
-`;
-
-/**
- * The reveal map (example.py, continuous): for each ink pixel (own1 input ch0 > 0.1, `ink` = the [z, 4, 256, 256]
- * input) the nearest point on its owner pen's segments - the pen index, its arc-length position along the pen
- * (0..1) and its time on the glyph's time axis (0..1); -1 / -1 / -1 off the ink. Vertices: (x, y, along,
- * time) per point; pmeta = [z][first pen, pens], then [pen][first vertex, end].
- */
-export const PROJECT: Kernel = {
-    bindings: ['ink', 'owner', 'verts', 'pmeta', 'out'],
-    uniform: true,
-    code: /* wgsl */ `
-struct P { z: u32 }
-@group(0) @binding(0) var<storage, read> ink: array<f32>;
-@group(0) @binding(1) var<storage, read> owner: array<u32>;
-@group(0) @binding(2) var<storage, read> verts: array<vec4f>;
-@group(0) @binding(3) var<storage, read> pmeta: array<u32>;
-@group(0) @binding(4) var<storage, read_write> out: array<vec4f>;
-@group(0) @binding(5) var<uniform> p: P;
-${PEN_PROJECT}
-@compute @workgroup_size(256)
-fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u32) {
-  let z = wg.y;
-  let px = wg.x * 256u + li;
-  let at = z * 65536u + px;
-  if (ink[z * 262144u + px] <= 0.1) { out[at] = vec4f(-1.0, -1.0, -1.0, 0.0); return; }
-  let firstPen = pmeta[z * 2u];
-  let pen = owner[at];
-  let lo = pmeta[2u * p.z + 2u * (firstPen + pen)];
-  let hi = pmeta[2u * p.z + 2u * (firstPen + pen) + 1u];
-  let u = (f32(px % 256u) + 0.5) / 256.0 * 2.0 - 1.0;
-  let v = (f32(px / 256u) + 0.5) / 256.0 * 2.0 - 1.0;
-  let hit = nearestOnPen(lo, hi, u, v);
-  out[at] = vec4f(f32(pen), hit.x, hit.y, 0.0);
-}
 `,
 };

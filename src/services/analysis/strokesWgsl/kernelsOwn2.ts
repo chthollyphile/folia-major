@@ -1,15 +1,88 @@
 import { ELEMENT_HEAD, UPSAMPLE, type Kernel } from './kernels';
-import { OWN_MAX_PENS, PEN_PROJECT } from './kernelsSeq';
 
 // src/services/analysis/strokesWgsl/kernelsOwn2.ts
 // WGSL of own2's glue (~/bihua hf/code/ownhead.py; the convs, GroupNorm, attention and query MLP are the shared
-// kernels): full6's s0 tap stored per glyph, own2's pooled 4-channel input, the concatenations of its U-Net
+// kernels): the pen queries sampled from Fm, full6's s0 tap stored per glyph, own2's pooled 4-channel input, the concatenations of its U-Net
 // (full6's channel-last fmap at 64 x 64, a bilinear x2 of the coarser level with skips and the s0 tap), the
 // 16 x 16 tokens plus full6's image tokens, the pen logits at 128 x 128 and the per-ink-pixel assignment:
 // logits bilinear x2 to 256 x 256, argmax, then the owner pen's nearest point (PEN_PROJECT).
 //
 // Element kernels run one invocation an element over `total` (flat() workgroups); every tensor is [z, C, H, W]
 // f32 unless said otherwise. A chunk's glyphs are z = 0..chunk-1; full6's buffers are bound at the chunk's slots.
+
+/** Pens a glyph may have: one logits pass keeps its queries in workgroup memory. */
+export const OWN_MAX_PENS = 48;
+
+/**
+ * WGSL of ownInput.nearestOnPolyline over `verts` (x, y, along, time) lo..hi: the nearest point to (u, v) on
+ * the pen's segments (projection clamped to each, first of equals) -> (along, time) there.
+ */
+export const PEN_PROJECT = /* wgsl */ `
+fn nearestOnPen(lo: u32, hi: u32, u: f32, v: f32) -> vec2f {
+  let w = verts[lo];
+  var best = (u - w.x) * (u - w.x) + (v - w.y) * (v - w.y);
+  var res = vec2f(w.z, w.w);
+  for (var i = lo; i + 1u < hi; i++) {
+    let a = verts[i];
+    let b = verts[i + 1u];
+    let ex = b.x - a.x;
+    let ey = b.y - a.y;
+    let len2 = ex * ex + ey * ey;
+    var f = 0.0;
+    if (len2 > 0.0) { f = clamp(((u - a.x) * ex + (v - a.y) * ey) / len2, 0.0, 1.0); }
+    let du = u - (a.x + f * ex);
+    let dv = v - (a.y + f * ey);
+    let d = du * du + dv * dv;
+    if (d < best || i == lo) { best = d; res = vec2f(a.z + f * (b.z - a.z), a.w + f * (b.w - a.w)); }
+  }
+  return res;
+}
+`;
+
+/**
+ * The pen queries, one workgroup (64, a channel each) per pen: Fm (channel-major [64, 128, 128]) of image
+ * pz[pen] sampled (grid_sample, bilinear, zeros, align_corners=False) at its 32 resampled points -> [mean,
+ * pt 0, 10, 21, 31] (5 x 64) + the host's 8 extras = 328 inputs of q.0.
+ */
+const querySide = 128;
+export const OWN2_QUERY: Kernel = {
+    bindings: ['fm', 'pens', 'extra', 'pz', 'qin'],
+    uniform: false,
+    code: /* wgsl */ `
+@group(0) @binding(0) var<storage, read> fm: array<f32>;
+@group(0) @binding(1) var<storage, read> pens: array<f32>;
+@group(0) @binding(2) var<storage, read> extra: array<f32>;
+@group(0) @binding(3) var<storage, read> pz: array<u32>;
+@group(0) @binding(4) var<storage, read_write> qin: array<f32>;
+fn tap(base: u32, y: f32, x: f32) -> f32 {
+  if (x < 0.0 || x > ${querySide - 1}.0 || y < 0.0 || y > ${querySide - 1}.0) { return 0.0; }
+  return fm[base + u32(y) * ${querySide}u + u32(x)];
+}
+@compute @workgroup_size(64)
+fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) c: u32) {
+  let pen = wg.x;
+  let base = (pz[pen] * 64u + c) * ${querySide * querySide}u;
+  var mean = 0.0;
+  for (var i = 0u; i < 32u; i++) {
+    let ix = ((pens[(pen * 32u + i) * 2u] + 1.0) * ${querySide}.0 - 1.0) / 2.0;
+    let iy = ((pens[(pen * 32u + i) * 2u + 1u] + 1.0) * ${querySide}.0 - 1.0) / 2.0;
+    let x0 = floor(ix);
+    let y0 = floor(iy);
+    let x1 = x0 + 1.0;
+    let y1 = y0 + 1.0;
+    let v = tap(base, y0, x0) * ((x1 - ix) * (y1 - iy)) + tap(base, y0, x1) * ((ix - x0) * (y1 - iy))
+      + tap(base, y1, x0) * ((x1 - ix) * (iy - y0)) + tap(base, y1, x1) * ((ix - x0) * (iy - y0));
+    mean += v;
+    if (i == 0u) { qin[pen * 328u + 64u + c] = v; }
+    if (i == 10u) { qin[pen * 328u + 128u + c] = v; }
+    if (i == 21u) { qin[pen * 328u + 192u + c] = v; }
+    if (i == 31u) { qin[pen * 328u + 256u + c] = v; }
+  }
+  qin[pen * 328u + c] = mean / 32.0;
+  if (c < 8u) { qin[pen * 328u + 320u + c] = extra[pen * 8u + c]; }
+}
+`,
+};
 
 /** full6's s0 output (enc.s0.3, a chunk's [z, 48, 128, 128]) kept per glyph: y = x, f16 storage when `half`. */
 export const tapStoreKernel = (half: boolean): Kernel => ({

@@ -3,20 +3,19 @@ import { Full6Wgsl } from '../../src/services/analysis/strokesWgsl/full6';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
 import { REC } from '../../src/services/analysis/strokesWgsl/kernelsSeq';
 import { fs, ipcRenderer, path } from './node';
-import { runOwnChecks } from './ownChecks';
 import { runOwn2Align, runOwnBench } from './own2Checks';
 import { RefData, glyphsOf, maxAbsDiff, percentile } from './refData';
 
 // dev/strokes-wgsl/harness.ts
 // Renderer side of the test shell (see main.cjs): opens a WebGPU device (shader-f16 / timestamp-query when
-// the adapter has them, the adapter's buffer limits), loads full6 / own1 / own2 by path and runs SW_TASK against
+// the adapter has them, the adapter's buffer limits), loads full6 / own2 by path and runs SW_TASK against
 // the torch reference data, printing the figures HANDOFF_FOLIA.md §4 and ~/bihua tools/mnn main.cpp report.
 
 const log = (line: string) => ipcRenderer.send('sw-log', line);
 const fmt = (v: number) => v.toExponential(3);
 
 export interface Config {
-    out: string; task: string; f16: boolean; full6: string; own1: string; own2: string; own2ref: string; ref: string;
+    out: string; task: string; f16: boolean; full6: string; own2: string; own2ref: string; ref: string;
     batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[]; alignB: number; chunk: number;
     own2Chunk: number; rounds: number;
 }
@@ -169,7 +168,7 @@ async function bench(device: GPUDevice, config: Config, ref: RefData, report: Re
     report.bench = rows;
 }
 
-/** Per-dispatch GPU costs (timestamps) of full6's encoder chunk and one decode step at SW_B[0], and of own1. */
+/** Per-dispatch GPU costs (timestamps) of full6's encoder chunk and one decode step at SW_B[0]. */
 async function profile(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
     const B = config.batches[0];
     const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(config.chunk, B) });
@@ -209,7 +208,6 @@ async function main() {
     const report: Record<string, unknown> = { mode, task: config.task };
     if (config.task === 'stages') await stages(device, config, ref);
     if (config.task === 'align' || config.task === 'full6') await alignFull6(device, config, ref, report);
-    if (config.task === 'align' || config.task === 'own') await runOwnChecks(device, config, ref, report, log);
     if (config.task === 'bench') await bench(device, config, ref, report);
     if (config.task === 'profile') await profile(device, config, ref, report);
     if (config.task === 'own2') await runOwn2Align(device, config, ref, new RefData(config.own2ref, fs, path), report, log);

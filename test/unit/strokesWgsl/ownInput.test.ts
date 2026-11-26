@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { pointTimes } from '@/services/analysis/strokesWgsl/hostMath';
+import { DUR0, PAUSE, SPEED, polylineLength } from '@/services/analysis/strokesWgsl/hostMath';
 import {
-    avgPool2, nearestOnPolyline, numpySum, own2Trajectory, pointTimes64, pushPenVertices, renderTrajectory, roundHalfEven, thickLine3,
+    avgPool2, nearestOnPolyline, numpySum, own2Trajectory, pointTimes64, pushPenVertices, roundHalfEven, thickLine3,
 } from '@/services/analysis/strokesWgsl/ownInput';
 
 // test/unit/strokesWgsl/ownInput.test.ts
@@ -38,13 +38,18 @@ describe('roundHalfEven', () => {
 });
 
 describe('pointTimes64', () => {
-    it('matches the f32 time axis to f32 precision and keeps f64', () => {
-        const pens = [Float32Array.from([-0.5, 0, 0, 0, 0.5, 0.1]), Float32Array.from([0, -0.5, 0, 0.5])];
-        const t64 = pointTimes64(pens);
-        const t32 = pointTimes(pens).times;
-        t64.forEach((t, k) => t.forEach((v, i) => expect(v).toBeCloseTo(t32[k][i], 6)));
-        expect(t64[0][0]).toBe(0);
-        expect(t64[1][1]).toBe(1);
+    it('lays pens out as 0.25 + 0.9 * length with 0.18 pauses, normalised to 0..1, in f64', () => {
+        const pens = [Float32Array.from([0, 0, 1, 0]), Float32Array.from([0, 1, 0, 2, 0, 3])];
+        const times = pointTimes64(pens);
+        const d0 = DUR0 + SPEED * 1;
+        const d1 = DUR0 + SPEED * 2;
+        const total = d0 + PAUSE + d1;
+        expect(times[0][0]).toBe(0);
+        expect(times[0][1]).toBeCloseTo(d0 / total, 12);
+        expect(times[1][0]).toBeCloseTo((d0 + PAUSE) / total, 12);
+        expect(times[1][1]).toBeCloseTo((d0 + PAUSE + d1 / 2) / total, 12);
+        expect(times[1][2]).toBeCloseTo(1, 12);
+        expect(polylineLength(pens[1])).toBe(2);
     });
 });
 
@@ -68,20 +73,18 @@ describe('thickLine3 (cv2.line, thickness 3, LINE_8, shift 4)', () => {
     });
 });
 
-describe('renderTrajectory', () => {
-    it('keeps the earlier pen on top where pens cross, with f32 segment-average times', () => {
+describe('own2Trajectory', () => {
+    it('keeps the earlier pen on top where pens cross, with f32 segment-average times, pooled to 128 x 128', () => {
         const across = Float32Array.from([-0.5, 0, 0.5, 0]);
         const down = Float32Array.from([0, -0.5, 0, 0.5]);
-        const { time, presence } = renderTrajectory([across, down]);
-        const centre = 128 * 256 + 128;
-        const t = pointTimes64([across, down]);
-        expect(presence[centre]).toBe(1);
-        expect(time[centre]).toBe(Math.fround((t[0][0] + t[0][1]) / 2));
-        expect(time[64 * 256 + 128]).toBe(Math.fround((t[1][0] + t[1][1]) / 2));
-        expect(presence[10]).toBe(0);
         const pooled = own2Trajectory([across, down]);
+        const t = pointTimes64([across, down]);
         expect(pooled.length).toBe(2 * 128 * 128);
+        expect(pooled[64 * 128 + 64]).toBe(Math.fround((t[0][0] + t[0][1]) / 2));
+        expect(pooled[32 * 128 + 64]).toBe(Math.fround((t[1][0] + t[1][1]) / 2));
+        expect(pooled[5]).toBe(0);
         expect(pooled[128 * 128 + 64 * 128 + 64]).toBe(1);
+        expect(pooled[128 * 128 + 5]).toBe(0);
     });
 });
 

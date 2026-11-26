@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-    DUR0, PAUSE, PEN_SAMPLES, SPEED, joinSegments, ownExtra, pointTimes, polylineLength, resamplePen, segFeat, snapRamp,
+    PEN_SAMPLES, joinSegments, ownExtra, resamplePen, segFeat, snapRamp,
 } from '@/services/analysis/strokesWgsl/hostMath';
 
 // test/unit/strokesWgsl/hostMath.test.ts
 // Host-side stroke-order math (src/services/analysis/strokesWgsl/hostMath.ts): the snap ramp, seg_feat
-// layout, joining continued segments into pens, arc-length resampling, the reveal time axis, own1's extras.
+// layout, joining continued segments into pens, arc-length resampling, own2's extras.
 
 /** A [16, 2] segment from (x0, y) to (x1, y), flat. */
 const line = (x0: number, x1: number, y = 0) => Float32Array.from({ length: 32 }, (_, i) => (i % 2 ? y : x0 + ((x1 - x0) * (i >> 1)) / 15));
@@ -58,22 +58,6 @@ describe('resamplePen', () => {
 
     it('repeats the first point for a degenerate pen', () => {
         expect(Array.from(resamplePen([0.3, 0.4, 0.3, 0.4], 3))).toEqual([0.3, 0.4, 0.3, 0.4, 0.3, 0.4].map(Math.fround));
-    });
-});
-
-describe('pointTimes', () => {
-    it('lays pens out as 0.25 + 0.9 * length with 0.18 pauses, normalised to 0..1', () => {
-        const pens = [Float32Array.from([0, 0, 1, 0]), Float32Array.from([0, 1, 0, 2, 0, 3])];
-        const { times, total } = pointTimes(pens);
-        const d0 = DUR0 + SPEED * 1;
-        const d1 = DUR0 + SPEED * 2;
-        expect(total).toBeCloseTo(d0 + PAUSE + d1, 6);
-        expect(times[0][0]).toBe(0);
-        expect(times[0][1]).toBeCloseTo(d0 / total, 6);
-        expect(times[1][0]).toBeCloseTo((d0 + PAUSE) / total, 6);
-        expect(times[1][1]).toBeCloseTo((d0 + PAUSE + d1 / 2) / total, 6);
-        expect(times[1][2]).toBeCloseTo(1, 6);
-        expect(polylineLength(pens[1])).toBe(2);
     });
 });
 

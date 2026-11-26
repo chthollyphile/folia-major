@@ -1,5 +1,5 @@
 // src/services/analysis/strokesWgsl/packed.ts
-// The stroke-order models' weights (full6, own1, own2: ~/bihua tools/infer/export_folia.py, the FOLIABTW
+// The stroke-order models' weights (full6, own2: ~/bihua tools/infer/export_folia.py, the FOLIABTW
 // file htdemucs-wgsl.bin also uses) read and repacked into the one GPU buffer the WGSL runtime binds.
 //
 // The file stores every matrix as written by the export (Linear [out, in], conv [cout, cin*kh*kw], q / k / v
@@ -19,7 +19,7 @@ export interface StrokesManifestTensor {
 }
 
 export interface StrokesManifest {
-    /** 'strokenet-full6', 'strokenet-own1' or 'strokenet-own2'. */
+    /** 'strokenet-full6' or 'strokenet-own2'. */
     model: string;
     /** The checkpoint the export was made from (own2's hyper_parameters.full6_sha256 names full6's). */
     source?: { sha256?: string };

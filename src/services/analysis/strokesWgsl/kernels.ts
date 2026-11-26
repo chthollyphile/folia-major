@@ -420,7 +420,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 };
 
 /**
- * GroupNorm applied ([z, C, HW] -> y): 'siluSkip' y = SiLU(GN(x)) + s (own1's Block output), 'silu' y = SiLU(GN(x))
+ * GroupNorm applied ([z, C, HW] -> y): 'siluSkip' y = SiLU(GN(x)) + s (own2's residual Blk), 'silu' y = SiLU(GN(x))
  * (own2's norm before a residual block), 'channelLast' the plain norm written channel-last [z, HW, C] at
  * element offset `off` of y (full6's fmap, f32 or f16 when `half`).
  */
@@ -516,28 +516,7 @@ ${ELEMENT_HEAD}
 `,
 };
 
-/** 2 x 2 average pool: [zc, H, W] -> [zc, H/2, W/2] (`total` output elements, `w` the output width). */
-export const AVG_POOL: Kernel = {
-    bindings: ['x', 'y'],
-    uniform: true,
-    code: /* wgsl */ `
-struct P { total: u32, w: u32 }
-@group(0) @binding(0) var<storage, read> x: array<f32>;
-@group(0) @binding(1) var<storage, read_write> y: array<f32>;
-@group(0) @binding(2) var<uniform> p: P;
-${ELEMENT_HEAD}
-  let plane = p.w * p.w;
-  let zc = i / plane;
-  let r = i - zc * plane;
-  let oy = r / p.w;
-  let ox = r - oy * p.w;
-  let b = zc * plane * 4u + oy * 2u * (2u * p.w) + ox * 2u;
-  y[i] = (x[b] + x[b + 1u] + x[b + 2u * p.w] + x[b + 2u * p.w + 1u]) * 0.25;
-}
-`,
-};
-
-/** own1's up-path input: cat[nearest x2(h) (ca channels), skip (cb channels)] at side w, per image z. */
+/** own2's u32 input: cat[nearest x2(h) (ca channels), skip (cb channels)] at side w, per image z. */
 export const UP_CAT: Kernel = {
     bindings: ['h', 's', 'y'],
     uniform: true,
@@ -566,25 +545,22 @@ ${ELEMENT_HEAD}
 `,
 };
 
-/** Channel-major [z, C, T] <-> token-major [z, T, C]: `toTokens` adds pos[t][c] (own1's bottleneck). */
-export const transposeKernel = (toTokens: boolean): Kernel => ({
-    bindings: toTokens ? ['W', 'x', 'y'] : ['x', 'y'],
+/** Token-major [z, T, C] -> channel-major [z, C, T] (own2's tokens back to a 16 x 16 map). */
+export const TOKENS_TO_MAP: Kernel = {
+    bindings: ['x', 'y'],
     uniform: true,
     code: /* wgsl */ `
-${toTokens ? WEIGHTS : ''}
-struct P { total: u32, c: u32, t: u32, pos: u32 }
-@group(0) @binding(${toTokens ? 1 : 0}) var<storage, read> x: array<f32>;
-@group(0) @binding(${toTokens ? 2 : 1}) var<storage, read_write> y: array<f32>;
-@group(0) @binding(${toTokens ? 3 : 2}) var<uniform> p: P;
+struct P { total: u32, c: u32, t: u32 }
+@group(0) @binding(0) var<storage, read> x: array<f32>;
+@group(0) @binding(1) var<storage, read_write> y: array<f32>;
+@group(0) @binding(2) var<uniform> p: P;
 ${ELEMENT_HEAD}
   let plane = p.c * p.t;
   let z = i / plane;
   let r = i - z * plane;
-  ${toTokens ? `let t = r / p.c;
-  let ch = r - t * p.c;
-  y[i] = x[(z * p.c + ch) * p.t + t] + wf(p.pos + t * p.c + ch);` : `let ch = r / p.t;
+  let ch = r / p.t;
   let t = r - ch * p.t;
-  y[i] = x[(z * p.t + t) * p.c + ch];`}
+  y[i] = x[(z * p.t + t) * p.c + ch];
 }
 `,
-});
+};

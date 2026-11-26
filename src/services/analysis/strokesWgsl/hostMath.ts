@@ -1,7 +1,7 @@
 // src/services/analysis/strokesWgsl/hostMath.ts
 // The host-side pieces of the stroke-order pipeline (~/bihua hf/code/preprocess.py, seqmodel.py), as plain
 // functions over Float32Arrays: full6's segments joined into pens, a pen resampled by arc length, the
-// animation time axis, own1's per-pen extra features, and the f32 fourier / seg_feat that the GPU kernels
+// animation time constants (ownInput.pointTimes64 is the axis), own2's per-pen extra features, and the f32 fourier / seg_feat that the GPU kernels
 // compute too (kept here as the reference their test compares against).
 //
 // Conventions (HANDOFF_FOLIA.md §2): canvas coordinates (x, y) in [-1, 1], pixel ((x+1)/2*256, (y+1)/2*256);
@@ -81,32 +81,8 @@ export const resamplePen = (pen: ArrayLike<number>, n = PEN_SAMPLES): Float32Arr
     return out;
 };
 
-/** preprocess.point_times: each pen's per-point reveal time (whole glyph 0..1) on the training time axis, and the total. */
-export const pointTimes = (pens: Float32Array[]): { times: Float32Array[]; total: number } => {
-    const spans: { t0: number; d: number; length: number }[] = [];
-    let t = 0;
-    for (const pen of pens) {
-        const length = polylineLength(pen);
-        const d = DUR0 + length * SPEED;
-        spans.push({ t0: t, d, length });
-        t += d + PAUSE;
-    }
-    const total = t - PAUSE;
-    const times = pens.map((pen, index) => {
-        const { t0, d, length } = spans[index];
-        const out = new Float32Array(pen.length / 2);
-        let s = 0;
-        for (let i = 0; i < out.length; i += 1) {
-            if (i > 0) s += Math.hypot(pen[2 * i] - pen[2 * i - 2], pen[2 * i + 1] - pen[2 * i - 1]);
-            out[i] = (t0 + (d * s) / Math.max(length, 1e-6)) / total;
-        }
-        return out;
-    });
-    return { times, total };
-};
-
 /**
- * own1's 8 extra query features of pen k of n (resampled [32, 2] flat), as own1.cpp / ownnet.py:
+ * own2's 8 extra query features of pen k of n (resampled [32, 2] flat), as ownhead.py:
  * start xy, end xy, k/n, k/8, length of the resampled polyline, n/10 - in f32.
  */
 export const ownExtra = (resampled: Float32Array, k: number, n: number, out: Float32Array, at = 0): void => {

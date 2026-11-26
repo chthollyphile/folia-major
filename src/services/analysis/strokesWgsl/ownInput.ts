@@ -2,7 +2,7 @@ import { DUR0, PAUSE, SPEED, polylineLength } from './hostMath';
 
 // src/services/analysis/strokesWgsl/ownInput.ts
 // The ownership models' host-side input and output geometry (~/bihua hf/code/preprocess.py, example.py):
-//   - the trajectory time map / presence map of own1 / own2's input channels 2, 3 (preprocess.render_traj):
+//   - the trajectory time map / presence map of own2's input channels 2, 3 (preprocess.render_traj):
 //     every pen segment drawn with cv2.line(img, p0, p1, value, 3, LINE_8, shift 4), later pens first so the
 //     earlier pen's time stays on top - ported from OpenCV's drawing.cpp (ThickLine -> FillConvexPoly + Line2
 //     edges + two radius-2 Circle caps), integer for integer, so the maps match cv2 bitwise;
@@ -283,7 +283,7 @@ export const thickLine3 = (put: Put, a: [number, number], b: [number, number]): 
  * preprocess.render_traj at 256 x 256: (time map, presence map). Pens drawn last to first, each segment with
  * the f32 average of its ends' times; canvas -> 4-bit subpixel as np.round((p + 1) / 2 * 256 * 16).
  */
-export const renderTrajectory = (pens: ArrayLike<number>[]): { time: Float32Array; presence: Float32Array } => {
+const renderTrajectory = (pens: ArrayLike<number>[]): { time: Float32Array; presence: Float32Array } => {
     const time = new Float32Array(R * R);
     const presence = new Float32Array(R * R);
     const times = pointTimes64(pens);
@@ -301,7 +301,7 @@ export const renderTrajectory = (pens: ArrayLike<number>[]): { time: Float32Arra
     return { time, presence };
 };
 
-/** avg_pool2d(x, 2) of one square f32 map (the same f32 sum order as the GPU's AVG_POOL). */
+/** avg_pool2d(x, 2) of one square f32 map (the same f32 sum order as the GPU's OWN2_POOL). */
 export const avgPool2 = (map: Float32Array, side: number, out = new Float32Array((side / 2) ** 2), at = 0): Float32Array => {
     const half = side / 2;
     for (let y = 0; y < half; y += 1) {
@@ -324,7 +324,7 @@ export const own2Trajectory = (pens: ArrayLike<number>[], out = new Float32Array
 /**
  * The nearest point to (u, v) on a polyline of vertices (x, y, along, time) - flat, 4 a vertex - over its
  * segments (projection clamped to each), first of equals: { d2, along, time } with along / time linear
- * along the hit segment. A single vertex is its own nearest point. The PROJECT kernel does the same in f32.
+ * along the hit segment. A single vertex is its own nearest point. The GPU's PEN_PROJECT does the same in f32.
  */
 export const nearestOnPolyline = (verts: ArrayLike<number>, u: number, v: number): { d2: number; along: number; time: number } => {
     const n = verts.length / 4;

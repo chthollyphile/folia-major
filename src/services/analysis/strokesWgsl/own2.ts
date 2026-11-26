@@ -3,9 +3,9 @@ import { SERIAL_PACING, type SlicePacing } from '../gpuSlices';
 import type { Full6Taps } from './full6';
 import { GpuGraph, OpRunner, profileOps, readBuffer, usableCosts, type Op } from './graph';
 import { ownExtra, resamplePen } from './hostMath';
-import { LIN_ACCUM, LIN_RELU, LIN_SILU, UP_CAT, flat, transposeKernel } from './kernels';
-import { OWN2_ASSIGN, OWN2_LOGITS, OWN2_POOL, OWN2_TOKENS, catFmapKernel, upCatKernel } from './kernelsOwn2';
-import { ATTN_FIELDS, OWN_MAX_PENS, attentionKernel, ownQueryKernel } from './kernelsSeq';
+import { LIN_ACCUM, LIN_RELU, LIN_SILU, TOKENS_TO_MAP, UP_CAT, flat } from './kernels';
+import { OWN2_ASSIGN, OWN2_LOGITS, OWN2_POOL, OWN2_QUERY, OWN2_TOKENS, OWN_MAX_PENS, catFmapKernel, upCatKernel } from './kernelsOwn2';
+import { ATTN_FIELDS, attentionKernel } from './kernelsSeq';
 import { Layers, type ConvMeta } from './layers';
 import { own2Trajectory, pointTimes64, pushPenVertices } from './ownInput';
 import { repack, unpackStrokes, type StrokesManifest } from './packed';
@@ -68,7 +68,6 @@ const own2Spec = (manifest: StrokesManifest): Record<string, string | string[]> 
 const S128 = 16384;
 const PIX = 65536;
 const MAXP = OWN_MAX_PENS;
-const OWN_QUERY_128 = ownQueryKernel(128);
 
 export class Own2Wgsl {
     /** The forward's ops that bind no full6 slot (shared by every chunk), by stage. */
@@ -224,7 +223,7 @@ export class Own2Wgsl {
             s2.push(L.linear(`${p}.linear2`, `${p}.linear2`, { x: hf, y: b.tok }, { m: rows, flags: LIN_ACCUM }).op);
         }
         const tt = z * 256 * 192;
-        s2.push(g.op('att.out', transposeKernel(false), { x: b.tok, y: H16 }, [tt, 192, 256, 0], flat(tt)));
+        s2.push(g.op('att.out', TOKENS_TO_MAP, { x: b.tok, y: H16 }, [tt, 192, 256], flat(tt)));
         const n32 = z * 320 * 1024;
         s2.push(g.op('u32.cat', UP_CAT, { h: H16, s: H32, y: b.cat32 }, [n32, 32, 192, 128], flat(n32)));
         convGn(s2, 'u32', b.cat32, N1, N2, 128, 32);
@@ -269,7 +268,7 @@ export class Own2Wgsl {
             ...this.stages[2],
             g.op('fuse.cat', upCatKernel(t.half), { h: b.M1, s: at(t.s0, 48 * S128, tb), t: b.H128, y: b.cat128 }, [n128, 128, 96, 48, 32], flat(n128)),
             ...this.stages[3],
-            g.op('query', OWN_QUERY_128, { fm: b.fm, pens: at(b.pens, MAXP * 64), extra: at(b.extra, MAXP * 8), pz: b.pz, qin: b.qin }, null, [P, 1, 1]),
+            g.op('query', OWN2_QUERY, { fm: b.fm, pens: at(b.pens, MAXP * 64), extra: at(b.extra, MAXP * 8), pz: b.pz, qin: b.qin }, null, [P, 1, 1]),
             L.linear('q.0', 'q.0', { x: b.qin, y: b.q1 }, { m: P, flags: LIN_SILU }).op,
             L.linear('q.2', 'q.2', { x: b.q1, y: b.q2 }, { m: P, flags: LIN_SILU }).op,
             L.linear('q.4', 'q.4', { x: b.q2, y: b.qv }, { m: P }).op,

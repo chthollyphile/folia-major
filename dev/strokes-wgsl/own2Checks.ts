@@ -1,25 +1,24 @@
 /// <reference types="@webgpu/types" />
 import { Full6Wgsl, type Full6Glyph } from '../../src/services/analysis/strokesWgsl/full6';
 import { joinSegments } from '../../src/services/analysis/strokesWgsl/hostMath';
-import { Own1Wgsl, type Own1Glyph } from '../../src/services/analysis/strokesWgsl/own1';
 import { Own2Wgsl, type Own2Glyph, type Own2Result } from '../../src/services/analysis/strokesWgsl/own2';
-import { avgPool2, own2Trajectory, pointTimes64, renderTrajectory } from '../../src/services/analysis/strokesWgsl/ownInput';
+import { avgPool2, nearestOnPolyline, own2Trajectory, pointTimes64, pushPenVertices } from '../../src/services/analysis/strokesWgsl/ownInput';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
 import { fs } from './node';
-import { cpuProject, projectionDiff } from './ownChecks';
 import { glyphsOf, maxAbsDiff, type RefData } from './refData';
 
 // dev/strokes-wgsl/own2Checks.ts
 // own2 in the test shell: alignment against the torch reference of the 126 glyphs (scratchpad own2_ref.py's
 // index.json + ref.bin: own2_argmax / own2_gap / own2_logits_sub and char 0's intermediates dbg_*), batch
-// size invariance, the host raster against own_x23, the projection against the CPU; and the own1 / own2
-// benchmark (interleaved rounds, medians), alone and end to end after full6.generate.
+// size invariance, the host raster against own_x23, the projection against the CPU (no torch reference for
+// it: example.py projects to the nearest vertex); and the own2 benchmark (medians of rounds), alone and end
+// to end after full6.generate.
 
 const PIX = 65536;
 const S128 = 16384;
 
 export interface Own2Config {
-    f16: boolean; full6: string; own1: string; own2: string; own2ref: string; chars: number; paced: boolean;
+    f16: boolean; full6: string; own2: string; own2ref: string; chars: number; paced: boolean;
     batches: number[]; own2Chunk: number; rounds: number;
 }
 
@@ -42,6 +41,43 @@ const ownInputs = (ref: RefData, n: number): OwnInput[] => {
         penAt += pens.length;
         return { pens, resampled };
     });
+};
+
+/**
+ * The reveal of one glyph given its owners, on the CPU: the nearest point on the owner pen's segments
+ * (ownInput.nearestOnPolyline, f64 over the same f32 vertex table the GPU reads).
+ */
+const cpuProject = (pens: Float32Array[], times: ArrayLike<number>[], owner: ArrayLike<number>, ink: (p: number) => boolean) => {
+    const tables = pens.map((pen, k) => {
+        const rows: number[] = [];
+        pushPenVertices(rows, pen, times[k]);
+        return Float32Array.from(rows);
+    });
+    const reveal = new Float32Array(PIX).fill(-1);
+    const along = new Float32Array(PIX).fill(-1);
+    for (let p = 0; p < PIX; p += 1) {
+        if (!ink(p)) continue;
+        const u = Math.fround(Math.fround(Math.fround((p % 256) + 0.5) / 256) * 2 - 1);
+        const v = Math.fround(Math.fround(Math.fround(Math.floor(p / 256) + 0.5) / 256) * 2 - 1);
+        const hit = nearestOnPolyline(tables[owner[p]], u, v);
+        reveal[p] = hit.time;
+        along[p] = hit.along;
+    }
+    return { reveal, along };
+};
+
+/** Pixels where GPU and CPU projections differ by more than 1e-4, and of those by more than 0.01 (another segment won a near tie). */
+const projectionDiff = (cpu: Float32Array, gpu: Float32Array): { over1e4: number; over001: number; max: number } => {
+    let over1e4 = 0;
+    let over001 = 0;
+    let max = 0;
+    for (let p = 0; p < cpu.length; p += 1) {
+        const d = Math.abs(cpu[p] - gpu[p]);
+        if (d > 1e-4) over1e4 += 1;
+        if (d > 0.01) over001 += 1;
+        if (!(d <= max)) max = d;
+    }
+    return { over1e4, over001, max };
 };
 
 /** ownhead.py's F.interpolate(logits, 2, bilinear) of one pen's 128 x 128 logits, on the CPU. */
@@ -247,22 +283,10 @@ const pipelineChecks = async (device: GPUDevice, config: Own2Config, glyphs: Ful
 
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1];
 
-/** own1's input: img channels 0, 1 and the trajectory raster (host). */
-const own1Glyph = (glyph: Full6Glyph, pens: Float32Array[]): Own1Glyph => {
-    const x = new Float32Array(4 * PIX);
-    x.set(glyph.img.subarray(0, 2 * PIX));
-    if (pens.length) {
-        const { time, presence } = renderTrajectory(pens);
-        x.set(time, 2 * PIX);
-        x.set(presence, 3 * PIX);
-    }
-    return { x, pens };
-};
-
 /**
- * own1 vs own2 ms/char per batch size, rounds alternating which goes first; each own run includes its host
- * raster, uploads and readbacks (own2's full6.encode of the batch is outside its time). Then end to end:
- * full6.generate (no reference) + join + own (own1 with its raster) per batch, the same alternation.
+ * own2 ms/char per batch size, median of SW_ROUNDS rounds; each run includes the host raster, uploads and
+ * readback (full6.encode of the batch is outside its time). Then end to end: full6.generate (no reference)
+ * + join + own2 per batch.
  */
 export const runOwnBench = async (device: GPUDevice, config: Own2Config, ref: RefData, report: Record<string, unknown>, log: (line: string) => void): Promise<void> => {
     const count = 128;
@@ -276,9 +300,8 @@ export const runOwnBench = async (device: GPUDevice, config: Own2Config, ref: Re
         const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(4, B), taps: true });
         const chunk = B % config.own2Chunk ? 1 : Math.min(config.own2Chunk, B);
         const own2 = await Own2Wgsl.create(device, new Uint8Array(fs.readFileSync(config.own2)), full6, { f16: config.f16, chunk });
-        const own1 = await Own1Wgsl.create(device, new Uint8Array(fs.readFileSync(config.own1)), { f16: config.f16, chunk: 1 });
         const batches = Array.from({ length: Math.ceil(count / B) }, (_, k) => [k * B, Math.min(count, (k + 1) * B)]);
-        const runOwn2 = async () => {
+        const alone = async () => {
             let ms = 0;
             for (const [a, b] of batches) {
                 await full6.encode(glyphs.slice(a, b));
@@ -288,63 +311,40 @@ export const runOwnBench = async (device: GPUDevice, config: Own2Config, ref: Re
             }
             return ms / count;
         };
-        const runOwn1 = async () => {
-            let ms = 0;
+        const e2e = async () => {
+            const started = performance.now();
             for (const [a, b] of batches) {
-                const started = performance.now();
-                await own1.run(glyphs.slice(a, b).map((g, k) => own1Glyph(g, inputs[a + k].pens)), { pacing });
-                ms += performance.now() - started;
+                const gen = await full6.generate(glyphs.slice(a, b), { useReference: false, pacing });
+                await own2.run(gen.map(r => ({ pens: joinSegments(r.segs, r.cont) })), { pacing });
             }
-            return ms / count;
-        };
-        const e2e = async (which: 1 | 2) => {
-            let ms = 0;
-            for (const [a, b] of batches) {
-                const batch = glyphs.slice(a, b);
-                const started = performance.now();
-                const gen = await full6.generate(batch, { useReference: false, pacing });
-                const pens = gen.map(r => joinSegments(r.segs, r.cont));
-                if (which === 2) await own2.run(pens.map(p => ({ pens: p })), { pacing });
-                else await own1.run(batch.map((g, k) => own1Glyph(g, pens[k])), { pacing });
-                ms += performance.now() - started;
-            }
-            return ms / count;
+            return (performance.now() - started) / count;
         };
         // Warm serially (cold first dispatches stay out of the cost tables), then once paced (profiles).
         await full6.encode(glyphs.slice(0, B));
         await own2.run(inputs.slice(0, B));
-        await own1.run([own1Glyph(glyphs[0], inputs[0].pens)]);
         await full6.generate(glyphs.slice(0, B), { useReference: false });
         if (pacing) {
             await full6.encode(glyphs.slice(0, B));
             await own2.run(inputs.slice(0, B), { pacing });
-            await own1.run([own1Glyph(glyphs[0], inputs[0].pens)], { pacing });
             await full6.generate(glyphs.slice(0, B), { useReference: false, pacing });
         }
-        const t1: number[] = [];
-        const t2: number[] = [];
-        for (let r = 0; r < config.rounds; r += 1) {
-            if (r % 2) { t1.push(await runOwn1()); t2.push(await runOwn2()); } else { t2.push(await runOwn2()); t1.push(await runOwn1()); }
-        }
-        const e1: number[] = [];
-        const e2: number[] = [];
+        const t: number[] = [];
+        for (let r = 0; r < config.rounds; r += 1) t.push(await alone());
+        const e: number[] = [];
         const e2eRounds = Math.max(3, Math.ceil(config.rounds / 2));
-        for (let r = 0; r < e2eRounds; r += 1) {
-            if (r % 2) { e1.push(await e2e(1)); e2.push(await e2e(2)); } else { e2.push(await e2e(2)); e1.push(await e2e(1)); }
-        }
+        for (let r = 0; r < e2eRounds; r += 1) e.push(await e2e());
         const longest = (table: ReadonlyMap<string, number>) => {
-            const top = [...table.entries()].sort((a, b) => b[1] - a[1])[0] as [string, number] | undefined;
+            const top = [...table.entries()].sort((x, y) => y[1] - x[1])[0] as [string, number] | undefined;
             return top ? `${top[0]} ${top[1].toFixed(3)}` : '-';
         };
         const row = {
-            B, own2Chunk: chunk, own1: median(t1), own2: median(t2), own1Rounds: t1, own2Rounds: t2, e2eOwn1: median(e1), e2eOwn2: median(e2), e2eOwn1Rounds: e1, e2eOwn2Rounds: e2,
-            longestOwn2: longest(own2.costTable), longestOwn1: longest(own1.costTable), longestFull6: longest(full6.costTable), own2MB: own2.bytes / 2 ** 20, full6MB: full6.bytes / 2 ** 20,
+            B, own2Chunk: chunk, own2: median(t), own2Rounds: t, e2e: median(e), e2eRounds: e,
+            longestOwn2: longest(own2.costTable), longestFull6: longest(full6.costTable), own2MB: own2.bytes / 2 ** 20, full6MB: full6.bytes / 2 ** 20,
         };
         rows.push(row);
-        log(`[own bench B=${B}${pacing ? ' paced' : ''}] ms/char median of ${config.rounds}: own1 ${row.own1.toFixed(2)} own2 ${row.own2.toFixed(2)} (own2 chunk ${chunk}); `
-            + `end to end (full6.generate + own, median of ${e2eRounds}): +own1 ${row.e2eOwn1.toFixed(2)} +own2 ${row.e2eOwn2.toFixed(2)}; `
-            + `longest dispatch own2 ${row.longestOwn2}, own1 ${row.longestOwn1}, full6 ${row.longestFull6}; GPU own2 ${row.own2MB.toFixed(0)} MB, full6 ${row.full6MB.toFixed(0)} MB`);
-        own1.destroy();
+        log(`[own2 bench B=${B}${pacing ? ' paced' : ''}] ms/char median of ${config.rounds}: own2 ${row.own2.toFixed(2)} (chunk ${chunk}); `
+            + `end to end (full6.generate + own2, median of ${e2eRounds}): ${row.e2e.toFixed(2)}; `
+            + `longest dispatch own2 ${row.longestOwn2}, full6 ${row.longestFull6}; GPU own2 ${row.own2MB.toFixed(0)} MB, full6 ${row.full6MB.toFixed(0)} MB`);
         own2.destroy();
         full6.destroy();
     }
