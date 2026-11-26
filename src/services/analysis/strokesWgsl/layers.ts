@@ -1,7 +1,7 @@
 /// <reference types="@webgpu/types" />
 import { gemmCount, type Buffers, type GpuGraph, type Op } from './graph';
 import {
-    CONV_ACCUM, GN_FINAL, GN_PARTIAL, convKernel, flat, gnApplyKernel, linearKernel, linearParams, skinnyCount,
+    CONV_ACCUM, CONV_SILU, GN_FINAL, GN_PARTIAL, convKernel, flat, gnApplyKernel, linearKernel, linearParams, skinnyCount,
     type GemmMode, type LinearInput, type LinearOutput, type LinearParams,
 } from './kernels';
 import type { PackedEntry } from './packed';
@@ -57,16 +57,16 @@ export class Layers {
 
     /**
      * Conv2d `name` (weights name.w / name.b) over z images [cin, hin, hin] -> y [m, hout, hout]; `gn`: input
-     * through GroupNorm (stats `st`, affine `gn.norm`.g / .b) + SiLU; `accum` adds into y.
+     * through GroupNorm (stats `st`, affine `gn.norm`.g / .b) + SiLU; `silu` on the output; `accum` adds into y.
      */
-    conv(name: string, x: Buffers[string], y: GPUBuffer, z: number, hin: number, options: { gn?: { st: GPUBuffer; norm: string }; accum?: boolean } = {}): Op {
+    conv(name: string, x: Buffers[string], y: Buffers[string], z: number, hin: number, options: { gn?: { st: GPUBuffer; norm: string }; accum?: boolean; silu?: boolean } = {}): Op {
         const meta = this.convs[`${name}.w`];
         const entry = this.entries[`${name}.w`];
         const m = entry.shape[0];
         const k = entry.shape[1];
         const hout = this.convOut(name, hin);
         const params = [m, k, meta.cin, meta.k[0], meta.k[1], meta.stride[0], meta.pad[0], hin, hin, hout, hout, entry.word, this.word(`${name}.b`),
-            options.gn ? this.word(`${options.gn.norm}.g`) : 0, options.gn ? this.word(`${options.gn.norm}.b`) : 0, options.accum ? CONV_ACCUM : 0];
+            options.gn ? this.word(`${options.gn.norm}.g`) : 0, options.gn ? this.word(`${options.gn.norm}.b`) : 0, (options.accum ? CONV_ACCUM : 0) | (options.silu ? CONV_SILU : 0)];
         const buffers: Buffers = { W: this.weights, x, y };
         if (options.gn) buffers.st = options.gn.st;
         return this.graph.op(name, convKernel(this.mode, Boolean(options.gn)), buffers, params, gemmCount(m, hout * hout, z));
@@ -86,13 +86,19 @@ export class Layers {
     /** own1's Block output: y = silu(GN(x)) + skip, all [z, c, hw]. */
     gnSiluSkip(label: string, x: GPUBuffer, st: GPUBuffer, skip: GPUBuffer, y: GPUBuffer, z: number, c: number, hw: number, norm: string): Op {
         const total = z * c * hw;
-        return this.graph.op(label, gnApplyKernel(true, false), { W: this.weights, x, st, s: skip, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), 0], flat(total));
+        return this.graph.op(label, gnApplyKernel('siluSkip', false), { W: this.weights, x, st, s: skip, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), 0], flat(total));
+    }
+
+    /** own2's norm before a residual block: y = silu(GN(x)), all [z, c, hw]. */
+    gnSilu(label: string, x: GPUBuffer, st: GPUBuffer, y: GPUBuffer, z: number, c: number, hw: number, norm: string): Op {
+        const total = z * c * hw;
+        return this.graph.op(label, gnApplyKernel('silu', false), { W: this.weights, x, st, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), 0], flat(total));
     }
 
     /** full6's fmap: GN(x) written channel-last [z, hw, c] at element offset `off` of y (f16 storage when `half`). */
     gnChannelLast(label: string, x: GPUBuffer, st: GPUBuffer, y: GPUBuffer, z: number, c: number, hw: number, norm: string, off: number, half: boolean): Op {
         const total = z * c * hw;
-        return this.graph.op(label, gnApplyKernel(false, half), { W: this.weights, x, st, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), off], flat(total));
+        return this.graph.op(label, gnApplyKernel('channelLast', half), { W: this.weights, x, st, y }, [c, hw, total, this.word(`${norm}.g`), this.word(`${norm}.b`), off], flat(total));
     }
 
     /**

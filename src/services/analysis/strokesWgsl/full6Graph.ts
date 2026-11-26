@@ -5,6 +5,7 @@ import {
     ADVANCE, ATT_DYNK, ATT_MASK, ATT_SLOT, ATTN_FIELDS, DECIDE, MEM_ROWS, REC, STATE_HEAD, TMAX,
     attentionKernel, embedKernel, refineSampleKernel,
 } from './kernelsSeq';
+import { tapStoreKernel } from './kernelsOwn2';
 import type { Layers, StepOp } from './layers';
 import type { StrokesManifest } from './packed';
 
@@ -14,6 +15,7 @@ import type { StrokesManifest } from './packed';
 //   encoder: per chunk of `chunk` glyphs, the conv encoder + FPN -> fmap (channel-last [char][64*64][128])
 //            and the 256 image tokens of the memory; then the reference tokens and every layer's cross-
 //            attention K / V of the whole batch (memory rows [char][296]: 256 image + 40 reference);
+//            with `taps`, also enc.s0's output per character (own2 reuses it with fmap and the image tokens);
 //   step:    one decode step for the active slots (embed, 6 decoder layers with the KV cache, coarse
 //            head, 3 refine layers, decision; ~95 dispatches), rows read from the state buffer so one
 //            recorded op list serves every batch size; workgroup counts per dispatch from `StepOp.count`.
@@ -64,6 +66,8 @@ export interface Full6Buffers {
     cont: GPUBuffer;
     /** Recorded per (char, step): REC floats. */
     rec: GPUBuffer;
+    /** With taps: enc.s0's output [capacity, 48, 128, 128] (f16 storage in f16 mode); else null. */
+    s0: GPUBuffer | null;
 }
 
 export class Full6Graph {
@@ -80,7 +84,7 @@ export class Full6Graph {
     private decideParams: number[] = [];
     private decideUniform: GPUBuffer | undefined;
 
-    constructor(readonly layers: Layers, readonly capacity: number, readonly chunk: number) {
+    constructor(readonly layers: Layers, readonly capacity: number, readonly chunk: number, readonly taps = false) {
         const graph = layers.graph;
         this.half = layers.mode === 'f16';
         const B = capacity;
@@ -98,6 +102,7 @@ export class Full6Graph {
             segs: f(B * TMAX * 32),
             cont: f(B * TMAX),
             rec: f(B * TMAX * REC),
+            s0: taps ? store(B * 48 * 16384) : null,
         };
         const z = chunk;
         for (const [name, count] of Object.entries({
@@ -155,9 +160,13 @@ export class Full6Graph {
         const z = this.chunk;
         const base = index * z;
         const bytes = z * 3 * 65536 * 4;
+        const s0 = this.buffers.s0;
+        const tapBytes = this.half ? 2 : 4;
+        const tap = z * 48 * 16384;
         ops = [
             L.conv('enc.s0.0', { buffer: this.buffers.img, offset: base * 3 * 65536 * 4, size: bytes }, s.A0, z, 256),
             ...this.fixedEncoder,
+            ...(s0 ? [L.graph.op('enc.s0.tap', tapStoreKernel(this.half), { x: s.S0, y: { buffer: s0, offset: base * 48 * 16384 * tapBytes, size: tap * tapBytes } }, [tap], flat(tap))] : []),
             L.gnChannelLast('enc.fmap', s.O, s.gst, this.buffers.fmap, z, 128, 4096, 'enc.out.1', base * 4096 * 128, this.half),
             L.linear('enc.g', 'enc.g', { x: s.X3, y: this.buffers.mem }, {
                 m: z * 256, rpz: 256, ozs: MEM_ROWS, ooz: base * MEM_ROWS, tab: L.word('enc.gpos'), tabRows: 256, vec: L.word('kind'),

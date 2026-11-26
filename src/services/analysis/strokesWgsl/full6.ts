@@ -5,7 +5,7 @@ import { Full6Graph, SEGS, full6Spec } from './full6Graph';
 import { segFeat } from './hostMath';
 import { MEM_ROWS, REC, STATE_HEAD, TMAX } from './kernelsSeq';
 import { Layers, sized, type ConvMeta, type StepOp } from './layers';
-import { repack, unpackStrokes } from './packed';
+import { readTensor, repack, unpackStrokes } from './packed';
 
 // src/services/analysis/strokesWgsl/full6.ts
 // full6 (glyph -> ordered stroke segments) on hand-written WGSL: a batch of characters decoded in lockstep,
@@ -56,6 +56,29 @@ export interface Full6RunStats {
     longestMs: number | null;
 }
 
+/**
+ * full6's encoder outputs own2 reuses (create with `taps`), for the characters of the last encoded batch
+ * (slots 0 .. count - 1, in the order they were passed): GPU buffers stay full6's, read in place.
+ */
+export interface Full6Taps {
+    /** Glyph features [capacity, 3, 256, 256] f32. */
+    img: GPUBuffer;
+    /** enc.s0 output [capacity, 48, 128, 128]; fmap channel-last [capacity][4096][128]; both f16 when `half`. */
+    s0: GPUBuffer;
+    fmap: GPUBuffer;
+    half: boolean;
+    /** Memory [capacity][296][192] f32: rows 0..255 = enc.g(c) + gpos + kind[0]. */
+    mem: GPUBuffer;
+    /** kind[0] (192), to take back off the memory rows. */
+    kind0: Float32Array;
+    capacity: number;
+    /** Characters in the last encoded batch, and a counter of encoded batches (stale-tap check). */
+    count: number;
+    epoch: number;
+    /** sha256 of the full6 checkpoint (own2's weights name the one they were trained on). */
+    sha256: string | undefined;
+}
+
 /** Teacher-forced per-step outputs, per character [steps][REC]: pos 32, coarse 32, cont logit, end logit. */
 export interface Full6Record {
     rec: Float32Array;
@@ -65,9 +88,20 @@ export interface Full6Record {
 export class Full6Wgsl {
     private readonly costs = new Map<string, number>();
     private profiled = { encoder: false, step: false };
+    private encoded = { count: 0, epoch: 0 };
     lastStats: Full6RunStats | null = null;
 
-    private constructor(private readonly device: GPUDevice, private readonly graph: GpuGraph, readonly net: Full6Graph) {}
+    private constructor(private readonly device: GPUDevice, private readonly graph: GpuGraph, readonly net: Full6Graph, private readonly tapInfo: { kind0: Float32Array; sha256: string | undefined }) {}
+
+    /** The encoder taps of the last encoded batch (create with `taps: true`; null otherwise). */
+    get taps(): Full6Taps | null {
+        const b = this.net.buffers;
+        if (!b.s0) return null;
+        return {
+            img: b.img, s0: b.s0, fmap: b.fmap, mem: b.mem, half: this.net.layers.mode === 'f16', capacity: this.net.capacity,
+            kind0: this.tapInfo.kind0, count: this.encoded.count, epoch: this.encoded.epoch, sha256: this.tapInfo.sha256,
+        };
+    }
 
     /** Per-dispatch GPU ms by op label, from the first paced run's timestamps (empty before one). */
     get costTable(): ReadonlyMap<string, number> {
@@ -91,9 +125,10 @@ export class Full6Wgsl {
     /**
      * Uploads full6-folia.bin's weights and allocates a batch of `capacity` characters (encoded `chunk`
      * at a time; default 4: each big encoder conv stays near 2.5 ms, half chunk 8's, for ~4% throughput).
-     * f16: GEMMs (and the KV / fmap storage) in f16; needs a device with shader-f16.
+     * f16: GEMMs (and the KV / fmap storage) in f16; needs a device with shader-f16. taps: keep what own2
+     * reuses (`taps`; enc.s0's output, 1.5 MB a character in f16, 3 MB in f32).
      */
-    static async create(device: GPUDevice, file: Uint8Array, options: { f16?: boolean; capacity?: number; chunk?: number } = {}): Promise<Full6Wgsl> {
+    static async create(device: GPUDevice, file: Uint8Array, options: { f16?: boolean; capacity?: number; chunk?: number; taps?: boolean } = {}): Promise<Full6Wgsl> {
         if (options.f16 && !device.features.has('shader-f16')) throw new Error('full6 f16 needs a device opened with shader-f16');
         const { weights, manifest } = unpackStrokes(file);
         if (manifest.model !== 'strokenet-full6') throw new Error(`not full6 weights: ${manifest.model}`);
@@ -106,9 +141,9 @@ export class Full6Wgsl {
         const chunk = Math.max(1, Math.min(options.chunk ?? 4, options.capacity ?? 64));
         const capacity = Math.ceil((options.capacity ?? 64) / chunk) * chunk;
         const layers = new Layers(graph, w, packed.entries, convs, options.f16 ? 'f16' : 'f32');
-        const net = new Full6Graph(layers, capacity, chunk);
+        const net = new Full6Graph(layers, capacity, chunk, Boolean(options.taps));
         await device.queue.onSubmittedWorkDone();
-        return new Full6Wgsl(device, graph, net);
+        return new Full6Wgsl(device, graph, net, { kind0: readTensor(weights, manifest, 'kind').slice(0, 192), sha256: manifest.source?.sha256 });
     }
 
     destroy(): void {
@@ -131,9 +166,18 @@ export class Full6Wgsl {
         await runner.add(ops, costs ?? (paced ? ops.map(() => Infinity) : undefined));
     }
 
+    /** Encodes up to `capacity` glyphs without decoding: the taps for own2 on given pens (alignment, re-runs). */
+    async encode(glyphs: Full6Glyph[], options: Full6RunOptions = {}): Promise<void> {
+        if (glyphs.length > this.capacity) throw new Error(`encode takes up to ${this.capacity} glyphs`);
+        const { runner, paced } = this.beginRun(options);
+        await this.encodeBatch(runner, glyphs, options.useReference ?? true, paced);
+        await runner.flush(true);
+    }
+
     /** Uploads a batch's inputs, encodes it (fmap, memory, cross K / V). */
-    private async encode(runner: OpRunner, glyphs: Full6Glyph[], useReference: boolean, paced: boolean): Promise<void> {
+    private async encodeBatch(runner: OpRunner, glyphs: Full6Glyph[], useReference: boolean, paced: boolean): Promise<void> {
         const n = glyphs.length;
+        this.encoded = { count: n, epoch: this.encoded.epoch + 1 };
         const { device } = this;
         const b = this.net.buffers;
         const mask = new Float32Array(n * MEM_ROWS);
@@ -203,7 +247,10 @@ export class Full6Wgsl {
         this.lastStats = { encodeMs, decodeMs, steps: run.steps, dispatches: run.dispatches, submits: runner.queue.slices, longestMs: longest };
     }
 
-    /** Greedy generation for up to `capacity` glyphs at once (more are run capacity at a time). */
+    /**
+     * Greedy generation for up to `capacity` glyphs at once (more are run capacity at a time; the taps then
+     * hold the last batch only - for own2, call per batch of at most `capacity`).
+     */
     async generate(glyphs: Full6Glyph[], options: Full6RunOptions = {}): Promise<Full6Result[]> {
         const results: Full6Result[] = [];
         for (let start = 0; start < glyphs.length; start += this.capacity) results.push(...await this.generateBatch(glyphs.slice(start, start + this.capacity), options));
@@ -220,7 +267,7 @@ export class Full6Wgsl {
         device.queue.writeBuffer(b.segs, 0, new Float32Array(n * TMAX * 32));
         device.queue.writeBuffer(b.cont, 0, new Uint32Array(n * TMAX));
         const started = performance.now();
-        await this.encode(runner, glyphs, options.useReference ?? true, paced);
+        await this.encodeBatch(runner, glyphs, options.useReference ?? true, paced);
         await runner.flush(true);
         const encoded = performance.now();
         const run = await this.decode(runner, n, paced, options, TMAX, (_t, done) => {
@@ -266,7 +313,7 @@ export class Full6Wgsl {
         device.queue.writeBuffer(b.cont, 0, cont);
         device.queue.writeBuffer(b.state, this.doneAt, new Uint32Array(n));
         const started = performance.now();
-        await this.encode(runner, glyphs, options.useReference ?? true, paced);
+        await this.encodeBatch(runner, glyphs, options.useReference ?? true, paced);
         await runner.flush(true);
         const encoded = performance.now();
         const limit = Math.min(TMAX, Math.max(...steps));

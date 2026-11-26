@@ -165,13 +165,14 @@ export interface Kernel {
     uniform: boolean;
 }
 
-/** CONV flags. */
+/** CONV flags: add into y; SiLU on the output (before any add). */
 export const CONV_ACCUM = 1;
+export const CONV_SILU = 2;
 
 /**
  * Conv2d as an implicit GEMM over a batch of images: x [z, cin, hin, win] -> y [z, m, hout, wout], weights
  * [m, cin*kh*kw]. `gn`: the input read through GroupNorm (8 groups, stats [z*8+g] = mean, rstd from
- * GN_STATS) + affine + SiLU, zero padding after it. CONV_ACCUM adds into y (a residual).
+ * GN_STATS) + affine + SiLU, zero padding after it. CONV_SILU applies SiLU to the output, CONV_ACCUM adds into y (a residual).
  */
 export const convKernel = (mode: GemmMode, gn: boolean): Kernel => ({
     bindings: gn ? ['W', 'x', 'y', 'st'] : ['W', 'x', 'y'],
@@ -203,7 +204,8 @@ fn bload(k: u32, n: u32) -> f32 {
   return silu((v - st[g * 2u]) * st[g * 2u + 1u] * wf(p.gg + ci) + wf(p.gb + ci));` : 'return v;'}
 }
 fn store(r: u32, c: u32, sum: f32) {
-  let v = sum + wf(p.b + r);
+  var v = sum + wf(p.b + r);
+  if ((p.flags & ${CONV_SILU}u) != 0u) { v = silu(v); }
   let o = (zi * p.m + r) * p.hout * p.wout + c;
   if ((p.flags & ${CONV_ACCUM}u) != 0u) { y[o] = y[o] + v; } else { y[o] = v; }
 }
@@ -417,9 +419,14 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 `,
 };
 
-/** GroupNorm applied ([z, C, HW] -> y): SiLU of it plus `skip` (own1's Block output) when `siluSkip`, else the plain norm written channel-last [z, HW, C] in `out` (full6's fmap, f32 or f16). */
-export const gnApplyKernel = (siluSkip: boolean, half: boolean): Kernel => ({
-    bindings: siluSkip ? ['W', 'x', 'st', 's', 'y'] : ['W', 'x', 'st', 'y'],
+/**
+ * GroupNorm applied ([z, C, HW] -> y): 'siluSkip' y = SiLU(GN(x)) + s (own1's Block output), 'silu' y = SiLU(GN(x))
+ * (own2's norm before a residual block), 'channelLast' the plain norm written channel-last [z, HW, C] at
+ * element offset `off` of y (full6's fmap, f32 or f16 when `half`).
+ */
+export type GnApply = 'siluSkip' | 'silu' | 'channelLast';
+export const gnApplyKernel = (mode: GnApply, half: boolean): Kernel => ({
+    bindings: mode === 'siluSkip' ? ['W', 'x', 'st', 's', 'y'] : ['W', 'x', 'st', 'y'],
     uniform: true,
     code: /* wgsl */ `
 ${half ? 'enable f16;' : ''}
@@ -427,7 +434,7 @@ ${WEIGHTS}
 struct P { c: u32, hw: u32, total: u32, g: u32, b: u32, off: u32 }
 @group(0) @binding(1) var<storage, read> x: array<f32>;
 @group(0) @binding(2) var<storage, read> st: array<f32>;
-${siluSkip ? `@group(0) @binding(3) var<storage, read> s: array<f32>;
+${mode === 'siluSkip' ? `@group(0) @binding(3) var<storage, read> s: array<f32>;
 @group(0) @binding(4) var<storage, read_write> y: array<f32>;
 @group(0) @binding(5) var<uniform> p: P;` : `@group(0) @binding(3) var<storage, read_write> y: array<${half ? 'f16' : 'f32'}>;
 @group(0) @binding(4) var<uniform> p: P;`}
@@ -435,11 +442,11 @@ ${siluSkip ? `@group(0) @binding(3) var<storage, read> s: array<f32>;
 fn main(@builtin(global_invocation_id) id: vec3u, @builtin(num_workgroups) nw: vec3u) {
   let i = id.x + id.y * nw.x * 256u;
   if (i >= p.total) { return; }
-  ${siluSkip ? `let plane = p.c * p.hw;
+  ${mode !== 'channelLast' ? `let plane = p.c * p.hw;
   let z = i / plane;
   let ch = (i - z * plane) / p.hw;
   let g = z * 8u + ch / (p.c / 8u);
-  y[i] = silu((x[i] - st[g * 2u]) * st[g * 2u + 1u] * wf(p.g + ch) + wf(p.b + ch)) + s[i];` : `let plane = p.c * p.hw;
+  y[i] = silu((x[i] - st[g * 2u]) * st[g * 2u + 1u] * wf(p.g + ch) + wf(p.b + ch))${mode === 'siluSkip' ? ' + s[i]' : ''};` : `let plane = p.c * p.hw;
   let z = i / plane;
   let r = i - z * plane;
   let q = r / p.c;
@@ -458,14 +465,14 @@ export const flat = (n: number): [number, number, number] => {
     return [x, Math.ceil(groups / x), 1];
 };
 
-const ELEMENT_HEAD = /* wgsl */ `
+export const ELEMENT_HEAD = /* wgsl */ `
 @compute @workgroup_size(256)
 fn main(@builtin(global_invocation_id) id: vec3u, @builtin(num_workgroups) nw: vec3u) {
   let i = id.x + id.y * nw.x * 256u;
   if (i >= p.total) { return; }`;
 
 /** PyTorch's bilinear upsample index (scale_factor given, align_corners=False) as (i0, i1, lambda1). */
-const UPSAMPLE = /* wgsl */ `
+export const UPSAMPLE = /* wgsl */ `
 fn upIndex(dst: u32, inv: f32, size: u32) -> vec3f {
   let src = max(inv * (f32(dst) + 0.5) - 0.5, 0.0);
   let i0 = u32(src);
