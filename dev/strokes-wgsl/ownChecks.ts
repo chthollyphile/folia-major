@@ -1,16 +1,14 @@
 /// <reference types="@webgpu/types" />
-import { joinSegments } from '../../src/services/analysis/strokesWgsl/hostMath';
+import { joinSegments, pointTimes, resamplePen } from '../../src/services/analysis/strokesWgsl/hostMath';
 import { Own1Wgsl, type Own1Glyph } from '../../src/services/analysis/strokesWgsl/own1';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
+import { fs } from './node';
 import { maxAbsDiff, type RefData } from './refData';
 
 // dev/strokes-wgsl/ownChecks.ts
 // own1 checks of the test shell against the reference (as tools/mnn main.cpp checkOwn1): logits on the
 // sub characters, owners on ink pixels (with torch's top1 - top2 gap where they differ), non-finite
 // values - and the projection (pen / along / reveal) against a CPU port of example.py's nearest vertex.
-
-const nodeRequire = (globalThis as unknown as { require: (id: string) => any }).require;
-const fs = nodeRequire('fs');
 
 const PIX = 65536;
 
@@ -33,7 +31,7 @@ const cpuProject = (pens: Float32Array[], times: Float32Array[], owner: Uint8Arr
     return reveal;
 };
 
-export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; own1: string; chars: number }, ref: RefData, report: Record<string, unknown>, log: (line: string) => void): Promise<void> => {
+export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; own1: string; chars: number; paced: boolean }, ref: RefData, report: Record<string, unknown>, log: (line: string) => void): Promise<void> => {
     const own = await Own1Wgsl.create(device, new Uint8Array(fs.readFileSync(config.own1)), { f16: config.f16, chunk: 1 });
     const npen = ref.i32('own_npen');
     const img = ref.u8('img_u8');
@@ -58,6 +56,7 @@ export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; ow
     let nonFinite = 0;
     let projDiff = 0;
     let projChecked = 0;
+    let resampleDiff = 0;
     const times: number[] = [];
     const n = Math.min(config.chars, 126);
     for (let i = 0; i < n; i += 1) {
@@ -72,10 +71,15 @@ export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; ow
         x.set(x23.subarray(i * 2 * PIX, (i + 1) * 2 * PIX), 2 * PIX);
         const pens = joinSegments(charSegs, charCont);
         if (pens.length !== P) throw new Error(`char ${i}: ${pens.length} joined pens, reference has ${P}`);
-        const glyph: Own1Glyph = { x, pens, resampled: pensAll.subarray(penAt * 64, (penAt + P) * 64) };
+        const resampledRef = pensAll.subarray(penAt * 64, (penAt + P) * 64);
+        pens.forEach((pen, k) => { resampleDiff = Math.max(resampleDiff, maxAbsDiff(resamplePen(pen), resampledRef.subarray(k * 64, k * 64 + 64))); });
+        const glyph: Own1Glyph = { x, pens, resampled: resampledRef };
         penAt += P;
+        // Paced: the first glyph warms serially so its cold first dispatches stay out of the cost table.
+        if (config.paced && !times.length) await own.run([glyph]);
+        const pacing = config.paced ? { sliceMs: 2, inFlight: 1 } : undefined;
         const started = performance.now();
-        const [r] = await own.run([glyph], { logits: sub.has(i) });
+        const [r] = await own.run([glyph], { logits: sub.has(i), pacing });
         times.push(performance.now() - started);
         if (r.logits) {
             dlg = Math.max(dlg, maxAbsDiff(r.logits, lgSub.subarray(lgAt * PIX, (lgAt + P) * PIX)));
@@ -96,7 +100,6 @@ export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; ow
             }
         }
         if (i % 9 === 0) {
-            const { pointTimes } = await import('../../src/services/analysis/strokesWgsl/hostMath');
             const cpu = cpuProject(pens, pointTimes(pens).times, r.owner, inkAt);
             for (let p = 0; p < PIX; p += 1) if (Math.abs(cpu[p] - r.reveal[p]) > 1e-6) projDiff += 1;
             projChecked += 1;
@@ -105,9 +108,14 @@ export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; ow
     const sorted = [...times].sort((a, b) => a - b);
     const result = {
         logitsMax: dlg, inkDiff: `${diff}/${ink}`, inkDiffPct: (100 * diff) / Math.max(ink, 1), diffWithGapOver005: `${diffBig}/${inkBig}`, gapMaxAtDiff,
-        nonFinite, projection: { chars: projChecked, pixelsDifferent: projDiff }, msPerCharMedian: sorted[sorted.length >> 1], msPerCharMin: sorted[0],
+        nonFinite, hostResampleMaxDiff: resampleDiff, projection: { chars: projChecked, pixelsDifferent: projDiff }, msPerCharMedian: sorted[sorted.length >> 1], msPerCharMin: sorted[0],
     };
-    log(`[own1] logits max diff ${dlg.toExponential(3)}; ink owners differ ${diff}/${ink} = ${result.inkDiffPct.toFixed(4)}%, of gap > 0.05 ${diffBig}/${inkBig}, max torch gap at a difference ${gapMaxAtDiff.toFixed(3)}; non-finite ${nonFinite}; projection vs CPU: ${projDiff} pixels differ over ${projChecked} chars; ${result.msPerCharMedian.toFixed(2)} ms/char median (min ${result.msPerCharMin.toFixed(2)})`);
+    log(`[own1] logits max diff ${dlg.toExponential(3)}; ink owners differ ${diff}/${ink} = ${result.inkDiffPct.toFixed(4)}%, of gap > 0.05 ${diffBig}/${inkBig}, max torch gap at a difference ${gapMaxAtDiff.toFixed(3)}; non-finite ${nonFinite}; host resamplePen vs reference ${resampleDiff.toExponential(2)}; projection vs CPU: ${projDiff} pixels differ over ${projChecked} chars; ${result.msPerCharMedian.toFixed(2)} ms/char median (min ${result.msPerCharMin.toFixed(2)})`);
+    if (config.paced) {
+        const top = [...own.costTable.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+        log(`[own1 paced] longest dispatches: ${top.map(([label, ms]) => `${label} ${ms.toFixed(3)}`).join(', ')}; GPU ${(own.bytes / 2 ** 20).toFixed(0)} MB`);
+        Object.assign(result, { longestMs: top[0]?.[1] ?? null });
+    }
     report.own1 = result;
     own.destroy();
 };

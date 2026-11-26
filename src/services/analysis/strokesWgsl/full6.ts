@@ -138,19 +138,18 @@ export class Full6Wgsl {
         const b = this.net.buffers;
         const mask = new Float32Array(n * MEM_ROWS);
         const feat = new Float32Array(n * SEGS * 160);
-        let anyReference = false;
         glyphs.forEach((glyph, i) => {
             if (glyph.img.length !== 3 * 65536) throw new Error(`glyph ${i}: img must be [3, 256, 256]`);
             device.queue.writeBuffer(b.img, i * 3 * 65536 * 4, glyph.img.buffer, glyph.img.byteOffset, glyph.img.byteLength);
             for (let s = 0; s < SEGS; s += 1) {
                 const valid = useReference && glyph.refQ && glyph.refM && glyph.refM[s];
                 mask[i * MEM_ROWS + 256 + s] = valid ? 0 : -1e30;
-                if (valid) anyReference = true;
                 if (glyph.refQ) feat.set(segFeat(glyph.refQ.subarray(s * 32, s * 32 + 32)), (i * SEGS + s) * 160);
             }
         });
         device.queue.writeBuffer(b.mask, 0, mask);
         device.queue.writeBuffer(b.refFeat, 0, feat);
+        const anyReference = useReference && glyphs.some(glyph => glyph.refQ && glyph.refM?.some(Boolean));
         this.net.setMemoryKeys(anyReference ? MEM_ROWS : 256);
         for (let chunk = 0; chunk * this.net.chunk < n; chunk += 1) await this.runOps(runner, this.net.encoderOps(chunk), 'encoder', paced);
         await this.runOps(runner, this.net.memoryOps(n), null, paced);
@@ -284,7 +283,7 @@ export class Full6Wgsl {
 
     /** A GPU buffer's contents (debugging and stage checks): fmap, mem, ... */
     async read(name: string, bytes: number, offset = 0): Promise<ArrayBuffer> {
-        const buffer = (this.net.buffers as unknown as Record<string, GPUBuffer>)[name] ?? this.net.scratch[name];
+        const buffer = (this.net.buffers as unknown as Record<string, GPUBuffer | undefined>)[name] ?? (this.net.scratch as Record<string, GPUBuffer | undefined>)[name];
         if (!buffer) throw new Error(`no buffer ${name}`);
         return readBuffer(this.device, buffer, bytes, offset);
     }

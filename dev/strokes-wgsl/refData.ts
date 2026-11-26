@@ -1,9 +1,8 @@
+import type { NodeFs, NodePath } from './node';
+
 // dev/strokes-wgsl/refData.ts
 // The torch reference data (~/bihua tools/mnn/build/ref: index.json + ref.bin, arrays 64-byte aligned,
 // written by mnn_ref.py) read by name in place, plus the two comparison helpers the checks use.
-
-type NodeFs = { readFileSync(p: string, enc?: string): any; openSync(p: string, flags: string): number; readSync(fd: number, b: Uint8Array, o: number, n: number, at: number): number };
-type NodePath = { join(...parts: string[]): string };
 
 interface Entry { dtype: 'u8' | 'f32' | 'i32' | 'f16'; shape: number[]; offset: number }
 
@@ -13,7 +12,7 @@ export class RefData {
     private readonly cache = new Map<string, ArrayBufferView>();
 
     constructor(dir: string, private readonly fs: NodeFs, path: NodePath) {
-        this.index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+        this.index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')) as Record<string, Entry>;
         this.fd = fs.openSync(path.join(dir, 'ref.bin'), 'r');
     }
 
@@ -22,7 +21,7 @@ export class RefData {
     }
 
     private entry(name: string): Entry {
-        const entry = this.index[name];
+        const entry = this.index[name] as Entry | undefined;
         if (!entry) throw new Error(`reference has no ${name}`);
         return entry;
     }
@@ -37,7 +36,7 @@ export class RefData {
 
     private typed<T extends ArrayBufferView>(name: string, size: number, make: (b: ArrayBuffer) => T): T {
         let found = this.cache.get(name) as T | undefined;
-        if (!found) this.cache.set(name, found = make(this.bytes(name, size).buffer));
+        if (!found) this.cache.set(name, found = make(this.bytes(name, size).buffer as ArrayBuffer));
         return found;
     }
 

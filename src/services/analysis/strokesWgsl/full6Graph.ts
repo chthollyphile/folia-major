@@ -1,11 +1,11 @@
 /// <reference types="@webgpu/types" />
-import { GpuGraph, STORAGE, type Op } from './graph';
+import { STORAGE, type Op } from './graph';
 import { FPN_FUSE, LIN_ACCUM, LIN_CMAJOR, LIN_SILU, LIN_TAB, LIN_VEC, flat } from './kernels';
 import {
     ADVANCE, ATT_DYNK, ATT_MASK, ATT_SLOT, ATTN_FIELDS, DECIDE, MEM_ROWS, REC, STATE_HEAD, TMAX,
     attentionKernel, embedKernel, refineSampleKernel,
 } from './kernelsSeq';
-import { Layers, type StepOp } from './layers';
+import type { Layers, StepOp } from './layers';
 import type { StrokesManifest } from './packed';
 
 // src/services/analysis/strokesWgsl/full6Graph.ts

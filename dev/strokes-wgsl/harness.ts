@@ -2,6 +2,7 @@
 import { Full6Wgsl, type Full6Glyph } from '../../src/services/analysis/strokesWgsl/full6';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
 import { REC } from '../../src/services/analysis/strokesWgsl/kernelsSeq';
+import { fs, ipcRenderer, path } from './node';
 import { runOwnChecks } from './ownChecks';
 import { RefData, maxAbsDiff, percentile } from './refData';
 
@@ -9,11 +10,6 @@ import { RefData, maxAbsDiff, percentile } from './refData';
 // Renderer side of the test shell (see main.cjs): opens a WebGPU device (shader-f16 / timestamp-query when
 // the adapter has them, the adapter's buffer limits), loads full6 / own1 by path and runs SW_TASK against
 // the torch reference data, printing the figures HANDOFF_FOLIA.md §4 and ~/bihua tools/mnn main.cpp report.
-
-const nodeRequire = (globalThis as unknown as { require: (id: string) => any }).require;
-const { ipcRenderer } = nodeRequire('electron');
-const fs = nodeRequire('fs');
-const path = nodeRequire('path');
 
 const log = (line: string) => ipcRenderer.send('sw-log', line);
 const fmt = (v: number) => v.toExponential(3);
@@ -167,7 +163,8 @@ async function bench(device: GPUDevice, config: Config, ref: RefData, report: Re
         const started = performance.now();
         for (let at = 0; at < count; at += B) {
             await full6.generate(glyphs.slice(at, at + B), options);
-            const stats = full6.lastStats!;
+            const stats = full6.lastStats;
+            if (!stats) throw new Error('generate left no stats');
             encodeMs += stats.encodeMs;
             decodeMs += stats.decodeMs;
             steps += stats.steps;
@@ -204,8 +201,8 @@ async function profile(device: GPUDevice, config: Config, ref: RefData, report: 
 }
 
 async function main() {
-    const config: Config = await ipcRenderer.invoke('sw-config');
-    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+    const config = await ipcRenderer.invoke('sw-config') as Config;
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('no WebGPU adapter');
     if (config.f16 && !adapter.features.has('shader-f16')) throw new Error('SW_F16 asked for, but this adapter has no shader-f16');
     const features: GPUFeatureName[] = [];
@@ -215,21 +212,22 @@ async function main() {
         requiredFeatures: features,
         requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize },
     });
-    device.addEventListener('uncapturederror', (event) => log(`GPU error: ${(event as GPUUncapturedErrorEvent).error.message}`));
+    device.addEventListener('uncapturederror', (event) => log(`GPU error: ${event.error.message}`));
     log(`adapter ${adapter.info.vendor} ${adapter.info.architecture}; ${config.f16 ? 'f16' : 'f32'}; features ${features.join(',')}`);
     const ref = new RefData(config.ref, fs, path);
-    const report: Record<string, unknown> = { mode: config.f16 ? 'f16' : 'f32', task: config.task };
+    const mode = config.f16 ? 'f16' : 'f32';
+    const report: Record<string, unknown> = { mode, task: config.task };
     if (config.task === 'stages') await stages(device, config, ref);
     if (config.task === 'align' || config.task === 'full6') await alignFull6(device, config, ref, report);
     if (config.task === 'align' || config.task === 'own') await runOwnChecks(device, config, ref, report, log);
     if (config.task === 'bench') await bench(device, config, ref, report);
     if (config.task === 'profile') await profile(device, config, ref, report);
-    fs.writeFileSync(path.join(config.out, `report-${config.task}-${report.mode}.json`), JSON.stringify(report, null, 1));
+    fs.writeFileSync(path.join(config.out, `report-${config.task}-${mode}.json`), JSON.stringify(report, null, 1));
     ipcRenderer.send('sw-done', 0);
 }
 
-main().catch((error) => {
-    log(`FAILED: ${error?.stack ?? error}`);
+main().catch((error: unknown) => {
+    log(`FAILED: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
     ipcRenderer.send('sw-done', 1);
 });
 

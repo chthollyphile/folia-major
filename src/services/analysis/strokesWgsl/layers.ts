@@ -1,5 +1,5 @@
 /// <reference types="@webgpu/types" />
-import { GpuGraph, gemmCount, type Buffers, type Op } from './graph';
+import { gemmCount, type Buffers, type GpuGraph, type Op } from './graph';
 import {
     CONV_ACCUM, GN_FINAL, GN_PARTIAL, convKernel, flat, gnApplyKernel, linearKernel, linearParams, skinnyCount,
     type GemmMode, type LinearInput, type LinearOutput, type LinearParams,
@@ -44,7 +44,7 @@ export class Layers {
     ) {}
 
     word(name: string): number {
-        const entry = this.entries[name];
+        const entry = this.entries[name] as PackedEntry | undefined;
         if (!entry) throw new Error(`no packed entry ${name}`);
         return entry.word;
     }

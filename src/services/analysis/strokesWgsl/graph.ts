@@ -19,7 +19,8 @@ export interface Op {
 /** Buffers by binding name: a whole buffer, or a range of one (offset a multiple of 256). */
 export type Buffers = Record<string, GPUBuffer | GPUBufferBinding>;
 
-export const STORAGE = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
+/** STORAGE | COPY_DST | COPY_SRC as the spec's numbers: no GPUBufferUsage global at import (node, no-WebGPU renderers). */
+export const STORAGE = 0x80 | 0x08 | 0x04;
 
 export class GpuGraph {
     private readonly pipelines = new Map<string, GPUComputePipeline>();
@@ -71,7 +72,7 @@ export class GpuGraph {
     op(label: string, kernel: Kernel, buffers: Buffers, params: readonly number[] | GPUBuffer | null, count: [number, number, number]): Op {
         const pipeline = this.pipeline(kernel);
         const entries: GPUBindGroupEntry[] = kernel.bindings.map((name, binding) => {
-            const buffer = buffers[name];
+            const buffer = buffers[name] as Buffers[string] | undefined;
             if (!buffer) throw new Error(`${label}: no buffer for binding ${name}`);
             return { binding, resource: 'buffer' in buffer ? buffer : { buffer } };
         });

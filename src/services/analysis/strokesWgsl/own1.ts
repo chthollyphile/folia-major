@@ -173,7 +173,7 @@ export class Own1Wgsl {
         const L = this.layers;
         const z = this.chunk;
         const P = Math.max(pens, 16);
-        const f = (name: string, count: number) => { this.buf[name]?.destroy(); this.buf[name] = this.graph.buffer(count * 4); return this.buf[name]; };
+        const f = (name: string, count: number) => { (this.buf[name] as GPUBuffer | undefined)?.destroy(); this.buf[name] = this.graph.buffer(count * 4); return this.buf[name]; };
         const pensB = f('pens', P * 64);
         const extra = f('extra', P * 8);
         const pz = f('pz', P);
@@ -272,7 +272,7 @@ export class Own1Wgsl {
             device.queue.writeBuffer(this.buf.x, i * 4 * PIX * 4, glyph.x.buffer, glyph.x.byteOffset, glyph.x.byteLength);
         });
         const P = owners.length;
-        this.headOps(P);
+        const headOps = this.headOps(P);
         const b = this.buf;
         const pens = new Float32Array(Math.max(P, 1) * 64);
         resampled.forEach((r, k) => pens.set(r, k * 64));
@@ -289,7 +289,7 @@ export class Own1Wgsl {
         device.queue.writeBuffer(pmeta, 0, pm);
         const verts = this.graph.buffer(Math.max(vertices.length, 4) * 4);
         device.queue.writeBuffer(verts, 0, new Float32Array(vertices));
-        const head = this.queryOps!.ops.map((op, k) => (k === 0 ? { ...op, count: [Math.max(P, 1), 1, 1] as [number, number, number] } : op));
+        const head = headOps.map((op, k) => (k === 0 ? { ...op, count: [Math.max(P, 1), 1, 1] as [number, number, number] } : op));
         const ops = [...this.ops, ...(P ? head : []), ...(P ? this.logitOps(Boolean(options.logits), verts, pmeta) : [])];
         await this.runOps(runner, ops, paced);
         await runner.flush(true);

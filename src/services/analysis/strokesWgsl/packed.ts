@@ -68,7 +68,7 @@ export const repack = (weights: Uint8Array, manifest: StrokesManifest, spec: Rec
     for (const [name, source] of Object.entries(spec)) {
         const names = typeof source === 'string' ? [source] : source;
         const parts = names.map((n) => {
-            const found = manifest.tensors[n];
+            const found = manifest.tensors[n] as StrokesManifestTensor | undefined;
             if (!found) throw new Error(`${manifest.model}: missing tensor ${n}`);
             return found;
         });
@@ -111,7 +111,7 @@ export const halfToFloat = (h: number): number => {
 
 /** One tensor of the file as f32 values (f16 unpacked). */
 export const readTensor = (weights: Uint8Array, manifest: StrokesManifest, name: string): Float32Array => {
-    const entry = manifest.tensors[name];
+    const entry = manifest.tensors[name] as StrokesManifestTensor | undefined;
     if (!entry) throw new Error(`${manifest.model}: missing tensor ${name}`);
     const n = product(entry.shape);
     const out = new Float32Array(n);
