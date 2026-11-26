@@ -1,35 +1,25 @@
 /// <reference types="@webgpu/types" />
-import { Full6Wgsl, type Full6Glyph } from '../../src/services/analysis/strokesWgsl/full6';
+import { Full6Wgsl } from '../../src/services/analysis/strokesWgsl/full6';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
 import { REC } from '../../src/services/analysis/strokesWgsl/kernelsSeq';
 import { fs, ipcRenderer, path } from './node';
 import { runOwnChecks } from './ownChecks';
-import { RefData, maxAbsDiff, percentile } from './refData';
+import { runOwn2Align, runOwnBench } from './own2Checks';
+import { RefData, glyphsOf, maxAbsDiff, percentile } from './refData';
 
 // dev/strokes-wgsl/harness.ts
 // Renderer side of the test shell (see main.cjs): opens a WebGPU device (shader-f16 / timestamp-query when
-// the adapter has them, the adapter's buffer limits), loads full6 / own1 by path and runs SW_TASK against
+// the adapter has them, the adapter's buffer limits), loads full6 / own1 / own2 by path and runs SW_TASK against
 // the torch reference data, printing the figures HANDOFF_FOLIA.md §4 and ~/bihua tools/mnn main.cpp report.
 
 const log = (line: string) => ipcRenderer.send('sw-log', line);
 const fmt = (v: number) => v.toExponential(3);
 
 export interface Config {
-    out: string; task: string; f16: boolean; full6: string; own1: string; ref: string;
+    out: string; task: string; f16: boolean; full6: string; own1: string; own2: string; own2ref: string; ref: string;
     batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[]; alignB: number; chunk: number;
+    own2Chunk: number; rounds: number;
 }
-
-/** The reference's glyphs as runtime inputs. */
-const glyphsOf = (ref: RefData, count: number): Full6Glyph[] => {
-    const img = ref.u8('img_u8');
-    const q = ref.f32('ref_q');
-    const m = ref.u8('ref_m');
-    return Array.from({ length: count }, (_, i) => ({
-        img: Float32Array.from(img.subarray(i * 3 * 65536, (i + 1) * 3 * 65536), v => Math.fround(v / 255)),
-        refQ: q.subarray(i * 40 * 32, (i + 1) * 40 * 32),
-        refM: m.subarray(i * 40, (i + 1) * 40),
-    }));
-};
 
 /** Ragged gen_{tag}_segs / _cont split per character. */
 const generated = (ref: RefData, tag: string) => {
@@ -222,6 +212,8 @@ async function main() {
     if (config.task === 'align' || config.task === 'own') await runOwnChecks(device, config, ref, report, log);
     if (config.task === 'bench') await bench(device, config, ref, report);
     if (config.task === 'profile') await profile(device, config, ref, report);
+    if (config.task === 'own2') await runOwn2Align(device, config, ref, new RefData(config.own2ref, fs, path), report, log);
+    if (config.task === 'ownbench') await runOwnBench(device, config, ref, report, log);
     fs.writeFileSync(path.join(config.out, `report-${config.task}-${mode}.json`), JSON.stringify(report, null, 1));
     ipcRenderer.send('sw-done', 0);
 }

@@ -1,3 +1,4 @@
+import type { Full6Glyph } from '../../src/services/analysis/strokesWgsl/full6';
 import type { NodeFs, NodePath } from './node';
 
 // dev/strokes-wgsl/refData.ts
@@ -63,4 +64,16 @@ export const percentile = (values: number[], q: number): number => {
     if (!values.length) return 0;
     const sorted = [...values].sort((a, b) => a - b);
     return sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1) + 0.5))];
+};
+
+/** The reference's glyphs as runtime inputs. */
+export const glyphsOf = (ref: RefData, count: number): Full6Glyph[] => {
+    const img = ref.u8('img_u8');
+    const q = ref.f32('ref_q');
+    const m = ref.u8('ref_m');
+    return Array.from({ length: count }, (_, i) => ({
+        img: Float32Array.from(img.subarray(i * 3 * 65536, (i + 1) * 3 * 65536), v => Math.fround(v / 255)),
+        refQ: q.subarray(i * 40 * 32, (i + 1) * 40 * 32),
+        refM: m.subarray(i * 40, (i + 1) * 40),
+    }));
 };

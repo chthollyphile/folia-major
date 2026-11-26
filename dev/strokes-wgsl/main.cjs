@@ -14,7 +14,10 @@ const path = require('path');
 //
 // SW_TASK: stages (encoder / memory / step-0 intermediates against dbg_*), align (teacher-forced and free
 // generation, with and without the reference, plus own1), bench (timings, SW_B=1,16,64,128,256 batch
-// sizes), own (own1 only). SW_FULL6 / SW_OWN1 / SW_REF override the default paths under ~/bihua.
+// sizes), own (own1 only), own2 (own2 against SW_OWN2REF, the scratch own2_ref.py output, at each SW_B: the
+// first is the reference run, the others must match it bitwise), ownbench (own1 vs own2 ms/char per SW_B,
+// SW_ROUNDS interleaved rounds, and end to end after full6). SW_FULL6 / SW_OWN1 / SW_OWN2 / SW_REF
+// override the default paths under ~/bihua; SW_OWN2_CHUNK is own2's glyphs a forward.
 // SW_PACED=1 runs with gpuSlices' default pacing (2 ms slices) and reports the longest dispatch.
 
 const dir = process.env.SW_DIR;
@@ -33,6 +36,10 @@ ipcMain.handle('sw-config', () => ({
     f16: process.env.SW_F16 === '1',
     full6: process.env.SW_FULL6 || path.join(bihua, 'models/full6/full6-folia.bin'),
     own1: process.env.SW_OWN1 || path.join(bihua, 'models/own1/own1-folia.bin'),
+    own2: process.env.SW_OWN2 || path.join(bihua, 'models/own2/own2-folia.bin'),
+    own2ref: process.env.SW_OWN2REF || '',
+    own2Chunk: Number(process.env.SW_OWN2_CHUNK || 2),
+    rounds: Number(process.env.SW_ROUNDS || 5),
     ref: process.env.SW_REF || path.join(bihua, 'tools/mnn/build/ref'),
     batches: (process.env.SW_B || '1,16,64,128,256').split(',').map(Number),
     chars: Number(process.env.SW_CHARS || 126),
