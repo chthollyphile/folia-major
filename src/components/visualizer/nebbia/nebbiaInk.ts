@@ -156,7 +156,7 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
             for (const b of c.beads[si]) {
                 if (b.s > drawn) break;
                 const br = b.r * beadScale;
-                const half = look ? Math.max(0.002, (st.hw ? interpolateAt(st.cum, st.hw, b.s) : g.ink!.width / 2) + look.grow) : st.pw ? Math.max(base * interpolateAt(st.cum, st.pw, b.s), minWidth) / 2 : width / 2;
+                const half = look ? Math.max(0.002, (st.hw ? interpolateAt(st.cum, st.hw, b.s) : look.width / 2 - look.grow) + look.grow) : st.pw ? Math.max(base * interpolateAt(st.cum, st.pw, b.s), minWidth) / 2 : width / 2;
                 const off = half + (br * 0.7 + b.j * 1.5 * beadScale) / c.s;
                 const [x, y] = toScreen(c, b.x + b.nx * off, b.y + b.ny * off);
                 const bv = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;
@@ -184,7 +184,7 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     });
     // 前沿羽化约 FONT_FEATHER 个遮罩像素宽
     // 写完了就整个显出来（前沿的羽化不留在最后一笔的末端）
-    if (g.ink && clarity > 0.002) ctx.tile(g.ink, covered >= g.total * 0.999 ? 2 : covered / g.total, clarity, FONT_FEATHER / Math.max(1, g.total * c.s * MASK_SCALE), look!.grow);
+    if (g.ink && look && clarity > 0.002) ctx.tile(g.ink, covered >= g.total * 0.999 ? 2 : covered / g.total, clarity, FONT_FEATHER / Math.max(1, g.total * c.s * MASK_SCALE), look.grow);
     ctx.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
     for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV, alive, beadScale);
     ctx.setTransform(1, 0, 0, 1, 0, 0);

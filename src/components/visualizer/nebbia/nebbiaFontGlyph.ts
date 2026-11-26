@@ -26,7 +26,7 @@ const R = CANON;
  * 字体笔画的两种画法：false（默认）= 模型笔迹当普通的中线笔画画（珠子、粗细、手写变形都照骨架字形，笔宽剖面取自字体）；
  * true = 原来的字块（字体自己的墨按书写位置显出来，粗细设置靠有符号距离外扩）。
  */
-export const FONT_INK_TILE = false;
+export const FONT_INK_TILE = false as boolean;
 /** 典型笔宽的取值范围（em）。 */
 const WIDTH_MIN = 0.02, WIDTH_MAX = 0.12;
 /** 字块边长：模型网格的一半（雾笺的遮罩是半分辨率，字块再大也看不出来）。 */
