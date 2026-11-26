@@ -1,6 +1,7 @@
 /// <reference types="@webgpu/types" />
 import { joinSegments, pointTimes, resamplePen } from '../../src/services/analysis/strokesWgsl/hostMath';
 import { Own1Wgsl, type Own1Glyph } from '../../src/services/analysis/strokesWgsl/own1';
+import { nearestOnPolyline, pushPenVertices } from '../../src/services/analysis/strokesWgsl/ownInput';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
 import { fs } from './node';
 import { maxAbsDiff, type RefData } from './refData';
@@ -8,27 +9,46 @@ import { maxAbsDiff, type RefData } from './refData';
 // dev/strokes-wgsl/ownChecks.ts
 // own1 checks of the test shell against the reference (as tools/mnn main.cpp checkOwn1): logits on the
 // sub characters, owners on ink pixels (with torch's top1 - top2 gap where they differ), non-finite
-// values - and the projection (pen / along / reveal) against a CPU port of example.py's nearest vertex.
+// values - and the projection (pen / along / reveal) against the CPU's segment projection (no torch
+// reference exists for it: example.py's is nearest vertex).
 
 const PIX = 65536;
 
-/** example.py's reveal for one glyph, given owners: nearest vertex of the owner pen (first of equals), in f64. */
-const cpuProject = (pens: Float32Array[], times: Float32Array[], owner: Uint8Array, ink: (p: number) => boolean) => {
+/**
+ * example.py's reveal for one glyph, given owners, on the CPU: the nearest point on the owner pen's segments
+ * (ownInput.nearestOnPolyline, f64 over the same f32 vertex table the GPU reads).
+ */
+export const cpuProject = (pens: Float32Array[], times: ArrayLike<number>[], owner: ArrayLike<number>, ink: (p: number) => boolean) => {
+    const tables = pens.map((pen, k) => {
+        const rows: number[] = [];
+        pushPenVertices(rows, pen, times[k]);
+        return Float32Array.from(rows);
+    });
     const reveal = new Float32Array(PIX).fill(-1);
+    const along = new Float32Array(PIX).fill(-1);
     for (let p = 0; p < PIX; p += 1) {
         if (!ink(p)) continue;
-        const u = ((p % 256) + 0.5) / 256 * 2 - 1;
-        const v = (Math.floor(p / 256) + 0.5) / 256 * 2 - 1;
-        const pen = pens[owner[p]];
-        let best = Infinity;
-        let arg = 0;
-        for (let i = 0; i < pen.length / 2; i += 1) {
-            const d = (u - pen[2 * i]) ** 2 + (v - pen[2 * i + 1]) ** 2;
-            if (d < best) { best = d; arg = i; }
-        }
-        reveal[p] = times[owner[p]][arg];
+        const u = Math.fround(Math.fround(Math.fround((p % 256) + 0.5) / 256) * 2 - 1);
+        const v = Math.fround(Math.fround(Math.fround(Math.floor(p / 256) + 0.5) / 256) * 2 - 1);
+        const hit = nearestOnPolyline(tables[owner[p]], u, v);
+        reveal[p] = hit.time;
+        along[p] = hit.along;
     }
-    return reveal;
+    return { reveal, along };
+};
+
+/** Pixels where GPU and CPU projections differ by more than 1e-4, and of those by more than 0.01 (another segment won a near tie). */
+export const projectionDiff = (cpu: Float32Array, gpu: Float32Array): { over1e4: number; over001: number; max: number } => {
+    let over1e4 = 0;
+    let over001 = 0;
+    let max = 0;
+    for (let p = 0; p < cpu.length; p += 1) {
+        const d = Math.abs(cpu[p] - gpu[p]);
+        if (d > 1e-4) over1e4 += 1;
+        if (d > 0.01) over001 += 1;
+        if (!(d <= max)) max = d;
+    }
+    return { over1e4, over001, max };
 };
 
 export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; own1: string; chars: number; paced: boolean }, ref: RefData, report: Record<string, unknown>, log: (line: string) => void): Promise<void> => {
@@ -55,6 +75,7 @@ export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; ow
     let dlg = 0;
     let nonFinite = 0;
     let projDiff = 0;
+    let projBig = 0;
     let projChecked = 0;
     let resampleDiff = 0;
     const times: number[] = [];
@@ -100,17 +121,18 @@ export const runOwnChecks = async (device: GPUDevice, config: { f16: boolean; ow
             }
         }
         if (i % 9 === 0) {
-            const cpu = cpuProject(pens, pointTimes(pens).times, r.owner, inkAt);
-            for (let p = 0; p < PIX; p += 1) if (Math.abs(cpu[p] - r.reveal[p]) > 1e-6) projDiff += 1;
+            const d = projectionDiff(cpuProject(pens, pointTimes(pens).times, r.owner, inkAt).reveal, r.reveal);
+            projDiff += d.over1e4;
+            projBig += d.over001;
             projChecked += 1;
         }
     }
     const sorted = [...times].sort((a, b) => a - b);
     const result = {
         logitsMax: dlg, inkDiff: `${diff}/${ink}`, inkDiffPct: (100 * diff) / Math.max(ink, 1), diffWithGapOver005: `${diffBig}/${inkBig}`, gapMaxAtDiff,
-        nonFinite, hostResampleMaxDiff: resampleDiff, projection: { chars: projChecked, pixelsDifferent: projDiff }, msPerCharMedian: sorted[sorted.length >> 1], msPerCharMin: sorted[0],
+        nonFinite, hostResampleMaxDiff: resampleDiff, projection: { chars: projChecked, over1e4: projDiff, over001: projBig }, msPerCharMedian: sorted[sorted.length >> 1], msPerCharMin: sorted[0],
     };
-    log(`[own1] logits max diff ${dlg.toExponential(3)}; ink owners differ ${diff}/${ink} = ${result.inkDiffPct.toFixed(4)}%, of gap > 0.05 ${diffBig}/${inkBig}, max torch gap at a difference ${gapMaxAtDiff.toFixed(3)}; non-finite ${nonFinite}; host resamplePen vs reference ${resampleDiff.toExponential(2)}; projection vs CPU: ${projDiff} pixels differ over ${projChecked} chars; ${result.msPerCharMedian.toFixed(2)} ms/char median (min ${result.msPerCharMin.toFixed(2)})`);
+    log(`[own1] logits max diff ${dlg.toExponential(3)}; ink owners differ ${diff}/${ink} = ${result.inkDiffPct.toFixed(4)}%, of gap > 0.05 ${diffBig}/${inkBig}, max torch gap at a difference ${gapMaxAtDiff.toFixed(3)}; non-finite ${nonFinite}; host resamplePen vs reference ${resampleDiff.toExponential(2)}; projection vs CPU: ${projDiff} pixels differ > 1e-4 (${projBig} > 0.01) over ${projChecked} chars; ${result.msPerCharMedian.toFixed(2)} ms/char median (min ${result.msPerCharMin.toFixed(2)})`);
     if (config.paced) {
         const top = [...own.costTable.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
         log(`[own1 paced] longest dispatches: ${top.map(([label, ms]) => `${label} ${ms.toFixed(3)}`).join(', ')}; GPU ${(own.bytes / 2 ** 20).toFixed(0)} MB`);

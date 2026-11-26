@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pointTimes } from '@/services/analysis/strokesWgsl/hostMath';
 import {
-    avgPool2, nearestOnPolyline, numpySum, own2Trajectory, pointTimes64, renderTrajectory, roundHalfEven, thickLine3,
+    avgPool2, nearestOnPolyline, numpySum, own2Trajectory, pointTimes64, pushPenVertices, renderTrajectory, roundHalfEven, thickLine3,
 } from '@/services/analysis/strokesWgsl/ownInput';
 
 // test/unit/strokesWgsl/ownInput.test.ts
@@ -107,5 +107,18 @@ describe('nearestOnPolyline', () => {
         expect(nearestOnPolyline(verts, -1, -1).time).toBeCloseTo(0.2, 6);
         expect(nearestOnPolyline(verts, 2, 3).time).toBeCloseTo(0.6, 6);
         expect(nearestOnPolyline(Float32Array.from([0.5, 0.5, 0, 0.3]), 0, 0)).toEqual({ d2: 0.5, along: 0, time: Math.fround(0.3) });
+    });
+});
+
+describe('pushPenVertices', () => {
+    it('appends (x, y, along by arc length, time) rows and returns the pen\'s vertex range', () => {
+        const rows: number[] = [9, 9, 9, 9];
+        const range = pushPenVertices(rows, Float32Array.from([0, 0, 0.3, 0, 0.3, 0.1]), [0.1, 0.2, 0.4]);
+        expect(range).toEqual([1, 4]);
+        expect(rows.slice(4, 8)).toEqual([0, 0, 0, 0.1]);
+        expect(rows[10]).toBeCloseTo(0.75, 6);
+        expect(rows.slice(12, 16).map(v => Math.fround(v))).toEqual([Math.fround(0.3), Math.fround(0.1), 1, Math.fround(0.4)]);
+        expect(pushPenVertices(rows, Float32Array.from([0.5, 0.5]), [0])).toEqual([5, 6]);
+        expect(rows[rows.length - 2]).toBe(0);
     });
 });

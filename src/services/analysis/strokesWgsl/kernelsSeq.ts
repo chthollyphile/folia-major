@@ -402,10 +402,11 @@ fn main() { st[0] = st[0] + 1u; }
 };
 
 /**
- * own1's pen queries, one workgroup (64, a channel each) per pen: Fm (channel-major [64, 256, 256]) sampled
- * at its 32 resampled points -> [mean, pt 0, 10, 21, 31] (5 x 64) + the host's 8 extras = 328 inputs of q.0.
+ * The pen queries, one workgroup (64, a channel each) per pen: Fm (channel-major [64, side, side]: own1 256,
+ * own2 128) of image pz[pen] sampled at its 32 resampled points -> [mean, pt 0, 10, 21, 31] (5 x 64) + the
+ * host's 8 extras = 328 inputs of q.0.
  */
-export const OWN_QUERY: Kernel = {
+export const ownQueryKernel = (side: number): Kernel => ({
     bindings: ['fm', 'pens', 'extra', 'pz', 'qin'],
     uniform: false,
     code: /* wgsl */ `
@@ -415,17 +416,17 @@ export const OWN_QUERY: Kernel = {
 @group(0) @binding(3) var<storage, read> pz: array<u32>;
 @group(0) @binding(4) var<storage, read_write> qin: array<f32>;
 fn tap(base: u32, y: f32, x: f32) -> f32 {
-  if (x < 0.0 || x > 255.0 || y < 0.0 || y > 255.0) { return 0.0; }
-  return fm[base + u32(y) * 256u + u32(x)];
+  if (x < 0.0 || x > ${side - 1}.0 || y < 0.0 || y > ${side - 1}.0) { return 0.0; }
+  return fm[base + u32(y) * ${side}u + u32(x)];
 }
 @compute @workgroup_size(64)
 fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) c: u32) {
   let pen = wg.x;
-  let base = (pz[pen] * 64u + c) * 65536u;
+  let base = (pz[pen] * 64u + c) * ${side * side}u;
   var mean = 0.0;
   for (var i = 0u; i < 32u; i++) {
-    let ix = ((pens[(pen * 32u + i) * 2u] + 1.0) * 256.0 - 1.0) / 2.0;
-    let iy = ((pens[(pen * 32u + i) * 2u + 1u] + 1.0) * 256.0 - 1.0) / 2.0;
+    let ix = ((pens[(pen * 32u + i) * 2u] + 1.0) * ${side}.0 - 1.0) / 2.0;
+    let iy = ((pens[(pen * 32u + i) * 2u + 1u] + 1.0) * ${side}.0 - 1.0) / 2.0;
     let x0 = floor(ix);
     let y0 = floor(iy);
     let x1 = x0 + 1.0;
@@ -442,7 +443,10 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) c: u3
   if (c < 8u) { qin[pen * 328u + 320u + c] = extra[pen * 8u + c]; }
 }
 `,
-};
+});
+
+/** own1's queries (Fm at 256 x 256). */
+export const OWN_QUERY = ownQueryKernel(256);
 
 /**
  * own1's owners, one invocation a pixel: logit_p = Fm[:, y, x] . q_p * 0.125 over the image's pens
@@ -490,8 +494,34 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u
 };
 
 /**
- * The reveal map (example.py): for each ink pixel (own1 input ch0 > 0.1, `ink` = the [z, 4, 256, 256] input)
- * the owner pen's nearest vertex (first of equals) - its pen index, its arc-length position along the pen
+ * WGSL of ownInput.nearestOnPolyline over `verts` (x, y, along, time) lo..hi: the nearest point to (u, v) on
+ * the pen's segments (projection clamped to each, first of equals) -> (along, time) there.
+ */
+export const PEN_PROJECT = /* wgsl */ `
+fn nearestOnPen(lo: u32, hi: u32, u: f32, v: f32) -> vec2f {
+  let w = verts[lo];
+  var best = (u - w.x) * (u - w.x) + (v - w.y) * (v - w.y);
+  var res = vec2f(w.z, w.w);
+  for (var i = lo; i + 1u < hi; i++) {
+    let a = verts[i];
+    let b = verts[i + 1u];
+    let ex = b.x - a.x;
+    let ey = b.y - a.y;
+    let len2 = ex * ex + ey * ey;
+    var f = 0.0;
+    if (len2 > 0.0) { f = clamp(((u - a.x) * ex + (v - a.y) * ey) / len2, 0.0, 1.0); }
+    let du = u - (a.x + f * ex);
+    let dv = v - (a.y + f * ey);
+    let d = du * du + dv * dv;
+    if (d < best || i == lo) { best = d; res = vec2f(a.z + f * (b.z - a.z), a.w + f * (b.w - a.w)); }
+  }
+  return res;
+}
+`;
+
+/**
+ * The reveal map (example.py, continuous): for each ink pixel (own1 input ch0 > 0.1, `ink` = the [z, 4, 256, 256]
+ * input) the nearest point on its owner pen's segments - the pen index, its arc-length position along the pen
  * (0..1) and its time on the glyph's time axis (0..1); -1 / -1 / -1 off the ink. Vertices: (x, y, along,
  * time) per point; pmeta = [z][first pen, pens], then [pen][first vertex, end].
  */
@@ -506,6 +536,7 @@ struct P { z: u32 }
 @group(0) @binding(3) var<storage, read> pmeta: array<u32>;
 @group(0) @binding(4) var<storage, read_write> out: array<vec4f>;
 @group(0) @binding(5) var<uniform> p: P;
+${PEN_PROJECT}
 @compute @workgroup_size(256)
 fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u32) {
   let z = wg.y;
@@ -518,16 +549,8 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_index) li: u
   let hi = pmeta[2u * p.z + 2u * (firstPen + pen) + 1u];
   let u = (f32(px % 256u) + 0.5) / 256.0 * 2.0 - 1.0;
   let v = (f32(px / 256u) + 0.5) / 256.0 * 2.0 - 1.0;
-  var best = 3.0e38;
-  var arg = lo;
-  for (var i = lo; i < hi; i++) {
-    let w = verts[i];
-    let du = u - w.x;
-    let dv = v - w.y;
-    let d = du * du + dv * dv;
-    if (d < best) { best = d; arg = i; }
-  }
-  out[at] = vec4f(f32(pen), verts[arg].z, verts[arg].w, 0.0);
+  let hit = nearestOnPen(lo, hi, u, v);
+  out[at] = vec4f(f32(pen), hit.x, hit.y, 0.0);
 }
 `,
 };

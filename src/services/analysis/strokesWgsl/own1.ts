@@ -1,18 +1,20 @@
 /// <reference types="@webgpu/types" />
 import { SERIAL_PACING, type SlicePacing } from '../gpuSlices';
 import { GpuGraph, OpRunner, profileOps, readBuffer, usableCosts, type Op } from './graph';
-import { ownExtra, pointTimes, polylineLength, resamplePen } from './hostMath';
+import { ownExtra, pointTimes, resamplePen } from './hostMath';
 import { AVG_POOL, LIN_ACCUM, LIN_RELU, LIN_SILU, UP_CAT, flat, transposeKernel } from './kernels';
 import { ATTN_FIELDS, OWN_LOGITS, OWN_MAX_PENS, OWN_QUERY, PROJECT, attentionKernel } from './kernelsSeq';
 import { Layers, type ConvMeta } from './layers';
+import { pushPenVertices } from './ownInput';
 import { repack, unpackStrokes, type StrokesManifest } from './packed';
 
 // src/services/analysis/strokesWgsl/own1.ts
 // own1 (which pen owns each ink pixel; ~/bihua hf/code/ownnet.py, HANDOFF_FOLIA.md §2) on WGSL, a chunk of
 // glyphs a forward: U-Net (Blocks with GroupNorm folded into the convs' gathers, a 2-layer pre-LN
 // transformer at 16 x 16), the 64-channel pixel features Fm, one query per pen sampled from Fm, the
-// per-pixel logits argmax - and then example.py's projection: every ink pixel takes its owner pen's
-// nearest vertex, giving the pen index, the position along that pen (0..1) and the reveal time (0..1).
+// per-pixel logits argmax - and then example.py's projection, continuous: every ink pixel takes the nearest
+// point on its owner pen's segments, giving the pen index, the position along that pen (0..1) and the
+// reveal time (0..1).
 //
 // Inputs are precomputed: x [4, 256, 256] = ink, clip(inside/12), the trajectory time map and trajectory
 // mask (preprocess.own_input: cv2 line rasterisation of full6's pens, not done here) and the pens.
@@ -260,14 +262,7 @@ export class Own1Wgsl {
                 ownExtra(sampled, k, n, extra);
                 extras.push(extra);
                 owners.push(i);
-                const length = polylineLength(pen);
-                penRanges.push(vertices.length / 4);
-                let s = 0;
-                for (let v = 0; v < pen.length / 2; v += 1) {
-                    if (v > 0) s += Math.hypot(pen[2 * v] - pen[2 * v - 2], pen[2 * v + 1] - pen[2 * v - 1]);
-                    vertices.push(pen[2 * v], pen[2 * v + 1], length > 0 ? s / length : 0, times[k][v]);
-                }
-                penRanges.push(vertices.length / 4);
+                penRanges.push(...pushPenVertices(vertices, pen, times[k]));
             });
             device.queue.writeBuffer(this.buf.x, i * 4 * PIX * 4, glyph.x.buffer, glyph.x.byteOffset, glyph.x.byteLength);
         });

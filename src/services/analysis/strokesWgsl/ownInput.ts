@@ -1,4 +1,4 @@
-import { DUR0, PAUSE, SPEED } from './hostMath';
+import { DUR0, PAUSE, SPEED, polylineLength } from './hostMath';
 
 // src/services/analysis/strokesWgsl/ownInput.ts
 // The ownership models' host-side input and output geometry (~/bihua hf/code/preprocess.py, example.py):
@@ -348,4 +348,19 @@ export const nearestOnPolyline = (verts: ArrayLike<number>, u: number, v: number
         }
     }
     return best;
+};
+
+/**
+ * Appends a pen's vertex rows to `out`: (x, y, along 0..1 by arc length, time[v]) - the table nearestOnPolyline
+ * and the GPU's PEN_PROJECT read. Returns the pen's first vertex index and its end.
+ */
+export const pushPenVertices = (out: number[], pen: ArrayLike<number>, times: ArrayLike<number>): [number, number] => {
+    const first = out.length / 4;
+    const length = polylineLength(pen);
+    let s = 0;
+    for (let v = 0; v < pen.length / 2; v += 1) {
+        if (v > 0) s += Math.hypot(pen[2 * v] - pen[2 * v - 2], pen[2 * v + 1] - pen[2 * v - 1]);
+        out.push(pen[2 * v], pen[2 * v + 1], length > 0 ? s / length : 0, times[v]);
+    }
+    return [first, out.length / 4];
 };
