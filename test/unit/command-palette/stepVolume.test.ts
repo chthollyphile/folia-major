@@ -22,7 +22,7 @@ import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
 
 // test/unit/command-palette/stepVolume.test.ts
 // Volume up and down from the palette or a global shortcut: each step starts from the store's value
-// at the press, stays within 0–1 on a whole percent, and turning it up unmutes.
+// at the press, stays within 0–1 on a whole percent, and landing above zero unmutes.
 
 const stepVolume = (delta: number) => buildPlaybackCommandContext({} as PlaybackCommandContextDeps).stepVolume(delta);
 
@@ -52,11 +52,14 @@ describe('stepVolume', () => {
         expect(useAudioSettingsStore.getState().volume).toBe(0.15);
     });
 
-    it('unmutes when turned up, and leaves mute alone when turned down', () => {
+    it('unmutes whenever the volume lands above zero, whichever direction', () => {
         useAudioSettingsStore.setState({ isMuted: true });
         stepVolume(-0.05);
-        expect(useAudioSettingsStore.getState().isMuted).toBe(true);
-        stepVolume(0.05);
         expect(useAudioSettingsStore.getState().isMuted).toBe(false);
+
+        // Stepping down to exactly zero keeps the mute switch alone.
+        useAudioSettingsStore.setState({ volume: 0.05, isMuted: true });
+        stepVolume(-0.05);
+        expect(useAudioSettingsStore.getState()).toMatchObject({ volume: 0, isMuted: true });
     });
 });
