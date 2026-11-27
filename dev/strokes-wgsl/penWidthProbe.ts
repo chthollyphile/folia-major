@@ -13,9 +13,10 @@ import { fs, path } from './node';
 // dev/strokes-wgsl/penWidthProbe.ts
 // 阶段 2 验证（SW_TASK=penwidth）：雾笺改读笔画服务后「效果不变」的数。每个字体 × 字 × 字重 W：
 //   旧路径  在 W 上跑 full6 + own2，模型笔迹 + own2 的书写位置 → penWidthProfile（雾笺原来的 buildPenGlyph）
-//   新路径  在 400 上跑 → buildFontStrokesGlyph → 编解码来回一趟 → 当前字重 W 的墨 + 从轮廓还原的归属和书写位置 → penWidthProfile
+//   新路径  同样在 W 上跑（笔画服务按显示字重推理，键带 |w<W>）→ buildFontStrokesGlyph（默认轮廓外扩）→ 编解码来回一趟
+//           → 当前字重 W 的墨 + 从轮廓还原的归属和书写位置（nebbiaFontAlong）→ penWidthProfile
 // 比：笔数是否相同；笔数相同的字，按每笔弧长比例对齐的点距（网格像素，256²）和笔宽倍数差；以及新路径的耗时（W 的光栅 + 还原 + 量）。
-// W = 400 时两边笔迹同一次推理，差别只来自编解码和轮廓还原；W = 600（雾笺默认字重）是用户实际看到的变化。
+// 每个 W 两边笔迹都是同一次推理，差别只来自编解码和轮廓还原（W = 600 是雾笺默认字重）。
 
 type Log = (line: string) => void;
 export interface PenWidthConfig { out: string; full6: string; own2: string; f16: boolean }
@@ -112,10 +113,9 @@ export async function runPenWidthProbe(device: GPUDevice, config: PenWidthConfig
     const lines: string[] = [];
     const buildMs: number[] = [], rasterMs: number[] = [];
     for (const font of FONTS) {
-        const base = await infer(job, font.family, 400, CHARS);
-        const records = base.map(b => (b ? decodeFontStrokesGlyph(encodeFontStrokesGlyph(buildFontStrokesGlyph(b.res.owner, b.res.pens, { a: b.canon.a, bx: b.canon.bx, by: b.canon.by }))) : null));
         for (const W of WEIGHTS) {
-            const runs = W === 400 ? base : await infer(job, font.family, W, CHARS);
+            const runs = await infer(job, font.family, W, CHARS);
+            const records = runs.map(b => (b ? decodeFontStrokesGlyph(encodeFontStrokesGlyph(buildFontStrokesGlyph(b.res.owner, b.res.pens, { a: b.canon.a, bx: b.canon.bx, by: b.canon.by }))) : null));
             const all = { dist: [] as number[], dw: [] as number[], dwEnd: [] as number[], dwMid: [] as number[], dwStarved: [] as number[], dwMatched: [] as number[], matched: 0, starvedStrokes: 0, strokes: 0, uncovered: 0, ink: 0, buildMs: [] as number[], penRel: [] as number[], ownerMiss: 0, ownerInk: 0, alongPx: [] as number[], glyphs: 0, countDiff: 0, countDiffChars: [] as string[] };
             CHARS.forEach((ch, ci) => {
                 const run = runs[ci], rec = records[ci];
@@ -132,8 +132,8 @@ export async function runPenWidthProbe(device: GPUDevice, config: PenWidthConfig
                 if (canonW) { const u = uncoveredInk(rec, canonW); all.uncovered += u.uncovered; all.ink += u.ink; }
                 if (!oldG || !newG) return;
                 all.glyphs += 1;
-                // 像素级：同一次推理（W = 400）时，还原的归属、书写位置和 own2 的比
-                if (W === 400) {
+                // 像素级：同一次推理，还原的归属、书写位置和 own2 的比
+                {
                     const polys = strokesPolys(rec);
                     const along = alongFromOutlines(polys, rec.outlines, EM_UNITS, run.canon.img, run.canon);
                     const lens = polys.map(polyLen);
@@ -200,7 +200,7 @@ export async function runPenWidthProbe(device: GPUDevice, config: PenWidthConfig
             };
             summary.push(s);
             log(`[penwidth ${font.label} W=${W}] glyphs ${s.glyphs}, stroke count differs ${s.strokeCountDiffers} (${s.countDiffChars}); point px median ${f3(s.distMedian)} p95 ${f3(s.distP95)} max ${f3(s.distMax)}; width x median ${f3(s.dwMedian)} p95 ${f3(s.dwP95)} max ${f3(s.dwMax)}; interior width x p95 ${f3(s.dwMidP95)} max ${f3(s.dwMidMax)}, end points p95 ${f3(s.dwEndP95)} max ${f3(s.dwEndMax)}; starved strokes ${s.starved} width x median ${f3(s.dwStarvedMedian)} max ${f3(s.dwStarvedMax)}; centreline-matched strokes ${s.matched} width x median ${f3(s.dwMatchedMedian)} p95 ${f3(s.dwMatchedP95)} max ${f3(s.dwMatchedMax)}; ink outside every outline ${f3(s.uncoveredPct)}%; build median ${f3(s.buildMedian)} p95 ${f3(s.buildP95)} ms; penRel max ${f3(s.penRelMax)}`
-                + (W === 400 ? `; pixel stroke (by along) differs from own2 ${f3(s.ownerMissPct)}% of ink, along |d| px median ${f3(s.alongPxMedian)} p95 ${f3(s.alongPxP95)} max ${f3(s.alongPxMax)}` : ''));
+                + `; pixel stroke (by along) differs from own2 ${f3(s.ownerMissPct)}% of ink, along |d| px median ${f3(s.alongPxMedian)} p95 ${f3(s.alongPxP95)} max ${f3(s.alongPxMax)}`);
         }
     }
     log(`[penwidth cost] new build per glyph (raster at W + outline along + profile): median ${f3(pct(buildMs, 0.5))} ms, p95 ${f3(pct(buildMs, 0.95))} ms, max ${f3(maxOf(buildMs))} ms; raster alone median ${f3(pct(rasterMs, 0.5))} ms`);
