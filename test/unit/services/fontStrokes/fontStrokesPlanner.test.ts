@@ -14,6 +14,10 @@ interface Harness {
     memory: FontStrokesMemory;
     deps: PlannerDeps<string, string>;
     inferCalls: { chars: string[]; urgency: string }[];
+    /** 每次光栅化的 (字, 字重)。 */
+    rasterCalls: [string, number][];
+    /** 每次推理前等的字体（族, 字重）。 */
+    fontCalls: [string, number][];
     storeReads: string[][];
     storePuts: string[][];
     setDemand(d: Partial<FontStrokesDemand>): void;
@@ -28,6 +32,8 @@ const make = (batch = 2): Harness => {
     const memory = new FontStrokesMemory();
     const listeners = new Set<() => void>();
     const inferCalls: Harness['inferCalls'] = [];
+    const rasterCalls: Harness['rasterCalls'] = [];
+    const fontCalls: Harness['fontCalls'] = [];
     const storeReads: string[][] = [];
     const storePuts: string[][] = [];
     const stored = new Map<string, FontStrokesGlyph>();
@@ -38,16 +44,26 @@ const make = (batch = 2): Harness => {
     });
     const deps: PlannerDeps<string, string> = {
         store: {
-            getGlyphs: async (_font, chars) => { storeReads.push(chars); return new Map(chars.filter(c => stored.has(c)).map(c => [c, stored.get(c)!])); },
-            putGlyphs: async (_font, _label, glyphs) => { storePuts.push([...glyphs.keys()]); glyphs.forEach((g, ch) => stored.set(ch, g)); },
+            // 盘按字存（k1 之外的键加前缀，免得两个键互相命中）
+            getGlyphs: async (font, chars) => {
+                storeReads.push(chars);
+                const id = (c: string) => (font === 'k1' ? c : `${font}:${c}`);
+                return new Map(chars.filter(c => stored.has(id(c))).map(c => [c, stored.get(id(c))!]));
+            },
+            putGlyphs: async (font, _label, glyphs) => { storePuts.push([...glyphs.keys()]); glyphs.forEach((g, ch) => stored.set(font === 'k1' ? ch : `${font}:${ch}`, g)); },
         },
         memory,
         readDemand: () => demand,
         subscribeDemand: cb => { listeners.add(cb); return () => { listeners.delete(cb); }; },
         fontStackOf: key => (key === 'bad' ? null : 'F'),
+        // 键名里带 @ 的按后面的数当字重（'k2@780'），其余 400
+        fontWeightOf: key => (key === 'noweight' ? null : key.includes('@') ? Number(key.split('@')[1]) : 400),
         labelOf: key => key,
-        prepareFont: async () => true,
-        rasterize: ch => (ch === '空' ? null : { canon: ch, features: new Float32Array([ch.charCodeAt(0)]) as Float32Array<ArrayBuffer> }),
+        prepareFont: async (family, weight) => { fontCalls.push([family, weight]); return true; },
+        rasterize: (ch, _family, weight) => {
+            rasterCalls.push([ch, weight]);
+            return ch === '空' ? null : { canon: ch, features: new Float32Array([ch.charCodeAt(0)]) as Float32Array<ArrayBuffer> };
+        },
         infer,
         build: (_canon, result) => glyph(result.charCodeAt(0) % 100),
         permanentlyUnavailable: () => unavailable.value,
@@ -55,7 +71,7 @@ const make = (batch = 2): Harness => {
         batch,
     };
     return {
-        planner: new FontStrokesPlanner(deps), memory, deps, inferCalls, storeReads, storePuts, infer, stored, unavailable,
+        planner: new FontStrokesPlanner(deps), memory, deps, inferCalls, rasterCalls, fontCalls, storeReads, storePuts, infer, stored, unavailable,
         setDemand: d => { demand = { near: [], rest: [], background: [], ...d }; },
         fireDemand: () => listeners.forEach(cb => cb()),
     };
@@ -92,6 +108,37 @@ describe('FontStrokesPlanner', () => {
         // 每个字只查一次盘；算出来的都存了
         expect(h.storeReads).toHaveLength(1);
         expect(h.storePuts.flat().sort()).toEqual(['人', '十', '口', '山', '日'].sort());
+    });
+
+    it('按字体键里的字重等字体、光栅化；认不出字重的键全部当没有', async () => {
+        const h = make(8);
+        h.setDemand({ near: ['永'] });
+        h.planner.register('k2@780');
+        h.planner.register('noweight');
+        await settle();
+        await settle();
+        expect(h.fontCalls).toEqual([['F', 780]]);
+        expect(h.rasterCalls).toEqual([['永', 780]]);
+        expect(h.memory.get('k2@780', '永')).not.toBeNull();
+        expect(h.memory.has('noweight', '永')).toBe(true);
+        expect(h.memory.get('noweight', '永')).toBeNull();
+    });
+
+    it('几个键一起缺字时先推最急的一档：后一个键马上要画的字不被前一个键的后台字压住', async () => {
+        const h = make(2);
+        // 浮名的两个字重：k1 先登记，它自己显示的字（extras）和下一首（background）一大堆；k2 也缺马上要画的字
+        h.setDemand({ near: ['永'], background: ['甲', '乙', '丙', '丁'] });
+        h.planner.register('k1', '山');
+        h.planner.register('k2@780');
+        await settle();
+        await settle();
+        await settle();
+        const order = h.inferCalls.map(c => c.chars.join(''));
+        // 第一批：k1 的 near（永山）；第二批：k2 的 near（永 + 下一首的甲），之后才轮到 k1 的后台字
+        expect(order[0]).toBe('永山');
+        expect(order[1]).toBe('永甲');
+        expect(h.inferCalls[1].urgency).toBe('onScreen');
+        expect(order.slice(2).join('')).toContain('甲乙丙丁');
     });
 
     it('使用方自己的文本排在播放的 near 后面、rest 前面，只给它那个字体键', async () => {

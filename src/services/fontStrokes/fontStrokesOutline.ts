@@ -1,8 +1,8 @@
 // src/services/fontStrokes/fontStrokesOutline.ts
 // 笔画轮廓（纯函数，不碰画布）：own2 的归属图（每个墨像素属于哪一笔）→ 先并掉碎斑 → 按笔描边（marching squares，
 // 一笔可有多个环，洞的方向相反）→ 简化（容差约半个网格像素）→ em 坐标的 Int16 多边形。再按每笔中线量笔刷宽度（轮廓到中线的最大距离 × 2 × 1.2）。
-// 存的是字重 400 的「笔身」：不往墨外延伸。显示字重更粗时，每条笔身各自膨胀、裁到显示字重的墨、剩下的墨按最近的笔身补
-// （fontStrokesFit.ts，用时按字重算）。
+// 推理按显示字重（字体键带字重），轮廓就是这个字重的墨上 own2 分给每笔的区域，只往墨外延伸一点（OUTLINE_EXTEND_EM，
+// 相邻笔在中间接上）：盖住显示时的抗锯齿边和亚像素位置的出入，不用再按字重膨胀。
 // 坐标：em = (网格像素 − b) / a（同 fontStrokesRaster.renderCanon）；存盘一律 em × EM_UNITS 取整。
 
 /** 模型网格边长。 */
@@ -19,6 +19,11 @@ const MIN_RING_AREA = 3;
 const BRUSH_UNITS = 256;
 /** 笔刷 = 轮廓到中线最大距离 × 2 × 1.2。 */
 const BRUSH_FACTOR = 2 * 1.2;
+/**
+ * 轮廓往墨外延伸多少 em（同一字重下盖住抗锯齿边、亚像素位置的出入；相邻笔在中间接上，不会盖到别的笔的墨上）。
+ * 取法见开发壳探针：同字重、64 px dpr 2 和 22 px dpr 1 下所有笔写完时遮罩 ∩ 字 / 字 ≥ 99.95% 的最小值。
+ */
+export const OUTLINE_EXTEND_EM = 0.01;
 
 /** 网格像素 → em：em = (px − b) / a。 */
 export interface OutlineGrid { a: number; bx: number; by: number }
@@ -70,7 +75,7 @@ export const absorbSpecks = (owner: Int8Array, side = OUTLINE_SIDE, minPixels = 
 /**
  * 每笔往墨外延伸 maxR 个像素：非墨像素取最近的墨像素的归属（8SSEDT 偏移向量两遍扫描，欧氏距离的近似），
  * 相邻两笔的区域在各自最近的中间接上。返回新的归属图；maxR ≤ 0 时原样复制。
- * 存盘不再用它延伸；显示字重的「剩下的墨归最近的笔身」（fontStrokesFit.ts、雾笺的 nebbiaFontAlong.ts）用它（maxR 取很大）当最近笔身的标号。
+ * 存盘时用它往外延伸 OUTLINE_EXTEND_EM；雾笺的「没被轮廓盖住的墨归最近的轮廓」（nebbiaFontAlong.ts）用它（maxR 取很大）当最近轮廓的标号。
  */
 export const extendOwners = (owner: Int8Array, maxR: number, side = OUTLINE_SIDE): Int8Array => {
     const out = Int8Array.from(owner);
@@ -246,22 +251,22 @@ const EXTEND_MAX_PX = 40;
 
 export interface BuildOptions {
     /**
-     * 往墨外延伸多少 em（相邻笔在中间接上），默认 0（存盘一律不延伸）。只给开发探针比对旧规则用：
-     * 格式 1 存的是延伸 0.06 em 的轮廓，粗字重下写到一半时相邻笔交界处会缺一块（见 fontStrokesFit.ts）。
+     * 往墨外延伸多少 em（相邻笔在中间接上），默认 OUTLINE_EXTEND_EM。只给开发探针比对别的延伸量用：
+     * 格式 1 存的是 400 推理延伸 0.06 em 的轮廓，粗字重下写到一半时相邻笔交界处会缺一块。
      */
     extendEm?: number;
 }
 
 /**
  * 归属图 + 笔迹 → 一个字存盘的结果。owner：256² 每像素的笔下标（-1 = 不是墨）；pens：模型的画布坐标笔迹；grid：这个字的网格变换。
- * 轮廓就是 400 墨上 own2 分给这一笔的区域（并掉碎斑后），不往墨外延伸。
+ * 轮廓就是这个字重的墨上 own2 分给这一笔的区域（并掉碎斑后），往墨外延伸 OUTLINE_EXTEND_EM（相邻笔在中间接上）。
  * 不改 owner。笔数 > 127 的字（Int8 装不下）多出的笔没有归属，轮廓为空。
  */
 export const buildFontStrokesGlyph = (owner: Int8Array, pens: Float32Array[], grid: OutlineGrid, options: BuildOptions = {}): FontStrokesGlyph => {
     const side = OUTLINE_SIDE;
     const merged = Int8Array.from(owner);
     absorbSpecks(merged, side);
-    const extendPx = Math.min(EXTEND_MAX_PX, (options.extendEm ?? 0) * grid.a);
+    const extendPx = Math.min(EXTEND_MAX_PX, (options.extendEm ?? OUTLINE_EXTEND_EM) * grid.a);
     const bodies = extendPx > 0 ? extendOwners(merged, extendPx, side) : merged;
     const penCount = pens.length;
     // 每笔的像素范围，描边只扫自己的包围盒

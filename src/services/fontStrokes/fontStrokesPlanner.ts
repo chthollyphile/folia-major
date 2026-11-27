@@ -7,6 +7,8 @@ import type { FontStrokesStore } from './fontStrokesStore';
 // 预备服务：算什么、什么时候算、存哪都归这里，样式只登记「我要这个字体的笔画」、画的时候同步查内存。
 //   顺序  当前歌从播放位置往后 4 句（onScreen）→ 当前歌其余 → 下一首、下下首（background）（需求见 fontStrokesDemand.ts）
 //   每轮  先把还没在内存里的字整批去盘上查（一个字体每个字只查一次），查不到的才推理，8 个一批，和 automix 分析共用 GPU 调度器
+//         几个字体键（同一字体的几个字重也是不同的键）一起缺字时，先推最急的那一档（马上要画的 → 使用方自己显示的 → 当前歌其余 → 后两首），
+//         不让前一个键的后台字把后一个键马上要画的字压住
 //   失败  临时失败（模型还没下好、这一批没跑出来、抛异常）5 s / 30 s / 2 min 退避重试；只有没 WebGPU、模型确定加载不了才停
 //         推理抛异常或没结果时，卡在「在算」的字一律放掉，下一轮能再选
 //   没有使用方登记时：不读需求、不查盘、不推理、不下载模型
@@ -33,11 +35,13 @@ export interface PlannerDeps<C, R> {
     subscribeDemand(onChange: () => void): () => void;
     /** 字体键 → 光栅化用的 CSS 字体栈；认不出时 null（这个键的字全部当没有）。 */
     fontStackOf(fontKey: string): string | null;
+    /** 字体键 → 推理、光栅化用的字重；认不出时 null（同上）。 */
+    fontWeightOf(fontKey: string): number | null;
     labelOf(fontKey: string): string;
-    /** 等字体加载好；到时间还没好返回 false。 */
-    prepareFont(family: string, chars: string[]): Promise<boolean>;
-    /** 一个字 → 模型输入；画不出墨时 null。 */
-    rasterize(ch: string, family: string): PlannerRaster<C> | null;
+    /** 等这个字重的字体加载好；到时间还没好返回 false。 */
+    prepareFont(family: string, weight: number, chars: string[]): Promise<boolean>;
+    /** 一个字按这个字重 → 模型输入；画不出墨时 null。 */
+    rasterize(ch: string, family: string, weight: number): PlannerRaster<C> | null;
     /** 一批输入 → 结果；null = 没跑出来（模型没下好、被调度器丢了、跑挂了）。 */
     infer(features: Float32Array<ArrayBuffer>[], urgency: 'onScreen' | 'background'): Promise<R[] | null>;
     build(canon: C, result: R): FontStrokesGlyph;
@@ -136,21 +140,29 @@ export class FontStrokesPlanner<C, R> {
         }
     }
 
-    /** 各登记字体各自还缺的字，按需求顺序；near 标出马上要画的。 */
-    private missing(): { fontKey: string; chars: string[]; near: Set<string> }[] {
+    /**
+     * 各登记字体各自还缺的字，按需求顺序；near 标出马上要画的，tiers[i] 是 chars[i] 属于哪一档
+     * （0 马上要画、1 使用方自己显示的、2 当前歌其余、3 后两首）。
+     */
+    private missing(): { fontKey: string; chars: string[]; tiers: number[]; near: Set<string> }[] {
         const demand = this.deps.readDemand();
         const near = new Set(demand.near);
         const extrasOf = new Map<string, string>();
         for (const { fontKey, chars } of this.consumers.values()) extrasOf.set(fontKey, (extrasOf.get(fontKey) ?? '') + chars);
         return [...extrasOf].map(([fontKey, extras]) => {
-            const ordered: string[] = [];
+            const chars: string[] = [], tiers: number[] = [];
             const seen = new Set<string>();
-            for (const ch of [...demand.near, ...Array.from(extras), ...demand.rest, ...demand.background]) {
-                if (seen.has(ch) || !this.deps.isModelChar(ch)) continue;
-                seen.add(ch);
-                ordered.push(ch);
-            }
-            return { fontKey, near, chars: ordered.filter(ch => !this.deps.memory.has(fontKey, ch) && !this.pending.has(fontKey + '\u0000' + ch) && !this.deferred.has(fontKey + '\u0000' + ch)) };
+            const groups = [demand.near, Array.from(extras), demand.rest, demand.background];
+            groups.forEach((group, tier) => {
+                for (const ch of group) {
+                    if (seen.has(ch) || !this.deps.isModelChar(ch)) continue;
+                    seen.add(ch);
+                    if (this.deps.memory.has(fontKey, ch) || this.pending.has(fontKey + '\u0000' + ch) || this.deferred.has(fontKey + '\u0000' + ch)) continue;
+                    chars.push(ch);
+                    tiers.push(tier);
+                }
+            });
+            return { fontKey, near, chars, tiers };
         });
     }
 
@@ -170,29 +182,31 @@ export class FontStrokesPlanner<C, R> {
         }
         if (!this.canInfer) return false;
         const size = this.deps.batch ?? PLANNER_BATCH;
-        for (const { fontKey, chars, near } of wants) {
-            if (!chars.length) continue;
-            await this.infer(fontKey, chars.slice(0, size), chars.slice(0, size).some(ch => near.has(ch)));
-            return true;
-        }
-        return false;
+        // 最急的那个键先推（看它缺的第一个字在哪一档；同档按登记顺序）
+        let pick: (typeof wants)[number] | null = null;
+        for (const want of wants) if (want.chars.length && (!pick || want.tiers[0] < pick.tiers[0])) pick = want;
+        if (!pick) return false;
+        const batch = pick.chars.slice(0, size);
+        await this.infer(pick.fontKey, batch, batch.some(ch => pick.near.has(ch)));
+        return true;
     }
 
     /** 推理一批：成功就进内存并存盘；失败按临时 / 永久处理。 */
     private async infer(fontKey: string, batch: string[], near: boolean): Promise<void> {
         const family = this.deps.fontStackOf(fontKey);
-        if (!family) {
+        const weight = this.deps.fontWeightOf(fontKey);
+        if (!family || weight === null) {
             this.deps.memory.setMany(fontKey, batch.map(ch => [ch, null] as [string, null]));
             return;
         }
-        if (!(await this.deps.prepareFont(family, batch))) {
+        if (!(await this.deps.prepareFont(family, weight, batch))) {
             this.defer(fontKey, batch);
             return;
         }
         const inputs: { ch: string; raster: PlannerRaster<C> }[] = [];
         const blank: [string, null][] = [];
         for (const ch of batch) {
-            const raster = this.deps.rasterize(ch, family);
+            const raster = this.deps.rasterize(ch, family, weight);
             if (raster) inputs.push({ ch, raster }); else blank.push([ch, null]);
         }
         if (blank.length) this.deps.memory.setMany(fontKey, blank);

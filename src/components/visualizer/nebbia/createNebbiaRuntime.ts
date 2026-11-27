@@ -41,8 +41,10 @@ const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 // 水族箱里没有雨打窗、车也不颠（疏雨轻车不算）。玻璃是雪窗时雪花和雪化成的水归 nebbiaSnow.ts，写字的手指经过时把雪抹开。
 
 // 改了要重排整首的 tuning 项
+/** 雾笺画字的默认字重（主题没定字重时）；字形缓存和字体笔画的键用同一个字重，存下的轮廓才和现画的墨对得上。 */
+const NEBBIA_FONT_WEIGHT = 600;
 /** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔画服务给笔顺（nebbiaFontGlyph.ts、services/fontStrokes）；没选时照旧用 AnimCJK。返回字体键，不用时 null。 */
-const fontStrokesKeyFor = (theme: Theme) => (theme.fontFamily?.trim() ? fontStrokesKeyOf(theme) : null);
+const fontStrokesKeyFor = (theme: Theme) => (theme.fontFamily?.trim() ? fontStrokesKeyOf(theme, resolveThemeFontWeight(theme, NEBBIA_FONT_WEIGHT)) : null);
 
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
 // 开关组是数组，每次合并都是新的一份：按内容比
@@ -112,7 +114,7 @@ export class NebbiaRuntime {
         // setTuning 只在 tuning 变了才调：上下文恢复后重建的运行时要自己带上颠簸强度
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
-        this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
+        this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, NEBBIA_FONT_WEIGHT));
         this.glyphs.setFontStrokesKey(fontStrokesKeyFor(theme));
         this.fontLines = new NebbiaFontLines({
             glyphs: this.glyphs, laid: () => this.laid, source: () => this.source, tuning: () => this.tuning,
@@ -163,7 +165,7 @@ export class NebbiaRuntime {
     setTheme(theme: Theme) {
         const iconsChanged = String(resolveLucideIconNames(theme.lyricsIcons)) !== String(resolveLucideIconNames(this.theme.lyricsIcons));
         this.theme = theme;
-        let fontChanged = this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
+        let fontChanged = this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, NEBBIA_FONT_WEIGHT));
         if (fontChanged) this.fontReady = this.glyphs.fontReady();
         if (this.glyphs.setFontStrokesKey(fontStrokesKeyFor(theme))) fontChanged = true;
         this.applyTheme();

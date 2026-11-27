@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ALONG_OFF_INK, alongFromOutlines, fillRings } from '@/components/visualizer/nebbia/nebbiaFontAlong';
+import { ALONG_OFF_INK, alongFromOutlines, fillRings, rasterizeBodies } from '@/components/visualizer/nebbia/nebbiaFontAlong';
+import { buildFontStrokesGlyph, EM_UNITS, OUTLINE_SIDE } from '@/services/fontStrokes/fontStrokesOutline';
 
 // test/unit/visualizer/nebbiaFontAlong.test.ts
 // 从笔画服务存下的轮廓还原墨像素的书写位置：轮廓填充按像素中心、盖住的归那一笔、几笔都盖住取中线最近的、都没盖住取轮廓最近的、没有轮廓的笔不参与。
@@ -76,5 +77,28 @@ describe('nebbia font along from outlines', () => {
         const img = new Float32Array(SIDE * SIDE).fill(1);
         const along = alongFromOutlines([[[0, 0], [1, 0]]], [[]], UNITS, img, GRID, SIDE);
         expect(along.every(v => v === ALONG_OFF_INK)).toBe(true);
+    });
+});
+
+describe('rasterizeBodies', () => {
+    it('labels pixel centres inside each outline; the first stroke keeps overlaps and reports them', () => {
+        // 一横（先写）一竖，交叉处归竖；网格 1 em = 256 像素
+        const S = OUTLINE_SIDE, grid = { a: 256, bx: 0, by: 0 };
+        const owner = new Int8Array(S * S).fill(-1);
+        const paint = (v: number, x0: number, y0: number, x1: number, y1: number) => {
+            for (let y = y0; y < y1; y += 1) for (let x = x0; x < x1; x += 1) owner[y * S + x] = v;
+        };
+        paint(0, 50, 120, 150, 130);
+        paint(1, 95, 50, 105, 200);
+        const u = (px: number) => px / 128 - 1;
+        const pen = (x0: number, y0: number, x1: number, y1: number) => new Float32Array([u(x0), u(y0), u(x1), u(y1)]);
+        const glyph = buildFontStrokesGlyph(owner, [pen(50, 125, 150, 125), pen(100, 50, 100, 200)], grid);
+        const overlaps: number[] = [];
+        const body = rasterizeBodies(glyph.outlines, EM_UNITS, grid, S, i => overlaps.push(i));
+        expect(body[125 * S + 60]).toBe(0);
+        expect(body[60 * S + 100]).toBe(1);
+        expect(body[125 * S + 100]).toBe(1);
+        expect(body[10 * S + 10]).toBe(-1);
+        expect(overlaps.length).toBeLessThan(40);
     });
 });

@@ -6,7 +6,7 @@ import { CANON, median, PEN_STEP, penWidthProfile, relativeWidth, resamplePolyli
 // src/components/visualizer/nebbia/nebbiaFontGlyph.ts
 // 字体笔画的字形：笔画服务（services/fontStrokes）存下的中线做成雾笺的中线笔画，每个点带字体笔宽倍数。
 // 笔宽按当前字重的墨现量：当前字重的字画到模型网格（renderCanon），用存下的轮廓还原每个墨像素归哪一笔、写到哪（nebbiaFontAlong.ts），
-// 再照原来的量法（penWidthProfile，墨按书写位置分格）算。服务推理一律按字重 400，中线跨字重通用，粗细只看现量的墨。
+// 再照原来的量法（penWidthProfile，墨按书写位置分格）算。服务按雾笺的显示字重推理（字体键带字重），轮廓和现画的墨是同一个字重。
 
 /** 模型网格上一个字的墨和 网格像素 → em 的变换（em = (px − b) / a），同 fontStrokesRaster.renderCanon。 */
 export interface FontCanon { img: Float32Array; a: number; bx: number; by: number }

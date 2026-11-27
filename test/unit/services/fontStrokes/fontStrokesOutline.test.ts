@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { absorbSpecks, buildFontStrokesGlyph, EM_UNITS, extendOwners, OUTLINE_SIDE, simplifyRing, traceMaskRings } from '../../../../src/services/fontStrokes/fontStrokesOutline';
+import { absorbSpecks, buildFontStrokesGlyph, EM_UNITS, extendOwners, OUTLINE_EXTEND_EM, OUTLINE_SIDE, simplifyRing, traceMaskRings } from '../../../../src/services/fontStrokes/fontStrokesOutline';
 
 // test/unit/services/fontStrokes/fontStrokesOutline.test.ts
 // 轮廓：用合成的归属图（交叉的两横竖、相碰的两条、一笔两块）验证描边、简化、笔刷，以及（探针用的）延伸。
@@ -144,17 +144,28 @@ describe('buildFontStrokesGlyph', () => {
         expect(g.outlines[1]).toHaveLength(1);
     });
 
-    it('默认不往墨外延伸：轮廓就是 400 的笔身', () => {
+    it('默认只往墨外延伸 OUTLINE_EXTEND_EM（盖住抗锯齿）；extendEm 0 时就是 own2 的归属', () => {
         const owner = blank();
         rect(owner, 0, 40, 100, 100, 110);
         rect(owner, 1, 100, 100, 160, 110);
-        const g = buildFontStrokesGlyph(owner, [pen(40, 105, 100, 105), pen(100, 105, 160, 105)], GRID);
+        const pens = [pen(40, 105, 100, 105), pen(100, 105, 160, 105)];
+        const ext = OUTLINE_EXTEND_EM * GRID.a;
+        expect(ext).toBeGreaterThan(1);
+        expect(ext).toBeLessThan(8);
+        const g = buildFontStrokesGlyph(owner, pens, GRID);
         expect(inside(g.outlines[0], 70, 101)).toBe(true);
-        expect(inside(g.outlines[0], 70, 98)).toBe(false);
-        expect(inside(g.outlines[1], 130, 111)).toBe(false);
-        // 笔刷：半宽约 5 个像素 × 2 × 1.2（笔端处到中线更远）
-        expect(g.brush[0]).toBeGreaterThanOrEqual(Math.floor(2 * 1.2 * 5));
-        expect(g.brush[0]).toBeLessThan(2 * 1.2 * 11);
+        expect(inside(g.outlines[0], 70, 100 - ext + 2)).toBe(true);
+        expect(inside(g.outlines[0], 70, 100 - ext - 2)).toBe(false);
+        // 相邻两笔在中间接上：延伸不越过交界
+        expect(inside(g.outlines[0], 103, 105)).toBe(false);
+        // 笔刷：半宽约 5 个像素 + 延伸，× 2 × 1.2（笔端处到中线更远）
+        expect(g.brush[0]).toBeGreaterThanOrEqual(Math.floor(2 * 1.2 * (4 + ext)));
+        expect(g.brush[0]).toBeLessThan(2 * 1.2 * (11 + ext));
+        const tight = buildFontStrokesGlyph(owner, pens, GRID, { extendEm: 0 });
+        expect(inside(tight.outlines[0], 70, 101)).toBe(true);
+        expect(inside(tight.outlines[0], 70, 98)).toBe(false);
+        expect(inside(tight.outlines[1], 130, 111)).toBe(false);
+        expect(tight.brush[0]).toBeLessThan(2 * 1.2 * 11);
     });
 
     it('没有墨的笔：轮廓为空，笔刷 0', () => {

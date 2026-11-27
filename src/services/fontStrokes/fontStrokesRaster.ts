@@ -2,7 +2,7 @@
 // 字体笔画的光栅和模型输入：把字用所选字体画成模型网格（256²）上的墨、算 full6 的输入特征。
 // 模型输入照 ~/bihua hf/code/preprocess.py：墨的外框等比放进 256² 画布、最长边占 [-0.8, 0.8]，三通道是墨、墨内距离 / 12、
 // 墨外距离 / 24（cv2 DIST_L2 3×3 的倒角距离）。这里不是把位图再缩放，而是按算好的变换直接用字体重画一遍。
-// 推理一律用字重 400（INFERENCE_WEIGHT）：一个字体只存一份结果，别的字重用时把笔身膨胀到那个字重的墨上（fontStrokesFit.ts）。
+// 推理按显示字重（字体键里的字重，fontStrokesKey.ts）：每个字体 × 字重各存一份，轮廓就是那个字重的墨上 own2 的归属。
 
 /** 模型网格边长。 */
 export const CANON = 256;
@@ -40,8 +40,6 @@ export const chamferDistance = (on: Uint8Array, side: number): Float32Array => {
     return d;
 };
 
-/** 推理用的字重：一个字体只算一份。 */
-export const INFERENCE_WEIGHT = 400;
 /** 量外框用的字号（em 像素）和画布：字可能伸出 em 框，四周留一个 em。 */
 export const EM = 256;
 /** 同 nebbiaSkeleton.ts：字号 0.78 em，基线在 0.8 em。 */
@@ -124,8 +122,7 @@ export const glyphFeatures = (img: Float32Array): Float32Array<ArrayBuffer> => {
     return f;
 };
 
-
-/** 用已有的网格变换（某个字重的 renderCanon 结果）画另一个字重的墨：和那份结果同一个坐标系，量轮廓盖不盖得住用。 */
+/** 用已有的网格变换（某个字重的 renderCanon 结果）画另一个字重的墨：和那份结果同一个坐标系（开发探针量轮廓盖不盖得住其他字重用）。 */
 export const renderInkAt = (ch: string, fontFamily: string, fontWeight: number, canon: { a: number; bx: number; by: number }): Float32Array | null => {
     if (typeof document === 'undefined') return null;
     const c = context();
