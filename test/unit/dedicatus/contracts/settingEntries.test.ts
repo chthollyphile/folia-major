@@ -107,11 +107,15 @@ describe('D515 / D516 a removed entry has to be explained', () => {
         expect(lost).toEqual([{ entry: AUTO_FOCUS, place: 'src/components/app/lattice', files: ['src/components/app/lattice/LatticeFocusButton.tsx'] }]);
     });
 
-    it('does not count a renamed file or a setter that is gone altogether', () => {
+    it('does not count a renamed file', () => {
         const renamed = { entries: { ...afterEntries, [AUTO_FOCUS]: [...afterEntries[AUTO_FOCUS], 'src/components/wallTools/LatticeTools.tsx'] }, removed: [] };
         expect(lostEntries(JSON.parse(before), renamed, new Map([['src/components/app/lattice/LatticeFocusButton.tsx', 'src/components/wallTools/LatticeTools.tsx']]))).toEqual([]);
+    });
+
+    it('counts a setter that is gone altogether as gone from every place it had', () => {
+        // 拿掉最后一个开关后顺手删了设置函数：状态和存储键还在，D507 拦不住。
         const { [AUTO_FOCUS]: _gone, ...withoutSetter } = afterEntries;
-        expect(lostEntries(JSON.parse(before), { entries: withoutSetter, removed: [] })).toEqual([]);
+        expect(lostEntries(JSON.parse(before), { entries: withoutSetter, removed: [] }).map(loss => loss.place)).toEqual(['command-palette', 'src/components/app/lattice']);
     });
 
     it('reports D515 until the removal is recorded with a reason', () => {
@@ -125,6 +129,8 @@ describe('D515 / D516 a removed entry has to be explained', () => {
         expect(checkSettingEntriesInPrBody(io(recorded), '重构账号、播放、歌词样式、设置与模组').map(finding => finding.code)).toEqual(['D516']);
         expect(checkSettingEntriesInPrBody(io(recorded), null).map(finding => finding.code)).toEqual(['D516']);
         expect(checkSettingEntriesInPrBody(io(recorded), '拿掉了工具面板里的 handleToggleAutoFocusOnSongChange 开关，维护者定的')).toEqual([]);
+        // 只是名字的一部分不算提到了。
+        expect(checkSettingEntriesInPrBody(io(recorded), '改了 handleToggleAutoFocusOnSongChangeLater').map(finding => finding.code)).toEqual(['D516']);
     });
 
     it('says nothing while the base has no registry yet', () => {

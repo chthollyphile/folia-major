@@ -54,6 +54,7 @@
 - 样式用 Tailwind；只属于一个功能的 CSS 文件放在那个功能的目录里（如 `src/components/app/lattice/Lattice.css`）。
 - 界面上的文字都走 i18n（`t()`），三份语言文件 `src/i18n/locales/en.ts`、`zh-CN.ts`、`in.ts` 一起加。繁体中文不用写：构建时由 `dev/i18n/traditionalLocalePlugin.mjs` 从 zh-CN 转出来。主进程（`electron/*.cjs`）自己的文案表也有 zh-TW，要手写成 zh-CN 的转换结果，`test/unit/i18n/traditionalMainProcessText.test.ts` 会核对。
 - 新设置：外观类的进配置导入导出（`src/components/modal/settings/pages/storage/visualConfigTransfer.ts`、`src/utils/appearanceCodec.ts`）；功能类的设置和可执行动作进命令面板。细则见 `settings-feature-integration`。
+- 设置在哪里能切换（设置页、命令面板、墙上的工具面板……）登记在 `dev/dedicatus/settingEntries.json`，改了入口跑 `npm run dedicatus:setting-entries`（D514）。拿掉一个入口是用户看得见的变化，要是用户的决定：在登记表的 `removed` 里写明谁定的、为什么（D515），PR 描述里也写明（D516）。
 
 ### 存下来的数据
 

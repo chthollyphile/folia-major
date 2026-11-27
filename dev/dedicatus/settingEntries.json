@@ -1,5 +1,20 @@
 {
     "entries": {
+        "useAudioSettingsStore.handleApplyAudioSoundPreset": [
+            "src/components/app/command-palette-context/buildAppOwnedCommandContext.ts",
+            "src/mods/runtime/equalizer/hostEqualizer.ts"
+        ],
+        "useAudioSettingsStore.handleApplyModEqualizerCurve": [
+            "src/mods/runtime/equalizer/hostEqualizer.ts"
+        ],
+        "useAudioSettingsStore.handleReleaseModEqualizerCurve": [
+            "src/components/app/command-palette-context/buildAppOwnedCommandContext.ts",
+            "src/components/panelTab/equalizer/ModCurveNotice.tsx",
+            "src/mods/runtime/equalizer/hostEqualizer.ts"
+        ],
+        "useAudioSettingsStore.handleSaveModEqualizerCurveToSlot": [
+            "src/components/panelTab/equalizer/ModCurveNotice.tsx"
+        ],
         "useAudioSettingsStore.handleSetAudioEqualizerEnabled": [
             "src/components/panelTab/AudioEqualizerDialog.tsx"
         ],
@@ -104,6 +119,9 @@
         ],
         "useDesktopSettingsStore.handleSetUiZoomStep": [
             "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleStepUiZoom": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts"
         ],
         "useDesktopSettingsStore.handleToggleBackgroundThrottling": [
             "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
@@ -426,6 +444,12 @@
             "src/components/modal/settings/pages/GraphicsPage.tsx"
         ],
         "useMotionSettingsStore.setSystemPrefersReducedMotion": [],
+        "usePlaybackEntryViewStore.setPlaybackEntryView": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/command-palette/types.ts",
+            "src/components/modal/playback-entry-view/PlaybackEntryViewPrompt.tsx",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
         "usePlayerChromeSettingsStore.handleResetPlayerControlLayout": [
             "src/components/modal/settings/pages/PlayerPage.tsx"
         ],
@@ -503,6 +527,9 @@
         "usePlayerChromeSettingsStore.handleToggleTransparentPlayerBackground": [
             "src/App.tsx",
             "src/components/modal/SettingsModal.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleWallpaperTransparentRefused": [
+            "src/hooks/useAppPreferences.ts"
         ],
         "usePlayerChromeSettingsStore.setTransparentPlayerBackgroundFromSystem": [
             "src/hooks/useAppPreferences.ts"
@@ -715,6 +742,13 @@
             "src/components/modal/SettingsModal.tsx",
             "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
             "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleUploadLyricsCustomFont": [
+            "src/components/modal/SettingsModal.tsx"
+        ],
+        "useVideoLayerSettingsStore.pickLocalFile": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
         ],
         "useVideoLayerSettingsStore.setVideoLayerEnabled": [
             "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",

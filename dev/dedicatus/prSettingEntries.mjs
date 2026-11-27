@@ -53,9 +53,12 @@ function main() {
     process.exitCode = exitCode;
 }
 
+// 工具自己出错（找不到比较基点、登记表解析不了、没有 PR 描述）报 D004，退出码 2，和 cli.mjs 一样不显示成“通过”。
 try {
     main();
 } catch (error) {
-    console.error(`[prSettingEntries] ${error instanceof Error ? error.message : String(error)}`);
+    const message = error instanceof Error ? error.message : String(error);
+    if (process.argv.includes('--github')) console.log(`::error title=D004::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`);
+    console.error(`[prSettingEntries] D004 ${message}`);
     process.exitCode = 2;
 }

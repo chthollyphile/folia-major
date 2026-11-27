@@ -32,11 +32,14 @@ export function checkSettingEntries(io) {
     }));
 }
 
-/** D516：少了的入口，PR 描述里没提到那个设置函数的名字。 */
+/** 描述里有没有这个名字（前后不连着别的标识符字符：setLook 不算提到了 setLookPreset）。 */
+const mentions = (body, name) => new RegExp(`(?<![\\w$])${name}(?![\\w$])`).test(body);
+
+/** D516：少了的入口，PR 描述里没提到那个设置函数的名字（几个 store 有同名的设置函数时，写全「store 文件名.设置函数」更清楚，但只写名字也算）。 */
 export function checkSettingEntriesInPrBody(io, prBody) {
     const { lost } = settingEntryLosses(io);
     const body = prBody ?? '';
-    return lost.filter(({ entry }) => !body.includes(setterOf(entry))).map(({ entry, place }) => ({
+    return lost.filter(({ entry }) => !mentions(body, setterOf(entry))).map(({ entry, place }) => ({
         code: 'D516',
         file: REGISTRY_FILE,
         message: `这个 PR 拿掉了设置入口 ${entry}（「${place}」），PR 描述里要写明（提到 ${setterOf(entry)} 这个名字）：拿掉了什么、谁定的、为什么。改好描述后这项检查会自己重跑`,

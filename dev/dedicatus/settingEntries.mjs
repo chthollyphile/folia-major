@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 //   按现状重写（removed 保留），检查在 test/unit/dedicatus/contracts/settingEntries.test.ts（D514：表与现状一致）。
 // - 比的是「位置」不是文件（placeOf）：设置页、命令面板、同步与导入，以及其余各个功能目录（app/lattice、panelTab……）。
 //   同一位置里换了文件（拆文件、重组设置页）不算拿掉；一个设置在某个位置一处都不剩了，才算拿掉了一个入口。
-//   拿 895471e85 回放：按文件比报 213 条（几乎全是设置页重组），按位置比只剩真正少了的几处，自动聚焦那一条在里面。
+//   拿 895471e85 回放：按文件比报 213 条（几乎全是设置页重组）；按位置比，设置函数还在的只报 8 条，自动聚焦那一条在里面。
 // - removed：拿掉的入口 { entry, place, why, date }。拿掉一个入口是用户可见的变化，必须是用户的决定：why 写明谁定的、为什么。
 //   和比较基点比，少了的入口没有 removed 记录，`npm run dedicatus` 报 D515（checks/settingEntries.mjs）；
 //   PR 里少了入口、PR 描述没写到那个设置函数，CI 报 D516（.github/workflows/pr-setting-entries.yml）。
@@ -28,6 +28,8 @@ export const EXTRA_SETTING_STORES = [
     'src/components/scenes/settings/useSoundTracingStore.ts',
     // 推荐偏好
     'src/components/recommendationPreferences/useRecommendationPreferencesStore.ts',
+    // 按播放时打开哪个视图（播放页 / Lattice / 留在原处）
+    'src/stores/usePlaybackEntryViewStore.ts',
 ];
 /** 名字带 Settings、但不是设置的 store。 */
 export const EXCLUDED_SETTING_STORES = [
@@ -35,8 +37,8 @@ export const EXCLUDED_SETTING_STORES = [
     'src/stores/useSettingsModalStore.ts',
 ];
 
-/** 设置函数：store 状态类型里以这些动词开头的函数成员。 */
-const SETTER_NAME = /^(handle(Toggle|Set|Reset)|set|toggle|reset)[A-Z]\w*$/;
+/** 设置函数：store 状态类型里以这些动词开头的函数成员（handle 开头的都算：handleApply…、handleStep…、handleUpload… 也在改设置）。 */
+const SETTER_NAME = /^(handle|set|toggle|reset|pick)[A-Z]\w*$/;
 const SOURCE = /\.(ts|tsx)$/;
 const SKIP = /\.test\.|\.spec\.|\.d\.ts$/;
 
@@ -117,11 +119,17 @@ export function parseRegistry(text) {
 }
 
 export function readRegistry(root) {
-    return parseRegistry(fs.readFileSync(path.join(root, REGISTRY_FILE), 'utf8'));
+    const text = fs.readFileSync(path.join(root, REGISTRY_FILE), 'utf8');
+    try {
+        return parseRegistry(text);
+    } catch (error) {
+        throw new Error(`${REGISTRY_FILE} 解析不了（${error instanceof Error ? error.message : String(error)}）。合并冲突的话：先任取一边让它成为合法的 JSON，`
+            + '把另一边 removed 里的记录也抄过来，再跑 npm run dedicatus:setting-entries 重写 entries', { cause: error });
+    }
 }
 
 /**
- * 基点上有、现在没有的入口：一个设置函数还在，但在某个位置一处都不剩了。文件改了名的按新名字算。
+ * 基点上有、现在没有的入口：一个设置函数在某个位置一处都不剩了（整个函数没了也算）。文件改了名的按新名字算。
  * @param {SettingEntriesRegistry} before
  * @param {SettingEntriesRegistry} after
  * @param {Map<string, string>} renameMap 旧路径 → 新路径
@@ -130,9 +138,9 @@ export function readRegistry(root) {
 export function lostEntries(before, after, renameMap = new Map()) {
     const lost = [];
     for (const [entry, files] of Object.entries(before.entries)) {
-        // 整个设置函数没了（改名、并进生成的 tuning 动作、设置删掉）不在这里管：设置本身删掉时它的存储键也跟着删，D507 拦着。
-        if (!Object.hasOwn(after.entries, entry)) continue;
-        const now = new Set(after.entries[entry].map(placeOf));
+        // 整个设置函数没了（最后一个开关拿掉后顺手删了它、改名、挪到别的 store）也算它每个位置都拿掉了：
+        // 状态和存储键往往还在，D507 拦不住（拿 895471e85 回放，handleToggleNowPlayingStage 就是这样）。改名的写一条 removed 说明即可。
+        const now = new Set((after.entries[entry] ?? []).map(placeOf));
         /** @type {Map<string, string[]>} */
         const was = new Map();
         for (const file of files) {
