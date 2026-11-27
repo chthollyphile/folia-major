@@ -36,6 +36,7 @@
     "lint:fix": "node dev/dedicatus/eslint/eslint.mjs --fix",
     "lint:fix-style": "node dev/dedicatus/eslint/fixStyle.mjs",
     "lint:prune": "node dev/dedicatus/eslint/prune.mjs",
+    "dedicatus:setting-entries": "node dev/dedicatus/settingEntries.mjs",
     "coven:scope": "node packages/coven/bin/coven.mjs scope",
     "coven:state": "node packages/coven/bin/coven.mjs state",
     "coven:claim": "node packages/coven/bin/coven.mjs claim",

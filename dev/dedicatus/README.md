@@ -15,6 +15,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 | `npm run dedicatus -- --migrate-renames` | 挪了文件（git 能认出的改名）以后，把基线和抑制文件里的旧路径换成新路径 |
 | `npm run dedicatus -- --adopt-moved` | 拆了文件以后，把新文件里搬过去的旧违规登记进基线和抑制文件，并删掉旧文件里记多的条目 |
 | `npm run lint:fix -- <路径>` | 自动修复。必须给路径 |
+| `npm run dedicatus:setting-entries` | 按现状重写设置入口登记表 `settingEntries.json` 的 `entries`（`removed` 保留），见下面 D514–D516 |
 | `npm run lint:fix-style` | 只修这次改过的文件的排版（缩进、引号、换行），不改代码的意思。旧风格的文件只修没记旧账的那几条规则（和 CI 追究的一致），改了名的按旧路径找旧账。目标分支先找指向主仓库的远程，`--base <ref>` 可换。开 PR 前跑一次。隔离环境没装时先装 |
 
 其他参数：`--json`、`--github`、`--base <ref>`、`--no-base`、`--show-known`、`--mode report|enforce`。
@@ -59,6 +60,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 | D511 | 外观类 store 的每个持久化键写明去向：进配置码的哪个字段，或者不进和原因；配置码编码的字段和导入认的字段一致 | `appearanceDestinations.mjs`（契约测试） |
 | D512 | 外观短键只加不改 | `appearanceShortKeys.mjs`（契约测试） |
 | D513 | Folium 稳定接口只加不改，新增要升 minor | `checks/foliumApi.mjs`（diff 检查） |
+| D514、D515、D516 | 设置在哪里能切换（设置页、命令面板、墙上的工具面板……）登记在案；拿掉一个入口要写明原因（谁定的、为什么），PR 描述里也要写明。起因是 895471e85 把 Lattice「切歌时自动聚焦」从工具面板拿掉了，没有任何检查报出来 | `settingEntries.mjs` 与 `settingEntries.json`（D514 契约测试、D515 diff 检查、D516 在 CI 的 `pr-setting-entries` workflow 里查 PR 描述） |
 | D604 | 账号凭据只在登记的入口写 | `credentialWriters.mjs` |
 | D605、D606 | 每个 IPC 通道登记信任级别、第一方通道校验来源；带 preload 的窗口开不出别的窗口、导航不到应用以外的页面；preload 和主进程的通道对得上 | `ipcChannels.mjs`（契约测试） |
 | D610 | 重建主窗口带上播放交接快照 | `windowRebuild.mjs` |
@@ -78,6 +80,11 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 - D507 主进程的键认 `store.get/set/delete/has` 和渲染进程的 `saveSettings(键, …)`；主进程里经变量传来的键名认不出。
 - D441 只看 effect 自己的函数体（嵌套函数里的注册看不到），也不核对返回的函数是不是真的释放了。
 - D444 不管经 `t('键', { error: … })` 插进翻译文案的原文。
+- D514–D516 按文本扫：设置 store 是文件名形如 `use…Settings…Store.ts` 的，加上 `settingEntries.mjs` 里列出的几个；设置函数是 store 里以 `handleToggle` / `handleSet` / `handleReset` / `set` / `toggle` / `reset` 开头的函数成员；一个文件导入了那个 store、又用到这个函数名，就算一处入口。
+  - 比的是位置（`placeOf`）不是文件：设置页、命令面板、同步，其余按功能目录。同一位置里少了一个文件（还有别的文件在切换它）、或者入口在同一位置里换了文件，都不报；拿 895471e85 回放，按文件比要报 213 条（几乎全是设置页重组），按位置比报 8 条。
+  - 经 props、上下文对象一路传下去的设置函数，记在中转的文件头上（命令面板的入口记在 `buildSettingsCommandContext.ts`），不一定是真正画开关的组件；同一个组件里本来有两处开关、拿掉一处，查不出来。
+  - 整个设置函数没了（改名、并进生成的 tuning 动作、设置删掉）不报：设置删掉时存储键也跟着删，D507 拦着。各歌词样式、背景自己 `tuning.ts` 生成的动作不在扫描范围里。
+  - D516 只在 GitHub 上的 PR 里查（要 PR 描述）；按设置函数的名字找，描述里写到这个名字就算写明了。
 - D608 只管“系统加密可不可用”的判断在哪里做，不管“app ready 之前不解密”。
 - D611 是按词匹配的 diff 检查，只看新增的行。
 - 挪动判定逐行比对：挪的时候每隔一行就改一行、或者只挪了一行长代码，这几行不算挪过来的，上面的旧违规会当成新写的报，`--adopt-moved` 也转不过去。

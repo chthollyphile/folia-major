@@ -1,0 +1,810 @@
+{
+    "entries": {
+        "useAudioSettingsStore.handleSetAudioEqualizerEnabled": [
+            "src/components/panelTab/AudioEqualizerDialog.tsx"
+        ],
+        "useAudioSettingsStore.handleSetAudioEqualizerModCurveSuspended": [
+            "src/mods/runtime/equalizer/hostEqualizer.ts"
+        ],
+        "useAudioSettingsStore.handleSetAudioEqualizerSettings": [
+            "src/components/panelTab/AudioEqualizerDialog.tsx"
+        ],
+        "useAudioSettingsStore.handleSetAudioOutputDeviceId": [
+            "src/hooks/useAudioOutputDevice.ts"
+        ],
+        "useAudioSettingsStore.handleSetLoopMode": [
+            "src/mods/runtime/hostActions.ts"
+        ],
+        "useAudioSettingsStore.handleSetMediaCacheLimitGb": [
+            "src/components/modal/settings/pages/StoragePage.tsx"
+        ],
+        "useAudioSettingsStore.handleSetMuted": [
+            "src/components/app/command-palette-context/buildAppOwnedCommandContext.ts",
+            "src/mods/runtime/hostActions.ts"
+        ],
+        "useAudioSettingsStore.handleSetPlaybackReport": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/IntegrationPage.tsx"
+        ],
+        "useAudioSettingsStore.handleSetQueueAddBehavior": [
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAudioSettingsStore.handleSetVolume": [
+            "src/components/app/command-palette-context/buildAppOwnedCommandContext.ts",
+            "src/components/app/player-panel/buildPlayerPanelModel.ts",
+            "src/components/wall/useWallToolsCommonActions.ts",
+            "src/mods/runtime/hostActions.ts"
+        ],
+        "useAudioSettingsStore.handleToggleAutoPlayOnLaunch": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/GeneralPage.tsx"
+        ],
+        "useAudioSettingsStore.handleToggleAutoSkipUnplayable": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAudioSettingsStore.handleToggleLoopMode": [
+            "src/App.tsx",
+            "src/components/app/playback/bridges/usePlaybackInteractionBridge.ts"
+        ],
+        "useAudioSettingsStore.handleToggleMediaCache": [
+            "src/components/modal/settings/pages/PlaybackPage.tsx",
+            "src/components/modal/settings/pages/StoragePage.tsx"
+        ],
+        "useAudioSettingsStore.handleToggleMute": [
+            "src/components/app/command-palette-context/buildAppOwnedCommandContext.ts",
+            "src/components/app/player-panel/buildPlayerPanelModel.ts",
+            "src/components/wall/useWallToolsCommonActions.ts"
+        ],
+        "useAudioSettingsStore.handleTogglePlaybackFade": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAudioSettingsStore.handleToggleShuffleRoundNoRepeat": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAudioSettingsStore.handleToggleTranscodeFallback": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAudioSettingsStore.setAudioQuality": [
+            "src/components/app/player-panel/buildPlayerPanelModel.ts"
+        ],
+        "useAutomixSettingsStore.handleSetCrossfadeMaxSec": [
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAutomixSettingsStore.handleSetTransitionMode": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAutomixSettingsStore.handleToggleAutomix": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx",
+            "src/components/panelTab/controls/SoundTiles.tsx",
+            "src/components/panelTab/equalizer/StemMixerSection.tsx"
+        ],
+        "useAutomixSettingsStore.handleToggleTransitionAnimation": [
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAutomixSettingsStore.handleToggleTransitionAnimationCard": [
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useAutomixSettingsStore.handleToggleTransitionPerformance": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleSetGpuPreference": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/graphics/GpuPreferenceRow.tsx"
+        ],
+        "useDesktopSettingsStore.handleSetRemoteControlLyricLayout": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/RemotePage.tsx"
+        ],
+        "useDesktopSettingsStore.handleSetUiZoomStep": [
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleBackgroundThrottling": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/GraphicsPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleCloseToTray": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleCommunityMods": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/ModsPage.tsx",
+            "src/mods/market/ModsWorkbench.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleHideRemoteControlTaskbarIcon": [
+            "src/components/modal/settings/pages/RemotePage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleHideRemoteControlTitlebar": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/RemotePage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleHideTaskbarIcon": [
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleMinimizeToTray": [
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleModSystem": [
+            "src/components/modal/settings/pages/ModsPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleOpenPlayerOnLaunch": [
+            "src/components/modal/SettingsModal.tsx"
+        ],
+        "useDesktopSettingsStore.handleTogglePreventDisplaySleepDuringPlayback": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlaybackPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleRemoteControlClickThrough": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/RemotePage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleRemoteControlExpandCover": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/RemotePage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleRemoteControlTextShade": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/RemotePage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleUiZoom": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleVoiceInputPause": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/SettingsModal.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleWallpaperMacAutohideDock": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "useDesktopSettingsStore.handleToggleWallpaperMode": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx",
+            "src/hooks/useAppPreferences.ts"
+        ],
+        "useDesktopSettingsStore.setDesktopPreferenceSnapshot": [
+            "src/hooks/useAppPreferences.ts"
+        ],
+        "useGridViewSettingsStore.handleSetGridViewMinCardOpacity": [
+            "src/components/modal/settings/GridViewSettingsSection.tsx",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useGridViewSettingsStore.handleSetGridViewMinCardScale": [
+            "src/components/modal/settings/GridViewSettingsSection.tsx",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useGridViewSettingsStore.handleToggleGridViewFullBleedCover": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/GridViewSettingsSection.tsx",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useGridViewSettingsStore.handleToggleGridViewSquareCards": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/GridViewSettingsSection.tsx",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useGridViewSettingsStore.resetGridViewCardFalloff": [
+            "src/components/modal/settings/GridViewSettingsSection.tsx",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHifiSettingsStore.setAudioDevice": [
+            "src/components/modal/settings/pages/hifi/HifiOutputGroup.tsx"
+        ],
+        "useHifiSettingsStore.setDsdMode": [
+            "src/components/modal/settings/pages/hifi/HifiDsdRows.tsx"
+        ],
+        "useHifiSettingsStore.setEnabled": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/hifi/HifiEngineGroup.tsx"
+        ],
+        "useHifiSettingsStore.setExclusive": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/hifi/HifiOutputGroup.tsx"
+        ],
+        "useHifiSettingsStore.setMpvPath": [
+            "src/components/modal/settings/pages/hifi/HifiEngineGroup.tsx"
+        ],
+        "useHifiSettingsStore.setNavidrome": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/hifi/HifiEngineGroup.tsx"
+        ],
+        "useHifiSettingsStore.setSoftwareVolume": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/hifi/HifiOutputGroup.tsx"
+        ],
+        "useHifiSettingsStore.setVolumeConfirmed": [
+            "src/components/modal/settings/pages/hifi/HifiEngineGroup.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleSetGrid3dCardStyle": [
+            "src/components/modal/settings/pages/HomePage.tsx",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useHomeLayoutSettingsStore.handleSetHomeLayoutStyle": [
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleHomeTabAlbums": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleHomeTabExplore": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleHomeTabFolia": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleHomeTabLocal": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleHomeTabPlaylist": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleHomeTabRadio": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useHomeLayoutSettingsStore.handleToggleRememberHomeCardPosition": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useInteractionSettingsStore.handleToggleGridCommandPaletteHotkey": [
+            "src/components/modal/settings/pages/InteractionPage.tsx"
+        ],
+        "useInteractionSettingsStore.setCustomShortcutCommandId": [
+            "src/components/modal/settings/pages/InteractionPage.tsx"
+        ],
+        "useInteractionSettingsStore.setCustomShortcutLetter": [
+            "src/components/modal/settings/pages/InteractionPage.tsx"
+        ],
+        "useInteractionSettingsStore.setGlobalShortcutBinding": [
+            "src/components/modal/settings/pages/GlobalShortcutsGroup.tsx"
+        ],
+        "useInteractionSettingsStore.setGlobalShortcutPortalEnabled": [
+            "src/components/modal/settings/pages/GlobalShortcutsGroup.tsx"
+        ],
+        "useInteractionSettingsStore.setGridActionButtonSlideTarget": [
+            "src/components/modal/settings/pages/InteractionPage.tsx"
+        ],
+        "useInteractionSettingsStore.setQueuePaletteKeepOpen": [
+            "src/components/app/command-palette-context/buildAppOwnedCommandContext.ts"
+        ],
+        "useInteractionSettingsStore.setVisualizerPickerKeepOpen": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts"
+        ],
+        "useLatticeSettingsStore.handleSetLatticePosterTintColor": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.handleSetLatticePosterTintIntensity": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.handleSetLatticeWallForm": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/app/lattice/LatticeFocusButton.tsx",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.handleToggleAutoFocusOnSongChange": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/app/lattice/LatticeFocusButton.tsx",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.handleToggleLatticeBadgeCurrentOnly": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLatticeSettingsStore.handleToggleLatticeLights": [
+            "src/components/wall/WallToolsButton.tsx"
+        ],
+        "useLatticeSettingsStore.handleToggleLatticePosterTint": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/wall/WallToolsButton.tsx"
+        ],
+        "useLatticeSettingsStore.handleToggleLatticePosterTintCustomColor": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.handleToggleLatticeRadioHideUpcoming": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.handleToggleLatticeVignette": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useLatticeSettingsStore.setWallToolsQueueIslandOpen": [
+            "src/components/wall/useWallToolsCommonActions.ts"
+        ],
+        "useLibraryWallLookStore.setBackdropBlur": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLibraryWallLookStore.setBackdropLyrics": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLibraryWallLookStore.setCollectionStackEdges": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLibraryWallLookStore.setCollectionTilt": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx"
+        ],
+        "useLibraryWallLookStore.setHomeFinite": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx"
+        ],
+        "useLibraryWallLookStore.setLook": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/library/suites/bravais/BravaisStageChrome.tsx",
+            "src/library/suites/bravais/useBravaisChromeActions.ts"
+        ],
+        "useLibraryWallLookStore.setSeamClear": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLibraryWallLookStore.setSeamDirection": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLibraryWallLookStore.setSeamStyle": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useLibraryWallLookStore.setWindowsPerBlock": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/BravaisWallGroup.tsx",
+            "src/library/suites/bravais/useBravaisChromeActions.ts"
+        ],
+        "useLocalLibrarySettingsStore.setAutoScanEnabled": [
+            "src/components/modal/settings/pages/storage/FolderWatchGroup.tsx"
+        ],
+        "useLocalLibrarySettingsStore.toggleAutoScan": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts"
+        ],
+        "useLyricSettingsStore.handleSetGlobalLyricTimelineOffsetMs": [
+            "src/components/modal/settings/GlobalLyricOffsetModal.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLocalLyricFormatOrder": [
+            "src/components/modal/settings/pages/LyricsPage.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLocalLyricsPriority": [
+            "src/components/modal/settings/pages/LyricsPage.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLyricLineRules": [
+            "src/App.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLyricStaffAbsorbMode": [
+            "src/App.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLyricStaffMinDwellSeconds": [
+            "src/App.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLyricStaffPattern": [
+            "src/App.tsx"
+        ],
+        "useLyricSettingsStore.handleSetLyricStaffPolicy": [
+            "src/App.tsx"
+        ],
+        "useLyricSettingsStore.handleSetPreferredAlternativeLyricSource": [
+            "src/components/modal/settings/pages/LyricsPage.tsx"
+        ],
+        "useLyricSettingsStore.handleToggleAutoAiLyricSegmentation": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/LyricsPage.tsx"
+        ],
+        "useLyricSettingsStore.handleToggleAutoUseBestLyric": [
+            "src/components/modal/settings/pages/LyricsPage.tsx"
+        ],
+        "useLyricSettingsStore.handleToggleKeepProviderWordTiming": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/LyricsPage.tsx"
+        ],
+        "useMotionSettingsStore.handleToggleFollowSystemReducedMotion": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/MotionReductionSettingsSection.tsx",
+            "src/components/modal/settings/pages/GraphicsPage.tsx"
+        ],
+        "useMotionSettingsStore.handleToggleReducedMotionSurface": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/MotionReductionSettingsSection.tsx",
+            "src/components/modal/settings/pages/GraphicsPage.tsx"
+        ],
+        "useMotionSettingsStore.setSystemPrefersReducedMotion": [],
+        "usePlayerChromeSettingsStore.handleResetPlayerControlLayout": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleSetPlayerBottomBarOffset": [
+            "src/components/app/overlays/useAppOverlaysModel.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleSetPlayerControlLayout": [
+            "src/components/modal/settings/pages/player/PlayerControlLayoutEditor.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleSetPlayerControlSlot": [
+            "src/components/floating-player/usePlayerControlSlotCustomization.ts"
+        ],
+        "usePlayerChromeSettingsStore.handleSetTitlebarSide": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleAlwaysShowMainWindowTitlebar": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/GeneralPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleAlwaysShowPlayerBackButton": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleAlwaysShowTrackSwitchButtons": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleAutoHideCursorWithPlayerChrome": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleAutoHidePlayerChrome": [
+            "src/App.tsx",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleHideCursorWhenIdle": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleHideFullscreenButton": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleHidePlayerProgressBar": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleHidePlayerRightPanelButton": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleNativeMacFullscreenButton": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleNativeMacTrafficLights": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/DesktopPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleOpenPanelCloseButton": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleTogglePlayerHeaderBlur": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "usePlayerChromeSettingsStore.handleTogglePlayerPageNativeBlur": [
+            "src/components/modal/settings/pages/GraphicsPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleProgressBarChorusMarker": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "usePlayerChromeSettingsStore.handleToggleTransparentPlayerBackground": [
+            "src/App.tsx",
+            "src/components/modal/SettingsModal.tsx"
+        ],
+        "usePlayerChromeSettingsStore.setTransparentPlayerBackgroundFromSystem": [
+            "src/hooks/useAppPreferences.ts"
+        ],
+        "useRecommendationPreferencesStore.setValue": [
+            "src/components/recommendationPreferences/RecommendationPreferencesPanel.tsx"
+        ],
+        "useSceneSettingsStore.setSceneId": [
+            "src/components/command-palette/commands/sceneCommands.ts",
+            "src/components/scenes/settings/SceneRow.tsx",
+            "src/components/scenes/settings/SceneWindow.tsx"
+        ],
+        "useSceneSettingsStore.setSceneOptions": [
+            "src/components/scenes/settings/SceneSettingsPanel.tsx",
+            "src/components/scenes/settings/SceneWindow.tsx"
+        ],
+        "useScratchpadSettingsStore.setHandlePosition": [
+            "src/components/app/scratchpad/ScratchpadHost.tsx",
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useScratchpadSettingsStore.setHandleStyle": [
+            "src/components/modal/settings/pages/HomePage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useScratchpadSettingsStore.setShowHandle": [
+            "src/components/modal/settings/pages/HomePage.tsx"
+        ],
+        "useScratchpadSettingsStore.toggleShowHandle": [
+            "src/components/command-palette/commands/scratchpadCommands.ts"
+        ],
+        "useSoundTracingStore.setEnabled": [
+            "src/components/command-palette/commands/sceneCommands.ts",
+            "src/components/scenes/settings/SceneSettingsPanel.tsx",
+            "src/components/scenes/settings/SoundTracingGroup.tsx"
+        ],
+        "useSoundTracingStore.setOutput": [
+            "src/components/command-palette/commands/sceneCommands.ts",
+            "src/components/scenes/settings/SceneSettingsPanel.tsx",
+            "src/components/scenes/settings/SoundTracingGroup.tsx"
+        ],
+        "useStageSettingsStore.handleSetStageTrackPillMode": [
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useStageSettingsStore.handleSetStageTrackPillPosition": [
+            "src/components/app/overlays/now-playing-toast/useNowPlayingCardPosition.ts",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useStageSettingsStore.handleSetStageTrackPillTimeoutSec": [
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useStageSettingsStore.handleToggleObsKeepMainWindowAnimation": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/IntegrationPage.tsx"
+        ],
+        "useStageSettingsStore.handleToggleStageTrackPillInObs": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useStageSettingsStore.handleToggleStageTrackPillOnHome": [
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useStageSettingsStore.setPlayerCapHost": [
+            "src/components/modal/settings/pages/integration/StageModeRows.tsx"
+        ],
+        "useStageSettingsStore.setPlayerCapPlayer": [
+            "src/components/modal/settings/pages/integration/StageModeRows.tsx"
+        ],
+        "useStageSettingsStore.setPlayerCapSticky": [
+            "src/components/modal/settings/pages/integration/StageModeRows.tsx"
+        ],
+        "useStageSettingsStore.setPlayerCapTimeBasis": [
+            "src/components/modal/settings/pages/integration/StageModeRows.tsx"
+        ],
+        "useStageSettingsStore.setWebObsThemeMode": [
+            "src/components/modal/settings/pages/ObsLinkRows.tsx"
+        ],
+        "useStageSettingsStore.setWebStageSource": [
+            "src/components/modal/settings/pages/integration/StageModeRows.tsx"
+        ],
+        "useThemeSettingsStore.handleToggleCoverColorBg": [
+            "src/components/app/player-panel/buildPlayerPanelModel.ts",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useThemeSettingsStore.handleToggleDisableHomeDynamicBackground": [
+            "src/components/modal/settings/pages/GraphicsPage.tsx"
+        ],
+        "useThemeSettingsStore.handleToggleStaticMode": [
+            "src/components/modal/settings/pages/GraphicsPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useThemeSettingsStore.setDaylightPreference": [
+            "src/App.tsx",
+            "src/components/modal/settings/pages/AppearancePage.tsx"
+        ],
+        "useThemeSettingsStore.setDaylightPreferenceFromSystem": [
+            "src/hooks/useAppPreferences.ts"
+        ],
+        "useThemeSettingsStore.setFollowSystemTheme": [
+            "src/components/modal/settings/pages/AppearancePage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetLyricsCustomFont": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useTypographySettingsStore.handleSetLyricsFontFallbackFamilies": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetLyricsFontScale": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetLyricsFontStyle": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetLyricsFontWeight": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleContentMode": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleFontFallbackFamilies": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleFontFamily": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleFontInheritsLyrics": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleFontScale": [
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleFontStyle": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleFontWeight": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleOverlayLayout": [
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleSetSubtitleOverlayOpacity": [
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useTypographySettingsStore.handleToggleHarmonySubtitleBackground": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useTypographySettingsStore.handleToggleHidePlayerTranslationSubtitle": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/PlayerPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleToggleShowHarmonySubtitle": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useTypographySettingsStore.handleToggleShowSubtitleTranslation": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleToggleSubtitleOverlayBackground": [
+            "src/components/app/command-palette-context/buildSettingsCommandContext.ts",
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useTypographySettingsStore.handleToggleSubtitleUpcomingLyricsBlur": [
+            "src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVideoLayerSettingsStore.setVideoLayerEnabled": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useVideoLayerSettingsStore.setVideoLayerFit": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useVideoLayerSettingsStore.setVideoLayerOpacity": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useVideoLayerSettingsStore.setVideoLayerUrl": [
+            "src/components/modal/settings/pages/PlayerPage.tsx"
+        ],
+        "useVisualizerSettingsStore.handleResetVisualizerBackgroundMode": [
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetBackgroundOpacity": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetLyricRenderQuality": [
+            "src/components/modal/settings/pages/GraphicsPage.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/perfCheck/PerfCheckOffer.tsx",
+            "src/mods/runtime/visualizer/hostVisualizer.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetRandomVisualizerModes": [
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/visualizer/random/useRandomPool.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetSmartBeat": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/visualizer/BeatEffectsGroup.tsx",
+            "src/components/visualizer/SmartBeatSettingsCard.tsx",
+            "src/mods/runtime/visualizer/hostVisualizer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetVisualizerBackgroundMode": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/panelTab/controls/AppearanceSection.tsx",
+            "src/mods/runtime/missingEntries.ts",
+            "src/mods/runtime/visualizer/hostVisualizer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetVisualizerFrameRate": [
+            "src/components/modal/settings/pages/GraphicsPage.tsx",
+            "src/components/perfCheck/PerfCheckOffer.tsx"
+        ],
+        "useVisualizerSettingsStore.handleSetVisualizerMode": [
+            "src/App.tsx",
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/app/player-panel/buildPlayerPanelModel.ts",
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/visualizer/random/useRandomPool.ts",
+            "src/hooks/useVisualizerModeStepper.ts",
+            "src/mods/runtime/missingEntries.ts",
+            "src/mods/runtime/visualizer/hostVisualizer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleSetVisualizerOpacity": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/services/sync/settingsSnapshot.ts"
+        ],
+        "useVisualizerSettingsStore.handleToggleDisableVisualizerGeometricBackground": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts"
+        ],
+        "useVisualizerSettingsStore.handleToggleDisableVisualizerVignette": [
+            "src/components/modal/SettingsModal.tsx",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/panelTab/controls/AppearanceSection.tsx"
+        ],
+        "useVisualizerSettingsStore.handleToggleGlowBlurQuantize": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/modal/settings/pages/GraphicsPage.tsx"
+        ],
+        "useVisualizerSettingsStore.handleToggleRandomVisualizerModePerSong": [
+            "src/components/app/command-palette-context/buildVisualizerCommandContext.ts",
+            "src/components/modal/settings/pages/storage/visualConfigTransfer.ts",
+            "src/components/visualizer/random/lyricStyleChoices.tsx",
+            "src/services/sync/settingsSnapshot.ts"
+        ]
+    },
+    "removed": []
+}

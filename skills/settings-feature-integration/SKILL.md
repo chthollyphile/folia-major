@@ -56,6 +56,14 @@ subview 只是调用方；新增字段要同时改这两处，光改 subview 不
 
 新增类似的例外时，必须是用户明确的决定，并在 store 或设置组件的注释里写明，防止后来者按规则补回去。
 
+## Setting Entries Are Registered
+
+一个设置在哪里能切换（设置页、命令面板、墙上的工具面板、播放页面板……）登记在 `dev/dedicatus/settingEntries.json`（Dedicatus D514–D516，说明在 `dev/dedicatus/README.md`）：
+
+- 加了或挪了入口：跑 `npm run dedicatus:setting-entries` 重写登记表，和代码一起提交（D514 的契约测试核对两边一致）。
+- 拿掉一个入口（某个位置再也切换不了这个设置）是用户看得见的变化，要是用户的决定：在登记表的 `removed` 里写一条 `{ entry, place, why, date }`，why 写明谁定的、为什么（D515）；PR 描述里写明拿掉了什么，提到那个设置函数的名字（D516，CI 查）。不是有意拿掉的，把入口加回来。
+- 入口加回来时，删掉 `removed` 里对应的记录。
+
 ## Functional Settings Must Join Command Palette
 
 功能性设置（如 Electron 更新通道 `updateChannel`选择、桌面端 Acrylic 背景确认防护、实验室设置）或可执行动作必须评估并注册到 command palette：

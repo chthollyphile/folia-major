@@ -1,0 +1,43 @@
+name: PR Setting Entries
+
+# D516：PR 拿掉了设置入口（dev/dedicatus/settingEntries.json 比目标分支少了）时，PR 描述里要写明。
+# 描述改了（edited）也重跑，所以单独一个 workflow：pr-unit-tests 一改描述就要重跑全部单测。
+# 只用 Node 内置模块和 git，不装依赖。说明见 dev/dedicatus/README.md。
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-setting-entries-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  setting-entries:
+    name: Setting entries named in the PR description
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          # 检出的是合并提交：多取一层，才能拿第一个父提交（目标分支）比登记表。
+          fetch-depth: 2
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Dedicatus D516
+        run: node dev/dedicatus/prSettingEntries.mjs --github --base HEAD^1

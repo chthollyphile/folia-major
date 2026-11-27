@@ -98,6 +98,10 @@ export const CODES = {
     D511: { name: '外观设置的去向没有声明', level: 'error' },
     D512: { name: '外观配置码短键改名或删除', level: 'error' },
     D513: { name: 'Folium 稳定接口被删改', level: 'error' },
+    // D514 由契约测试 test/unit/dedicatus/contracts/settingEntries.test.ts 检查；D515 是 diff 检查；D516 在 CI 的 pr-setting-entries 里跑
+    D514: { name: '设置入口登记表与代码不符', level: 'error' },
+    D515: { name: '设置入口被拿掉没写原因', level: 'error' },
+    D516: { name: '设置入口被拿掉 PR 描述没写', level: 'error' },
     // 由 test/unit/dedicatus/contracts 下的契约测试检查
     D510: { name: '以主进程为准的设置被渲染层直接写', level: 'error' },
 

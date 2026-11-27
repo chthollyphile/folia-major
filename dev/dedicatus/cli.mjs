@@ -20,6 +20,7 @@ import { checkCycles } from './checks/cycles.mjs';
 import { checkFoliumApi } from './checks/foliumApi.mjs';
 import { checkForeignCredentials } from './checks/foreignCredentials.mjs';
 import { checkModIntegration } from './checks/modIntegration.mjs';
+import { checkSettingEntries } from './checks/settingEntries.mjs';
 import { checkStartupWeight } from './checks/startupWeight.mjs';
 import { checkNotes } from './checks/notes.mjs';
 import { CODE_PATTERN, DEFAULT_MODE, codeInfo } from './codes.mjs';
@@ -208,6 +209,7 @@ function finishGraphChecks(options, context, entries, comparison, baseState) {
         const readBase = baseState?.readOld ?? (file => showAt(root, context.base, file));
         const readCurrent = file => (fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), 'utf8') : null);
         fresh.push(...checkFoliumApi(context.files, { readBase, readCurrent }));
+        fresh.push(...checkSettingEntries({ readBase, readCurrent, renameMap: context.renameMap }));
     }
 
     return { fresh, known: comparison.known };
