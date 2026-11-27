@@ -199,7 +199,8 @@ export const useVisualizerSettingsStore = create<VisualizerSettingsState>((set, 
         if (options?.notify !== false) {
             setStatusMessage({
                 type: 'info',
-                text: i18n.t('notifications.visualizerSwitched', {
+                text: i18n.t('notifications.visualizerSwitchedTitle'),
+                subtitle: i18n.t('notifications.visualizerSwitched', {
                     mode: getVisualizerModeLabel(mode, key => i18n.t(key)),
                 }),
             });

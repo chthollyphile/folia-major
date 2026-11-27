@@ -49,7 +49,8 @@ export const useVisualizerModeStepper = (modes: VisualizerMode[]) => {
   const stateVisualizer = useVisualizerSettingsStore.getState();
             setStatusMessage({
                 type: 'info',
-                text: t('notifications.visualizerSwitched', {
+                text: t('notifications.visualizerSwitchedTitle'),
+                subtitle: t('notifications.visualizerSwitched', {
                     mode: stateVisualizer.randomVisualizerModePerSong ? t('ui.visualizerRandom') : getVisualizerModeLabel(stateVisualizer.visualizerMode, key => t(key)),
                 }),
             });
