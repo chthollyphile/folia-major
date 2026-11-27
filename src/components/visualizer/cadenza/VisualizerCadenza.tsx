@@ -21,6 +21,7 @@ import type {
 import {
     clearOverlayWordNodes,
     createOverlayWordNodes,
+    removeOverlayWordNodes,
     syncOverlayGlyphSpans,
     writeOverlayGlyphShadow,
     writeOverlayWord,
@@ -42,6 +43,9 @@ import {
     splitGraphemes,
 } from './cadenzaEnvelopes';
 import { buildPreparedState } from './cadenzaPreparedState';
+import { attachCadenzaHandwriting, hasModelGlyph, updateCadenzaHandwriting } from './cadenzaHandwriting';
+import { useStrokeWriteSource } from '../fontStrokes/useStrokeWriteSource';
+import { resolveThemeFontWeight } from '../../../utils/fontStacks';
 
 // This is the heavy layout mode.
 // The line does not just show up and animate; we first prebuild the active/upcoming lines,
@@ -77,6 +81,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         hideTranslationSubtitle = false,
         subtitleOverlayLayout,
         isPreviewMode = false,
+        staticMode = false,
     } = props;
     const { t } = useTranslation();
     // 文字画布的分辨率倍数（#929）：全局挡位叠上这个样式的覆盖，预览不跟。经 ref 交给绘制循环，
@@ -109,6 +114,13 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         getLineEndTime: getLineRenderEndTime,
     });
     const tuning = cadenzaTuning;
+    // 手写笔画：开关开着时才登记笔画服务；关着是 null，叠层节点照原样建（字重同 buildCanvasFont）
+    const handwriting = useStrokeWriteSource(
+        tuning.handwriting === true && showText && !staticMode,
+        theme,
+        resolveThemeFontWeight(theme, 700),
+        lines,
+    );
     const emptyFontSize = `clamp(${(1.5 * lyricsFontScale).toFixed(3)}rem, ${(3.5 * lyricsFontScale).toFixed(3)}vw, ${(2.25 * lyricsFontScale).toFixed(3)}rem)`;
     const { translationFontSize, upcomingFontSize } = resolveSubtitleFontSizes(lyricsFontScale);
 
@@ -430,6 +442,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                     let overlayWord = overlayNodes.get(placement.id);
                     if (!overlayWord) {
                         overlayWord = createOverlayWordNodes();
+                        if (handwriting && hasModelGlyph(glyphs)) attachCadenzaHandwriting(overlayWord, glyphs);
                         overlayNodes.set(placement.id, overlayWord);
                         overlay.appendChild(overlayWord.outer);
                     }
@@ -450,7 +463,8 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                         filter: animatedState.blur > 0.05 ? `blur(${animatedState.blur.toFixed(2)}px)` : 'none',
                     });
 
-                    const glowTexts = shouldSplitGlow ? glyphs : [placement.text];
+                    // 手写笔画接上时光晕层也逐字拆开（没写完的字单独藏起来）
+                    const glowTexts = shouldSplitGlow || overlayWord.hw ? glyphs : [placement.text];
                     syncOverlayGlyphSpans(overlayWord, glowTexts);
 
                     if (shouldSplitGlow) {
@@ -470,7 +484,19 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                         const intensity = getClassicGlowEnvelope(time, lineTiming, placement.word)
                             * clamp(animatedState.glowAlpha, 0, 1)
                             * Math.max(tuning.glowIntensity, 0);
-                        writeOverlayGlyphShadow(overlayWord, 0, buildDomTextShadow(placement.color, intensity, blurScale));
+                        const shadow = buildDomTextShadow(placement.color, intensity, blurScale);
+                        for (let glyphIndex = 0; glyphIndex < overlayWord.glyphSpans.length; glyphIndex += 1) {
+                            writeOverlayGlyphShadow(overlayWord, glyphIndex, shadow);
+                        }
+                    }
+                    if (overlayWord.hw && handwriting) {
+                        updateCadenzaHandwriting(
+                            overlayWord,
+                            placement,
+                            time,
+                            handwriting,
+                            getClassicGlowEnvelope(time, lineTiming, placement.word) * clamp(animatedState.glowAlpha, 0, 1) * Math.max(tuning.glowIntensity, 0),
+                        );
                     }
 
                 }
@@ -478,7 +504,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
 
             overlayNodes.forEach((nodes, key) => {
                 if (nodes.frame !== frameNumber) {
-                    nodes.outer.remove();
+                    removeOverlayWordNodes(nodes);
                     overlayNodes.delete(key);
                 }
             });
@@ -497,6 +523,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         audioPower,
         currentTime,
         activeLine,
+        handwriting,
         preparedState,
         showText,
         theme,

@@ -2,6 +2,7 @@ import type { layoutWithLines, PreparedTextWithSegments } from '@chenglou/pretex
 import type { CadenzaTuning, Line, Theme, Word as WordType } from '../../../types';
 import type { GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import type { LineTransitionTiming } from '../../../utils/lyrics/renderHints';
+import type { CadenzaHwNodes } from './cadenzaHandwriting';
 
 // src/components/visualizer/cadenza/cadenzaTypes.ts
 // Cadenza 的布局 / 动画中间结构：pretext 分段元信息、词范围、跨行片段、落点，以及运行时缓存的准备态。
@@ -88,6 +89,8 @@ export interface OverlayWordNodes {
     glyphShadows: string[];
     /** The draw-loop frame that last used these nodes; older ones are removed at the end of a frame. */
     frame: number;
+    /** 手写笔画开着、落点里有汉字 / 假名时才有（cadenzaHandwriting.ts）：正文拆成逐字，不再整串写 textContent。 */
+    hw: CadenzaHwNodes | null;
 }
 
 /** One word's DOM state for a frame, as strings ready to assign. */
