@@ -87,7 +87,7 @@ export class NebbiaGl {
         // 属性位置在 nebbiaPrograms.ts 里绑死：aPos 0；aCorner 0、aRect 1、aParam 2；遮罩 aCorner 0、aSeg 1、aParam 2
         gl.enableVertexAttribArray(0);
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-        this.mask = new NebbiaMaskGl(gl, 2, 16);
+        this.mask = new NebbiaMaskGl(gl, 2);
         this.drop = makeTex(gl, 3);
         this.field = makeTex(gl, 4);
         this.sprite = makeTex(gl, 5);
@@ -121,8 +121,8 @@ export class NebbiaGl {
         if (this.linked) return true;
         if (!this.build.poll()) return false;
         const { gl } = this;
-        const { main, fog, sprite, mask, maskInk, bldFill, flake, firefly } = this.build.programs;
-        this.mask.attach(mask, maskInk);
+        const { main, fog, sprite, mask, bldFill, flake, firefly } = this.build.programs;
+        this.mask.attach(mask);
         this.U = locate(gl, main, MAIN_UNIFORMS);
         gl.useProgram(main);
         const [fogBlur, fogGlow, fogSharp] = this.fogGl.layers;
@@ -319,11 +319,6 @@ export class NebbiaGl {
     /** render 之后叠上凝露玻璃上的萤虫：count 只（nebbiaFireflies.ts 排好的实例）。 */
     drawFireflies(data: Float32Array, count: number) {
         this.fireflies?.draw(data, count, this.W, this.H);
-    }
-
-    /** 换歌、重排整首时：字体墨字块攒得太多就清掉重传。 */
-    trimInk() {
-        this.mask.trimInk();
     }
 
     destroy() {

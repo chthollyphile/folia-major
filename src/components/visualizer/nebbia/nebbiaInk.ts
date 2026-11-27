@@ -2,7 +2,7 @@ import { clamp, NEBBIA_FIXED, MASK_SCALE, smooth } from './nebbiaConstants';
 import { windDrift, type NebbiaGlassMotion } from './nebbiaDrops';
 import { type Drip, type LaidChar } from './nebbiaScene';
 import { pointAt, type GlyphStroke } from './nebbiaGlyphs';
-import { fontInkLook, interpolateAt } from './nebbiaFontField';
+import { interpolateAt } from './nebbiaFontField';
 import type { NebbiaSegments } from './nebbiaSegments';
 import { putInkBead } from './nebbiaInkIce';
 
@@ -24,9 +24,6 @@ export interface InkContext {
     ice: { out: number[]; k: number; H: number } | null;
 }
 
-
-/** 字体墨显出的前沿有几个遮罩像素宽。 */
-const FONT_FEATHER = 2.5;
 
 /** 水珠流下来的水痕：宽度接近水珠本身，边缘起伏，越往上越细；wob(y) 是 y 处的横向偏移，和水珠头同一条。 */
 export const strokeTrail = (ctx: NebbiaSegments, x: number, y0: number, y1: number, width: number, v: number, seed: number, wob: (y: number) => number) => {
@@ -130,23 +127,18 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     // 笔画多的字笔画收细一点，不然挤在一起糊成一团。宽度按字号（em）缩放：原来 8×thin 像素的下限在字号小于 8 / strokeWidth
     // （默认约 89 像素）时盖过笔画粗细设置，字越小笔画相对越粗、堵住字腔。只留 0.6 个遮罩纹素的下限，半分辨率遮罩上细笔画不断成点
     const thin = clamp(Math.sqrt(9 / g.strokes.length), 0.55, 1);
-    // 字体墨：墨边按笔画粗细设置外扩 / 内缩（默认值时原样），水痕、笔尖用典型笔宽乘上设置的倍数，水珠挂在各点实际的墨边上，大小对着骨架字形的比例
-    const look = g.ink ? fontInkLook(g.ink.width, ink.strokeWidth, thin) : null;
     const minWidth = 0.6 / (MASK_SCALE * c.s);
     // 字体笔画（中线笔画带字体笔宽剖面）：每点的笔宽 = 设置的笔宽 × 字体笔宽倍数，设置等于默认时和骨架字形一样粗；水痕、笔尖用倍数的中位数，水珠大小按它缩（细字体的水珠小一点）
-    const base = ink.strokeWidth * thin, pen = !g.ink && g.penRel !== undefined ? g.penRel : null;
-    const width = look ? Math.max(look.width, minWidth) : Math.max(pen !== null ? base * pen : base, minWidth);
-    const beadScale = look ? look.beadScale : pen !== null ? clamp(Math.sqrt(pen), 0.6, 1) : 1;
+    const base = ink.strokeWidth * thin, pen = g.penRel !== undefined ? g.penRel : null;
+    const width = Math.max(pen !== null ? base * pen : base, minWidth);
+    const beadScale = pen !== null ? clamp(Math.sqrt(pen), 0.6, 1) : 1;
     const drips: [GlyphStroke, Drip, number][] = [];
-    /** 字体墨：写到的弧长（前面写完的笔画全长加上正在写的这笔写到的）。 */
-    let covered = 0;
     g.strokes.forEach((st, si) => {
         const dur = fadeIn ? 0 : inkTime * st.len / g.total;
         if (local <= 0) return;
         const p = dur > 0 ? clamp(local / dur) : 1;
         const drawn = (p * 0.4 + smooth(p) * 0.6) * st.len;
-        covered += drawn;
-        if (clarity > 0.002 && !g.ink) {
+        if (clarity > 0.002) {
             partialPath(ctx, st, drawn);
             if (st.pw) ctx.strokeProfile(st.pw, base, minWidth, clarity); else ctx.stroke(width, clarity);
         }
@@ -156,7 +148,7 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
             for (const b of c.beads[si]) {
                 if (b.s > drawn) break;
                 const br = b.r * beadScale;
-                const half = look ? Math.max(0.002, (st.hw ? interpolateAt(st.cum, st.hw, b.s) : look.width / 2 - look.grow) + look.grow) : st.pw ? Math.max(base * interpolateAt(st.cum, st.pw, b.s), minWidth) / 2 : width / 2;
+                const half = st.pw ? Math.max(base * interpolateAt(st.cum, st.pw, b.s), minWidth) / 2 : width / 2;
                 const off = half + (br * 0.7 + b.j * 1.5 * beadScale) / c.s;
                 const [x, y] = toScreen(c, b.x + b.nx * off, b.y + b.ny * off);
                 const bv = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;
@@ -182,9 +174,6 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
         }
         local -= dur + (fadeIn ? 0 : gap);
     });
-    // 前沿羽化约 FONT_FEATHER 个遮罩像素宽
-    // 写完了就整个显出来（前沿的羽化不留在最后一笔的末端）
-    if (g.ink && look && clarity > 0.002) ctx.tile(g.ink, covered >= g.total * 0.999 ? 2 : covered / g.total, clarity, FONT_FEATHER / Math.max(1, g.total * c.s * MASK_SCALE), look.grow);
     ctx.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
     for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV, alive, beadScale);
     ctx.setTransform(1, 0, 0, 1, 0, 0);

@@ -1,6 +1,5 @@
 import { checkLinked, compileShader, startProgram } from './nebbiaGlUtils';
 import { NEBBIA_MASK_FS, NEBBIA_MASK_VS } from './nebbiaMaskGl';
-import { NEBBIA_MASK_INK_FS, NEBBIA_MASK_INK_VS } from './nebbiaMaskInkGl';
 import { NEBBIA_BLD_FILL_FS, NEBBIA_NOISE_FS, NEBBIA_SPRITE_FS, NEBBIA_SPRITE_VS, NEBBIA_VS, nebbiaSceneShaders } from './nebbiaShaders';
 import { NEBBIA_FLAKE_FS, NEBBIA_FLAKE_VS } from './nebbiaSnowGl';
 import { NEBBIA_FIREFLY_FS, NEBBIA_FIREFLY_VS } from './nebbiaFireflyGl';
@@ -19,8 +18,6 @@ export interface NebbiaPrograms {
     sprite: WebGLProgram;
     /** 擦痕遮罩（nebbiaMaskGl.ts）。 */
     mask: WebGLProgram;
-    /** 擦痕遮罩里笔顺模型给的字（字体墨的字块，nebbiaMaskGl.ts）。 */
-    maskInk: WebGLProgram;
     /** 往楼群缓存里补画（nebbiaBuildingCache.ts）；窗外是水族箱时没有。 */
     bldFill: WebGLProgram | null;
     /** 算静态噪声纹理（nebbiaNoiseTex.ts）。 */
@@ -68,7 +65,6 @@ export class NebbiaProgramBuild {
             main: startProgram(gl, vs, frag(fogToFloat ? shaders.main : shaders.mainFallback), { aPos: 0 }),
             sprite: startProgram(gl, compileShader(gl, gl.VERTEX_SHADER, NEBBIA_SPRITE_VS), frag(NEBBIA_SPRITE_FS), { aCorner: 0, aRect: 1, aParam: 2 }),
             mask: startProgram(gl, compileShader(gl, gl.VERTEX_SHADER, NEBBIA_MASK_VS), frag(NEBBIA_MASK_FS), { aCorner: 0, aSeg: 1, aParam: 2 }),
-            maskInk: startProgram(gl, compileShader(gl, gl.VERTEX_SHADER, NEBBIA_MASK_INK_VS), frag(NEBBIA_MASK_INK_FS), { aCorner: 0, aOrigin: 1, aAxisV: 2, aParam: 3 }),
             bldFill: scene === 'night' ? startProgram(gl, vs, frag(NEBBIA_BLD_FILL_FS), { aPos: 0 }) : null,
             noise: startProgram(gl, vs, frag(NEBBIA_NOISE_FS), { aPos: 0 }),
             flake: glass === 'snow' ? startProgram(gl, compileShader(gl, gl.VERTEX_SHADER, NEBBIA_FLAKE_VS), frag(NEBBIA_FLAKE_FS), { aCorner: 0, aA: 1, aB: 2, aC: 3 }) : null,
@@ -80,7 +76,7 @@ export class NebbiaProgramBuild {
     poll(): boolean {
         if (this.done) return true;
         const { gl, parallel } = this;
-        const list = [this.programs.fog, this.programs.main, this.programs.sprite, this.programs.mask, this.programs.maskInk, this.programs.bldFill, this.programs.noise, this.programs.flake, this.programs.firefly].filter((p): p is WebGLProgram => !!p);
+        const list = [this.programs.fog, this.programs.main, this.programs.sprite, this.programs.mask, this.programs.bldFill, this.programs.noise, this.programs.flake, this.programs.firefly].filter((p): p is WebGLProgram => !!p);
         if (parallel && !list.every(p => gl.getProgramParameter(p, parallel.COMPLETION_STATUS_KHR))) return false;
         for (const p of list) checkLinked(gl, p);
         // 链接好了，着色器对象不再要：删掉（挂在程序上的等程序删了才真正释放）

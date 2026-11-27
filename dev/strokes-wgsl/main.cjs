@@ -12,6 +12,9 @@ const path = require('path');
 //   npx rolldown dev/strokes-wgsl/harness.ts -o $OUT/harness.js -f iife -p browser
 //   SW_DIR=$OUT SW_TASK=align [SW_F16=1] npx electron dev/strokes-wgsl/main.cjs
 //
+// SW_URL=http://localhost:<port>/dev/strokes-wgsl/workerCheck.html (with `npx vite --port <port>` running, web only): the real GPU worker path
+// (runStrokesGpu -> beatThisGpu.worker.ts -> strokesJob.ts) against a direct StrokesJob run; optional SW_CHARS_SET, SW_FAMILY.
+// SW_TASK=penwidth (penWidthProbe.ts): 雾笺's old pen-width path (model run at weight W) vs the font-strokes service path (400-weight strokes, codec round-trip, along rebuilt from outlines on the W ink); SW_WEIGHTS (default 400,600), optional SW_FONTS / SW_CHARS_SET; writes penwidth.md.
 // SW_TASK=outline (outlineProbe.ts): do the 400-weight stroke outlines cover the ink of other weights; needs SW_F16/SW_FULL6/SW_OWN2, optional SW_FONTS (json), SW_CHARS_SET, SW_RADII, SW_SHEET_R.
 // SW_TASK: stages (encoder / memory / step-0 intermediates against dbg_*), align (teacher-forced and free
 // generation, with and without the reference), bench (timings, SW_B=1,16,64,128,256 batch sizes), own2
@@ -55,13 +58,18 @@ ipcMain.on('sw-log', (_event, line) => console.log(line));
 ipcMain.on('sw-done', (_event, code) => app.exit(code));
 
 app.whenReady().then(() => {
-    const html = path.join(dir, 'harness.html');
-    fs.writeFileSync(html, '<!doctype html><meta charset="utf-8"><script src="harness.js"></script>');
     const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false, backgroundThrottling: false } });
     win.webContents.on('console-message', (event) => console.log(`[renderer] ${event.message}`));
     win.webContents.on('render-process-gone', (_event, details) => {
         console.error('renderer gone', details);
         app.exit(3);
     });
+    // SW_URL: a page from the web dev server instead of the bundled harness (workerCheck.html)
+    if (process.env.SW_URL) {
+        win.loadURL(process.env.SW_URL);
+        return;
+    }
+    const html = path.join(dir, 'harness.html');
+    fs.writeFileSync(html, '<!doctype html><meta charset="utf-8"><script src="harness.js"></script>');
     win.loadFile(html);
 });

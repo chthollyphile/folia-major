@@ -1,11 +1,10 @@
 import { runStrokesGpu, STROKES_GPU_BATCH } from '../../../services/analysis/beatThisGpu';
-import { buildGlyph, glyphFeatures, isModelChar, renderCanon } from '../nebbia/nebbiaFontGlyph';
-import type { Glyph } from '../nebbia/nebbiaGlyphs';
+import { glyphFeatures, isModelChar, renderCanon } from '../../../services/fontStrokes/fontStrokesRaster';
 import { buildStrokeReveal, type StrokeReveal } from './strokeReveal';
 
 // src/components/visualizer/fontStrokes/fontStrokesQueue.ts
-// 字体笔画的缓存和推理队列（光栅、特征、字块在 nebbia/nebbiaFontGlyph.ts）：一个实例跨样式共用（雾笺、浮名）。
-// 每个字存两份结果：雾笺用的字形 glyph，和浮名手写笔画用的书写位置遮罩 reveal（strokeReveal.ts），同一次推理出。
+// 字体笔画的缓存和推理队列（光栅、特征在 services/fontStrokes/fontStrokesRaster.ts）：现在只剩浮名用（雾笺改读笔画服务 services/fontStrokes）。
+// 每个字存浮名手写笔画用的书写位置遮罩 reveal（strokeReveal.ts）。
 // 每个运行时 attach 一份「要哪些字」（按歌词顺序，标出马上要写的几句）；队列把所有运行时的需求合起来，
 // 马上要写的字用 onScreen 紧迫度、其余用 background，一批 STROKES_GPU_BATCH 个地算，每批到了通知一次。
 // 需求整份替换：换歌、换字体、拖进度时运行时重新报一份，旧的没算的字就自然丢掉；没有运行时 attach 时不再算。
@@ -21,7 +20,7 @@ const FONT_WAIT_MS = 4000;
 /** 页面的字体集；worker 和单测里没有 document。 */
 const docFonts = (): FontFaceSet | undefined => (typeof document === 'undefined' ? undefined : document.fonts);
 
-type Entry = { glyph: Glyph | null; reveal: StrokeReveal | null } | 'pending';
+type Entry = { reveal: StrokeReveal | null } | 'pending';
 
 export interface FontDemandChar {
     ch: string;
@@ -57,21 +56,15 @@ class FontStrokesQueue {
         return `${weight} ${family}|${ch}`;
     }
 
-    /** 算好的字形；还没算、算不出来时 null。 */
-    get(ch: string, family: string, weight: number): Glyph | null {
-        const hit = this.cache.get(this.keyOf(ch, family, weight));
-        if (!hit || hit === 'pending') return null;
-        // 最近用过的挪到最后，超出上限时从最前面丢
-        const key = this.keyOf(ch, family, weight);
-        this.cache.delete(key);
-        this.cache.set(key, hit);
-        return hit.glyph;
-    }
-
     /** 算好的手写遮罩；还没算、算不出来时 null。 */
     getReveal(ch: string, family: string, weight: number): StrokeReveal | null {
-        const hit = this.cache.get(this.keyOf(ch, family, weight));
-        return !hit || hit === 'pending' ? null : hit.reveal;
+        const key = this.keyOf(ch, family, weight);
+        const hit = this.cache.get(key);
+        if (!hit || hit === 'pending') return null;
+        // 最近用过的挪到最后，超出上限时从最前面丢
+        this.cache.delete(key);
+        this.cache.set(key, hit);
+        return hit.reveal;
     }
 
     /** 接上一个运行时：listener 每批算完时调用。 */
@@ -158,7 +151,7 @@ class FontStrokesQueue {
                 for (const q of batch) {
                     const canon = renderCanon(q.ch, q.family, q.weight);
                     if (canon) { inputs.push({ key: q.key, canon }); this.cache.set(q.key, 'pending'); }
-                    else this.cache.set(q.key, { glyph: null, reveal: null });
+                    else this.cache.set(q.key, { reveal: null });
                 }
                 if (!inputs.length) continue;
                 const started = performance.now();
@@ -170,10 +163,7 @@ class FontStrokesQueue {
                     console.info('[FontStrokes] font strokes unavailable, keeping the stroke-order data');
                     break;
                 }
-                inputs.forEach((input, i) => this.cache.set(input.key, {
-                    glyph: buildGlyph(input.canon, results[i]),
-                    reveal: buildStrokeReveal(input.canon, results[i].along),
-                }));
+                inputs.forEach((input, i) => this.cache.set(input.key, { reveal: buildStrokeReveal(input.canon, results[i].along) }));
                 console.info(`[FontStrokes] font strokes: ${inputs.length} glyphs in ${Math.round(performance.now() - started)} ms`);
                 this.trim();
                 for (const listener of this.listeners.values()) listener();

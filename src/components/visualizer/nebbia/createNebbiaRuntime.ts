@@ -15,6 +15,7 @@ import { buildNebbiaScene, type LaidLine } from './nebbiaScene';
 import { NebbiaSpot } from './nebbiaSpot';
 import { loadNebbiaStrokes } from './nebbiaStrokes';
 import { NebbiaFontLines } from './nebbiaFontLines';
+import { fontStrokesKeyOf } from '../../../services/fontStrokes';
 import type { NebbiaRuntimeInput, NebbiaSong, NebbiaTuning } from './types';
 import { hashVisualizerSeed } from '../visualizerSeedHash';
 import type { VocalEnvelope } from '../../../services/analysis/vocalEnvelope';
@@ -40,8 +41,8 @@ const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 // 水族箱里没有雨打窗、车也不颠（疏雨轻车不算）。玻璃是雪窗时雪花和雪化成的水归 nebbiaSnow.ts，写字的手指经过时把雪抹开。
 
 // 改了要重排整首的 tuning 项
-/** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔顺模型给笔顺（nebbiaFontGlyph.ts、fontStrokes/fontStrokesQueue.ts）；没选时照旧用 AnimCJK。 */
-const wantsFontStrokes = (theme: Theme) => Boolean(theme.fontFamily?.trim());
+/** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔画服务给笔顺（nebbiaFontGlyph.ts、services/fontStrokes）；没选时照旧用 AnimCJK。返回字体键，不用时 null。 */
+const fontStrokesKeyFor = (theme: Theme) => (theme.fontFamily?.trim() ? fontStrokesKeyOf(theme) : null);
 
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
 // 开关组是数组，每次合并都是新的一份：按内容比
@@ -93,7 +94,7 @@ export class NebbiaRuntime {
     /** 建运行时的时刻和着色器编好是否已记日志：看预热有没有命中缓存。 */
     private readonly startedAt = performance.now();
     private shadersLogged = false;
-    /** 字体笔画：报需求，一批批到时只换还没开写的句子（nebbiaFontLines.ts）。 */
+    /** 字体笔画：登记使用方，一批批到时只换还没开写的句子（nebbiaFontLines.ts）。 */
     private readonly fontLines: NebbiaFontLines;
     private source: NebbiaSourceLine[] = [];
 
@@ -112,7 +113,7 @@ export class NebbiaRuntime {
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
         this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
-        this.glyphs.fontStrokes = wantsFontStrokes(theme);
+        this.glyphs.setFontStrokesKey(fontStrokesKeyFor(theme));
         this.fontLines = new NebbiaFontLines({
             glyphs: this.glyphs, laid: () => this.laid, source: () => this.source, tuning: () => this.tuning,
             seed: () => this.song.seed, time: () => this.input.currentTime.get(), changed: () => this.requestFrame(),
@@ -164,10 +165,7 @@ export class NebbiaRuntime {
         this.theme = theme;
         let fontChanged = this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
         if (fontChanged) this.fontReady = this.glyphs.fontReady();
-        if (wantsFontStrokes(theme) !== this.glyphs.fontStrokes) {
-            this.glyphs.fontStrokes = wantsFontStrokes(theme);
-            fontChanged = true;
-        }
+        if (this.glyphs.setFontStrokesKey(fontStrokesKeyFor(theme))) fontChanged = true;
         this.applyTheme();
         if (fontChanged || iconsChanged) this.rebuild();
         else this.requestFrame();
@@ -289,11 +287,11 @@ export class NebbiaRuntime {
             if (token !== this.buildToken || this.dead || !this.W) return;
             const source = this.showText ? appendNebbiaCredits(buildNebbiaLines(lines, seed, this.tuning.doodle, doodles), this.tuning.credits ? title : null, artist) : [];
             this.source = source;
-            // 字体笔画从当前播放位置往后的句子先算（换歌、换字体时旧的需求被这一份顶掉）
-            this.fontLines.sceneBuilt(this.input.currentTime.get());
+            // 字体键变了（开关字体笔画、换字体）就换登记；算哪些字归笔画服务。锁住的句子先做好字形，别的排好后分批做
+            this.fontLines.beforeBuild(source);
             this.laid = buildNebbiaScene(source, this.glyphs, this.tuning, { W: this.W, H: this.H, fontScale: this.fontScale }, seed);
+            this.fontLines.afterBuild();
             this.words = source.map(l => l.words);
-            this.gl.trimInk();
             this.hits = new NebbiaHits(hashVisualizerSeed(String(seed)));
             this.rebuildHits();
             this.spot.reset();

@@ -3,42 +3,18 @@ import { clamp } from './nebbiaConstants';
 import { ICON_PREFIX } from './nebbiaChars';
 import { skeletonPolys } from './nebbiaSkeleton';
 import { getNebbiaStrokeMedians } from './nebbiaStrokes';
-import { isModelChar, type NebbiaFontInk } from './nebbiaFontGlyph';
-import { fontStrokes } from '../fontStrokes/fontStrokesQueue';
+import { getFontStrokes, isModelChar } from '../../../services/fontStrokes';
+import { renderCanon } from '../../../services/fontStrokes/fontStrokesRaster';
+import { buildFontStrokesNebbiaGlyph } from './nebbiaFontGlyph';
+import { measureGlyph, type Glyph, type GlyphStroke, type Pt } from './nebbiaGlyphShape';
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
 // 字形 = 按书写顺序的几笔中线（em 坐标 0..1，y 向下）。来源依次是：lucide 图标（每个 SVG 元素一笔）、
-// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和假名先用笔顺模型对着主题字体算出的笔迹（按字体墨定逐点粗细，nebbiaFontGlyph.ts）。
+// AnimCJK 笔顺数据、主题字体的骨架追踪；开了字体笔画时，汉字和假名先用笔画服务（services/fontStrokes）对着主题字体算出的笔迹（按当前字重的墨定逐点粗细，nebbiaFontGlyph.ts）。
 // 另有手写变形（warpGlyph）和沿笔画取点（pointAt）。
 
-export type Pt = [number, number];
-export interface GlyphStroke {
-    pts: Pt[]; cum: number[]; len: number;
-    /** 字体墨的字：每个点处的半笔宽（em），水珠按它挂到墨边上。 */
-    hw?: number[];
-    /** 字体笔画（笔迹带字体笔宽）：每个点处的笔宽相对骨架字形笔宽的倍数（nebbiaFontField.ts）。 */
-    pw?: number[];
-}
-export interface Glyph {
-    strokes: GlyphStroke[];
-    total: number;
-    /** 笔顺模型给的字：显出来的是字体自己的墨（nebbiaMaskGl.ts 的字块），笔画只给笔尖和水珠用；不做手写变形。 */
-    ink?: NebbiaFontInk;
-    /** 字体笔画走普通中线笔画的字：各点笔宽倍数 pw 的中位数（水珠大小、水痕宽度按它走）。 */
-    penRel?: number;
-}
-
-/** 量出每一笔的累计弧长；太短的笔画丢掉。 */
-export const measureGlyph = (polys: Pt[][]): Glyph | null => {
-    let total = 0;
-    const strokes = polys.filter(p => p.length > 1).map(pts => {
-        const cum = [0];
-        for (let i = 1; i < pts.length; i += 1) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-        total += cum[cum.length - 1];
-        return { pts, cum, len: cum[cum.length - 1] };
-    }).filter(s => s.len > 0.005);
-    return strokes.length ? { strokes, total } : null;
-};
+export type { Glyph, GlyphStroke, Pt } from './nebbiaGlyphShape';
+export { measureGlyph } from './nebbiaGlyphShape';
 
 // Catmull-Rom 细分，稀疏的中线点变成顺滑曲线
 const catmull = (pts: Pt[], n: number): Pt[] => {
@@ -91,9 +67,11 @@ const iconPolys = (name: string): Pt[][] | null => {
  */
 export class NebbiaGlyphCache {
     private cache = new Map<string, Glyph | null>();
+    /** 字体笔画做成的字形（按字，同一个字一直给同一个对象，局部换字形靠它判断有没有新字；换字体、字重、字体晚到时清掉）。 */
+    private model = new Map<string, Glyph | null>();
     private font = '';
-    /** 汉字、假名先取笔顺模型对着这个字体算的笔迹（还没算好的照旧）。 */
-    fontStrokes = false;
+    /** 字体笔画的字体键（fontStrokesKeyOf）：汉字、假名先取笔画服务对着这个字体算的笔迹（还没算好的照旧）；null = 不用。 */
+    private strokesKey: string | null = null;
 
     constructor(private fontFamily: string, private fontWeight: number) {
         this.font = `${fontWeight} ${fontFamily}`;
@@ -107,11 +85,23 @@ export class NebbiaGlyphCache {
         this.fontWeight = fontWeight;
         this.font = font;
         this.cache.clear();
+        this.model.clear();
         return true;
     }
 
+    /** 换字体笔画的字体键；返回是否变了。 */
+    setFontStrokesKey(key: string | null): boolean {
+        if (key === this.strokesKey) return false;
+        this.strokesKey = key;
+        this.model.clear();
+        return true;
+    }
+
+    get fontStrokesKey() { return this.strokesKey; }
+
     clear() {
         this.cache.clear();
+        this.model.clear();
     }
 
     /** 主题字体是否已经能用（没在等加载）；没有 FontFaceSet 时当作能用。 */
@@ -123,14 +113,37 @@ export class NebbiaGlyphCache {
         }
     }
 
-    /** 当前字体（笔顺模型的队列按它分缓存）。 */
+    /** 当前字体。 */
     get family() { return this.fontFamily; }
     get weight() { return this.fontWeight; }
 
+    /** 这个字能做字体笔画字形、还没做：服务里有笔画、主题字体已加载好（没加载好时量的会是回退字体，等加载好整首重排再做）。 */
+    modelPending(ch: string): boolean {
+        return !!this.pendingStrokes(ch);
+    }
+
+    /** 能做、还没做的字的笔画（同 modelPending）。 */
+    private pendingStrokes(ch: string) {
+        if (!this.strokesKey || this.model.has(ch) || !isModelChar(ch)) return null;
+        const strokes = getFontStrokes(this.strokesKey, ch);
+        return strokes && this.fontReady() ? strokes : null;
+    }
+
+    /**
+     * 现做这个字的字体笔画字形（一个字几毫秒，调用方按帧预算分批，见 nebbiaFontLines.ts）：当前字重的字画到模型网格、
+     * 用存下的轮廓还原像素归属和书写位置、量笔宽（nebbiaFontGlyph.ts）。做过就不再做（服务的内存挤掉了也不变回去）。
+     */
+    buildModel(ch: string) {
+        const strokes = this.pendingStrokes(ch);
+        if (!strokes) return;
+        const canon = renderCanon(ch, this.fontFamily, this.fontWeight);
+        this.model.set(ch, canon ? buildFontStrokesNebbiaGlyph(strokes, canon) : null);
+    }
+
+    /** 字形：汉字、假名的字体笔画字形做好了就用它（get 自己不做，见 buildModel），否则骨架字形。 */
     get(ch: string): Glyph | null {
-        // 模型的结果晚到，不进下面的缓存：每次先问
-        if (this.fontStrokes && isModelChar(ch)) {
-            const model = fontStrokes.get(ch, this.fontFamily, this.fontWeight);
+        if (this.strokesKey && isModelChar(ch)) {
+            const model = this.model.get(ch);
             if (model) return model;
         }
         const hit = this.cache.get(ch);
@@ -151,8 +164,7 @@ export class NebbiaGlyphCache {
  * j 是变形幅度；笔画多的字每笔的偏移收小，部件位置还对。
  */
 export const warpGlyph = (g: Glyph, rnd: () => number, j: number): Glyph => {
-    // 字体墨不能跟着变形，笔迹也就不动（不然笔尖、水珠会偏离墨）
-    if (j <= 0 || g.ink) return g;
+    if (j <= 0) return g;
     const r = () => rnd() * 2 - 1;
     const shear = r() * 0.16 * j, sx = 1 + r() * 0.1 * j, sy = 1 + r() * 0.1 * j;
     const bx = r() * 0.035 * j, by = r() * 0.035 * j, px = rnd() * 6.28, py = rnd() * 6.28;

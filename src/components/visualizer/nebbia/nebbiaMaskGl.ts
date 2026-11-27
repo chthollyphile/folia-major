@@ -1,14 +1,12 @@
 import { MASK_SCALE } from './nebbiaConstants';
 import { makeTex, type Tex } from './nebbiaGlUtils';
 import { SEGMENT_FLOATS, type NebbiaSegments } from './nebbiaSegments';
-import { NebbiaMaskInkGl } from './nebbiaMaskInkGl';
 
 // src/components/visualizer/nebbia/nebbiaMaskGl.ts
 // 擦痕遮罩在 GPU 上画：nebbiaSegments.ts 收好的线段一次实例化画进一张 R8 纹理（半分辨率，亮 = 擦开），
 // 混合取最大值，代替原来 2D 画布上每段三次 stroke 加 lighten（Windows 的 D3D11 上每次都要拷一份目标像素，很贵）
 // 和每帧把画布上传成纹理。一段的三层由宽到窄、由暗到亮（原 strokePath 的 [1.3, 0.38] [1.0, 0.72] [0.62, 1]）在片元里一起算。
 // 程序和别的雾笺程序一起在后台编（nebbiaPrograms.ts，属性位置 aCorner 0、aSeg 1、aParam 2），编好后 attach 进来。
-// 笔顺模型给的字在 FONT_INK_TILE 开着时（nebbiaFontGlyph.ts）不画线段，画字块，由 nebbiaMaskInkGl.ts 画进同一张遮罩。
 
 export const NEBBIA_MASK_VS = /* glsl */ `#version 300 es
 in vec2 aCorner; in vec4 aSeg; in vec2 aParam;
@@ -53,13 +51,10 @@ export class NebbiaMaskGl {
     private uView: WebGLUniformLocation | null = null;
     private readonly fb: WebGLFramebuffer;
     private w = 1; private h = 1;
-    private readonly ink: NebbiaMaskInkGl;
 
     /** 纹理挂在采样单元 `unit` 上（主程序的 uMask 由 nebbiaGl.ts 编好后指过来）。 */
-    /** inkUnit：字体墨贴图挂的采样单元（只有遮罩的字块程序读）。 */
-    constructor(private readonly gl: WebGL2RenderingContext, unit: number, inkUnit: number) {
+    constructor(private readonly gl: WebGL2RenderingContext, unit: number) {
         this.tex = makeTex(gl, unit);
-        this.ink = new NebbiaMaskInkGl(gl, inkUnit);
         this.fb = gl.createFramebuffer()!;
         this.vao = gl.createVertexArray()!;
         gl.bindVertexArray(this.vao);
@@ -76,20 +71,9 @@ export class NebbiaMaskGl {
     }
 
     /** 编好的遮罩程序（nebbiaPrograms.ts 的 `mask`）。 */
-    attach(prog: WebGLProgram, inkProg: WebGLProgram) {
-        const { gl } = this;
+    attach(prog: WebGLProgram) {
         this.prog = prog;
-        this.uView = gl.getUniformLocation(prog, 'uView');
-        this.ink.attach(inkProg);
-    }
-
-    /** 换歌时：字块层数太多就清空重来。 */
-    trimInk(limit = 256) {
-        this.ink.trim(limit);
-    }
-
-    destroy() {
-        this.ink.destroy();
+        this.uView = this.gl.getUniformLocation(prog, 'uView');
     }
 
     /** W、H 是 CSS 像素，遮罩按 MASK_SCALE 缩（和原来的遮罩画布一样大）。 */
@@ -125,7 +109,6 @@ export class NebbiaMaskGl {
             gl.disable(gl.BLEND);
             gl.bindVertexArray(null);
         }
-        this.ink.draw(segs, this.w, this.h);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 }

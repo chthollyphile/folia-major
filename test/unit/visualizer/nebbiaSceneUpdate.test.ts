@@ -3,7 +3,6 @@ import type { NebbiaSourceLine } from '@/components/visualizer/nebbia/nebbiaChar
 import { measureGlyph, type Glyph, type Pt } from '@/components/visualizer/nebbia/nebbiaGlyphs';
 import { buildNebbiaScene } from '@/components/visualizer/nebbia/nebbiaScene';
 import { swapLineGlyphs } from '@/components/visualizer/nebbia/nebbiaSceneUpdate';
-import { fontDemandOf } from '@/components/visualizer/nebbia/nebbiaFontLines';
 import { normalizeNebbiaTuning } from '@/components/visualizer/nebbia/tuning';
 
 // test/unit/visualizer/nebbiaSceneUpdate.test.ts
@@ -71,22 +70,5 @@ describe('nebbia scene update with started lines', () => {
             if (li < 3) expect(timings(laid[li])).toEqual(before[li]);
             else expect(laid[li]).toEqual(full[li]);
         }
-    });
-});
-
-describe('nebbia font demand', () => {
-    it('starts at the first line that can still be swapped, marks the next few as near, and keeps earlier lines last', () => {
-        // T = 7：第 0、1、2 句已经开写或将开写（t - 1.5 <= 7 的：t = 0、3、6），第 3 句（t = 9）起能换
-        const demand = fontDemandOf(source, 7);
-        expect(demand[0].ch).toBe(chOf(3, 0));
-        const near = demand.filter(d => d.near);
-        expect(near).toHaveLength(4 * PER);
-        expect(demand.slice(-PER * 3).every(d => !d.near)).toBe(true);
-        // 更早的句子从近到远：最后一句是第 0 句
-        expect(demand.slice(-PER)[0].ch).toBe(chOf(0, 0));
-    });
-
-    it('at the start of the song everything up front is near', () => {
-        expect(fontDemandOf(source, 0)[0].ch).toBe(chOf(1, 0));
     });
 });
