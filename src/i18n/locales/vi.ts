@@ -3551,6 +3551,8 @@ export default {
     "partitaStaggerMax": "Độ so le tối đa",
     "avoidOverlap": "Tránh chồng chữ",
     "avoidOverlapHint": "Giãn cách chữ theo kích thước khi phóng to và xoay",
+    "handwriting": "Nét chữ viết tay",
+    "handwritingHint": "Viết các chữ CJK đang hát theo thứ tự nét bằng mô hình thứ tự nét, mô hình được tải xuống ở lần dùng đầu tiên",
     "fumeSettings": "Tinh chỉnh Fume",
     "fumeHidePrintSymbols": "Ẩn khối in ký tự",
     "fumeGeometricBackground": "Hình khối nền",

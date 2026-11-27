@@ -90,6 +90,7 @@ export const resolvePartitaTuning = (tuning?: PartitaTuning): PartitaTuning => {
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
         avoidOverlap: tuning?.avoidOverlap ?? DEFAULT_PARTITA_TUNING.avoidOverlap,
+        handwriting: tuning?.handwriting === true,
     };
 };
 

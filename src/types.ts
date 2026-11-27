@@ -494,6 +494,8 @@ export interface ClassicTuning {
   wordSpacing?: number;
   /** Space the words by how far they are drawn when scaled, turned and offset, so none overlaps another. */
   avoidOverlap?: boolean;
+  /** 手写笔画：正在唱的汉字 / 假名按笔顺写出来（用笔顺模型，首次用到时下载）。默认关。 */
+  handwriting?: boolean;
 }
 
 export const DEFAULT_CLASSIC_TUNING: ClassicTuning = {
@@ -502,6 +504,7 @@ export const DEFAULT_CLASSIC_TUNING: ClassicTuning = {
   useLegacyLayout: false,
   wordSpacing: 0.7,
   avoidOverlap: false,
+  handwriting: false,
 };
 
 export interface CadenzaTuning {
@@ -512,6 +515,8 @@ export interface CadenzaTuning {
   motionAmount: number;
   glowIntensity: number;
   beamIntensity: number;
+  /** 手写笔画：正在唱的汉字 / 假名按笔顺写出来（用笔顺模型，首次用到时下载）。默认关。 */
+  handwriting?: boolean;
 }
 
 export const DEFAULT_CADENZA_TUNING: CadenzaTuning = {
@@ -521,6 +526,7 @@ export const DEFAULT_CADENZA_TUNING: CadenzaTuning = {
   motionAmount: 1,
   glowIntensity: 1,
   beamIntensity: 0,
+  handwriting: false,
 };
 
 export interface PartitaTuning {
@@ -530,6 +536,8 @@ export interface PartitaTuning {
   staggerMax: number;
   /** Space the words and rows by how far they are drawn when scaled, so none overlaps another. */
   avoidOverlap?: boolean;
+  /** 手写笔画：正在唱的汉字 / 假名按笔顺写出来（用笔顺模型，首次用到时下载）。默认关。 */
+  handwriting?: boolean;
 }
 
 export const DEFAULT_PARTITA_TUNING: PartitaTuning = {
@@ -538,6 +546,7 @@ export const DEFAULT_PARTITA_TUNING: PartitaTuning = {
   staggerMin: 20,
   staggerMax: 100,
   avoidOverlap: false,
+  handwriting: false,
 };
 
 export interface FumeTuning {

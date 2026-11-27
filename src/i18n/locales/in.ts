@@ -3551,6 +3551,8 @@ export default {
     "partitaStaggerMax": "Stagger Max",
     "avoidOverlap": "Cegah Tumpang Tindih",
     "avoidOverlapHint": "Beri jarak kata sesuai ukurannya saat diperbesar dan diputar",
+    "handwriting": "Goresan Tulisan Tangan",
+    "handwritingHint": "Menulis aksara CJK yang sedang dinyanyikan sesuai urutan goresan dengan model urutan goresan, yang diunduh saat pertama kali dipakai",
     "fumeSettings": "Penyetelan Fume",
     "fumeHidePrintSymbols": "Sembunyikan Cap Cetak",
     "fumeGeometricBackground": "Bentuk Geometris",

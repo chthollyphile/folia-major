@@ -3551,6 +3551,8 @@ export default {
     "partitaStaggerMax": "错位最大值",
     "avoidOverlap": "防止文字重叠",
     "avoidOverlapHint": "按字放大、旋转后的大小留出间距",
+    "handwriting": "手写笔画",
+    "handwritingHint": "按笔顺写出正在唱的汉字和假名，用笔顺模型生成，首次使用时下载模型",
     "fumeSettings": "浮名参数",
     "fumeHidePrintSymbols": "隐藏打印方块",
     "fumeGeometricBackground": "通用几何图形",

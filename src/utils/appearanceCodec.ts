@@ -64,12 +64,14 @@ const compressClassic = (t: any): any => ({
     bfm: t.breathingFloatMultiplier,
     ull: t.useLegacyLayout,
     cws: t.wordSpacing,
+    hw: (t as { handwriting?: boolean }).handwriting,
 });
 const decompressClassic = (o: any): any => ({
     enableWordRotation: o.ewr !== undefined ? o.ewr : true,
     breathingFloatMultiplier: o.bfm !== undefined ? o.bfm : 1,
     useLegacyLayout: o.ull,
     wordSpacing: o.cws,
+    handwriting: (o as { hw?: unknown }).hw === true,
 });
 
 const compressCadenza = (t: any): any => ({
@@ -78,6 +80,7 @@ const compressCadenza = (t: any): any => ({
     ma: t.motionAmount,
     gi: t.glowIntensity,
     bi: t.beamIntensity,
+    hw: (t as { handwriting?: boolean }).handwriting,
 });
 const decompressCadenza = (o: any): any => ({
     fontScale: o.cfs !== undefined ? o.cfs : 1.12,
@@ -85,6 +88,7 @@ const decompressCadenza = (o: any): any => ({
     motionAmount: o.ma !== undefined ? o.ma : 1,
     glowIntensity: o.gi !== undefined ? o.gi : 1,
     beamIntensity: o.bi !== undefined ? o.bi : 0,
+    handwriting: (o as { hw?: unknown }).hw === true,
 });
 
 const compressPartita = (t: any): any => ({
@@ -92,12 +96,14 @@ const compressPartita = (t: any): any => ({
     usl: t.useSemanticLayout,
     smi: t.staggerMin,
     sma: t.staggerMax,
+    hw: (t as { handwriting?: boolean }).handwriting,
 });
 const decompressPartita = (o: any): any => ({
     showGuideLines: o.sgl !== undefined ? o.sgl : true,
     useSemanticLayout: o.usl !== undefined ? o.usl : true,
     staggerMin: o.smi !== undefined ? o.smi : 20,
     staggerMax: o.sma !== undefined ? o.sma : 100,
+    handwriting: (o as { hw?: unknown }).hw === true,
 });
 
 const compressFume = (t: any): any => ({

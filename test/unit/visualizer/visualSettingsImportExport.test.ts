@@ -71,6 +71,7 @@ describe('Visual Settings Import and Export', () => {
             breathingFloatMultiplier: 1.2,
             useLegacyLayout: false,
             wordSpacing: 0.8,
+            handwriting: true,
         },
         cadenzaTuning: {
             fontScale: 1.15,
@@ -78,12 +79,14 @@ describe('Visual Settings Import and Export', () => {
             motionAmount: 0.9,
             glowIntensity: 1.1,
             beamIntensity: 0.2,
+            handwriting: true,
         },
         partitaTuning: {
             showGuideLines: false,
             useSemanticLayout: true,
             staggerMin: 15,
             staggerMax: 85,
+            handwriting: true,
         },
         fumeTuning: {
             hidePrintSymbols: true,
@@ -221,6 +224,9 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.subtitleFontFamily).toBe('Microsoft YaHei');
         expect(decoded.subtitleFontFallbackFamilies).toEqual(['PingFang SC', 'sans-serif']);
         expect(decoded.classicTuning?.breathingFloatMultiplier).toBe(1.2);
+        expect(decoded.classicTuning?.handwriting).toBe(true);
+        expect(decoded.cadenzaTuning?.handwriting).toBe(true);
+        expect(decoded.partitaTuning?.handwriting).toBe(true);
         expect(decoded.claddaghTuning?.focusScaleRatio).toBe(0.75);
         expect(decoded.claddaghTuning?.radiusScale).toBe(1.15);
         expect(decoded.claddaghTuning?.ellipseTiltDeg).toBe(52);

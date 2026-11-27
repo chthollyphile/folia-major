@@ -23,6 +23,8 @@ const resolve = (values: Partial<PartitaTuning>, base: PartitaTuning): PartitaTu
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
         avoidOverlap: values.avoidOverlap ?? base.avoidOverlap,
+        // 手写笔画：旧存档没有这一项就是关；只认布尔
+        handwriting: typeof values.handwriting === 'boolean' ? values.handwriting : base.handwriting === true,
     };
 };
 

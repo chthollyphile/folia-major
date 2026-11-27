@@ -52,6 +52,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps<Classic
             classicTuning.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7
         ),
         avoidOverlap: classicTuning.avoidOverlap ?? DEFAULT_CLASSIC_TUNING.avoidOverlap ?? false,
+        handwriting: classicTuning.handwriting === true,
     };
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
@@ -101,6 +102,12 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps<Classic
                     />
                 </Row>
             </Reveal>
+            <Row label={t('options.handwriting')} hint={t('options.handwritingHint')}>
+                <Toggle
+                    checked={resolvedClassicTuning.handwriting}
+                    onChange={(enabled) => onClassicTuningChange({ handwriting: enabled })}
+                />
+            </Row>
         </Group>
     );
 };
@@ -119,6 +126,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps<Partita
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
         avoidOverlap: partitaTuning.avoidOverlap ?? DEFAULT_PARTITA_TUNING.avoidOverlap,
+        handwriting: partitaTuning.handwriting === true,
     };
     // A slider moved past the other end takes that end along: both ends are sent. Sent alone, the
     // moved end would be put in order by the tuning's merge (partita/tuning.ts), which swaps the
@@ -158,6 +166,12 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps<Partita
                 <Toggle
                     checked={Boolean(resolvedPartitaTuning.avoidOverlap)}
                     onChange={(enabled) => onPartitaTuningChange?.({ avoidOverlap: enabled })}
+                />
+            </Row>
+            <Row label={t('options.handwriting')} hint={t('options.handwritingHint')}>
+                <Toggle
+                    checked={Boolean(resolvedPartitaTuning.handwriting)}
+                    onChange={(enabled) => onPartitaTuningChange({ handwriting: enabled })}
                 />
             </Row>
             <SliderRow

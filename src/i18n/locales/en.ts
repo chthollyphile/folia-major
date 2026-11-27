@@ -3551,6 +3551,8 @@ export default {
     "partitaStaggerMax": "Stagger Max",
     "avoidOverlap": "Prevent Overlap",
     "avoidOverlapHint": "Space words by their size when scaled and turned",
+    "handwriting": "Handwriting Strokes",
+    "handwritingHint": "Writes the CJK characters being sung in stroke order using the stroke-order model, which is downloaded on first use",
     "fumeSettings": "Fume Tuning",
     "fumeHidePrintSymbols": "Hide Print Stamp",
     "fumeGeometricBackground": "Geometric Shapes",
