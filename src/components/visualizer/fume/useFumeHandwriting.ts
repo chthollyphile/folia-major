@@ -16,10 +16,13 @@ export const useFumeHandwriting = (
 ): FumeHandwritingFrame | null => {
     const fontKey = fontStrokesKeyOf(theme);
 
+    // 本篇要写的字也报给服务：预览、试玩台这类不跟播放走的文本也能拿到笔画
+    const chars = useMemo(() => (enabled && article ? article.blocks.map(block => block.graphemes.join('')).join('') : ''), [article, enabled]);
+
     useEffect(() => {
         if (!enabled) return undefined;
-        return registerFontStrokesConsumer({ fontKey });
-    }, [enabled, fontKey]);
+        return registerFontStrokesConsumer({ fontKey, chars });
+    }, [chars, enabled, fontKey]);
 
     return useMemo<FumeHandwritingFrame | null>(() => {
         if (!enabled || !article) return null;
