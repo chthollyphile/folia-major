@@ -7,7 +7,7 @@ import type { StaticBlockSnapshot } from './fumeTypes';
 import { resolveFumeBackgroundView, stepFumeCamera, syncFumeCameraToArticle } from './fumeCameraStep';
 import { isFumeBlockOnScreen, resolveFumeBlockTiming, resolveFumeGlowBases, resolveFumeStaticLayers, type FumeSnapshotSpec, type FumeStaticLayerInput } from './fumeBlockFrame';
 import { clamp } from './fumeMath';
-import { isModelChar } from '../fontStrokes/fontStrokesQueue';
+import { isModelChar } from '../../../services/fontStrokes/fontStrokesRaster';
 import { blockHasModelChars } from './fumeHandwriting';
 import { createStaticBlockSnapshot, drawFumeLiveBlock, type FumeLiveBlockParams } from './fumeCanvasText';
 import { FumeLiveRaster } from './fumeLiveRaster';

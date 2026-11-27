@@ -1,73 +1,17 @@
-import type { FontDemandChar } from '../fontStrokes/fontStrokesQueue';
-import type { StrokeReveal } from '../fontStrokes/strokeReveal';
-import { easeOutCubic } from './fumeMath';
+import type { FontStrokesGlyph } from '../../../services/fontStrokes/fontStrokesOutline';
 import type { FumeBlock, WordRange } from './fumeTypes';
 
 // src/components/visualizer/fume/fumeHandwriting.ts
-// 浮名「手写笔画」的纯逻辑：一个字的书写窗口和进度、「用不用手写」的冻结规则、要向笔顺队列报哪些字。
-// 画法在 fumeCanvasText.ts（drawFumeLiveBlock），队列的接线在 useFumeHandwriting.ts。
+// 浮名「手写笔画」的纯逻辑：一帧手写要的东西、字在词里的时间、哪些句子有要手写的字。
+// 书写窗口、冻结规则和字内各笔的进度是各样式通用的，在 fontStrokes/strokeWriteTiming.ts；
+// 画法在 fumeCanvasText.ts（drawFumeLiveBlock），向笔画服务登记在 useFumeHandwriting.ts。
 
-/** 一个字的书写时长下限 / 上限（秒）：字的时长夹在中间，可以拖进下一个字。 */
-export const HANDWRITING_MIN_SECONDS = 0.3;
-export const HANDWRITING_MAX_SECONDS = 1.0;
-/** 往后这几句（连同当前句）的字用 onScreen 紧迫度算，其余后台算。 */
-export const HANDWRITING_NEAR_LINES = 4;
-
-/** 画一帧手写需要的东西：字体、遮罩查询和每个字的冻结决定（跟着文章走，换歌就换一张）。 */
+/** 画一帧手写需要的东西：笔画查询和每个字的冻结决定（跟着文章和字体走，换歌、换字体就换一张）。 */
 export interface FumeHandwritingFrame {
-    family: string;
-    weightOf: (variant: FumeBlock['variant']) => number;
-    getReveal: (ch: string, family: string, weight: number) => StrokeReveal | null;
+    /** 同步取当前字体下一个字的笔画；没算好时 null。 */
+    getStrokes: (ch: string) => FontStrokesGlyph | null;
     decisions: Map<string, boolean>;
 }
-
-/**
- * 一个字此刻的书写进度（已缓出，0..1）：从字的开始时间 start 起写 clamp(字时长, 0.3, 1.0) 秒；
- * 还没开始或已写完（该用普通画法）返回 null。
- */
-export const resolveHandwritingProgress = (start: number, end: number, time: number): number | null => {
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-    const duration = Math.min(HANDWRITING_MAX_SECONDS, Math.max(HANDWRITING_MIN_SECONDS, end - start));
-    const t = (time - start) / duration;
-    if (!(t >= 0) || t >= 1) return null;
-    return easeOutCubic(t);
-};
-
-/** 一个字的书写窗口结束时间：开始时间 + clamp(字时长, 0.3, 1.0)。 */
-const handwritingWindowEnd = (start: number, end: number) => (
-    start + Math.min(HANDWRITING_MAX_SECONDS, Math.max(HANDWRITING_MIN_SECONDS, end - start))
-);
-
-/** 一个字此刻的手写状态：null 走普通画法，'hidden' 还没开写（什么都不画），数字是书写进度（0..1，已缓出）。 */
-export type HandwritingGlyphState = null | 'hidden' | number;
-
-/**
- * 冻结规则：这个字用不用手写，在它第一次被看到（窗口结束之前的第一帧）那一刻定下，之后不再改：
- * 那一刻遮罩有就手写（开写前一直不画，开写后按进度写），没有就一直是普通画法（遮罩晚到也不换，已经看得见的字不会再消失）。
- * 书写窗口结束后清掉记录、返回 null（整字普通画）；拖回去重放时重新决定。
- */
-export const resolveHandwritingGlyph = (
-    decisions: Map<string, boolean>,
-    key: string,
-    time: number,
-    start: number,
-    end: number,
-    hasReveal: () => boolean,
-): HandwritingGlyphState => {
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-    if (time >= handwritingWindowEnd(start, end)) {
-        if (decisions.size) decisions.delete(key);
-        return null;
-    }
-    let decided = decisions.get(key);
-    if (decided === undefined) {
-        decided = hasReveal();
-        decisions.set(key, decided);
-    }
-    if (!decided) return null;
-    if (time < start) return 'hidden';
-    return resolveHandwritingProgress(start, end, time);
-};
 
 /** 一个字在词里的开始 / 结束时间（和 drawFumeLiveBlock 里的字时间同一算法）。 */
 export const resolveGlyphTimes = (range: WordRange, globalOffset: number): { start: number; end: number } => {
@@ -92,39 +36,4 @@ export const blockHasModelChars = (block: FumeBlock, isModelChar: (ch: string) =
         modelCharBlocks.set(block, has);
     }
     return has;
-};
-
-/** 时间 time 时的当前句：开始时间不晚于它的最后一句（都没开始时是第一句）。blocks 按开始时间排好。 */
-export const findHandwritingAnchor = (blocks: readonly FumeBlock[], time: number): number => {
-    let lo = 0, hi = blocks.length - 1, found = 0;
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (blocks[mid].line.startTime <= time) { found = mid; lo = mid + 1; } else hi = mid - 1;
-    }
-    return found;
-};
-
-/**
- * 按顺序的需求：当前句和后 4 句的字 near，其余往后的句子，再是更早的句子（拖回去时用）。
- * 主歌词和标题字重不同，每个字带自己的字重。
- */
-export const buildHandwritingDemand = (
-    blocks: readonly FumeBlock[],
-    anchor: number,
-    weightOf: (variant: FumeBlock['variant']) => number,
-    isModelChar: (ch: string) => boolean,
-): FontDemandChar[] => {
-    const out: FontDemandChar[] = [], seen = new Set<string>();
-    const push = (block: FumeBlock, near: boolean) => {
-        const weight = weightOf(block.variant);
-        for (const ch of block.graphemes) {
-            const key = `${weight}|${ch}`;
-            if (!isModelChar(ch) || seen.has(key)) continue;
-            seen.add(key);
-            out.push({ ch, near, weight });
-        }
-    };
-    for (let i = anchor; i < blocks.length; i += 1) push(blocks[i], i - anchor <= HANDWRITING_NEAR_LINES);
-    for (let i = anchor - 1; i >= 0; i -= 1) push(blocks[i], false);
-    return out;
 };

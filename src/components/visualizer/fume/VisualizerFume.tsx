@@ -275,7 +275,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
     }, [article]);
 
     // 手写笔画：关着时是 null，不 attach 队列
-    const handwriting = useFumeHandwriting(resolvedFumeTuning.handwriting && showText && !staticMode, article, theme, currentTime);
+    const handwriting = useFumeHandwriting(resolvedFumeTuning.handwriting && showText && !staticMode, article, theme);
 
     const stageScene = useMemo<FumeStageScene>(() => ({
         article,

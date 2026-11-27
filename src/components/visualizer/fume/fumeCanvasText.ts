@@ -7,9 +7,11 @@ import type { FumeBlockTiming } from './fumeBlockFrame';
 import { clamp, easeInOutCubic, easeOutCubic, isCJK, mix, resolveDelayedGlowEnvelope } from './fumeMath';
 import { resolvePrintedGraphemeCount, resolveVisualProgressWithCutoff } from './fumeReveal';
 import { getActiveColor } from './fumeTextStyle';
-import { isModelChar } from '../fontStrokes/fontStrokesQueue';
-import { alphabeticDropBelowMiddle, drawStrokeRevealChar } from '../fontStrokes/strokeReveal';
-import { resolveGlyphTimes, resolveHandwritingGlyph, type FumeHandwritingFrame, type HandwritingGlyphState } from './fumeHandwriting';
+import { isModelChar } from '../../../services/fontStrokes/fontStrokesRaster';
+import type { FontStrokesGlyph } from '../../../services/fontStrokes/fontStrokesOutline';
+import { drawStrokeWriteGlyph, placeLeftMiddleGlyph } from '../fontStrokes/strokeWriteCanvas';
+import { resolveWriteGlyphState, type WriteGlyphState } from '../fontStrokes/strokeWriteTiming';
+import { resolveGlyphTimes, type FumeHandwritingFrame } from './fumeHandwriting';
 import { buildFontSpec, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeCanvasText.ts
@@ -84,13 +86,13 @@ const clipToRun = (
 };
 
 /**
- * 画一个正在写的字：字心 = 它在整段文字里的起笔位置 + 单字宽的一半（和遮罩用的 textAlign center 一致），
- * 字母基线 = fume 的 'middle' 基线再往下一个字体盒上升量之差（alphabeticDropBelowMiddle）。画不了时按普通画法画整个字。
+ * 画一个正在写的字：字心 = 它在整段文字里的起笔位置 + 单字宽的一半，字母基线 = fume 的 'middle' 基线再往下一个字体盒上升量之差
+ * （placeLeftMiddleGlyph），笔画按进度写出来（strokeWriteCanvas.ts）。画不了时按普通画法画整个字。
  */
 const drawHandwritingGrapheme = (
     context: CanvasRenderingContext2D,
     grapheme: string,
-    reveal: Parameters<typeof drawStrokeRevealChar>[1],
+    strokes: FontStrokesGlyph,
     progress: number,
     { x, baselineY, fontPx, fillStyle }: { x: number; baselineY: number; fontPx: number; fillStyle: string },
 ) => {
@@ -102,14 +104,7 @@ const drawHandwritingGrapheme = (
         ctx.fillStyle = fillStyle;
         ctx.fillText(grapheme, x, baselineY);
     };
-    const advance = context.measureText(grapheme).width;
-    const placed = drawStrokeRevealChar(
-        context,
-        reveal,
-        progress,
-        { cx: x + advance * 0.5, baseline: baselineY + alphabeticDropBelowMiddle(font), fontPx },
-        drawPlain,
-    );
+    const placed = drawStrokeWriteGlyph(context, strokes, progress, placeLeftMiddleGlyph(context, grapheme, x, baselineY, fontPx), drawPlain);
     if (!placed) drawPlain(context);
 };
 
@@ -197,29 +192,28 @@ export const drawFumeLiveBlock = (
     context.textBaseline = 'middle';
 
     // 手写笔画：每个字此刻的状态（一帧里两遍绘制共用，决定只做一次）；关着时是 null，下面的画法和原来完全一样
-    const hwStates = handwriting ? new Map<number, HandwritingGlyphState>() : null;
-    const hwStateOf = (globalOffset: number, grapheme: string): HandwritingGlyphState => {
+    const hwStates = handwriting ? new Map<number, WriteGlyphState>() : null;
+    const hwStateOf = (globalOffset: number, grapheme: string): WriteGlyphState => {
         if (!handwriting || !hwStates || !isModelChar(grapheme)) return null;
         const cached = hwStates.get(globalOffset);
         if (cached !== undefined) return cached;
         const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
-        let state: HandwritingGlyphState = null;
+        let state: WriteGlyphState = null;
         if (rangeIndex >= 0) {
             const { start, end } = resolveGlyphTimes(block.wordRanges[rangeIndex], globalOffset);
-            const weight = handwriting.weightOf(block.variant);
-            state = resolveHandwritingGlyph(
+            state = resolveWriteGlyphState(
                 handwriting.decisions,
                 `${block.id}:${globalOffset}`,
                 time,
                 start,
                 end,
-                () => handwriting.getReveal(grapheme, handwriting.family, weight) !== null,
+                () => handwriting.getStrokes(grapheme) !== null,
             );
         }
         hwStates.set(globalOffset, state);
         return state;
     };
-    const handwritingReveal = (grapheme: string) => handwriting?.getReveal(grapheme, handwriting.family, handwriting.weightOf(block.variant)) ?? null;
+    const handwritingStrokes = (grapheme: string) => handwriting?.getStrokes(grapheme) ?? null;
 
     const isLineActive = time >= block.line.startTime && time <= linePassCutoffTime;
     if (isLineActive) {
@@ -286,12 +280,12 @@ export const drawFumeLiveBlock = (
                     }
                     flushGlowRun(offset);
                     glowExcluded = true;
-                    const reveal = typeof state === 'number' ? handwritingReveal(grapheme) : null;
-                    if (reveal && typeof state === 'number') {
+                    const strokes = typeof state === 'number' ? handwritingStrokes(grapheme) : null;
+                    if (strokes && typeof state === 'number') {
                         context.save();
                         const localOffset = offset - renderLine.start;
                         if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, glowBaseX, glowBaseY)) {
-                            drawHandwritingGrapheme(context, grapheme, reveal, state, {
+                            drawHandwritingGrapheme(context, grapheme, strokes, state, {
                                 x: glowBaseX + segment.x + resolveSegmentGlyphOffset(segment, offset),
                                 baselineY: glowBaseY,
                                 fontPx: block.fontPx,
@@ -514,8 +508,8 @@ export const drawFumeLiveBlock = (
                 // the shadowed glyphs every frame. See utils/glowBlurQuantize.ts.
                 shadowBlur = roundShadowBlur(shadowBlur);
                 if (typeof hwState === 'number') {
-                    const reveal = handwritingReveal(grapheme);
-                    if (reveal) {
+                    const strokes = handwritingStrokes(grapheme);
+                    if (strokes) {
                         // 正在写的字不进下面的整段文字，单独画
                         flushRun(globalOffset);
                         context.fillStyle = fillStyle;
@@ -523,7 +517,7 @@ export const drawFumeLiveBlock = (
                         context.save();
                         const localOffset = globalOffset - renderLine.start;
                         if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, baseX, baseY)) {
-                            drawHandwritingGrapheme(context, grapheme, reveal, hwState, {
+                            drawHandwritingGrapheme(context, grapheme, strokes, hwState, {
                                 x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
                                 baselineY: baseY,
                                 fontPx: block.fontPx,
