@@ -8,7 +8,7 @@
    instead of filling. */
 
 .status-toast {
-    --toast-glass: rgba(38, 38, 40, 0.92);
+    --toast-glass: rgba(38, 38, 40, 0.70);
     --toast-edge: rgba(255, 255, 255, 0.08);
     --toast-title-ink: #f4f4f5;
     --toast-sub-ink: rgba(255, 255, 255, 0.55);
@@ -48,7 +48,7 @@
 }
 
 .status-toast.is-daylight {
-    --toast-glass: rgba(255, 255, 255, 0.96);
+    --toast-glass: rgba(255, 255, 255, 0.70);
     --toast-edge: rgba(0, 0, 0, 0.06);
     --toast-title-ink: #27272a;
     --toast-sub-ink: rgba(39, 39, 42, 0.6);
@@ -58,7 +58,7 @@
     --toast-close-ink: rgba(39, 39, 42, 0.4);
     --toast-close-hover: rgba(0, 0, 0, 0.06);
     --toast-primary: #18181b;
-    --toast-primary-ink: #fff;
+    --toast-primary-ink: #fff0;
     --toast-primary-hover: #3f3f46;
     --toast-ghost-ink: #71717a;
     --toast-ghost-hover: rgba(0, 0, 0, 0.05);
@@ -83,7 +83,7 @@
     height: 2px;
     margin: 9px -13px -11px;
     overflow: hidden;
-    background: var(--toast-timer-rail);
+    /* background: var(--toast-timer-rail); */
     border-radius: 0 0 13px 13px;
 }
 .status-toast-timer-track {
@@ -143,7 +143,6 @@
 .status-toast-title {
     flex: 1 1 auto;
     min-width: 0;
-    font-weight: 600;
     color: var(--toast-title-ink);
     overflow-wrap: anywhere;
 }
