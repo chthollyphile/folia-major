@@ -148,8 +148,6 @@ export const clearCache = async (preserveKeys: string[] = []): Promise<void> => 
       await window.electron!.clearAudioCache();
     }
     if (!preserveKeys.some(key => key.startsWith('cover_'))) await clearCoverAssets();
-    // 手写笔画的结果在自己的库里（services/fontStrokes），算「分析」一类
-    await getFontStrokesStore().clearAll();
   } catch (error) {
     console.error('Clear cache failed', error);
   }

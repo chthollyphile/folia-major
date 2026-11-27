@@ -39,7 +39,7 @@ const make = (batch = 2): Harness => {
     const deps: PlannerDeps<string, string> = {
         store: {
             getGlyphs: async (_font, chars) => { storeReads.push(chars); return new Map(chars.filter(c => stored.has(c)).map(c => [c, stored.get(c)!])); },
-            putGlyphs: async (_font, _label, glyphs) => { storePuts.push([...glyphs.keys()]); },
+            putGlyphs: async (_font, _label, glyphs) => { storePuts.push([...glyphs.keys()]); glyphs.forEach((g, ch) => stored.set(ch, g)); },
         },
         memory,
         readDemand: () => demand,
@@ -207,6 +207,35 @@ describe('FontStrokesPlanner', () => {
         await settle();
         expect(h.infer).not.toHaveBeenCalled();
         expect(h.memory.has('bad', '永')).toBe(true);
+    });
+
+    it('永久不可用或退避期间，盘上已有的字照常读进内存', async () => {
+        const h = make(2);
+        h.infer.mockImplementation(async () => null);
+        h.unavailable.value = true;
+        h.setDemand({ near: ['永'] });
+        h.planner.register('k1');
+        await settle();
+        h.stored.set('口', glyph(7));
+        h.setDemand({ near: ['口'] });
+        h.fireDemand();
+        await settle();
+        expect(h.memory.get('k1', '口')).toEqual(glyph(7));
+        expect(h.infer).toHaveBeenCalledTimes(1);
+    });
+
+    it('算出来存了盘的字被内存挤掉后从盘上读回来，不再推理', async () => {
+        const h = make(2);
+        h.setDemand({ near: ['永', '十'] });
+        h.planner.register('k1');
+        await settle();
+        expect(h.infer).toHaveBeenCalledTimes(1);
+        h.memory.clearFont('k1');
+        h.fireDemand();
+        await settle();
+        expect(h.infer).toHaveBeenCalledTimes(1);
+        expect(h.memory.has('k1', '永')).toBe(true);
+        expect(h.storeReads).toHaveLength(2);
     });
 
     it('reset 后重新查盘', async () => {

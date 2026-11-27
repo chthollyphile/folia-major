@@ -67,6 +67,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     {
         id: 'clear-handwriting-stroke-cache',
         group: 'settings',
+        platform: ['electron'],
         title: 'Clear handwriting stroke cache',
         description: 'Delete the stored stroke-order results for fonts; they are recomputed in the background when needed',
         keywords: ['handwriting', 'stroke order', 'stroke cache', 'clear cache', '手写笔画', '笔顺', '清除缓存', '笔画缓存'],

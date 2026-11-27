@@ -107,21 +107,23 @@ export class FontStrokesPlanner<C, R> {
 
     /** 有事可做的信号：没在跑就开跑，在跑就让它这一步结束后再看一遍；退避期间只认定时器。 */
     private kick(): void {
-        if (!this.consumers.size || this.unavailable) return;
+        if (!this.consumers.size) return;
         if (this.running) { this.again = true; return; }
-        if (this.backingOff) return;
         void this.run();
     }
 
+    /** 推理能不能开：永久不可用、退避等待中都不行（查盘不受影响，盘上已有的字照常读）。 */
+    private get canInfer(): boolean { return !this.unavailable && !this.backingOff; }
+
     /** 跑的过程中有人 kick 过、而且现在还该跑。（单独成方法：TS 看不出 await 期间 again 被改过。） */
-    private shouldRunAgain(): boolean { return this.again && this.consumers.size > 0 && !this.unavailable && !this.backingOff; }
+    private shouldRunAgain(): boolean { return this.again && this.consumers.size > 0; }
 
     private async run(): Promise<void> {
         this.running = true;
         try {
             do {
                 this.again = false;
-                while (this.consumers.size && !this.unavailable && !this.backingOff) {
+                while (this.consumers.size) {
                     if (!(await this.step())) break;
                 }
             } while (this.shouldRunAgain());
@@ -157,10 +159,12 @@ export class FontStrokesPlanner<C, R> {
             const unchecked = chars.filter(ch => !checked.has(ch)).slice(0, STORE_CHUNK);
             if (!unchecked.length) continue;
             const found = await this.deps.store.getGlyphs(fontKey, unchecked);
-            for (const ch of unchecked) checked.add(ch);
+            // 只记没查到的：查到的进了内存，内存把它挤出去之后要能再从盘上读回来，不能直接去推理
+            for (const ch of unchecked) if (!found.has(ch)) checked.add(ch);
             if (found.size) this.deps.memory.setMany(fontKey, found);
             return true;
         }
+        if (!this.canInfer) return false;
         const size = this.deps.batch ?? PLANNER_BATCH;
         for (const { fontKey, chars, near } of wants) {
             if (!chars.length) continue;
@@ -199,6 +203,9 @@ export class FontStrokesPlanner<C, R> {
             this.attempts = 0;
             this.deps.memory.setMany(fontKey, built);
             await this.deps.store.putGlyphs(fontKey, this.deps.labelOf(fontKey), built);
+            // 存上盘了：之后被内存挤出去时去盘上读，不再重算
+            const checked = this.storeChecked.get(fontKey);
+            for (const ch of built.keys()) checked?.delete(ch);
         } catch (error) {
             console.warn('[FontStrokes] inference batch failed:', error);
             this.failed();

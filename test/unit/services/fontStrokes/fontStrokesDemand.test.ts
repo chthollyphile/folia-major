@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
 import { buildFontStrokesDemand, lineIndexAt } from '../../../../src/services/fontStrokes/fontStrokesDemand';
-import { fontStackOfKey, fontStrokesKeyOf, STROKES_MODEL_REV } from '../../../../src/services/fontStrokes/fontStrokesKey';
-import { BUILTIN_FONT_STACKS } from '../../../../src/utils/fontStacks';
+import { fontLabelOfKey, fontStackOfKey, fontStrokesKeyOf, STROKES_MODEL_REV } from '../../../../src/services/fontStrokes/fontStrokesKey';
+import { BUILTIN_FONT_STACKS, resolveThemeFontStack } from '../../../../src/utils/fontStacks';
 
 // test/unit/services/fontStrokes/fontStrokesDemand.test.ts
 // 需求顺序（near / rest / background）、播放位置所在的句、字体键。
@@ -33,15 +33,24 @@ describe('buildFontStrokesDemand', () => {
 });
 
 describe('fontStrokesKey', () => {
-    it('字体键：上传 / 自定义 / 内置，能反推字体栈', () => {
+    it('字体键：内置 / 上传 / 自定义，能反推出和 resolveThemeFontStack 一样的字体栈', () => {
         expect(fontStrokesKeyOf({ fontStyle: 'serif' })).toMatch(/\|b:serif$/);
         expect(fontStackOfKey(fontStrokesKeyOf({ fontStyle: 'serif' }))).toBe(BUILTIN_FONT_STACKS.serif);
-        const uploaded = fontStrokesKeyOf({ fontStyle: 'sans', fontFamily: 'FoliaUploadedLyricsFont_123_abc' });
-        expect(uploaded).toMatch(/\|u:123_abc$/);
-        expect(fontStackOfKey(uploaded)).toContain('"FoliaUploadedLyricsFont_123_abc"');
-        const custom = fontStrokesKeyOf({ fontStyle: 'sans', fontFamily: '"PingFang SC"' });
-        expect(custom).toMatch(/\|c:PingFang SC$/);
-        expect(fontStackOfKey('other-version|c:x')).toBeNull();
+        const themes = [
+            { fontStyle: 'sans' as const, fontFamily: 'FoliaUploadedLyricsFont_123_abc' },
+            { fontStyle: 'mono' as const, fontFamily: '"PingFang SC"', fontFamilyStack: ['Hiragino Sans', 'a,b/c+d"e'] },
+            { fontStyle: 'serif' as const, fontFamilyStack: ['Songti SC'] },
+        ];
+        for (const theme of themes) expect(fontStackOfKey(fontStrokesKeyOf(theme))).toBe(resolveThemeFontStack(theme));
+        expect(fontStrokesKeyOf(themes[0])).toMatch(/\|u:123_abc\/sans$/);
+    });
+    it('回退字体不同，键不同；认不出的键返回 null', () => {
+        const a = fontStrokesKeyOf({ fontStyle: 'sans', fontFamily: 'X' });
+        expect(a).not.toBe(fontStrokesKeyOf({ fontStyle: 'serif', fontFamily: 'X' }));
+        expect(a).not.toBe(fontStrokesKeyOf({ fontStyle: 'sans', fontFamily: 'X', fontFamilyStack: ['Y'] }));
+        expect(fontStackOfKey('other-version|c:x/sans')).toBeNull();
+        expect(fontStackOfKey(a.replace('/sans', '/nope'))).toBeNull();
+        expect(fontLabelOfKey(a)).toBe('X');
     });
     it('模型版本号和下载脚本钉的 HuggingFace 提交一致', () => {
         const cjs = readFileSync('electron/analysis/strokesModelFetch.cjs', 'utf8');
