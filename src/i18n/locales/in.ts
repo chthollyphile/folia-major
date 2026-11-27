@@ -2723,10 +2723,11 @@ export default {
     "verdictSummaryAbsorbed": "{{lines}} baris kredit + {{absorbed}} baris terserap, intro {{window}} dtk, butuh {{required}} dtk untuk menampilkan semuanya"
   },
   "replayGain": {
-    "off": "ReplayGain Mati",
-    "track": "ReplayGain: Mode Trek",
-    "album": "ReplayGain: Mode Album",
-    "auto": "ReplayGain: Penyeimbang Pintar"
+    "off": "Mati",
+    "track": "Mode Trek",
+    "album": "Mode Album",
+    "auto": "Penyeimbang Pintar",
+    "subtitle": "ReplayGain",
   },
   "settings": {
     "lyricMatchPriority": "Prioritas pencocokan lirik",

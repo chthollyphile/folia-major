@@ -2723,10 +2723,11 @@ export default {
     "verdictSummaryAbsorbed": "{{lines}} 条署名 + {{absorbed}} 条吸收行，前奏 {{window}} 秒，完整显示需要 {{required}} 秒",
   },
   "replayGain": {
-    "off": "ReplayGain 已关闭",
-    "track": "ReplayGain: 单曲模式",
-    "album": "ReplayGain: 专辑模式",
-    "auto": "ReplayGain: 智能平衡",
+    "off": "已关闭",
+    "track": "单曲模式",
+    "album": "专辑模式",
+    "auto": "智能平衡",
+    "subtitle": "ReplayGain",
   },
   "settings": {
     "lyricMatchPriority": "歌词匹配优先级",

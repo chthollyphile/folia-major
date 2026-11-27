@@ -2723,10 +2723,11 @@ export default {
     "verdictSummaryAbsorbed": "{{lines}} credit line(s) + {{absorbed}} absorbed, {{window}}s of intro, {{required}}s needed to show them all",
   },
   "replayGain": {
-    "off": "ReplayGain Off",
-    "track": "ReplayGain: Track Mode",
-    "album": "ReplayGain: Album Mode",
-    "auto": "ReplayGain: Smart Balance",
+    "off": "Off",
+    "track": "Track Mode",
+    "album": "Album Mode",
+    "auto": "Smart Balance",
+    "subtitle": "ReplayGain",
   },
   "settings": {
     "lyricMatchPriority": "Lyric match priority",

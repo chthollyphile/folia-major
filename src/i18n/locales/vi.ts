@@ -2723,10 +2723,11 @@ export default {
     "verdictSummaryAbsorbed": "{{lines}} dòng credit + {{absorbed}} dòng gộp, {{window}}s dạo đầu, cần {{required}}s để hiện hết",
   },
   "replayGain": {
-    "off": "Tắt ReplayGain",
-    "track": "ReplayGain: Bài hát",
-    "album": "ReplayGain: Album",
-    "auto": "ReplayGain: Cân bằng thông minh",
+    "off": "Tắt",
+    "track": "Bài hát",
+    "album": "Album",
+    "auto": "Cân bằng thông minh",
+    "subtitle": "ReplayGain",
   },
   "settings": {
     "lyricMatchPriority": "Ưu tiên khớp lời",
