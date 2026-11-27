@@ -106,7 +106,7 @@ const PlayerLayoutProbe: React.FC = () => {
             </div>
         </AppShell>
         <AppDialogs model={{
-            statusToast: toast ? { type: 'success', text: `Native status toast ${toastVersion}`, toastKey: `probe-${toastVersion}`, isDaylight: false } : null,
+            statusToasts: toast ? [{ type: 'success', text: `Native status toast ${toastVersion}`, toastKey: `probe-${toastVersion}`, isDaylight: false }] : [],
             settingsDialog: settings ? {
                 onClose: () => setSettings(false), initialTab: 'help', theme: DEFAULT_THEME, bgMode: 'default',
                 onApplyDefaultTheme: noop, hasCustomTheme: false,

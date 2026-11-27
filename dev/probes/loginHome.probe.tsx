@@ -52,7 +52,7 @@ function LoginHomeProbe(props: ProbeProps) {
             >
                 {state !== 'signed-in' && <HomeLoginPanel account={account} />}
                 <SwitcherPill account={account} onBackToPlayer={() => { }} />
-                {said && <AppDialogs model={{ statusToast: { ...said, isDaylight, toastKey: message ?? '' } }} />}
+                {said && <AppDialogs model={{ statusToasts: [{ ...said, isDaylight, toastKey: message ?? '' }] }} />}
             </div>
         </SettingsKitThemeContext.Provider>
     );

@@ -3,6 +3,7 @@ import type UnavailableReplacementDialog from '../../modal/UnavailableReplacemen
 import type SettingsModal from '../../modal/SettingsModal';
 import type ConfirmDialog from '../../shared/ConfirmDialog';
 import type { StatusMessage, SongResult, LocalSong } from '../../../types';
+import type { StatusToastEntry } from '../../../stores/useStatusMessageStore';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
 import type React from 'react';
 
@@ -18,7 +19,7 @@ export type AppStatusToast = StatusMessage & {
 };
 
 export type AppDialogsModel = {
-    statusToast?: AppStatusToast | null;
+    statusToasts: AppStatusToast[];
     lyricMatchDialog?: LyricMatchDialogProps | null;
     unavailableReplacementDialog?: UnavailableReplacementDialogProps | null;
     settingsDialog?: SettingsDialogProps | null;
@@ -27,7 +28,7 @@ export type AppDialogsModel = {
 
 // What this file can read for itself, so the caller never names it. See useAppDialogsModel below.
 type AppDialogsAmbient = {
-    statusMsg: StatusMessage | null;
+    statusToasts: StatusToastEntry[];
     isDaylight: boolean;
     currentSong: SongResult | null;
     wallpaperEntryConfirmDialog: ConfirmDialogProps;
@@ -57,7 +58,7 @@ type BuildAppDialogsModelParams = AppDialogsAmbient & AppDialogsDeps;
 
 // Builds the centralized dialog model for toast, lyric matching, and unavailable-song replacement.
 export const buildAppDialogsModel = ({
-    statusMsg,
+    statusToasts,
     isDaylight,
     isLyricMatchOpen,
     currentSong,
@@ -73,13 +74,11 @@ export const buildAppDialogsModel = ({
     handleUnavailableReplacementConfirm,
     settingsDialog = null,
 }: BuildAppDialogsModelParams): AppDialogsModel => ({
-    statusToast: statusMsg
-        ? {
-            ...statusMsg,
-            isDaylight,
-            toastKey: statusMsg.activityId !== undefined ? `activity:${statusMsg.activityId}` : `${statusMsg.type}:${statusMsg.text}:${statusMsg.nonce ?? 0}`,
-        }
-        : null,
+    statusToasts: statusToasts.map(entry => ({
+        ...entry.message,
+        isDaylight,
+        toastKey: entry.key,
+    })),
     // The window for matching lyrics by hand is one; the playing song's kind says how it is filled.
     lyricMatchDialog: !isLyricMatchOpen || !currentSong
         ? null

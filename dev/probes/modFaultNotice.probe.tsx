@@ -232,9 +232,9 @@ const ModFaultNoticeProbe: React.FC = () => {
             {pieces}
             <AppDialogs
                 model={{
-                    statusToast: message
-                        ? { ...message, isDaylight, toastKey: `${message.type}:${message.text}:${message.nonce ?? 0}` }
-                        : null,
+                    statusToasts: message
+                        ? [{ ...message, isDaylight, toastKey: `${message.type}:${message.text}:${message.nonce ?? 0}` }]
+                        : [],
                 }}
             />
             {view === 'row' && stage !== 'booting' ? (

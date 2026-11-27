@@ -17,19 +17,25 @@ type AppDialogsProps = {
 
 const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
     countRender('AppDialogs');
-    const { statusToast, lyricMatchDialog, unavailableReplacementDialog, settingsDialog, wallpaperEntryConfirmDialog } = model;
+    const { statusToasts, lyricMatchDialog, unavailableReplacementDialog, settingsDialog, wallpaperEntryConfirmDialog } = model;
     // The settings window is the largest tree the app mounts at a click. Read deferred, it is
     // rendered in slices between frames rather than in the click's own task, which held every frame
     // (the panel closing, the picture) until all of it was built. Closing is not deferred: the
     // window leaves with the click.
     const isSettingsShown = useDeferredValue(settingsDialog != null);
 
+    // The store keeps at most five, oldest first. Newest first here puts the newest toast at the top
+    // under the search bar; the oldest is the last one and drops off when a sixth arrives.
+    const shown = [...statusToasts].reverse();
+
     return (
         <>
             {createPortal(
-                <div className="pointer-events-none fixed inset-x-0 top-[30px] z-[210] grid justify-items-center px-4">
+                <div className="status-toast-stack pointer-events-none fixed right-4 top-[80px] z-[210] flex flex-col items-end gap-2">
                     <AnimatePresence>
-                        {statusToast && <StatusToast key={statusToast.toastKey} toast={statusToast} />}
+                        {shown.map(toast => (
+                            <StatusToast key={toast.toastKey} toast={toast} />
+                        ))}
                     </AnimatePresence>
                 </div>,
                 document.body,

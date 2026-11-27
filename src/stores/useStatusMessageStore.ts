@@ -13,25 +13,58 @@ import type { StatusMessage } from '../types';
 
 export type StatusSetter = React.Dispatch<React.SetStateAction<StatusMessage | null>>;
 
+/** A toast kept in the stack, with the key AnimatePresence and dismiss use. */
+export type StatusToastEntry = {
+    key: string;
+    message: StatusMessage;
+};
+
+/** At most this many toasts are kept on screen. A newer one pushes the oldest off the bottom. */
+const MAX_TOASTS = 5;
+
 type StatusMessageState = {
+    /** The newest message. Kept as the single channel's view so existing emitters and their tests
+     *  still read one message; it is always `entries[entries.length - 1]?.message`. */
     message: StatusMessage | null;
+    /** Every toast still on screen, oldest first. */
+    entries: StatusToastEntry[];
     /** The pointer or the keyboard focus rests on the shown toast: its display time stands still.
      *  A new message starts unheld. */
     held: boolean;
     /** Accepts the updater form because callers reason about the previous toast (see
      *  usePlaybackQueueController, which clears only a persistent one). */
     setMessage: StatusSetter;
+    /** Closes one toast by key instead of whichever is newest. */
+    dismissToast: (key: string) => void;
 };
 
 let activitySequence = 0;
+let toastSequence = 0;
+
+const toastKeyOf = (message: StatusMessage): string => message.activityId !== undefined
+    ? `activity:${message.activityId}`
+    : `${message.type}:${message.text}:${message.nonce ?? ++toastSequence}`;
+
+const withEntries = (entries: StatusToastEntry[]) => ({
+    entries,
+    message: entries[entries.length - 1]?.message ?? null,
+});
 
 export const useStatusMessageStore = create<StatusMessageState>((set) => ({
     message: null,
+    entries: [],
     held: false,
     setMessage: (next) => set(state => {
+        // A caller may reset the single channel with setState({ message: null }) (tests do this
+        // between cases). `message` is the view the emitters read, so when it says empty the stack
+        // must agree: drop any entries left behind.
+        const entriesNow = state.message === null && state.entries.length > 0 ? [] : state.entries;
         let message = typeof next === 'function'
             ? (next as (prev: StatusMessage | null) => StatusMessage | null)(state.message)
             : next;
+        // An updater that returns the message unchanged (a skip's tick, a still-valid guard) is not a
+        // new toast: keep the stack and the hold state exactly as they are.
+        if (message === state.message) return { message };
         if (message !== state.message && message) {
             if (message.activity === 'loading' && message.activityId === undefined) {
                 message = { ...message, activityId: ++activitySequence };
@@ -40,7 +73,24 @@ export const useStatusMessageStore = create<StatusMessageState>((set) => ({
                 message = { ...message, activity: message.type, activityId: state.message.activityId };
             }
         }
-        return message === state.message ? { message } : { message, held: false };
+        if (message === null) {
+            // Callers use the single-channel clear when their toast's own action/cancel fires: the
+            // notice is handled, so the whole stack goes. Per-toast dismissal uses dismissToast.
+            return { ...withEntries([]), held: false };
+        }
+        const key = toastKeyOf(message);
+        const last = entriesNow[entriesNow.length - 1];
+        // A loader turning into its result (or a countdown updating that result) replaces its own
+        // toast rather than stacking a second card.
+        const morph = last && last.message.activityId !== undefined && last.message.activityId === message.activityId;
+        const entries = morph
+            ? [...entriesNow.slice(0, -1), { key, message }]
+            : [...entriesNow, { key, message }].slice(-MAX_TOASTS);
+        return { ...withEntries(entries), held: false };
+    }),
+    dismissToast: (key) => set(state => {
+        const entries = state.entries.filter(entry => entry.key !== key);
+        return entries.length === state.entries.length ? state : withEntries(entries);
     }),
 }));
 
@@ -55,6 +105,14 @@ export const setStatusMessage: StatusSetter = (next) => {
 
 /** Subscribe to the current toast. Only the component that renders it should call this. */
 export const useStatusMessage = () => useStatusMessageStore(state => state.message);
+
+/** Subscribe to the whole toast stack, oldest first. */
+export const useStatusToasts = () => useStatusMessageStore(state => state.entries);
+
+/** Closes one toast by key, leaving the others in the stack. */
+export const dismissToast = (key: string) => {
+    useStatusMessageStore.getState().dismissToast(key);
+};
 
 /** The toast says whether the pointer or the focus rests on it. */
 export const holdStatusMessage = (held: boolean) => {
