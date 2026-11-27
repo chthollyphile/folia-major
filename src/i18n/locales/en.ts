@@ -1122,6 +1122,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
+      "clear-handwriting-stroke-cache": { "title": "Clear handwriting stroke cache", "description": "Delete the stored stroke-order results for fonts; they are recomputed in the background when needed" },
       "provider-playback-setup": { "title": "Platform playback setup", "description": "Open the playback setup checklist of the current platform" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
       "settings-now-playing-card-position": { "title": "Reposition song card", "description": "Drag the now playing card to a new position" },

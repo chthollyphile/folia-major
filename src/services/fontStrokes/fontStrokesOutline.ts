@@ -54,7 +54,8 @@ export const absorbSpecks = (owner: Int8Array, side = OUTLINE_SIDE, minPixels = 
         seen[start] = 1;
         const votes = new Map<number, number>();
         while (stack.length) {
-            const i = stack.pop()!;
+            const i = stack.pop();
+            if (i === undefined) break;
             comp.push(i);
             const x = i % side, y = (i - x) / side;
             for (let d = 0; d < 4; d += 1) {
@@ -194,7 +195,9 @@ export const simplifyRing = (ring: number[], tolerance = SIMPLIFY_TOLERANCE): nu
     // 显式栈：[from, to]（环上下标，to 可以是 n 表示回到 0）
     const stack: [number, number][] = [[0, far], [far, n]];
     while (stack.length) {
-        const [from, to] = stack.pop()!;
+        const top = stack.pop();
+        if (!top) break;
+        const [from, to] = top;
         const ax = ring[2 * from], ay = ring[2 * from + 1];
         const bi = to % n;
         const bx = ring[2 * bi], by = ring[2 * bi + 1];

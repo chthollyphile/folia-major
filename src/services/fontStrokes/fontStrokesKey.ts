@@ -33,7 +33,10 @@ export const fontStackOfKey = (key: string): string | null => {
     const quote = (family: string) => `"${family.replace(/["\\]/g, '\\$&')}"`;
     if (part.startsWith('u:')) return `${quote(UPLOADED_FAMILY_PREFIX + part.slice(2))}, ${BUILTIN_FONT_STACKS.sans}`;
     if (part.startsWith('c:')) return `${quote(part.slice(2))}, ${BUILTIN_FONT_STACKS.sans}`;
-    if (part.startsWith('b:')) return BUILTIN_FONT_STACKS[part.slice(2) as Theme['fontStyle']] ?? null;
+    if (part.startsWith('b:')) {
+        const style = part.slice(2);
+        return style in BUILTIN_FONT_STACKS ? BUILTIN_FONT_STACKS[style as Theme['fontStyle']] : null;
+    }
     return null;
 };
 

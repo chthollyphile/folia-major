@@ -16,6 +16,7 @@ import { gridViewCardsSurface } from '../surfaces/gridViewCardsSurface';
 import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
 import { librarySuitePickerSurface } from '../surfaces/librarySuitePickerSurface';
 import { libraryWallLookCommands } from './libraryWallLookCommands';
+import { getFontStrokesStore } from '../../../services/fontStrokes/fontStrokesStore';
 import { openCurrentPagePonder } from '../../../services/ponder/pagePonderTarget';
 import { copyText } from '../../../utils/system/clipboard';
 
@@ -59,6 +60,18 @@ export const settingsCommands: CommandPaletteCommand[] = [
         keywords: ['ponder', 'guide', 'tutorial', '思索', '页面教程'],
         execute: () => {
             openCurrentPagePonder();
+            return true;
+        },
+    },
+    // 清掉盘上的手写笔画结果（services/fontStrokes）：删了不可撤销但会在后台按需重算，不给执行快捷键
+    {
+        id: 'clear-handwriting-stroke-cache',
+        group: 'settings',
+        title: 'Clear handwriting stroke cache',
+        description: 'Delete the stored stroke-order results for fonts; they are recomputed in the background when needed',
+        keywords: ['handwriting', 'stroke order', 'stroke cache', 'clear cache', '手写笔画', '笔顺', '清除缓存', '笔画缓存'],
+        execute: () => {
+            void getFontStrokesStore().clearAll();
             return true;
         },
     },

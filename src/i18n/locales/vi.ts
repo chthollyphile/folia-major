@@ -1122,6 +1122,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Sở thích", "description": "Điều chỉnh sở thích lưu trong tài khoản, ảnh hưởng đến những gì được gợi ý" },
       "settings-help": { "title": "Mở Trợ giúp", "description": "Mở trợ giúp và phím tắt" },
       "ponder-current-page": { "title": "Khám phá trang này", "description": "Mở hướng dẫn tương tác cho trang hiện tại" },
+      "clear-handwriting-stroke-cache": { "title": "Xóa bộ nhớ đệm nét chữ viết tay", "description": "Xóa kết quả thứ tự nét của phông chữ đã lưu; sẽ được tính lại ở nền khi cần" },
       "provider-playback-setup": { "title": "Thiết lập phát nhạc của nền tảng", "description": "Mở danh sách thiết lập phát nhạc của nền tảng hiện tại" },
       "settings-options": { "title": "Mở Tùy chọn", "description": "Mở trung tâm tùy chọn" },
       "settings-now-playing-card-position": { "title": "Đổi vị trí thẻ bài hát", "description": "Kéo thẻ bài hát đang phát đến vị trí mới" },

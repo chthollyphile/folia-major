@@ -17,7 +17,7 @@ export interface ProbeConfig { out: string; full6: string; own2: string; f16: bo
 
 const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env;
 const SIDE = 256;
-const FONTS: { family: string; label: string; weights: number[] }[] = (env.SW_FONTS ? JSON.parse(env.SW_FONTS) : [
+const FONTS: { family: string; label: string; weights: number[] }[] = (env.SW_FONTS ? JSON.parse(env.SW_FONTS) as { family: string; label: string; weights: number[] }[] : [
     { family: 'PingFang SC', label: 'PingFang SC', weights: [200, 800] },
     { family: 'Hiragino Sans', label: 'Hiragino Sans', weights: [200, 800] },
     { family: 'Songti SC', label: 'Songti SC', weights: [200, 800] },
@@ -83,7 +83,8 @@ export async function runOutlineProbe(device: GPUDevice, config: ProbeConfig, lo
     const job = await StrokesJob.create(device, new Uint8Array(fs.readFileSync(config.full6)), new Uint8Array(fs.readFileSync(config.own2)), config.f16);
     const work = document.createElement('canvas');
     work.width = work.height = SIDE;
-    const wctx = work.getContext('2d', { willReadFrequently: true })!;
+    const wctx = work.getContext('2d', { willReadFrequently: true });
+    if (!wctx) throw new Error('no 2d context');
     const sheetDir = path.join(config.out, 'sheets');
     try { (fs as unknown as { mkdirSync(p: string, o: unknown): void }).mkdirSync(sheetDir, { recursive: true }); } catch { /* 已存在 */ }
     const table: Record<string, Record<string, Stat>> = {};
@@ -129,7 +130,7 @@ export async function runOutlineProbe(device: GPUDevice, config: ProbeConfig, lo
                     const st = stats[w];
                     const ink = w === 400 ? b.canon.img : renderInkAt(CHARS[ci], font.family, w, b.canon);
                     if (!ink) continue;
-                    const other = w === 400 ? b : byWeight.get(w)![ci];
+                    const other = w === 400 ? b : byWeight.get(w)?.[ci];
                     const ownerW = other ? ownerIn400Frame(b.canon, other.canon, other.res.owner) : null;
                     const confusion = new Map<number, Map<number, number>>();
                     st.glyphs += 1;
@@ -166,7 +167,8 @@ export async function runOutlineProbe(device: GPUDevice, config: ProbeConfig, lo
                 const sheet = document.createElement('canvas');
                 sheet.width = cell * weights.length;
                 sheet.height = cell * Math.min(perSheet, CHARS.length - from);
-                const sc = sheet.getContext('2d')!;
+                const sc = sheet.getContext('2d');
+                if (!sc) continue;
                 sc.fillStyle = '#fff';
                 sc.fillRect(0, 0, sheet.width, sheet.height);
                 for (let ci = from; ci < Math.min(CHARS.length, from + perSheet); ci += 1) {

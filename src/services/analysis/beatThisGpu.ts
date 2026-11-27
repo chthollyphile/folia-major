@@ -560,6 +560,16 @@ export interface StrokesGpuGlyph {
     /** Per pixel of the 256 x 256 grid: the index of the pen owning this ink pixel (own2's ownership), -1 off the ink. */
     owner: Int8Array;
 }
+/**
+ * Whether the font-strokes models can never run in this session: no worker, no usable WebGPU, the models
+ * would not build on this device, or no renderer bridge to fetch their weights. A null from runStrokesGpu
+ * with this false is transient (weights not downloaded yet, a run that failed, the scheduler dropped it) and
+ * worth trying again later; with it true, stop asking. The font-strokes planner (services/fontStrokes) reads it.
+ */
+export const strokesGpuUnavailable = (): boolean => (
+    unsupported || failedModels.has('strokes') || typeof window === 'undefined' || typeof Worker === 'undefined'
+    || typeof window.electron?.getStrokesGpuWeights !== 'function'
+);
 /** Glyphs one strokes request takes (STROKES_BATCH). */
 export const STROKES_GPU_BATCH = 8;
 
