@@ -12,6 +12,8 @@ import type { OverlayWordNodes, WordPlacement } from './cadenzaTypes';
 
 /** 一个落点的手写节点：逐字的外层 / 里层 span 和各字的写字状态（下标 = 落点里第几个字，不是汉字时 null）。 */
 export interface CadenzaHwNodes {
+    /** 拆的时候落点的文字（落点换了字要重建）。 */
+    text: string;
     glyphs: string[];
     wraps: (HTMLSpanElement | null)[];
     inks: (HTMLSpanElement | null)[];
@@ -30,9 +32,9 @@ export const buildDomGlowFilter = (color: string, intensity: number): string => 
 export const hasModelGlyph = (glyphs: readonly string[]): boolean => glyphs.some(isModelChar);
 
 /** 把正文 span 换成逐字的内容（汉字 / 假名包两层 span，其余连着的字是文字节点），记在 nodes.hw 上。之后 writeOverlayWord 不再改正文文字。 */
-export const attachCadenzaHandwriting = (nodes: OverlayWordNodes, glyphs: string[]) => {
+export const attachCadenzaHandwriting = (nodes: OverlayWordNodes, glyphs: string[], text: string) => {
     const doc = nodes.body.ownerDocument;
-    const hw: CadenzaHwNodes = { glyphs, wraps: [], inks: [], slots: [], filters: [] };
+    const hw: CadenzaHwNodes = { text, glyphs, wraps: [], inks: [], slots: [], filters: [] };
     nodes.body.replaceChildren();
     let run = '';
     glyphs.forEach((glyph, index) => {
@@ -88,7 +90,8 @@ export const updateCadenzaHandwriting = (
         const timing = at < placement.wordGraphemeTimings.length ? placement.wordGraphemeTimings[at] : null;
         const start = timing ? timing.startTime : word.startTime + (at / count) * wordDuration;
         const end = timing ? timing.endTime : word.startTime + ((at + 1) / count) * wordDuration;
-        const state = resolveSourceGlyphState(source, `${placement.id}:${i}`, hw.glyphs[i], time, start, end);
+        // 落点 id 只在一句里唯一（行号是这句排版里的行），带上词的开始时间才跨句唯一
+        const state = resolveSourceGlyphState(source, `${word.startTime}:${placement.id}:${i}`, hw.glyphs[i], time, start, end);
         slot.apply(state, typeof state === 'number' ? source.getStrokes(hw.glyphs[i]) : null);
         const filter = slot.writing ? buildDomGlowFilter(placement.color, glowIntensity) : '';
         if (filter !== hw.filters[i]) {

@@ -440,9 +440,14 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                     const shouldSplitGlow = wordRevealMode === 'normal' && !placementText.cjk && glyphs.length > 1;
                     const blurScale = 1 + energy * 0.22;
                     let overlayWord = overlayNodes.get(placement.id);
+                    // 手写的正文是按建节点时的字拆的：同一个落点 id 换了字（重新排版）就整个重建
+                    if (overlayWord?.hw && overlayWord.hw.text !== placement.text) {
+                        removeOverlayWordNodes(overlayWord);
+                        overlayWord = undefined;
+                    }
                     if (!overlayWord) {
                         overlayWord = createOverlayWordNodes();
-                        if (handwriting && hasModelGlyph(glyphs)) attachCadenzaHandwriting(overlayWord, glyphs);
+                        if (handwriting && hasModelGlyph(glyphs)) attachCadenzaHandwriting(overlayWord, glyphs, placement.text);
                         overlayNodes.set(placement.id, overlayWord);
                         overlay.appendChild(overlayWord.outer);
                     }
