@@ -1376,7 +1376,10 @@ export interface StatusMessage {
   /** Keeps one loader mounted while its strokes morph into the result. */
   activityId?: number;
   type: 'error' | 'success' | 'info';
+  /** The main title. Stays fixed while the toast lives. */
   text: string;
+  /** The subtitle under the main title: a short, permanent second line. */
+  subtitle?: string;
   /** A second line under the text: what to do about it. */
   note?: string;
   /** Words quoted from outside the app (a platform's own answer), with their code. */

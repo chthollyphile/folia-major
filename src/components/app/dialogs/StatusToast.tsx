@@ -11,8 +11,9 @@ import { LoadingBars } from '../../shared/LoadingBars';
 import './statusToast.css';
 
 // src/components/app/dialogs/StatusToast.tsx
-// The app's toast: a coloured icon tile, a bold title and a quiet second line (the note, a quoted
-// platform answer or a count down). The close button dismisses this one toast by key; its own
+// The app's toast: a coloured icon tile, a bold title, an optional subtitle and a changeable second
+// line (the note, a quoted platform answer or a count down). The close button dismisses this toast
+// by key; its own
 // display time stands still while the pointer or focus rests on it, then runs on for what is left.
 // A count down fills its action button over the whole time and fires it when full. Each keyed toast
 // keeps its own player-overlay obstacle until AnimatePresence finishes its exit. The stack shows at
@@ -74,7 +75,7 @@ export const StatusToast: React.FC<{
     const { t } = useTranslation();
     const { ref: toastLayoutRef, invalidate: invalidateLayout } = usePlayerOverlayObstacle('status-toast', 'notification');
     const { control: clock, barRef } = useToastTime(toast.toastKey, toast.durationMs ?? 3000, toast.persistent);
-    const { quote, countdown, isDaylight } = toast;
+    const { subtitle, quote, countdown, isDaylight } = toast;
 
     // Once dismissed the card is only playing its exit animation: freeze its bar where it was.
     useEffect(() => {
@@ -158,6 +159,7 @@ export const StatusToast: React.FC<{
                             <X size={13} strokeWidth={2.5} />
                         </button>
                     </div>
+                    {subtitle && <div className="status-toast-subtitle">{subtitle}</div>}
                     {hasSub && (
                         <div className="status-toast-sub">
                             {toast.note && <span className="status-toast-note">{toast.note}</span>}

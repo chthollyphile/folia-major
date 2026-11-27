@@ -88,7 +88,8 @@
 }
 .status-toast-timer-track {
     display: block;
-    width: 100%;
+    width: calc(100% - 20px);
+    margin-left: 10px;
     height: 100%;
     background: var(--toast-timer-fill);
     transform-origin: left center;
@@ -164,6 +165,17 @@
 }
 .status-toast-close:hover { background: var(--toast-close-hover); color: var(--toast-title-ink); }
 .status-toast-close:focus-visible { outline: 2px solid var(--toast-close-ink); outline-offset: 1px; }
+
+/* The subtitle sits directly under the main title as its own line, quieter than the title but
+   steadier than the changeable note/quote/countdown row below it. */
+.status-toast-subtitle {
+    margin-top: 1px;
+    color: var(--toast-sub-ink);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 17px;
+    overflow-wrap: anywhere;
+}
 
 .status-toast-sub {
     display: flex;
