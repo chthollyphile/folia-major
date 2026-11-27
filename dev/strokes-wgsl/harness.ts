@@ -3,6 +3,7 @@ import { Full6Wgsl } from '../../src/services/analysis/strokesWgsl/full6';
 import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
 import { REC } from '../../src/services/analysis/strokesWgsl/kernelsSeq';
 import { fs, ipcRenderer, path } from './node';
+import { runOutlineProbe } from './outlineProbe';
 import { runOwn2Align, runOwnBench } from './own2Checks';
 import { RefData, glyphsOf, maxAbsDiff, percentile } from './refData';
 
@@ -211,6 +212,7 @@ async function main() {
     if (config.task === 'bench') await bench(device, config, ref, report);
     if (config.task === 'profile') await profile(device, config, ref, report);
     if (config.task === 'own2') await runOwn2Align(device, config, ref, new RefData(config.own2ref, fs, path), report, log);
+    if (config.task === 'outline') await runOutlineProbe(device, config, log, report);
     if (config.task === 'ownbench') await runOwnBench(device, config, ref, report, log);
     fs.writeFileSync(path.join(config.out, `report-${config.task}-${mode}.json`), JSON.stringify(report, null, 1));
     ipcRenderer.send('sw-done', 0);

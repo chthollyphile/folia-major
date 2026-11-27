@@ -12,6 +12,7 @@ const path = require('path');
 //   npx rolldown dev/strokes-wgsl/harness.ts -o $OUT/harness.js -f iife -p browser
 //   SW_DIR=$OUT SW_TASK=align [SW_F16=1] npx electron dev/strokes-wgsl/main.cjs
 //
+// SW_TASK=outline (outlineProbe.ts): do the 400-weight stroke outlines cover the ink of other weights; needs SW_F16/SW_FULL6/SW_OWN2, optional SW_FONTS (json), SW_CHARS_SET, SW_RADII, SW_SHEET_R.
 // SW_TASK: stages (encoder / memory / step-0 intermediates against dbg_*), align (teacher-forced and free
 // generation, with and without the reference), bench (timings, SW_B=1,16,64,128,256 batch sizes), own2
 // (own2 against SW_OWN2REF, the scratch own2_ref.py output, at each SW_B: the first is the reference run,
@@ -29,6 +30,8 @@ const bihua = path.join(os.homedir(), 'bihua');
 app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'sw-userdata-')));
 // Unquantised timestamps for per-dispatch costs (dev shell only).
 app.commandLine.appendSwitch('enable-webgpu-developer-features');
+// Never touch the login keychain (cookie / safe-storage key lookup).
+app.commandLine.appendSwitch('use-mock-keychain');
 
 ipcMain.handle('sw-config', () => ({
     out: dir,
