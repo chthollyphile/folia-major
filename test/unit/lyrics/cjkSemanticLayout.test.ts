@@ -117,6 +117,55 @@ describe('buildCjkSemanticLayoutUnits', () => {
         expect(units.every(unit => unit.isSemantic)).toBe(true);
     });
 
+    it('merges only the span where a segment boundary cuts a timed word (#1367)', () => {
+        const words: Word[] = [
+            { text: '海风吹', startTime: 0, endTime: 0.6 },
+            { text: '过', startTime: 0.6, endTime: 1 },
+            { text: '远', startTime: 1, endTime: 1.5 },
+            { text: '方', startTime: 1.5, endTime: 2 },
+        ];
+        const line = { fullText: '海风吹过远方', words };
+
+        // The saved split and icu-folia's split go through the same alignment.
+        for (const units of [
+            buildCjkSemanticLayoutUnits({ ...line, wordSegments: ['海风', '吹过', '远方'] }),
+            buildCjkSemanticLayoutUnits({ ...line, autoWordSegments: ['海风', '吹过', '远方'] }),
+        ]) {
+            expect(units.map(unit => unit.text)).toEqual(['海风吹过', '远方']);
+            expect(units.flatMap(unit => unit.words)).toEqual(words);
+            expect(units[0]).toMatchObject({ isSemantic: true, startTime: 0, endTime: 1 });
+            expect(units[1]).toMatchObject({ isSemantic: true, startTime: 1, endTime: 2 });
+            expect(units[1].words).toEqual([words[2], words[3]]);
+            expect(buildDisplayWordsFromLayoutUnits(units)).toEqual(words);
+        }
+    });
+
+    it('keeps punctuation and spaces with a merged conflict span', () => {
+        const words = createTokenWords(['海风吹', '过', '，', ' ', '远', '方']);
+        const units = buildCjkSemanticLayoutUnits({
+            fullText: '海风吹过， 远方',
+            words,
+            wordSegments: ['海风', '吹过', '，', ' ', '远方'],
+        });
+
+        expect(units.map(unit => unit.text)).toEqual(['海风吹过， ', '远方']);
+        expect(units.flatMap(unit => unit.words)).toEqual(words);
+    });
+
+    it('merges a conflict span in the middle of a line and groups the words around it', () => {
+        // 世界 and 之间 align; 尽头的风 is timed as 尽 | 头的风, which the split 尽头 | 的 | 风 cuts.
+        const words = createTokenWords(['世', '界', '尽', '头的风', '之', '间']);
+        const units = buildCjkSemanticLayoutUnits({
+            fullText: '世界尽头的风之间',
+            words,
+            wordSegments: ['世界', '尽头', '的', '风', '之间'],
+        });
+
+        expect(units.map(unit => unit.text)).toEqual(['世界', '尽头的风', '之间']);
+        expect(units.map(unit => unit.words.map(word => word.text))).toEqual([['世', '界'], ['尽', '头的风'], ['之', '间']]);
+        expect(units.every(unit => unit.isSemantic)).toBe(true);
+    });
+
     it('falls back when fullText cannot be aligned to words', () => {
         const words = createCharacterWords('世界');
         const units = buildCjkSemanticLayoutUnits({ fullText: '世界啊', words });
