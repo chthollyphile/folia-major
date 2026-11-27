@@ -180,7 +180,7 @@ describe('online playback stop conditions', () => {
     it.each([
         ['region-restricted', 'status.songRegionRestricted'],
         ['sign-in-needed', 'failure.signInNeeded'],
-        ['preview-only', 'status.songPreviewOnly'],
+        ['preview-only', 'status.accountLimited'],
         ['subscription-required', 'status.songSubscriptionRequired'],
         ['purchase-required', 'status.songPurchaseRequired'],
         ['entitlement-required', 'status.songEntitlementRequired'],
@@ -535,7 +535,7 @@ describe('skip unplayable songs setting', () => {
         audioSettings.autoSkipUnplayable = true;
         const queue = controller();
         queue.skipAfterPlaybackFailure(failureOf('preview-only'), { failedSongKey: getPlaybackSongKey(songs[0]) });
-        expect(message()).toMatchObject({ text: 'status.songPreviewOnly', cancelLabel: 'status.cancel', countdown: { text: 'failure.skipCountdown' } });
+        expect(message()).toMatchObject({ text: 'status.accountLimited', subtitle: 'status.songPreviewOnly', cancelLabel: 'status.cancel', countdown: { text: 'failure.skipCountdown' } });
         expect(queue.pause).not.toHaveBeenCalled();
 
         message()?.onCancel?.();
@@ -543,7 +543,7 @@ describe('skip unplayable songs setting', () => {
         expect(queue.pause).toHaveBeenCalledOnce();
         expect(queue.shouldAutoPlayRef.current).toBe(false);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
-        expect(message()).toMatchObject({ text: 'status.songPreviewOnly' });
+        expect(message()).toMatchObject({ text: 'status.accountLimited' });
         expect(notified).toHaveBeenCalledOnce();
         expect(notified).toHaveBeenCalledWith(expect.objectContaining({ reason: 'preview-only', phase: 'mid-playback', willAutoSkip: true }));
     });

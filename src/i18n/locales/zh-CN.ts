@@ -863,6 +863,7 @@ export default {
     "dataSynced": "数据同步成功",
     "syncFailed": "同步失败",
     "loginExpired": "登录状态已失效，请重新登录",
+    "accountLimited": "账号受限",
     "songPreviewOnly": "当前账号仅可试听此歌曲",
     "songSubscriptionRequired": "{{provider}}需要会员才能播放",
     "songRegionRestricted": "仅限中国大陆网络播放",

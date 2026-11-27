@@ -863,6 +863,7 @@ export default {
     "dataSynced": "Đồng bộ dữ liệu thành công",
     "syncFailed": "Đồng bộ thất bại",
     "loginExpired": "Phiên đăng nhập hết hạn. Đăng nhập lại",
+    "accountLimited": "Tài khoản bị giới hạn",
     "songPreviewOnly": "Chỉ có thể nghe thử. Đăng nhập tài khoản có quyền phát toàn bộ bài hát.",
     "songSubscriptionRequired": "Cần tài khoản {{provider}} trả phí để phát",
     "songRegionRestricted": "Chỉ phát tại Trung Quốc đại lục. Kiểm tra kết nối mạng.",

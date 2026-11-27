@@ -863,6 +863,7 @@ export default {
     "dataSynced": "Data berhasil disinkronkan",
     "syncFailed": "Sinkronisasi gagal",
     "loginExpired": "Login kedaluwarsa. Silakan login lagi",
+    "accountLimited": "Akun dibatasi",
     "songPreviewOnly": "Akun ini hanya dapat memutar pratinjau",
     "songSubscriptionRequired": "Perlu akun {{provider}} berbayar",
     "songRegionRestricted": "Hanya dapat diputar dari jaringan Tiongkok daratan",

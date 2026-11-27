@@ -44,7 +44,7 @@ describe('notePreviewPlaying', () => {
 
     it('tells once per start of the song, with the platform\'s mark', () => {
         play(songOf('1'), clipOf('1'));
-        expect(told()).toEqual({ type: 'info', text: 'status.songPreviewOnly', providerId: 'netease' });
+        expect(told()).toEqual({ type: 'info', text: 'status.accountLimited', subtitle: 'status.songPreviewOnly', providerId: 'netease' });
 
         // A pause and a resume, then the recovery's new address for the same song.
         notePreviewPlaying(clipOf('1'), t);
@@ -54,7 +54,7 @@ describe('notePreviewPlaying', () => {
 
         // The song played again.
         play(songOf('1'), clipOf('1', 2));
-        expect(told()).toMatchObject({ text: 'status.songPreviewOnly' });
+        expect(told()).toMatchObject({ text: 'status.accountLimited', subtitle: 'status.songPreviewOnly' });
     });
 
     it('says nothing for a URL that is not a clip', () => {
@@ -103,6 +103,6 @@ describe('notePreviewPlaying', () => {
 
         setAudioSrc(clipOf('8'));
         notePreviewPlaying(clipOf('8'), t);
-        expect(told()).toMatchObject({ text: 'status.songPreviewOnly' });
+        expect(told()).toMatchObject({ text: 'status.accountLimited', subtitle: 'status.songPreviewOnly' });
     });
 });

@@ -863,6 +863,7 @@ export default {
     "dataSynced": "Data synced successfully",
     "syncFailed": "Sync failed",
     "loginExpired": "Login expired. Please sign in again",
+    "accountLimited": "Account limited",
     "songPreviewOnly": "This account can only play a preview",
     "songSubscriptionRequired": "Paid {{provider}} account required",
     "songRegionRestricted": "Plays on mainland China networks only",

@@ -887,7 +887,7 @@ describe('the audio address a restore writes, per kind of song', () => {
         }
 
         expect(said).toEqual([
-            'status.songPreviewOnly -', 'failure.signInNeeded failure.noteSignIn', 'status.songSubscriptionRequired -', 'status.songRegionRestricted -',
+            'status.accountLimited -', 'failure.signInNeeded failure.noteSignIn', 'status.songSubscriptionRequired -', 'status.songRegionRestricted -',
             'failure.unreachable failure.noteCheckNetwork', 'status.playbackFailed failure.noteUnknown',
         ]);
     });
