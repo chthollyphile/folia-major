@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    buildHandwritingDemand, decideHandwriting, findHandwritingAnchor, isBeforeHandwritingLead, resolveHandwritingProgress,
+    blockHasModelChars, buildHandwritingDemand, findHandwritingAnchor, resolveGlyphTimes, resolveHandwritingGlyph, resolveHandwritingProgress,
 } from '@/components/visualizer/fume/fumeHandwriting';
 import type { FumeBlock } from '@/components/visualizer/fume/fumeTypes';
 
@@ -32,39 +32,60 @@ describe('resolveHandwritingProgress', () => {
     });
 });
 
-describe('isBeforeHandwritingLead', () => {
-    it('covers just the stretch before the window where the plain path would already light the char up', () => {
-        // 普通画法的提前量是字时长的 16%：这一段 20% 要把它盖住
-        expect(isBeforeHandwritingLead(9.91, 10, 0.5)).toBe(true);
-        expect(isBeforeHandwritingLead(10 - 0.5 * 0.16, 10, 0.5)).toBe(true);
-        expect(isBeforeHandwritingLead(9.8, 10, 0.5)).toBe(false);
-        expect(isBeforeHandwritingLead(10, 10, 0.5)).toBe(false);
-        expect(isBeforeHandwritingLead(10.2, 10, 0.5)).toBe(false);
+describe('resolveHandwritingGlyph', () => {
+    const state = (decisions: Map<string, boolean>, time: number, has: () => boolean) => resolveHandwritingGlyph(decisions, 'k', time, 10, 10.5, has);
+
+    it('is hidden before the write start (no dim underlay), writes inside the window, plain after it', () => {
+        const d = new Map<string, boolean>();
+        expect(state(d, 5, () => true)).toBe('hidden');
+        expect(state(d, 9.99, () => true)).toBe('hidden');
+        expect(state(d, 10, () => true)).toBe(0);
+        expect(typeof state(d, 10.2, () => true)).toBe('number');
+        expect(state(d, 10.5, () => true)).toBeNull();
+        expect(state(d, 11, () => true)).toBeNull();
+        expect(d.size).toBe(0);
+    });
+
+    it('decides when the char is first seen and keeps it: a reveal arriving later never turns a visible plain char invisible', () => {
+        const d = new Map<string, boolean>();
+        let has = false;
+        expect(state(d, 5, () => has)).toBeNull();
+        has = true;
+        expect(state(d, 9.99, () => has)).toBeNull();
+        expect(state(d, 10.2, () => has)).toBeNull();
+    });
+
+    it('keeps a reveal that was there at first sight even if it goes away later', () => {
+        const d = new Map<string, boolean>();
+        expect(state(d, 5, () => true)).toBe('hidden');
+        expect(state(d, 10.2, () => false)).toEqual(expect.any(Number));
+    });
+
+    it('forgets after the window so a replay after a seek decides again', () => {
+        const d = new Map<string, boolean>();
+        state(d, 5, () => false);
+        state(d, 11, () => true);
+        expect(state(d, 5, () => true)).toBe('hidden');
+    });
+
+    it('is plain for a char without word timing', () => {
+        expect(resolveHandwritingGlyph(new Map(), 'k', 5, Number.NaN, Number.NaN, () => true)).toBeNull();
     });
 });
 
-describe('decideHandwriting freeze rule', () => {
-    it('decides on the first frame of the window and keeps that', () => {
-        const decisions = new Map<string, boolean>();
-        let has = false;
-        expect(decideHandwriting(decisions, 'k', true, () => has)).toBe(false);
-        has = true; // 遮罩中途才到：这个字这一遍仍是普通画法
-        expect(decideHandwriting(decisions, 'k', true, () => has)).toBe(false);
-        expect(decideHandwriting(decisions, 'k', true, () => has)).toBe(false);
+describe('resolveGlyphTimes', () => {
+    it('spreads an untimed word evenly and prefers syllable timings', () => {
+        const range = { start: 4, end: 6, word: { startTime: 1, endTime: 2 }, graphemeTimings: [] } as never;
+        expect(resolveGlyphTimes(range, 5)).toEqual({ start: 1.5, end: 2 });
+        const timed = { start: 4, end: 6, word: { startTime: 1, endTime: 2, syllables: [{}, {}] }, graphemeTimings: [{ startTime: 1, endTime: 1.2 }, { startTime: 1.2, endTime: 2 }] } as never;
+        expect(resolveGlyphTimes(timed, 5)).toEqual({ start: 1.2, end: 2 });
     });
+});
 
-    it('keeps a reveal that was there at the start even if it goes away', () => {
-        const decisions = new Map<string, boolean>();
-        expect(decideHandwriting(decisions, 'k', true, () => true)).toBe(true);
-        expect(decideHandwriting(decisions, 'k', true, () => false)).toBe(true);
-    });
-
-    it('forgets outside the window so a replay after a seek decides again', () => {
-        const decisions = new Map<string, boolean>();
-        decideHandwriting(decisions, 'k', true, () => false);
-        expect(decideHandwriting(decisions, 'k', false, () => true)).toBe(false);
-        expect(decisions.size).toBe(0);
-        expect(decideHandwriting(decisions, 'k', true, () => true)).toBe(true);
+describe('blockHasModelChars', () => {
+    it('tells blocks with Han / kana from the rest', () => {
+        expect(blockHasModelChars(block(0, 'abc'), isHan)).toBe(false);
+        expect(blockHasModelChars(block(0, 'a永'), isHan)).toBe(true);
     });
 });
 

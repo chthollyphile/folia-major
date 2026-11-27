@@ -9,7 +9,7 @@ import { resolvePrintedGraphemeCount, resolveVisualProgressWithCutoff } from './
 import { getActiveColor } from './fumeTextStyle';
 import { isModelChar } from '../fontStrokes/fontStrokesQueue';
 import { alphabeticDropBelowMiddle, drawStrokeRevealChar } from '../fontStrokes/strokeReveal';
-import { decideHandwriting, isBeforeHandwritingLead, resolveHandwritingProgress, type FumeHandwritingFrame } from './fumeHandwriting';
+import { resolveGlyphTimes, resolveHandwritingGlyph, type FumeHandwritingFrame, type HandwritingGlyphState } from './fumeHandwriting';
 import { buildFontSpec, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeCanvasText.ts
@@ -196,6 +196,31 @@ export const drawFumeLiveBlock = (
     context.textAlign = 'left';
     context.textBaseline = 'middle';
 
+    // 手写笔画：每个字此刻的状态（一帧里两遍绘制共用，决定只做一次）；关着时是 null，下面的画法和原来完全一样
+    const hwStates = handwriting ? new Map<number, HandwritingGlyphState>() : null;
+    const hwStateOf = (globalOffset: number, grapheme: string): HandwritingGlyphState => {
+        if (!handwriting || !hwStates || !isModelChar(grapheme)) return null;
+        const cached = hwStates.get(globalOffset);
+        if (cached !== undefined) return cached;
+        const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
+        let state: HandwritingGlyphState = null;
+        if (rangeIndex >= 0) {
+            const { start, end } = resolveGlyphTimes(block.wordRanges[rangeIndex], globalOffset);
+            const weight = handwriting.weightOf(block.variant);
+            state = resolveHandwritingGlyph(
+                handwriting.decisions,
+                `${block.id}:${globalOffset}`,
+                time,
+                start,
+                end,
+                () => handwriting.getReveal(grapheme, handwriting.family, weight) !== null,
+            );
+        }
+        hwStates.set(globalOffset, state);
+        return state;
+    };
+    const handwritingReveal = (grapheme: string) => handwriting?.getReveal(grapheme, handwriting.family, handwriting.weightOf(block.variant)) ?? null;
+
     const isLineActive = time >= block.line.startTime && time <= linePassCutoffTime;
     if (isLineActive) {
         const lineProgress = resolveVisualProgressWithCutoff(
@@ -232,7 +257,51 @@ export const drawFumeLiveBlock = (
                     continue;
                 }
 
-                fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                if (!hwStates) {
+                    fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                    continue;
+                }
+                // 手写笔画：开写前的字不进辉光，正在写的字按同一张遮罩和进度写出辉光，其余的字照旧成段画（按这些字断开成几段）
+                let glowRunStart = -1;
+                let glowExcluded = false;
+                const flushGlowRun = (end: number) => {
+                    if (glowRunStart < 0) return;
+                    if (!glowExcluded && glowRunStart === segment.start && end === segment.end) {
+                        fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                    } else {
+                        context.save();
+                        if (clipToRun(context, renderLine, segment, glowRunStart - renderLine.start, end - renderLine.start, glowBaseX, glowBaseY)) {
+                            fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                        }
+                        context.restore();
+                    }
+                    glowRunStart = -1;
+                };
+                for (let offset = segment.start; offset < segment.end; offset += 1) {
+                    const grapheme = renderLine.graphemes[offset - renderLine.start];
+                    const state = hwStateOf(offset, grapheme);
+                    if (state === null) {
+                        if (glowRunStart < 0) glowRunStart = offset;
+                        continue;
+                    }
+                    flushGlowRun(offset);
+                    glowExcluded = true;
+                    const reveal = typeof state === 'number' ? handwritingReveal(grapheme) : null;
+                    if (reveal && typeof state === 'number') {
+                        context.save();
+                        const localOffset = offset - renderLine.start;
+                        if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, glowBaseX, glowBaseY)) {
+                            drawHandwritingGrapheme(context, grapheme, reveal, state, {
+                                x: glowBaseX + segment.x + resolveSegmentGlyphOffset(segment, offset),
+                                baselineY: glowBaseY,
+                                fontPx: block.fontPx,
+                                fillStyle: lineGlowColor,
+                            });
+                        }
+                        context.restore();
+                    }
+                }
+                flushGlowRun(segment.end);
             }
         }
 
@@ -287,9 +356,6 @@ export const drawFumeLiveBlock = (
                 const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
                 const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
                 const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
-                // 手写笔画的书写窗口从这个字的开始时间起（只有带词时间的字有）
-                let writeStart = Number.NaN;
-                let writeEnd = Number.NaN;
                 const isPrinted = hasRevealCompleted || globalOffset < printedCount;
                 const isFrontier = printedCount > 0
                     && globalOffset === printedCount
@@ -317,8 +383,6 @@ export const drawFumeLiveBlock = (
                     const glyphStartTime = glyphTiming?.startTime ?? (range.word.startTime + (glyphIndexInRange / glyphCount) * wordDuration);
                     const glyphEndTime = glyphTiming?.endTime ?? (range.word.startTime + ((glyphIndexInRange + 1) / glyphCount) * wordDuration);
                     const glyphDuration = Math.max(glyphEndTime - glyphStartTime, 0.001);
-                    writeStart = glyphStartTime;
-                    writeEnd = glyphEndTime;
                     const glyphProgress = glyphTiming
                         ? clamp((time - glyphStartTime) / glyphDuration + 0.16, 0, 1)
                         : clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
@@ -333,12 +397,6 @@ export const drawFumeLiveBlock = (
                     );
                     const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
 
-                    // 手写笔画：这个字马上要被写出来时，开写之前一直是等待的样子（普通画法的 +0.16 提前量会让它在开写前先亮起来再消失）
-                    const holdForHandwriting = handwriting !== null && handwriting !== undefined
-                        && isBeforeHandwritingLead(time, glyphStartTime, glyphDuration)
-                        && isModelChar(grapheme)
-                        && handwriting.getReveal(grapheme, handwriting.family, handwriting.weightOf(block.variant)) !== null;
-
                     if (hasPassCutoffReached) {
                         alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
                         fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
@@ -347,7 +405,7 @@ export const drawFumeLiveBlock = (
                             mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
                             transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
                         );
-                    } else if (time < range.word.startTime || holdForHandwriting) {
+                    } else if (time < range.word.startTime) {
                         alpha = waitingOpacity;
                         fillStyle = colorWithAlpha(theme.primaryColor, alpha);
                     } else if (time <= glyphTrailStart) {
@@ -439,6 +497,13 @@ export const drawFumeLiveBlock = (
                     }
                 }
 
+                // 手写笔画：还没开写的字什么都不画（连暗色衬字也没有），字只靠被写出来出现
+                const hwState = hwStateOf(globalOffset, grapheme);
+                if (hwState === 'hidden') {
+                    flushRun(globalOffset);
+                    continue;
+                }
+
                 if (alpha <= 0.002) {
                     flushRun(globalOffset);
                     continue;
@@ -448,16 +513,9 @@ export const drawFumeLiveBlock = (
                 // Chromium's glyph cache (Lab > Fix lyric animation freeze on Linux) and redraws
                 // the shadowed glyphs every frame. See utils/glowBlurQuantize.ts.
                 shadowBlur = roundShadowBlur(shadowBlur);
-                if (handwriting && isModelChar(grapheme)) {
-                    const writeProgress = resolveHandwritingProgress(writeStart, writeEnd, time);
-                    const weight = handwriting.weightOf(block.variant);
-                    const reveal = decideHandwriting(
-                        handwriting.decisions,
-                        `${block.id}:${globalOffset}`,
-                        writeProgress !== null,
-                        () => handwriting.getReveal(grapheme, handwriting.family, weight) !== null,
-                    ) ? handwriting.getReveal(grapheme, handwriting.family, weight) : null;
-                    if (writeProgress !== null && reveal) {
+                if (typeof hwState === 'number') {
+                    const reveal = handwritingReveal(grapheme);
+                    if (reveal) {
                         // 正在写的字不进下面的整段文字，单独画
                         flushRun(globalOffset);
                         context.fillStyle = fillStyle;
@@ -465,7 +523,7 @@ export const drawFumeLiveBlock = (
                         context.save();
                         const localOffset = globalOffset - renderLine.start;
                         if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, baseX, baseY)) {
-                            drawHandwritingGrapheme(context, grapheme, reveal, writeProgress, {
+                            drawHandwritingGrapheme(context, grapheme, reveal, hwState, {
                                 x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
                                 baselineY: baseY,
                                 fontPx: block.fontPx,

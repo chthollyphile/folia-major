@@ -1,7 +1,7 @@
 import type { FontDemandChar } from '../fontStrokes/fontStrokesQueue';
 import type { StrokeReveal } from '../fontStrokes/strokeReveal';
 import { easeOutCubic } from './fumeMath';
-import type { FumeBlock } from './fumeTypes';
+import type { FumeBlock, WordRange } from './fumeTypes';
 
 // src/components/visualizer/fume/fumeHandwriting.ts
 // 浮名「手写笔画」的纯逻辑：一个字的书写窗口和进度、「用不用手写」的冻结规则、要向笔顺队列报哪些字。
@@ -33,33 +33,65 @@ export const resolveHandwritingProgress = (start: number, end: number, time: num
     return easeOutCubic(t);
 };
 
-/**
- * 开写之前的那一小段（字时长的 20%，比普通画法 +0.16 的提前量略长）：这个字有遮罩、马上要被写出来时，
- * 这段时间里它保持等待的样子，不然普通画法会在开写前先把它亮起来，开写又从零写，看着一闪。
- */
-export const isBeforeHandwritingLead = (time: number, start: number, duration: number): boolean => (
-    time < start && time > start - duration * 0.2
+/** 一个字的书写窗口结束时间：开始时间 + clamp(字时长, 0.3, 1.0)。 */
+const handwritingWindowEnd = (start: number, end: number) => (
+    start + Math.min(HANDWRITING_MAX_SECONDS, Math.max(HANDWRITING_MIN_SECONDS, end - start))
 );
 
+/** 一个字此刻的手写状态：null 走普通画法，'hidden' 还没开写（什么都不画），数字是书写进度（0..1，已缓出）。 */
+export type HandwritingGlyphState = null | 'hidden' | number;
+
 /**
- * 冻结规则：这个字用手写还是普通画法，在它的书写窗口开始的第一帧定下（那一刻遮罩有就手写），窗口里不再改，
- * 遮罩中途才到的字这一遍仍是普通画法。不在窗口里时清掉记录，拖回去重放时按新的情况重新定。
+ * 冻结规则：这个字用不用手写，在它第一次被看到（窗口结束之前的第一帧）那一刻定下，之后不再改：
+ * 那一刻遮罩有就手写（开写前一直不画，开写后按进度写），没有就一直是普通画法（遮罩晚到也不换，已经看得见的字不会再消失）。
+ * 书写窗口结束后清掉记录、返回 null（整字普通画）；拖回去重放时重新决定。
  */
-export const decideHandwriting = (
+export const resolveHandwritingGlyph = (
     decisions: Map<string, boolean>,
     key: string,
-    inWindow: boolean,
+    time: number,
+    start: number,
+    end: number,
     hasReveal: () => boolean,
-): boolean => {
-    if (!inWindow) {
+): HandwritingGlyphState => {
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    if (time >= handwritingWindowEnd(start, end)) {
         if (decisions.size) decisions.delete(key);
-        return false;
+        return null;
     }
-    const held = decisions.get(key);
-    if (held !== undefined) return held;
-    const decided = hasReveal();
-    decisions.set(key, decided);
-    return decided;
+    let decided = decisions.get(key);
+    if (decided === undefined) {
+        decided = hasReveal();
+        decisions.set(key, decided);
+    }
+    if (!decided) return null;
+    if (time < start) return 'hidden';
+    return resolveHandwritingProgress(start, end, time);
+};
+
+/** 一个字在词里的开始 / 结束时间（和 drawFumeLiveBlock 里的字时间同一算法）。 */
+export const resolveGlyphTimes = (range: WordRange, globalOffset: number): { start: number; end: number } => {
+    const wordDuration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+    const glyphCount = Math.max(range.end - range.start, 1);
+    const index = globalOffset - range.start;
+    const timing = range.word.syllables?.length
+        ? range.graphemeTimings[Math.min(index, Math.max(range.graphemeTimings.length - 1, 0))]
+        : undefined;
+    return {
+        start: timing?.startTime ?? (range.word.startTime + (index / glyphCount) * wordDuration),
+        end: timing?.endTime ?? (range.word.startTime + ((index + 1) / glyphCount) * wordDuration),
+    };
+};
+
+const modelCharBlocks = new WeakMap<FumeBlock, boolean>();
+/** 这一句里有没有汉字 / 假名（有就不能用等待快照：快照把整句都画成了暗色衬字）。 */
+export const blockHasModelChars = (block: FumeBlock, isModelChar: (ch: string) => boolean): boolean => {
+    let has = modelCharBlocks.get(block);
+    if (has === undefined) {
+        has = block.graphemes.some(isModelChar);
+        modelCharBlocks.set(block, has);
+    }
+    return has;
 };
 
 /** 时间 time 时的当前句：开始时间不晚于它的最后一句（都没开始时是第一句）。blocks 按开始时间排好。 */

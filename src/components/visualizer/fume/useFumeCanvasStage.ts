@@ -5,8 +5,10 @@ import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import type { LyricRenderScale } from '../../../types';
 import type { StaticBlockSnapshot } from './fumeTypes';
 import { resolveFumeBackgroundView, stepFumeCamera, syncFumeCameraToArticle } from './fumeCameraStep';
-import { isFumeBlockOnScreen, resolveFumeBlockTiming, resolveFumeGlowBases, resolveFumeStaticLayers, type FumeStaticLayerInput } from './fumeBlockFrame';
+import { isFumeBlockOnScreen, resolveFumeBlockTiming, resolveFumeGlowBases, resolveFumeStaticLayers, type FumeSnapshotSpec, type FumeStaticLayerInput } from './fumeBlockFrame';
 import { clamp } from './fumeMath';
+import { isModelChar } from '../fontStrokes/fontStrokesQueue';
+import { blockHasModelChars } from './fumeHandwriting';
 import { createStaticBlockSnapshot, drawFumeLiveBlock, type FumeLiveBlockParams } from './fumeCanvasText';
 import { FumeLiveRaster } from './fumeLiveRaster';
 import { readFumeAudioLevels, type FumeStageDriver, type FumeStageScene } from './fumeStage';
@@ -242,7 +244,8 @@ export const useFumeCanvasStage = (
                         lines[block.sourceLineIndex + 1]?.startTime ?? null,
                         textHoldRatio,
                     );
-                    const layers = resolveFumeStaticLayers(block, timing, staticLayerInput, (spec) => {
+                    // 手写笔画开着时，带汉字 / 假名的等待句不用快照（快照把整句画成了暗色衬字），改走实时画法，由它决定哪些字不画
+                    const getSnapshot = (spec: FumeSnapshotSpec) => {
                         let entry = staticBlockSnapshotCacheRef.current.get(spec.key);
                         if (!entry) {
                             const snapshot = createStaticBlockSnapshot(block, theme, spec.fill, spec.shadowBlur, spec.shadowColor, staticLayerInput.snapshotScale);
@@ -252,7 +255,10 @@ export const useFumeCanvasStage = (
                         }
                         entry.lastUsed = now;
                         return entry.snapshot;
-                    });
+                    };
+                    const layers = handwriting && timing.staticState === 'waiting' && blockHasModelChars(block, isModelChar)
+                        ? null
+                        : resolveFumeStaticLayers(block, timing, staticLayerInput, getSnapshot);
 
                     if (layers) {
                         for (const { snapshot, alpha } of layers) {
