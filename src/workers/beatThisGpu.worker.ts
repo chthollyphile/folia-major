@@ -165,7 +165,7 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             if (!strokes) throw new Error('strokes not loaded');
             // One batch a request, paced like a chunk: a scheduler unit of up to STROKES_BATCH glyphs.
             const glyphs = await strokes.run(request.imgs, pacing());
-            self.postMessage({ id: request.id, result: glyphs }, { transfer: glyphs.flatMap(g => [g.along.buffer, ...g.pens.map(p => p.buffer)]) });
+            self.postMessage({ id: request.id, result: glyphs }, { transfer: glyphs.flatMap(g => [g.along.buffer, g.owner.buffer, ...g.pens.map(p => p.buffer)]) });
             return;
         }
         if (request.kind === 'separate') {

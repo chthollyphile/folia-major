@@ -24,6 +24,11 @@ export interface StrokesGlyphResult {
      * over the whole glyph's, as 0..65534; STROKES_OFF_INK off the ink.
      */
     along: Uint16Array;
+    /**
+     * Per pixel of the 256 x 256 grid: the index of the pen that owns this ink pixel (own2's ownership map),
+     * -1 off the ink. Int8 is enough: a glyph has far fewer than 127 pens (more are -1).
+     */
+    owner: Int8Array;
 }
 
 export class StrokesJob {
@@ -55,7 +60,7 @@ export class StrokesJob {
         const pens = generated.map(r => joinSegments(r.segs, r.cont));
         // A glyph full6 wrote nothing for gets no own2 slot of its own: it is still passed (slot i = glyph i), with one dot pen.
         const owned = await this.own2.run(pens.map(p => ({ pens: p.length ? p : [new Float32Array([0, 0, 0, 0])] })), { pacing });
-        return pens.map((p, i) => ({ pens: p, along: alongOf(p, owned[i].pen, owned[i].along) }));
+        return pens.map((p, i) => ({ pens: p, along: alongOf(p, owned[i].pen, owned[i].along), owner: ownerOf(p.length, owned[i].pen) }));
     }
 }
 
@@ -72,6 +77,16 @@ const alongOf = (pens: Float32Array[], pen: Int16Array, along: Float32Array): Ui
         const k = pen[p];
         if (k < 0 || k >= pens.length) continue;
         out[p] = Math.round(Math.min(1, (before[k] + along[p] * lengths[k]) / total) * 65534);
+    }
+    return out;
+};
+
+/** own2's owner map as Int8: pens that do not exist (the dot slot of a glyph full6 wrote nothing for) and indices past 126 become -1. */
+const ownerOf = (penCount: number, pen: Int16Array): Int8Array => {
+    const out = new Int8Array(pen.length).fill(-1);
+    for (let p = 0; p < pen.length; p += 1) {
+        const k = pen[p];
+        if (k >= 0 && k < penCount && k < 127) out[p] = k;
     }
     return out;
 };

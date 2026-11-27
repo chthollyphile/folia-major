@@ -1,11 +1,11 @@
+import { CANON, chamferDistance } from '../../../services/fontStrokes/fontStrokesRaster';
 import { clamp } from './nebbiaConstants';
 
 // src/components/visualizer/nebbia/nebbiaFontField.ts
 // 字体墨的纯计算（不碰画布、GL）：倒角距离、书写位置往墨外延伸、墨边的有符号距离（笔画粗细设置用它把字体墨变粗变细）、
 // 笔迹上每点的半笔宽（水珠挂到真实的墨边上），以及笔画粗细设置换算成的字体墨外观（nebbiaInk.ts 用）。
 
-/** 模型网格边长。 */
-export const CANON = 256;
+export { CANON };
 /** 有符号距离在字块里的量程（模型网格像素）：字节 = 128 + 距离 × SD_SCALE，墨内为正。 */
 export const SD_RANGE = 16;
 export const SD_SCALE = 127 / SD_RANGE;
@@ -16,37 +16,8 @@ export const SPREAD_R = GROW_MAX + 2;
 /** 笔画粗细设置的基准：等于它时字体墨原样显出（和 DEFAULT_NEBBIA_TUNING.strokeWidth 一致，有测试守着）。 */
 export const REF_STROKE_WIDTH = 0.09;
 
-/** cv2.distanceTransform(DIST_L2, 3)：3×3 倒角（a = 0.955、b = 1.3693），图外不算零。返回每个 on 像素到最近 off 像素的距离。 */
-export const chamferDistance = (on: Uint8Array, side: number): Float32Array => {
-    const A = 0.955, B = 1.3693, INF = 1e9;
-    const d = new Float32Array(side * side);
-    for (let i = 0; i < d.length; i += 1) d[i] = on[i] ? INF : 0;
-    for (let y = 0; y < side; y += 1) for (let x = 0; x < side; x += 1) {
-        const i = y * side + x;
-        if (!d[i]) continue;
-        let v = d[i];
-        if (x > 0) v = Math.min(v, d[i - 1] + A);
-        if (y > 0) {
-            v = Math.min(v, d[i - side] + A);
-            if (x > 0) v = Math.min(v, d[i - side - 1] + B);
-            if (x < side - 1) v = Math.min(v, d[i - side + 1] + B);
-        }
-        d[i] = v;
-    }
-    for (let y = side - 1; y >= 0; y -= 1) for (let x = side - 1; x >= 0; x -= 1) {
-        const i = y * side + x;
-        if (!d[i]) continue;
-        let v = d[i];
-        if (x < side - 1) v = Math.min(v, d[i + 1] + A);
-        if (y < side - 1) {
-            v = Math.min(v, d[i + side] + A);
-            if (x < side - 1) v = Math.min(v, d[i + side + 1] + B);
-            if (x > 0) v = Math.min(v, d[i + side - 1] + B);
-        }
-        d[i] = v;
-    }
-    return d;
-};
+// CANON 和倒角距离已挪到 services/fontStrokes/fontStrokesRaster.ts（笔画服务不依赖样式目录），这里转出。
+export { chamferDistance };
 
 /**
  * 把 v（负数 = 没有值）按最近的有值像素往外延伸，最多 maxR 个像素（两遍倒角，一遍代替原来的多轮平均）。

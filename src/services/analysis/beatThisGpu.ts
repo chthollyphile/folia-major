@@ -557,6 +557,8 @@ export interface StrokesGpuGlyph {
     pens: Float32Array[];
     /** Per pixel of the 256 x 256 grid: arc length reached / the glyph's, 0..65534; 65535 off the ink. */
     along: Uint16Array;
+    /** Per pixel of the 256 x 256 grid: the index of the pen owning this ink pixel (own2's ownership), -1 off the ink. */
+    owner: Int8Array;
 }
 /** Glyphs one strokes request takes (STROKES_BATCH). */
 export const STROKES_GPU_BATCH = 8;
