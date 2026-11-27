@@ -60,8 +60,11 @@ const getPlanner = () => {
     return planner;
 };
 
-/** 登记一个使用方：这个字体键的笔画要用了。返回取消登记；没有使用方时服务不算、不下载模型。 */
-export const registerFontStrokesConsumer = ({ fontKey }: { fontKey: string }): (() => void) => getPlanner().register(fontKey);
+/**
+ * 登记一个使用方：这个字体键的笔画要用了。chars 可选，是它自己正在显示的文本（不在播放歌词里的也会算，如预览、试玩台）；
+ * 文本变了就重新登记。返回取消登记；没有使用方时服务不算、不下载模型。
+ */
+export const registerFontStrokesConsumer = ({ fontKey, chars }: { fontKey: string; chars?: string }): (() => void) => getPlanner().register(fontKey, chars);
 
 /** 同步取一个字的笔画；没算好、画不出来（没有墨）时 null。 */
 export const getFontStrokes = (fontKey: string, ch: string): FontStrokesGlyph | null => memory.get(fontKey, ch);

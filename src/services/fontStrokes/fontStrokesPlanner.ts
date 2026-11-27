@@ -51,7 +51,8 @@ export interface PlannerDeps<C, R> {
 }
 
 export class FontStrokesPlanner<C, R> {
-    private readonly consumers = new Map<symbol, string>();
+    /** 使用方 → 它的字体键和它自己正在显示的字（播放之外的文本：预览、试玩台等）。 */
+    private readonly consumers = new Map<symbol, { fontKey: string; chars: string }>();
     private unsubscribeDemand: (() => void) | null = null;
     private running = false;
     /** 跑的过程中又有变化：当前这一步结束后再看一遍。 */
@@ -70,10 +71,13 @@ export class FontStrokesPlanner<C, R> {
 
     constructor(private readonly deps: PlannerDeps<C, R>) {}
 
-    /** 登记一个使用方要这个字体键的笔画；返回取消登记。没有使用方时服务什么都不做。 */
-    register(fontKey: string): () => void {
+    /**
+     * 登记一个使用方要这个字体键的笔画；chars 是它自己正在显示的文本（排在播放的马上要画的句子后面、当前歌其余的句子前面）。
+     * 返回取消登记。没有使用方时服务什么都不做。
+     */
+    register(fontKey: string, chars = ''): () => void {
         const id = Symbol('font-strokes-consumer');
-        this.consumers.set(id, fontKey);
+        this.consumers.set(id, { fontKey, chars });
         if (this.consumers.size === 1) this.unsubscribeDemand = this.deps.subscribeDemand(() => this.kick());
         this.kick();
         return () => {
@@ -135,19 +139,19 @@ export class FontStrokesPlanner<C, R> {
     /** 各登记字体各自还缺的字，按需求顺序；near 标出马上要画的。 */
     private missing(): { fontKey: string; chars: string[]; near: Set<string> }[] {
         const demand = this.deps.readDemand();
-        const ordered: string[] = [];
-        const seen = new Set<string>();
-        for (const ch of [...demand.near, ...demand.rest, ...demand.background]) {
-            if (seen.has(ch) || !this.deps.isModelChar(ch)) continue;
-            seen.add(ch);
-            ordered.push(ch);
-        }
         const near = new Set(demand.near);
-        return [...new Set(this.consumers.values())].map(fontKey => ({
-            fontKey,
-            near,
-            chars: ordered.filter(ch => !this.deps.memory.has(fontKey, ch) && !this.pending.has(fontKey + '\u0000' + ch) && !this.deferred.has(fontKey + '\u0000' + ch)),
-        }));
+        const extrasOf = new Map<string, string>();
+        for (const { fontKey, chars } of this.consumers.values()) extrasOf.set(fontKey, (extrasOf.get(fontKey) ?? '') + chars);
+        return [...extrasOf].map(([fontKey, extras]) => {
+            const ordered: string[] = [];
+            const seen = new Set<string>();
+            for (const ch of [...demand.near, ...Array.from(extras), ...demand.rest, ...demand.background]) {
+                if (seen.has(ch) || !this.deps.isModelChar(ch)) continue;
+                seen.add(ch);
+                ordered.push(ch);
+            }
+            return { fontKey, near, chars: ordered.filter(ch => !this.deps.memory.has(fontKey, ch) && !this.pending.has(fontKey + '\u0000' + ch) && !this.deferred.has(fontKey + '\u0000' + ch)) };
+        });
     }
 
     /** 做一步：先查盘，没有可查的再推理一批；没事可做返回 false。 */

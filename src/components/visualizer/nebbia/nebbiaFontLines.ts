@@ -42,6 +42,8 @@ export class NebbiaFontLines {
     private timer: ReturnType<typeof setTimeout> | null = null;
     /** 上一帧的播放位置（看有没有往回拖）。 */
     private lastT = -Infinity;
+    /** 登记时报给服务的本首文本。 */
+    private chars = '';
 
     constructor(private readonly host: NebbiaFontLinesHost) {
         this.unsubscribe = subscribeFontStrokes(this.handleArrival);
@@ -54,11 +56,16 @@ export class NebbiaFontLines {
     beforeBuild(source: readonly NebbiaSourceLine[]) {
         if (this.disposed) return;
         const key = this.host.glyphs.fontStrokesKey;
-        if (key !== this.key) {
-            this.cancel();
-            this.release?.();
-            this.release = key ? registerFontStrokesConsumer({ fontKey: key }) : null;
+        // 本首要写的字也报给服务：预览、试玩台这类不跟播放走的文本也能拿到笔画
+        const chars = key ? source.map(line => line.chars.map(c => c.ch).join('')).join('') : '';
+        if (key !== this.key || chars !== this.chars) {
+            if (key !== this.key) this.cancel();
+            const previous = this.release;
+            // 先登记新的再放掉旧的：服务不会因为中间没有使用方而停下
+            this.release = key ? registerFontStrokesConsumer({ fontKey: key, chars }) : null;
+            previous?.();
             this.key = key;
+            this.chars = chars;
         }
         if (!key) return;
         const { glyphs } = this.host;

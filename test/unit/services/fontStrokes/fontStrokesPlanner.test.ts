@@ -94,6 +94,16 @@ describe('FontStrokesPlanner', () => {
         expect(h.storePuts.flat().sort()).toEqual(['人', '十', '口', '山', '日'].sort());
     });
 
+    it('使用方自己的文本排在播放的 near 后面、rest 前面，只给它那个字体键', async () => {
+        const h = make(8);
+        h.setDemand({ near: ['永'], rest: ['十'] });
+        h.planner.register('k1', '山永日');
+        await settle();
+        await settle();
+        expect(h.storeReads[0]).toEqual(['永', '山', '日', '十']);
+        expect(h.inferCalls[0].chars.join('')).toBe('永山日十');
+    });
+
     it('一批里有 near 的字就按 onScreen', async () => {
         const h = make(2);
         h.setDemand({ near: ['永'], rest: ['十'] });
