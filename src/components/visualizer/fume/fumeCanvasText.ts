@@ -9,7 +9,7 @@ import { resolvePrintedGraphemeCount, resolveVisualProgressWithCutoff } from './
 import { getActiveColor } from './fumeTextStyle';
 import { isModelChar } from '../fontStrokes/fontStrokesQueue';
 import { alphabeticDropBelowMiddle, drawStrokeRevealChar } from '../fontStrokes/strokeReveal';
-import { decideHandwriting, resolveHandwritingProgress, type FumeHandwritingFrame } from './fumeHandwriting';
+import { decideHandwriting, isBeforeHandwritingLead, resolveHandwritingProgress, type FumeHandwritingFrame } from './fumeHandwriting';
 import { buildFontSpec, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeCanvasText.ts
@@ -44,16 +44,34 @@ export const drawRenderTextRun = (
         return;
     }
 
+    context.save();
+    if (!clipToRun(context, renderLine, segment, runStart, runEnd, baseX, baseY)) {
+        context.restore();
+        return;
+    }
+    context.fillText(segment.text, baseX + segment.x, baseY);
+    context.restore();
+};
+
+/** 把当前路径裁到这一段字（runStart..runEnd）占的那一列；没有宽度时返回 false。正在写的字也用同一个裁剪，辉光不会溢到邻字上。 */
+const clipToRun = (
+    context: CanvasRenderingContext2D,
+    renderLine: RenderLineSlice,
+    segment: RenderSegmentSlice,
+    runStart: number,
+    runEnd: number,
+    baseX: number,
+    baseY: number,
+) => {
     const segmentRunStart = Math.max(runStart - segment.localStart, 0);
     const segmentRunEnd = Math.min(runEnd - segment.localStart, segment.measuredGlyphOffsets.length - 1);
     const clipLeft = segment.measuredGlyphOffsets[segmentRunStart] ?? (resolveRenderLineOffset(renderLine, runStart) - segment.x);
     const clipRight = segment.measuredGlyphOffsets[segmentRunEnd] ?? (resolveRenderLineOffset(renderLine, runEnd) - segment.x);
     const clipWidth = Math.max(clipRight - clipLeft, 0);
     if (clipWidth <= 0) {
-        return;
+        return false;
     }
 
-    context.save();
     context.beginPath();
     context.rect(
         baseX + segment.x + clipLeft,
@@ -62,8 +80,7 @@ export const drawRenderTextRun = (
         Math.max(128 + clipWidth * 2, 256),
     );
     context.clip();
-    context.fillText(segment.text, baseX + segment.x, baseY);
-    context.restore();
+    return true;
 };
 
 /**
@@ -316,6 +333,12 @@ export const drawFumeLiveBlock = (
                     );
                     const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
 
+                    // 手写笔画：这个字马上要被写出来时，开写之前一直是等待的样子（普通画法的 +0.16 提前量会让它在开写前先亮起来再消失）
+                    const holdForHandwriting = handwriting !== null && handwriting !== undefined
+                        && isBeforeHandwritingLead(time, glyphStartTime, glyphDuration)
+                        && isModelChar(grapheme)
+                        && handwriting.getReveal(grapheme, handwriting.family, handwriting.weightOf(block.variant)) !== null;
+
                     if (hasPassCutoffReached) {
                         alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
                         fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
@@ -324,7 +347,7 @@ export const drawFumeLiveBlock = (
                             mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
                             transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
                         );
-                    } else if (time < range.word.startTime) {
+                    } else if (time < range.word.startTime || holdForHandwriting) {
                         alpha = waitingOpacity;
                         fillStyle = colorWithAlpha(theme.primaryColor, alpha);
                     } else if (time <= glyphTrailStart) {
@@ -439,12 +462,17 @@ export const drawFumeLiveBlock = (
                         flushRun(globalOffset);
                         context.fillStyle = fillStyle;
                         setCanvasTextGlow(context, shadowBlur, shadowColor);
-                        drawHandwritingGrapheme(context, grapheme, reveal, writeProgress, {
-                            x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
-                            baselineY: baseY,
-                            fontPx: block.fontPx,
-                            fillStyle,
-                        });
+                        context.save();
+                        const localOffset = globalOffset - renderLine.start;
+                        if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, baseX, baseY)) {
+                            drawHandwritingGrapheme(context, grapheme, reveal, writeProgress, {
+                                x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
+                                baselineY: baseY,
+                                fontPx: block.fontPx,
+                                fillStyle,
+                            });
+                        }
+                        context.restore();
                         clearCanvasTextGlow(context);
                         continue;
                     }

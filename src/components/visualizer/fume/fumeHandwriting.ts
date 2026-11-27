@@ -34,6 +34,14 @@ export const resolveHandwritingProgress = (start: number, end: number, time: num
 };
 
 /**
+ * 开写之前的那一小段（字时长的 20%，比普通画法 +0.16 的提前量略长）：这个字有遮罩、马上要被写出来时，
+ * 这段时间里它保持等待的样子，不然普通画法会在开写前先把它亮起来，开写又从零写，看着一闪。
+ */
+export const isBeforeHandwritingLead = (time: number, start: number, duration: number): boolean => (
+    time < start && time > start - duration * 0.2
+);
+
+/**
  * 冻结规则：这个字用手写还是普通画法，在它的书写窗口开始的第一帧定下（那一刻遮罩有就手写），窗口里不再改，
  * 遮罩中途才到的字这一遍仍是普通画法。不在窗口里时清掉记录，拖回去重放时按新的情况重新定。
  */

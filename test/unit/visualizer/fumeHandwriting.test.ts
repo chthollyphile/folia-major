@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    buildHandwritingDemand, decideHandwriting, findHandwritingAnchor, resolveHandwritingProgress,
+    buildHandwritingDemand, decideHandwriting, findHandwritingAnchor, isBeforeHandwritingLead, resolveHandwritingProgress,
 } from '@/components/visualizer/fume/fumeHandwriting';
 import type { FumeBlock } from '@/components/visualizer/fume/fumeTypes';
 
@@ -29,6 +29,17 @@ describe('resolveHandwritingProgress', () => {
         // 缓出：过一半时间已经写过一半以上
         expect(resolveHandwritingProgress(0, 0.6, 0.3)!).toBeGreaterThan(0.5);
         expect(resolveHandwritingProgress(0, 0.6, 0)).toBe(0);
+    });
+});
+
+describe('isBeforeHandwritingLead', () => {
+    it('covers just the stretch before the window where the plain path would already light the char up', () => {
+        // 普通画法的提前量是字时长的 16%：这一段 20% 要把它盖住
+        expect(isBeforeHandwritingLead(9.91, 10, 0.5)).toBe(true);
+        expect(isBeforeHandwritingLead(10 - 0.5 * 0.16, 10, 0.5)).toBe(true);
+        expect(isBeforeHandwritingLead(9.8, 10, 0.5)).toBe(false);
+        expect(isBeforeHandwritingLead(10, 10, 0.5)).toBe(false);
+        expect(isBeforeHandwritingLead(10.2, 10, 0.5)).toBe(false);
     });
 });
 
