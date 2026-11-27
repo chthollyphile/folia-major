@@ -381,7 +381,8 @@ export function useThemeController({
         setBgMode('default');
         setStatusMsg({
             type: 'success',
-            text: t('notifications.appliedDefaultTheme', { themeName: isDaylight ? 'Daylight Default' : 'Midnight Default' }),
+            text: t('notifications.themeTitle'),
+            subtitle: t('notifications.appliedDefaultTheme', { themeName: isDaylight ? 'Daylight Default' : 'Midnight Default' }),
         });
     };
 
@@ -470,7 +471,8 @@ export function useThemeController({
         setBgMode('custom');
         setStatusMsg({
             type: 'success',
-            text: t('notifications.savedCustomTheme', { themeName: getSelectedDualTheme(sanitized, isDaylight).name }),
+            text: t('notifications.themeTitle'),
+            subtitle: t('notifications.savedCustomTheme', { themeName: getSelectedDualTheme(sanitized, isDaylight).name }),
         });
         return sanitized;
     };
@@ -509,7 +511,8 @@ export function useThemeController({
         setBgMode('custom');
         setStatusMsg({
             type: 'success',
-            text: t('notifications.appliedCustomTheme', { themeName: getSelectedDualTheme(customTheme, isDaylight).name }),
+            text: t('notifications.themeTitle'),
+            subtitle: t('notifications.appliedCustomTheme', { themeName: getSelectedDualTheme(customTheme, isDaylight).name }),
         });
     };
 
@@ -530,7 +533,8 @@ export function useThemeController({
 
         setStatusMsg({
             type: 'info',
-            text: t('notifications.' + (enabled ? 'customThemePreferredOn' : 'customThemePreferredOff')),
+            text: t('notifications.themeTitle'),
+            subtitle: t('notifications.' + (enabled ? 'customThemePreferredOn' : 'customThemePreferredOff')),
         });
     };
 
@@ -538,7 +542,8 @@ export function useThemeController({
         applyPreferenceSwitchState(resolveSongThemeAutoSwitchChange(getPreferenceSwitchState(), enabled));
         setStatusMsg({
             type: 'info',
-            text: t('notifications.' + (enabled ? 'autoSwitchThemeOn' : 'autoSwitchThemeOff')),
+            text: t('notifications.themeTitle'),
+            subtitle: t('notifications.' + (enabled ? 'autoSwitchThemeOn' : 'autoSwitchThemeOff')),
         });
     };
 
@@ -546,7 +551,8 @@ export function useThemeController({
         applyPreferenceSwitchState(resolveSongThemeAutoGenerateChange(getPreferenceSwitchState(), enabled));
         setStatusMsg({
             type: 'info',
-            text: t('notifications.' + (enabled ? 'autoGenerateThemeOn' : 'autoGenerateThemeOff')),
+            text: t('notifications.themeTitle'),
+            subtitle: t('notifications.' + (enabled ? 'autoGenerateThemeOn' : 'autoGenerateThemeOff')),
         });
     };
 
@@ -554,7 +560,8 @@ export function useThemeController({
         setThemeGenerationSource(source);
         setStatusMsg({
             type: 'info',
-            text: t(source === 'cover' ? 'notifications.themeSourceCover' : 'notifications.themeSourceAi'),
+            text: t('notifications.themeTitle'),
+            subtitle: t(source === 'cover' ? 'notifications.themeSourceCover' : 'notifications.themeSourceAi'),
         });
     };
 
@@ -667,17 +674,17 @@ export function useThemeController({
         setStatusMsg(origin === 'fallback'
             ? {
                 type: 'info',
-                text: customPreferred
-                    ? t('notifications.aiThemeGeneratedCustomPreferred')
-                    : t('status.aiFallbackThemeUsed'),
+                text: customPreferred ? t('notifications.themeTitle') : t('status.aiFallbackThemeUsed'),
+                ...(customPreferred ? { subtitle: t('notifications.aiThemeGeneratedCustomPreferred') } : {}),
             }
             : {
                 type: 'success',
                 text: customPreferred
-                    ? t('notifications.aiThemeUpdatedCustomPreferred')
+                    ? t('notifications.themeTitle')
                     : t('status.coverThemeApplied', {
                         themeName: getSelectedDualTheme(coverTheme, isDaylight).name,
                     }),
+                ...(customPreferred ? { subtitle: t('notifications.aiThemeUpdatedCustomPreferred') } : {}),
             });
 
         return { status: 'generated', applied: true };
@@ -749,11 +756,11 @@ export function useThemeController({
             applyDualTheme(normalizedDualTheme);
 
             const selectedTheme = getSelectedDualTheme(normalizedDualTheme, isDaylight);
+            const customPreferred = bgMode === 'custom' && customTheme;
             setStatusMsg({
                 type: 'success',
-                text: bgMode === 'custom' && customTheme
-                    ? t('notifications.aiThemeUpdatedCustomPreferred')
-                    : t('status.themeApplied', { themeName: selectedTheme.name }),
+                text: customPreferred ? t('notifications.themeTitle') : t('status.themeApplied', { themeName: selectedTheme.name }),
+                ...(customPreferred ? { subtitle: t('notifications.aiThemeUpdatedCustomPreferred') } : {}),
             });
 
             return { status: 'generated', applied: true };

@@ -823,6 +823,7 @@ export default {
     "cardStyleCard": "Kiểu thẻ đổi sang thẻ Polaroid",
     "selectImageFile": "Chọn một tệp hình ảnh",
     "unsupportedImageFormat": "Chỉ hỗ trợ ảnh png, jpg, jpeg, gif, webp, svg",
+    "themeTitle": "Chủ đề",
     "appliedDefaultTheme": "Đã áp dụng chủ đề mặc định: {{themeName}}",
     "savedCustomTheme": "Đã lưu và áp dụng chủ đề tùy chỉnh: {{themeName}}",
     "appliedCustomTheme": "Đã áp dụng chủ đề tùy chỉnh: {{themeName}}",

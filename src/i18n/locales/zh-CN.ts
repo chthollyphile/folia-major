@@ -823,6 +823,7 @@ export default {
     "cardStyleCard": "卡片样式已切换为拍立得卡片",
     "selectImageFile": "请选择图片文件。",
     "unsupportedImageFormat": "仅支持 png、jpg、jpeg、gif、webp、svg 图片。",
+    "themeTitle": "主题",
     "appliedDefaultTheme": "已应用默认主题: {{themeName}}",
     "savedCustomTheme": "已保存并应用自定义主题: {{themeName}}",
     "appliedCustomTheme": "已应用自定义主题: {{themeName}}",

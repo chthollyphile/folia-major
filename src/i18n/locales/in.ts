@@ -823,6 +823,7 @@ export default {
     "cardStyleCard": "Gaya kartu diganti ke kartu Polaroid",
     "selectImageFile": "Pilih file gambar",
     "unsupportedImageFormat": "Hanya mendukung format gambar png, jpg, jpeg, gif, webp, svg",
+    "themeTitle": "Tema",
     "appliedDefaultTheme": "Tema bawaan diterapkan: {{themeName}}",
     "savedCustomTheme": "Tema kustom disimpan dan diterapkan: {{themeName}}",
     "appliedCustomTheme": "Tema kustom diterapkan: {{themeName}}",

@@ -823,6 +823,7 @@ export default {
     "cardStyleCard": "Card style switched to Polaroid card",
     "selectImageFile": "Please select an image file",
     "unsupportedImageFormat": "Only png, jpg, jpeg, gif, webp, svg images are supported",
+    "themeTitle": "Theme",
     "appliedDefaultTheme": "Applied default theme: {{themeName}}",
     "savedCustomTheme": "Saved and applied custom theme: {{themeName}}",
     "appliedCustomTheme": "Applied custom theme: {{themeName}}",
