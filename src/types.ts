@@ -551,6 +551,8 @@ export interface FumeTuning {
   cameraSpeed: number;
   glowIntensity: number;
   heroScale: number;
+  /** 手写笔画：正在唱的汉字 / 假名按笔顺写出来（用笔顺模型，首次用到时下载）。默认关。 */
+  handwriting: boolean;
 }
 
 export const DEFAULT_FUME_TUNING: FumeTuning = {
@@ -563,6 +565,7 @@ export const DEFAULT_FUME_TUNING: FumeTuning = {
   cameraSpeed: 1,
   glowIntensity: 1,
   heroScale: 1,
+  handwriting: false,
 };
 
 export interface CladdaghTuning {

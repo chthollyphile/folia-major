@@ -94,6 +94,7 @@ describe('Visual Settings Import and Export', () => {
             cameraSpeed: 1.2,
             glowIntensity: 0.9,
             heroScale: 1.1,
+            handwriting: true,
         },
         claddaghTuning: {
             focusScaleRatio: 0.75,

@@ -3561,6 +3561,8 @@ export default {
     "fumeCameraTrackingSmooth": "平滑",
     "fumeGlowIntensity": "当前句辉光强度",
     "fumeHeroScale": "大标题比例",
+    "fumeHandwriting": "手写笔画",
+    "fumeHandwritingHint": "按笔顺写出正在唱的汉字和假名，用笔顺模型生成，首次使用时下载模型",
     "cappellaSettings": "群唱参数",
     "cappellaAvatarSource": "头像来源",
     "cappellaAvatarSourceCover": "封面",

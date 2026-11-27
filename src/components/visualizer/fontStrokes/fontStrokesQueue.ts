@@ -1,13 +1,18 @@
 import { runStrokesGpu, STROKES_GPU_BATCH } from '../../../services/analysis/beatThisGpu';
-import { buildGlyph, glyphFeatures, isModelChar, renderCanon } from './nebbiaFontGlyph';
-import type { Glyph } from './nebbiaGlyphs';
+import { buildGlyph, glyphFeatures, isModelChar, renderCanon } from '../nebbia/nebbiaFontGlyph';
+import type { Glyph } from '../nebbia/nebbiaGlyphs';
+import { buildStrokeReveal, type StrokeReveal } from './strokeReveal';
 
-// src/components/visualizer/nebbia/nebbiaFontStrokesQueue.ts
-// 雾笺字体笔画的缓存和推理队列（光栅、特征、字块在 nebbiaFontGlyph.ts）：一个实例跨运行时共用。
+// src/components/visualizer/fontStrokes/fontStrokesQueue.ts
+// 字体笔画的缓存和推理队列（光栅、特征、字块在 nebbia/nebbiaFontGlyph.ts）：一个实例跨样式共用（雾笺、浮名）。
+// 每个字存两份结果：雾笺用的字形 glyph，和浮名手写笔画用的书写位置遮罩 reveal（strokeReveal.ts），同一次推理出。
 // 每个运行时 attach 一份「要哪些字」（按歌词顺序，标出马上要写的几句）；队列把所有运行时的需求合起来，
 // 马上要写的字用 onScreen 紧迫度、其余用 background，一批 STROKES_GPU_BATCH 个地算，每批到了通知一次。
 // 需求整份替换：换歌、换字体、拖进度时运行时重新报一份，旧的没算的字就自然丢掉；没有运行时 attach 时不再算。
 // 字体还没加载好时不画（canvas 会用回退字体画，还按自定义字体的名字存进缓存）：等 document.fonts 加载完这些字再算。
+
+/** 哪些字交给笔顺模型（汉字、假名）：非样式的调用方也从这里取，不用直接进 nebbia 目录。 */
+export { isModelChar };
 
 /** 内存里最多留多少个字。 */
 const CACHE_MAX = 1500;
@@ -16,16 +21,18 @@ const FONT_WAIT_MS = 4000;
 /** 页面的字体集；worker 和单测里没有 document。 */
 const docFonts = (): FontFaceSet | undefined => (typeof document === 'undefined' ? undefined : document.fonts);
 
-type Entry = { glyph: Glyph | null } | 'pending';
+type Entry = { glyph: Glyph | null; reveal: StrokeReveal | null } | 'pending';
 
 export interface FontDemandChar {
     ch: string;
     /** 马上要写（onScreen）；否则后台算。 */
     near: boolean;
+    /** 这个字用的字重；不写就用 want 的整份字重（浮名的主歌词和标题字重不同）。 */
+    weight?: number;
 }
 
 /** 一个运行时和队列的连接。 */
-export interface NebbiaFontStrokesHandle {
+export interface FontStrokesHandle {
     /** 整份替换这个运行时要的字（按优先顺序，已算的会跳过）。 */
     want(chars: FontDemandChar[], family: string, weight: number): void;
     detach(): void;
@@ -34,7 +41,7 @@ export interface NebbiaFontStrokesHandle {
 interface Demand { chars: FontDemandChar[]; family: string; weight: number }
 interface Job { key: string; ch: string; family: string; weight: number; near: boolean }
 
-class NebbiaFontStrokesQueue {
+class FontStrokesQueue {
     private readonly cache = new Map<string, Entry>();
     private readonly demands = new Map<symbol, Demand>();
     private readonly listeners = new Map<symbol, () => void>();
@@ -61,9 +68,15 @@ class NebbiaFontStrokesQueue {
         return hit.glyph;
     }
 
+    /** 算好的手写遮罩；还没算、算不出来时 null。 */
+    getReveal(ch: string, family: string, weight: number): StrokeReveal | null {
+        const hit = this.cache.get(this.keyOf(ch, family, weight));
+        return !hit || hit === 'pending' ? null : hit.reveal;
+    }
+
     /** 接上一个运行时：listener 每批算完时调用。 */
-    attach(listener: () => void): NebbiaFontStrokesHandle {
-        const id = Symbol('nebbia-font-strokes');
+    attach(listener: () => void): FontStrokesHandle {
+        const id = Symbol('font-strokes');
         this.listeners.set(id, listener);
         if (this.listeners.size === 1) docFonts()?.addEventListener('loadingdone', this.handleFontsLoaded);
         return {
@@ -91,12 +104,13 @@ class NebbiaFontStrokesQueue {
     private nextBatch(): Job[] {
         const near: Job[] = [], far: Job[] = [], seen = new Set<string>();
         for (const demand of this.demands.values()) {
-            for (const { ch, near: isNear } of demand.chars) {
+            for (const { ch, near: isNear, weight: charWeight } of demand.chars) {
                 if (!isModelChar(ch)) continue;
-                const key = this.keyOf(ch, demand.family, demand.weight);
+                const weight = charWeight ?? demand.weight;
+                const key = this.keyOf(ch, demand.family, weight);
                 if (seen.has(key) || this.cache.has(key) || this.blocked.has(key)) continue;
                 seen.add(key);
-                (isNear ? near : far).push({ key, ch, family: demand.family, weight: demand.weight, near: isNear });
+                (isNear ? near : far).push({ key, ch, family: demand.family, weight, near: isNear });
             }
             if (near.length >= STROKES_GPU_BATCH) break;
         }
@@ -144,7 +158,7 @@ class NebbiaFontStrokesQueue {
                 for (const q of batch) {
                     const canon = renderCanon(q.ch, q.family, q.weight);
                     if (canon) { inputs.push({ key: q.key, canon }); this.cache.set(q.key, 'pending'); }
-                    else this.cache.set(q.key, { glyph: null });
+                    else this.cache.set(q.key, { glyph: null, reveal: null });
                 }
                 if (!inputs.length) continue;
                 const started = performance.now();
@@ -153,11 +167,14 @@ class NebbiaFontStrokesQueue {
                     // 没有模型或 WebGPU：这些字退回原来的笔顺，本会话不再要
                     for (const i of inputs) this.cache.delete(i.key);
                     this.unavailable = true;
-                    console.info('[Nebbia] font strokes unavailable, keeping the stroke-order data');
+                    console.info('[FontStrokes] font strokes unavailable, keeping the stroke-order data');
                     break;
                 }
-                inputs.forEach((input, i) => this.cache.set(input.key, { glyph: buildGlyph(input.canon, results[i]) }));
-                console.info(`[Nebbia] font strokes: ${inputs.length} glyphs in ${Math.round(performance.now() - started)} ms`);
+                inputs.forEach((input, i) => this.cache.set(input.key, {
+                    glyph: buildGlyph(input.canon, results[i]),
+                    reveal: buildStrokeReveal(input.canon, results[i].along),
+                }));
+                console.info(`[FontStrokes] font strokes: ${inputs.length} glyphs in ${Math.round(performance.now() - started)} ms`);
                 this.trim();
                 for (const listener of this.listeners.values()) listener();
             }
@@ -174,4 +191,4 @@ class NebbiaFontStrokesQueue {
     }
 }
 
-export const nebbiaFontStrokes = new NebbiaFontStrokesQueue();
+export const fontStrokes = new FontStrokesQueue();

@@ -2,6 +2,7 @@ import type { MotionValue } from 'framer-motion';
 import type { AudioBands, Line, Theme } from '../../../types';
 import type { FumeBackgroundAudioLevels, FumeBackgroundScene } from './FumeBackground';
 import type { FumeCameraState } from './fumeCameraStep';
+import type { FumeHandwritingFrame } from './fumeHandwriting';
 import type { CameraViewTarget, FumeArticleLayout, ViewportSize } from './fumeTypes';
 
 // src/components/visualizer/fume/fumeStage.ts
@@ -22,6 +23,8 @@ export interface FumeStageScene {
     glowIntensity: number;
     backgroundObjectOpacity: number;
     showPrintStamp: boolean;
+    /** 手写笔画开着时才有；关着是 null，画法和原来完全一样。 */
+    handwriting: FumeHandwritingFrame | null;
     textHoldRatio: number;
     showText: boolean;
     staticMode: boolean;

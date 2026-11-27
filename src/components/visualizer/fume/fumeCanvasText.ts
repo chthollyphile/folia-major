@@ -7,6 +7,9 @@ import type { FumeBlockTiming } from './fumeBlockFrame';
 import { clamp, easeInOutCubic, easeOutCubic, isCJK, mix, resolveDelayedGlowEnvelope } from './fumeMath';
 import { resolvePrintedGraphemeCount, resolveVisualProgressWithCutoff } from './fumeReveal';
 import { getActiveColor } from './fumeTextStyle';
+import { isModelChar } from '../fontStrokes/fontStrokesQueue';
+import { alphabeticDropBelowMiddle, drawStrokeRevealChar } from '../fontStrokes/strokeReveal';
+import { decideHandwriting, resolveHandwritingProgress, type FumeHandwritingFrame } from './fumeHandwriting';
 import { buildFontSpec, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeCanvasText.ts
@@ -63,6 +66,36 @@ export const drawRenderTextRun = (
     context.restore();
 };
 
+/**
+ * 画一个正在写的字：字心 = 它在整段文字里的起笔位置 + 单字宽的一半（和遮罩用的 textAlign center 一致），
+ * 字母基线 = fume 的 'middle' 基线再往下一个字体盒上升量之差（alphabeticDropBelowMiddle）。画不了时按普通画法画整个字。
+ */
+const drawHandwritingGrapheme = (
+    context: CanvasRenderingContext2D,
+    grapheme: string,
+    reveal: Parameters<typeof drawStrokeRevealChar>[1],
+    progress: number,
+    { x, baselineY, fontPx, fillStyle }: { x: number; baselineY: number; fontPx: number; fillStyle: string },
+) => {
+    const font = context.font;
+    const drawPlain = (ctx: CanvasRenderingContext2D) => {
+        ctx.font = font;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = fillStyle;
+        ctx.fillText(grapheme, x, baselineY);
+    };
+    const advance = context.measureText(grapheme).width;
+    const placed = drawStrokeRevealChar(
+        context,
+        reveal,
+        progress,
+        { cx: x + advance * 0.5, baseline: baselineY + alphabeticDropBelowMiddle(font), fontPx },
+        drawPlain,
+    );
+    if (!placed) drawPlain(context);
+};
+
 export const createStaticBlockSnapshot = (
     block: FumeBlock,
     theme: Theme,
@@ -115,6 +148,8 @@ export interface FumeLiveBlockParams {
     activeGlowBoost: number;
     passedGlowBase: number;
     showPrintStamp: boolean;
+    /** 手写笔画开着时才有：正在写的汉字 / 假名按笔顺写出来（fumeHandwriting.ts）。 */
+    handwriting?: FumeHandwritingFrame | null;
 }
 
 /**
@@ -125,7 +160,7 @@ export const drawFumeLiveBlock = (
     context: CanvasRenderingContext2D,
     block: FumeBlock,
     timing: FumeBlockTiming,
-    { time, theme, glowIntensity, activeGlowBoost, passedGlowBase, showPrintStamp }: FumeLiveBlockParams,
+    { time, theme, glowIntensity, activeGlowBoost, passedGlowBase, showPrintStamp, handwriting }: FumeLiveBlockParams,
 ) => {
     const {
         waitingOpacity, activeOpacity, transitionPassedStyle, baselineOffset, linePassCutoffTime,
@@ -235,6 +270,9 @@ export const drawFumeLiveBlock = (
                 const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
                 const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
                 const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
+                // 手写笔画的书写窗口从这个字的开始时间起（只有带词时间的字有）
+                let writeStart = Number.NaN;
+                let writeEnd = Number.NaN;
                 const isPrinted = hasRevealCompleted || globalOffset < printedCount;
                 const isFrontier = printedCount > 0
                     && globalOffset === printedCount
@@ -262,6 +300,8 @@ export const drawFumeLiveBlock = (
                     const glyphStartTime = glyphTiming?.startTime ?? (range.word.startTime + (glyphIndexInRange / glyphCount) * wordDuration);
                     const glyphEndTime = glyphTiming?.endTime ?? (range.word.startTime + ((glyphIndexInRange + 1) / glyphCount) * wordDuration);
                     const glyphDuration = Math.max(glyphEndTime - glyphStartTime, 0.001);
+                    writeStart = glyphStartTime;
+                    writeEnd = glyphEndTime;
                     const glyphProgress = glyphTiming
                         ? clamp((time - glyphStartTime) / glyphDuration + 0.16, 0, 1)
                         : clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
@@ -385,6 +425,30 @@ export const drawFumeLiveBlock = (
                 // Chromium's glyph cache (Lab > Fix lyric animation freeze on Linux) and redraws
                 // the shadowed glyphs every frame. See utils/glowBlurQuantize.ts.
                 shadowBlur = roundShadowBlur(shadowBlur);
+                if (handwriting && isModelChar(grapheme)) {
+                    const writeProgress = resolveHandwritingProgress(writeStart, writeEnd, time);
+                    const weight = handwriting.weightOf(block.variant);
+                    const reveal = decideHandwriting(
+                        handwriting.decisions,
+                        `${block.id}:${globalOffset}`,
+                        writeProgress !== null,
+                        () => handwriting.getReveal(grapheme, handwriting.family, weight) !== null,
+                    ) ? handwriting.getReveal(grapheme, handwriting.family, weight) : null;
+                    if (writeProgress !== null && reveal) {
+                        // 正在写的字不进下面的整段文字，单独画
+                        flushRun(globalOffset);
+                        context.fillStyle = fillStyle;
+                        setCanvasTextGlow(context, shadowBlur, shadowColor);
+                        drawHandwritingGrapheme(context, grapheme, reveal, writeProgress, {
+                            x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
+                            baselineY: baseY,
+                            fontPx: block.fontPx,
+                            fillStyle,
+                        });
+                        clearCanvasTextGlow(context);
+                        continue;
+                    }
+                }
                 const styleKey = buildTextStyleKey(fillStyle, shadowBlur, shadowColor);
                 if (runStart < 0) {
                     runStart = globalOffset;

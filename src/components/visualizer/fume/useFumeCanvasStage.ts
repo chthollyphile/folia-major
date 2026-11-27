@@ -70,7 +70,7 @@ export const useFumeCanvasStage = (
 
         const {
             lines, viewport, backgroundScene, overviewCamera, overviewStartTime, passedFadeDuration, cameraSpeed,
-            cameraTrackingMode, glowIntensity, backgroundObjectOpacity, showPrintStamp, textHoldRatio, showText, staticMode,
+            cameraTrackingMode, glowIntensity, backgroundObjectOpacity, showPrintStamp, handwriting, textHoldRatio, showText, staticMode,
         } = scene;
         const { currentTime, cameraState } = driver;
         liveRasterRef.current ??= new FumeLiveRaster();
@@ -207,7 +207,7 @@ export const useFumeCanvasStage = (
             context.translate(-camera.x, -camera.y);
 
             const { activeGlowBoost, passedGlowBase } = resolveFumeGlowBases(theme.animationIntensity, glowIntensity);
-            const liveParams: FumeLiveBlockParams = { time, theme, glowIntensity, activeGlowBoost, passedGlowBase, showPrintStamp };
+            const liveParams: FumeLiveBlockParams = { time, theme, glowIntensity, activeGlowBoost, passedGlowBase, showPrintStamp, handwriting };
             const staticLayerInput: FumeStaticLayerInput = {
                 time,
                 theme,

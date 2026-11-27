@@ -4,7 +4,7 @@ import { ICON_PREFIX } from './nebbiaChars';
 import { skeletonPolys } from './nebbiaSkeleton';
 import { getNebbiaStrokeMedians } from './nebbiaStrokes';
 import { isModelChar, type NebbiaFontInk } from './nebbiaFontGlyph';
-import { nebbiaFontStrokes } from './nebbiaFontStrokesQueue';
+import { fontStrokes } from '../fontStrokes/fontStrokesQueue';
 
 // src/components/visualizer/nebbia/nebbiaGlyphs.ts
 // 字形 = 按书写顺序的几笔中线（em 坐标 0..1，y 向下）。来源依次是：lucide 图标（每个 SVG 元素一笔）、
@@ -130,7 +130,7 @@ export class NebbiaGlyphCache {
     get(ch: string): Glyph | null {
         // 模型的结果晚到，不进下面的缓存：每次先问
         if (this.fontStrokes && isModelChar(ch)) {
-            const model = nebbiaFontStrokes.get(ch, this.fontFamily, this.fontWeight);
+            const model = fontStrokes.get(ch, this.fontFamily, this.fontWeight);
             if (model) return model;
         }
         const hit = this.cache.get(ch);

@@ -1,6 +1,6 @@
 import type { NebbiaSourceLine } from './nebbiaChars';
 import { isModelChar } from './nebbiaFontGlyph';
-import { nebbiaFontStrokes, type FontDemandChar, type NebbiaFontStrokesHandle } from './nebbiaFontStrokesQueue';
+import { fontStrokes, type FontDemandChar, type FontStrokesHandle } from '../fontStrokes/fontStrokesQueue';
 import type { NebbiaGlyphCache } from './nebbiaGlyphs';
 import type { LaidLine } from './nebbiaScene';
 import { swapLineGlyphs } from './nebbiaSceneUpdate';
@@ -43,13 +43,13 @@ export interface NebbiaFontLinesHost {
 }
 
 export class NebbiaFontLines {
-    private readonly handle: NebbiaFontStrokesHandle;
+    private readonly handle: FontStrokesHandle;
     /** 上次报需求时第一个还能换的句子；播放位置越过它或往回拖才重新报。 */
     private anchor = -2;
     private disposed = false;
 
     constructor(private readonly host: NebbiaFontLinesHost) {
-        this.handle = nebbiaFontStrokes.attach(this.handleBatch);
+        this.handle = fontStrokes.attach(this.handleBatch);
     }
 
     /** 整首重排之后（换歌、换字体、换尺寸）：重新报需求。 */

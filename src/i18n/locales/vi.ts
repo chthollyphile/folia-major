@@ -3561,6 +3561,8 @@ export default {
     "fumeCameraTrackingSmooth": "Mượt mà",
     "fumeGlowIntensity": "Phát sáng dòng phát",
     "fumeHeroScale": "Tỷ lệ tiêu đề chính",
+    "fumeHandwriting": "Nét chữ viết tay",
+    "fumeHandwritingHint": "Viết các chữ CJK đang hát theo thứ tự nét bằng mô hình thứ tự nét, mô hình được tải xuống ở lần dùng đầu tiên",
     "cappellaSettings": "Tinh chỉnh Cappella",
     "cappellaAvatarSource": "Nguồn ảnh đại diện",
     "cappellaAvatarSourceCover": "Ảnh bìa",

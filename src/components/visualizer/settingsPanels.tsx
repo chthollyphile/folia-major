@@ -206,6 +206,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps<FumeTuning
         cameraSpeed: Math.min(1.85, Math.max(0.55, fumeTuning.cameraSpeed)),
         glowIntensity: Math.min(1.8, Math.max(0, fumeTuning.glowIntensity)),
         heroScale: Math.min(1.32, Math.max(0.82, fumeTuning.heroScale)),
+        handwriting: fumeTuning.handwriting,
     };
     const handleFumeTuningChange = (patch: Partial<FumeTuning>) => {
         onFumeTuningChange?.(patch);
@@ -288,6 +289,12 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps<FumeTuning
                     format={times}
                     onChange={(value) => handleFumeTuningChange({ heroScale: value })}
                 />
+                <Row label={t('options.fumeHandwriting')} hint={t('options.fumeHandwritingHint')}>
+                    <Toggle
+                        checked={resolvedFumeTuning.handwriting}
+                        onChange={(next) => handleFumeTuningChange({ handwriting: next })}
+                    />
+                </Row>
             </Group>
             <Group def={FUME_RENDER_GROUP}>
                 <LyricRenderQualityRows

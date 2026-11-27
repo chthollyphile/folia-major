@@ -109,6 +109,7 @@ const compressFume = (t: any): any => ({
     csp: t.cameraSpeed,
     gi: t.glowIntensity,
     hs: t.heroScale,
+    hw: (t as { handwriting?: boolean }).handwriting,
 });
 const decompressFume = (o: any): any => ({
     hidePrintSymbols: o.hps !== undefined ? o.hps : false,
@@ -119,6 +120,7 @@ const decompressFume = (o: any): any => ({
     cameraSpeed: o.csp !== undefined ? o.csp : 1,
     glowIntensity: o.gi !== undefined ? o.gi : 1,
     heroScale: o.hs !== undefined ? o.hs : 1,
+    handwriting: (o as { hw?: unknown }).hw === true,
 });
 
 const compressCladdagh = (tuning: unknown) => {

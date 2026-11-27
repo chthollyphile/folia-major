@@ -3561,6 +3561,8 @@ export default {
     "fumeCameraTrackingSmooth": "Halus",
     "fumeGlowIntensity": "Kilau Aktif",
     "fumeHeroScale": "Skala Hero",
+    "fumeHandwriting": "Goresan Tulisan Tangan",
+    "fumeHandwritingHint": "Menulis aksara CJK yang sedang dinyanyikan sesuai urutan goresan dengan model urutan goresan, yang diunduh saat pertama kali dipakai",
     "cappellaSettings": "Penyetelan Paduan Suara",
     "cappellaAvatarSource": "Sumber avatar",
     "cappellaAvatarSourceCover": "Sampul",

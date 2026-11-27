@@ -40,7 +40,7 @@ const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 // 水族箱里没有雨打窗、车也不颠（疏雨轻车不算）。玻璃是雪窗时雪花和雪化成的水归 nebbiaSnow.ts，写字的手指经过时把雪抹开。
 
 // 改了要重排整首的 tuning 项
-/** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔顺模型给笔顺（nebbiaFontGlyph.ts、nebbiaFontStrokesQueue.ts）；没选时照旧用 AnimCJK。 */
+/** 选了自定义歌词字体时，汉字和假名按这个字体的字形、由笔顺模型给笔顺（nebbiaFontGlyph.ts、fontStrokes/fontStrokesQueue.ts）；没选时照旧用 AnimCJK。 */
 const wantsFontStrokes = (theme: Theme) => Boolean(theme.fontFamily?.trim());
 
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];

@@ -3561,6 +3561,8 @@ export default {
     "fumeCameraTrackingSmooth": "Smooth",
     "fumeGlowIntensity": "Active Glow",
     "fumeHeroScale": "Hero Scale",
+    "fumeHandwriting": "Handwriting Strokes",
+    "fumeHandwritingHint": "Writes the CJK characters being sung in stroke order using the stroke-order model, which is downloaded on first use",
     "cappellaSettings": "Chorus Tuning",
     "cappellaAvatarSource": "Avatar source",
     "cappellaAvatarSourceCover": "Cover",

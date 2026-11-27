@@ -4,7 +4,7 @@ import { FONT_TILE, type NebbiaFontInk } from './nebbiaFontGlyph';
 import { TILE_FLOATS, type NebbiaSegments } from './nebbiaSegments';
 
 // src/components/visualizer/nebbia/nebbiaMaskInkGl.ts
-// 擦痕遮罩里笔顺模型给的字（nebbiaFontStrokesQueue.ts）：不画线段，画字块，字体自己的墨按书写位置显出来，同一张遮罩里取最大值。
+// 擦痕遮罩里笔顺模型给的字（fontStrokes/fontStrokesQueue.ts）：不画线段，画字块，字体自己的墨按书写位置显出来，同一张遮罩里取最大值。
 // 字块放在一张二维纹理数组里（RGB8：墨、书写位置、到墨边的有符号距离，带 mipmap），第一次画到时上传，按需加层。
 // 笔画粗细设置不为 0 时，墨边按有符号距离平移（外扩 / 内缩）再抗锯齿；为 0 时直接用墨通道，字体原样显出。
 // 程序和别的雾笺程序一起在后台编（nebbiaPrograms.ts，属性位置 aCorner 0、aOrigin 1、aAxisV 2、aParam 3），编好后 attach 进来。
