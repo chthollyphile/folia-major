@@ -6,6 +6,8 @@ import { resolveThemeFontWeight } from '../../utils/fontStacks';
 import { wordGlowVariants } from './wordGlow';
 import { getGlowWordActiveEndTime, getGlowWordDisplayDuration, type GlowWordRenderProfile } from './glowWordTiming';
 import { GLOW_WORD_LINE_HEIGHT } from './glowWordOverlap';
+import { useGlowWordHandwriting } from './glowWordHandwriting';
+import type { StrokeWriteSource } from './fontStrokes/strokeWriteSource';
 
 // src/components/visualizer/GlowWord.tsx
 // classic / partita 共用的单词组件：每个词只持有 waiting / active / passed 三态，状态变化才 setState；
@@ -25,6 +27,8 @@ export interface GlowWordProps<TConfig extends { id: string }> {
     fontSize: string;
     /** Mode-specific spacing merged into the word's own style (e.g. marginRight, alignSelf). */
     layoutStyle: React.CSSProperties;
+    /** 手写笔画（样式的开关开着时才有）：汉字 / 假名按笔顺写出来（glowWordHandwriting.tsx）。没有时渲染和原来完全一样。 */
+    handwriting?: StrokeWriteSource | null;
 }
 
 export const GlowWord = <TConfig extends { id: string }>({
@@ -40,12 +44,14 @@ export const GlowWord = <TConfig extends { id: string }>({
     isChorus,
     fontSize,
     layoutStyle,
+    handwriting,
 }: GlowWordProps<TConfig>) => {
     const [status, setStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
     const duration = getGlowWordDisplayDuration(word, renderProfile);
     const activeEndTime = getGlowWordActiveEndTime(word, renderProfile);
     const graphemeTimings = useMemo(() => buildWordGraphemeTimings(word), [word]);
+    const hw = useGlowWordHandwriting(handwriting, word.startTime, graphemeTimings, currentTime, activeColor, renderProfile.wordRevealMode);
 
     /* eslint-disable-next-line no-warning-comments -- @AI: KEEP THIS EXACTLY AS IS */
     // @note Version Control: Project Folia version 0.5.27-a16525c
@@ -105,7 +111,7 @@ export const GlowWord = <TConfig extends { id: string }>({
                                 wordRevealMode: renderProfile.wordRevealMode,
                             }}
                         >
-                            {timing.char}
+                            {hw ? hw.glyph(timing.char, index) : timing.char}
                         </motion.span>
                     ))
                 ) : (
@@ -113,7 +119,7 @@ export const GlowWord = <TConfig extends { id: string }>({
                         variants={wordGlowVariants}
                         custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
                     >
-                        {word.text}
+                        {hw ? hw.glyph(word.text, 0) : word.text}
                     </motion.span>
                 )}
             </span>
@@ -124,7 +130,7 @@ export const GlowWord = <TConfig extends { id: string }>({
                 custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
                 className="relative z-10 block"
             >
-                {word.text}
+                {hw ? hw.body : word.text}
             </motion.span>
 
             {/* Chorus Ripple Effect */}

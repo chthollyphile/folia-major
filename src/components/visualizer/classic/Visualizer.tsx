@@ -17,6 +17,7 @@ import { getGlowWordLineContainerMotion, resolveGlowWordRenderProfile } from '..
 import { buildGlowWordLayoutVariants, glowWordBodyVariants } from '../glowWordVariants';
 import { getGlowWordOverflow, getGlowWordPairGap, measureGlowWordWidth as measureWordWidth, type GlowWordPlacement } from '../glowWordOverlap';
 import { OVERLAP_FIT_LINE_ATTRIBUTE, useOverlapFit } from '../useOverlapFit';
+import { useStrokeWriteSource } from '../fontStrokes/useStrokeWriteSource';
 
 // This mode is the most straightforward lyric pipeline in the folder.
 // First we ask runtime which line is active right now, then read renderHints from that line,
@@ -62,6 +63,7 @@ const resolveClassicTuning = (tuning?: ClassicTuning): ClassicTuning => ({
     useLegacyLayout: tuning?.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
     wordSpacing: clampClassicWordSpacing(tuning?.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7),
     avoidOverlap: tuning?.avoidOverlap ?? DEFAULT_CLASSIC_TUNING.avoidOverlap,
+    handwriting: tuning?.handwriting === true,
 });
 
 // Helper to determine if text contains CJK characters
@@ -89,9 +91,17 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         hideTranslationSubtitle = false,
         subtitleOverlayLayout,
         classicTuning,
+        staticMode = false,
     } = props;
     const { t } = useTranslation();
     const resolvedClassicTuning = useMemo(() => resolveClassicTuning(classicTuning), [classicTuning]);
+    // 手写笔画：开关开着时才登记笔画服务；关着是 null，GlowWord 照原样渲染
+    const handwriting = useStrokeWriteSource(
+        resolvedClassicTuning.handwriting === true && showText && !staticMode,
+        theme,
+        resolveThemeFontWeight(theme, 700),
+        lines,
+    );
     const {
         activeLine,
         recentCompletedLine,
@@ -398,6 +408,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                                         isChorus={activeLine.isChorus}
                                         fontSize={mainFontSize}
                                         layoutStyle={{ marginInlineEnd: config.marginRight, alignSelf: config.alignSelf }}
+                                        handwriting={handwriting}
                                     />
                                 );
                             })}
