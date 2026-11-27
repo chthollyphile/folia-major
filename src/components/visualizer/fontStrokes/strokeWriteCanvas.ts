@@ -1,11 +1,14 @@
 import { EM_UNITS, type FontStrokesGlyph } from '../../../services/fontStrokes/fontStrokesOutline';
+import type { StrokeFit } from '../../../services/fontStrokes/fontStrokesFit';
 import { BASELINE, FONT_EM } from '../../../services/fontStrokes/fontStrokesRaster';
 import { polylineLength, resolveStrokeProgress } from './strokeWriteTiming';
 
 // src/components/visualizer/fontStrokes/strokeWriteCanvas.ts
-// canvas 写字（照 AnimCJK）：每笔按进度沿中线画一段圆头笔刷（宽 brush），裁到这一笔自己的轮廓里，所有笔合起来做遮罩，
+// canvas 写字（照 AnimCJK）：每笔按进度沿中线画一段圆头笔刷（宽 brush），只留在这一笔自己的区域里，所有笔合起来做遮罩，
 // 再用调用方自己的 fillText（同字体、字号、字重、颜色）把字画进遮罩（source-in），贴回目标画布——目标画布当前的辉光只落在写出的墨上。
-// 写完的笔直接填自己的轮廓并往外描 1 个设备像素（相邻两笔的轮廓共用一条边，不描会在抗锯齿处透出细缝）。所有笔写完时直接画整字。
+// 一笔的区域 = 存下的 400 笔身往外膨胀 dilate（填轮廓 + 描 2 × dilate 宽的边）+ 这一笔剩下的墨（fontStrokesFit.ts，按显示字重算）；
+// 膨胀是描边，clip() 用不了，所以正在写的那笔（同一时刻最多一笔）先在空的临时画布上画区域、再 source-in 画笔刷。
+// 区域都再往外描 1 个设备像素（相邻两笔共用一条边时，不描会在抗锯齿处透出细缝）。所有笔写完时直接画整字。
 // 笔画数据来自 services/fontStrokes：em 坐标（× EM_UNITS），字号 FONT_EM em、水平中心 0.5 em、字母基线 BASELINE em（同 renderCanon）。
 
 /** 笔刷宽度的单位：1/256 em（同 fontStrokesOutline 的 BRUSH_UNITS）。 */
@@ -73,6 +76,14 @@ interface PreparedGlyph {
 }
 const prepared = new WeakMap<FontStrokesGlyph, PreparedGlyph>();
 
+/** 一个字在一个字重下的落法要的东西（跟着 StrokeFit 走）。 */
+interface PreparedFit {
+    leftover: (Path2D | null)[];
+    /** 笔身外框往外 dilate、并上剩下的墨的外框。 */
+    box: [number, number, number, number] | null;
+}
+const preparedFits = new WeakMap<StrokeFit, PreparedFit>();
+
 const ringsPath = (rings: Int16Array[]): Path2D | null => {
     if (!rings.length) return null;
     const path = new Path2D();
@@ -83,6 +94,16 @@ const ringsPath = (rings: Int16Array[]): Path2D | null => {
         path.closePath();
     }
     return path;
+};
+
+/** 环（flat）的外框并进 box。 */
+const growBox = (box: number[], rings: readonly Int16Array[]) => {
+    for (const ring of rings) for (let i = 0; i + 1 < ring.length; i += 2) {
+        if (ring[i] < box[0]) box[0] = ring[i];
+        if (ring[i] > box[2]) box[2] = ring[i];
+        if (ring[i + 1] < box[1]) box[1] = ring[i + 1];
+        if (ring[i + 1] > box[3]) box[3] = ring[i + 1];
+    }
 };
 
 const penPath = (pen: Int16Array): Path2D | null => {
@@ -108,13 +129,9 @@ const prepare = (glyph: FontStrokesGlyph): PreparedGlyph => {
     const hit = prepared.get(glyph);
     if (hit) return hit;
     const n = glyph.pens.length;
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const rings of glyph.outlines) for (const ring of rings) for (let i = 0; i + 1 < ring.length; i += 2) {
-        if (ring[i] < x0) x0 = ring[i];
-        if (ring[i] > x1) x1 = ring[i];
-        if (ring[i + 1] < y0) y0 = ring[i + 1];
-        if (ring[i + 1] > y1) y1 = ring[i + 1];
-    }
+    const b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const rings of glyph.outlines) growBox(b, rings);
+    const [x0, y0, x1, y1] = b;
     const entry: PreparedGlyph = {
         outlines: Array.from({ length: n }, (_, k) => ringsPath(glyph.outlines[k] ?? [])),
         pens: glyph.pens.map(penPath),
@@ -125,6 +142,20 @@ const prepare = (glyph: FontStrokesGlyph): PreparedGlyph => {
         box: x1 >= x0 ? [x0, y0, x1, y1] : null,
     };
     prepared.set(glyph, entry);
+    return entry;
+};
+
+const prepareFit = (g: PreparedGlyph, fit: StrokeFit): PreparedFit => {
+    const hit = preparedFits.get(fit);
+    if (hit) return hit;
+    let box: PreparedFit['box'] = null;
+    if (g.box) {
+        const b = [g.box[0] - fit.dilate, g.box[1] - fit.dilate, g.box[2] + fit.dilate, g.box[3] + fit.dilate];
+        for (const rings of fit.leftover) growBox(b, rings);
+        box = [b[0], b[1], b[2], b[3]];
+    }
+    const entry: PreparedFit = { leftover: fit.leftover.map(rings => ringsPath(rings)), box };
+    preparedFits.set(fit, entry);
     return entry;
 };
 
@@ -149,6 +180,8 @@ const noDash: number[] = [];
 export interface StrokeWriteOptions {
     /** 所有笔都写完时也走遮罩（量轮廓和墨对不对得上用）；默认写完直接画整字。 */
     forceMask?: boolean;
+    /** 这个字在当前显示字重下的落法（getFontStrokeFit）；没有时按 400 笔身原样画（不膨胀、没有剩下的墨）。 */
+    fit?: StrokeFit | null;
 }
 
 /**
@@ -182,7 +215,9 @@ export const drawStrokeWriteGlyph = (
     if (m.b !== 0 || m.c !== 0 || !(m.a > 0) || !(m.d > 0)) return false;
     const { k, tx, ty } = strokeUnitsToWorld(place);
     if (!(k > 0) || !Number.isFinite(tx + ty)) return false;
-    const [bx0, by0, bx1, by1] = g.box;
+    const fit = options.fit ?? null;
+    const f = fit ? prepareFit(g, fit) : null;
+    const [bx0, by0, bx1, by1] = f?.box ?? g.box;
     // 外框（设备像素），原点落在 target 的整数设备像素上
     const ox = Math.floor(m.a * (tx + bx0 * k) + m.e - PAD_PX), oy = Math.floor(m.d * (ty + by0 * k) + m.f - PAD_PX);
     const W = Math.ceil(m.a * (tx + bx1 * k) + m.e + PAD_PX) - ox, H = Math.ceil(m.d * (ty + by1 * k) + m.f + PAD_PX) - oy;
@@ -201,26 +236,46 @@ export const drawStrokeWriteGlyph = (
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.setLineDash(noDash);
-    const unitsPerPx = 1 / (m.a * k);
+    const seam = SEAM_PX / (m.a * k);
+    const dilate = fit?.dilate ?? 0;
+    /** 画第 s 笔的区域：笔身填满 + 描 2 × (dilate + 缝) 宽的边（= 往外膨胀），剩下的墨填满 + 描缝。 */
+    const fillRegion = (s: number, outline: Path2D) => {
+        ctx.fill(outline, 'nonzero');
+        ctx.lineWidth = 2 * (dilate + seam);
+        ctx.stroke(outline);
+        const rest = f?.leftover[s];
+        if (rest) {
+            ctx.fill(rest, 'nonzero');
+            ctx.lineWidth = 2 * seam;
+            ctx.stroke(rest);
+        }
+    };
+    // 正在写的笔（按书写顺序一笔接一笔，同一时刻最多一笔在 0..1 之间）：空画布上先画区域，笔刷 source-in 留在区域里
+    let current = -1;
+    for (let s = 0; s < strokeProgress.length; s += 1) {
+        const p = strokeProgress[s];
+        if (p > 0 && p < 1 && g.outlines[s] && g.weights[s] > 0 && g.pens[s] && g.lengths[s] > 0) { current = s; break; }
+    }
+    if (current >= 0) {
+        const pen = g.pens[current] as Path2D;
+        const brush = fit?.brush[current] ?? g.brush[current];
+        fillRegion(current, g.outlines[current] as Path2D);
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.lineWidth = brush;
+        dash[0] = g.lengths[current] * strokeProgress[current];
+        dash[1] = g.lengths[current] * 2 + brush;
+        ctx.setLineDash(dash);
+        ctx.stroke(pen);
+        ctx.setLineDash(noDash);
+        ctx.globalCompositeOperation = 'source-over';
+    }
+    // 写完的笔：整块区域
     for (let s = 0; s < strokeProgress.length; s += 1) {
         const p = strokeProgress[s];
         const outline = g.outlines[s];
-        if (!outline || g.weights[s] <= 0 || p <= 0) continue;
-        const pen = g.pens[s];
-        if (p >= 1 || !pen || g.lengths[s] <= 0) {
-            ctx.fill(outline, 'nonzero');
-            ctx.lineWidth = 2 * SEAM_PX * unitsPerPx;
-            ctx.stroke(outline);
-            continue;
-        }
-        ctx.save();
-        ctx.clip(outline, 'nonzero');
-        ctx.lineWidth = g.brush[s];
-        dash[0] = g.lengths[s] * p;
-        dash[1] = g.lengths[s] * 2 + g.brush[s];
-        ctx.setLineDash(dash);
-        ctx.stroke(pen);
-        ctx.restore();
+        if (s === current || !outline || g.weights[s] <= 0 || p <= 0) continue;
+        if (p < 1 && g.pens[s] && g.lengths[s] > 0) continue;
+        fillRegion(s, outline);
     }
     ctx.setLineDash(noDash);
     // 字只留在遮罩里

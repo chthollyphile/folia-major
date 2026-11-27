@@ -8,8 +8,8 @@ import { BUILTIN_FONT_STACKS, normalizeFontFamilyStack } from '../../utils/fontS
 
 /** 推理模型的版本：electron/analysis/strokesModelFetch.cjs 里 HF_REVISION 的前 8 位（单测核对两边一致）。 */
 export const STROKES_MODEL_REV = '59909ddd';
-/** 存盘格式的版本：编码、轮廓算法、延伸半径任何一项变了都要加一，旧数据不再命中、后台重算。 */
-export const FONT_STROKES_FORMAT = 1;
+/** 存盘格式的版本：编码、轮廓算法、延伸半径任何一项变了都要加一，旧数据不再命中、后台重算。2：轮廓改存 400 的笔身（不再往墨外延伸 0.06 em）。 */
+export const FONT_STROKES_FORMAT = 2;
 
 /** 上传字体注册时用的族名前缀（services/customLyricsFont.ts）。 */
 const UPLOADED_FAMILY_PREFIX = 'FoliaUploadedLyricsFont_';

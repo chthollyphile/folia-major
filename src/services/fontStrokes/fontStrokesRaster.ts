@@ -2,7 +2,7 @@
 // 字体笔画的光栅和模型输入：把字用所选字体画成模型网格（256²）上的墨、算 full6 的输入特征。
 // 模型输入照 ~/bihua hf/code/preprocess.py：墨的外框等比放进 256² 画布、最长边占 [-0.8, 0.8]，三通道是墨、墨内距离 / 12、
 // 墨外距离 / 24（cv2 DIST_L2 3×3 的倒角距离）。这里不是把位图再缩放，而是按算好的变换直接用字体重画一遍。
-// 推理一律用字重 400（INFERENCE_WEIGHT）：一个字体只存一份结果，别的字重靠轮廓外延盖住。
+// 推理一律用字重 400（INFERENCE_WEIGHT）：一个字体只存一份结果，别的字重用时把笔身膨胀到那个字重的墨上（fontStrokesFit.ts）。
 
 /** 模型网格边长。 */
 export const CANON = 256;
@@ -64,7 +64,7 @@ const context = () => {
     return ctx;
 };
 
-/** 用当前变换画一个字（白字黑底），读回 side² 的灰度（0..1）。 */
+/** 用当前变换画一个字（白字黑底），读回 side² 的灰度（0..1）。只清、只读左上角 side²（画到外面的部分不读，下次画时也不碍事）。 */
 const drawChar = (c: CanvasRenderingContext2D, ch: string, font: string, side: number, transform: [number, number, number]): Float32Array => {
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#000';
@@ -104,9 +104,8 @@ export const renderCanon = (ch: string, fontFamily: string, fontWeight: number):
     const k = (2 * SPAN) / Math.max(hx - lx, hy - ly, 1e-3);
     const a = (k * R) / 2;
     const bx = R / 2 - a * (lx + hx) / 2, by = R / 2 - a * (ly + hy) / 2;
-    const full = drawChar(c, ch, font, side, [a, bx, by]);
-    const img = new Float32Array(R * R);
-    for (let y = 0; y < R; y += 1) img.set(full.subarray(y * side, y * side + R), y * R);
+    // 重画只要左上角 R²
+    const img = drawChar(c, ch, font, R, [a, bx, by]);
     return { img, a: a * EM, bx, by };
 };
 
@@ -131,9 +130,5 @@ export const renderInkAt = (ch: string, fontFamily: string, fontWeight: number, 
     if (typeof document === 'undefined') return null;
     const c = context();
     if (!c) return null;
-    const side = EM * 3;
-    const full = drawChar(c, ch, `${fontWeight} ${EM * FONT_EM}px ${fontFamily}`, side, [canon.a / EM, canon.bx, canon.by]);
-    const img = new Float32Array(R * R);
-    for (let y = 0; y < R; y += 1) img.set(full.subarray(y * side, y * side + R), y * R);
-    return img;
+    return drawChar(c, ch, `${fontWeight} ${EM * FONT_EM}px ${fontFamily}`, R, [canon.a / EM, canon.bx, canon.by]);
 };

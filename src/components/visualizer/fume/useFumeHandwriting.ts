@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import type { Theme } from '../../../types';
-import { fontStrokesKeyOf, getFontStrokes, registerFontStrokesConsumer } from '../../../services/fontStrokes';
+import { fontStrokesKeyOf, getFontStrokeFit, getFontStrokes, registerFontStrokesConsumer, warmFontStrokeFit } from '../../../services/fontStrokes';
 import type { FumeHandwritingFrame } from './fumeHandwriting';
 import type { FumeArticleLayout } from './fumeTypes';
 
@@ -25,6 +25,8 @@ export const useFumeHandwriting = (
         if (!enabled || !article) return null;
         return {
             getStrokes: ch => getFontStrokes(fontKey, ch),
+            getFit: (ch, strokes, weight) => getFontStrokeFit(fontKey, strokes, ch, weight),
+            warmFit: (ch, strokes, weight) => warmFontStrokeFit(fontKey, strokes, ch, weight),
             // 换歌 / 换字体 / 重排都换一张：冻结的决定不跨文章
             decisions: new Map<string, boolean>(),
         };

@@ -1,4 +1,5 @@
 import type { FontStrokesGlyph } from '../../../services/fontStrokes/fontStrokesOutline';
+import type { StrokeFit } from '../../../services/fontStrokes/fontStrokesFit';
 import type { FumeBlock, WordRange } from './fumeTypes';
 
 // src/components/visualizer/fume/fumeHandwriting.ts
@@ -10,6 +11,10 @@ import type { FumeBlock, WordRange } from './fumeTypes';
 export interface FumeHandwritingFrame {
     /** 同步取当前字体下一个字的笔画；没算好时 null。 */
     getStrokes: (ch: string) => FontStrokesGlyph | null;
+    /** 这个字的笔画落到显示字重 weight 上的样子（笔身膨胀多少、剩下的墨），第一次要现算几毫秒；画不出来时 null。 */
+    getFit: (ch: string, strokes: FontStrokesGlyph, weight: number) => StrokeFit | null;
+    /** 字还没开写时预热 getFit（一帧最多算一个）。 */
+    warmFit: (ch: string, strokes: FontStrokesGlyph, weight: number) => void;
     decisions: Map<string, boolean>;
 }
 

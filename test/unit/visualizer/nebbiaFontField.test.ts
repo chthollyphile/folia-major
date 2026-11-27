@@ -1,31 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { NebbiaSegments } from '@/components/visualizer/nebbia/nebbiaSegments';
 import {
-    FONT_REF_WIDTH, penWidthProfile, relativeWidth, resamplePolyline, interpolateAt, median, propagateNearest,
+    FONT_REF_WIDTH, penWidthProfile, relativeWidth, resamplePolyline, interpolateAt, median,
 } from '@/components/visualizer/nebbia/nebbiaFontField';
 
 // test/unit/visualizer/nebbiaFontField.test.ts
-// 字体墨的纯计算：书写位置往墨外延伸、插值、笔宽剖面。
-
-const SIDE = 64;
+// 字体墨的纯计算：插值、笔宽剖面。
 
 describe('nebbia font ink field', () => {
-    it('propagates the nearest value out to maxR only, keeps inside pixels filled', () => {
-        const v = new Float32Array(SIDE * SIDE).fill(-1);
-        v[32 * SIDE + 10] = 0.25; v[32 * SIDE + 50] = 0.75;
-        propagateNearest(v, SIDE, 6);
-        expect(v[32 * SIDE + 14]).toBe(0.25);
-        expect(v[34 * SIDE + 8]).toBe(0.25);
-        expect(v[32 * SIDE + 48]).toBe(0.75);
-        expect(v[32 * SIDE + 30]).toBe(-1);
-        const w = new Float32Array(SIDE * SIDE).fill(-1);
-        w[0] = 0.5;
-        const inside = new Uint8Array(SIDE * SIDE); inside[40 * SIDE + 40] = 1;
-        propagateNearest(w, SIDE, 3, inside);
-        expect(w[40 * SIDE + 40]).toBe(0.5);
-        expect(w[10 * SIDE + 10]).toBe(-1);
-    });
-
     it('median and interpolation', () => {
         expect(median([3, 1, 2])).toBe(2);
         expect(median([1, 2, 3, 10])).toBe(2.5);

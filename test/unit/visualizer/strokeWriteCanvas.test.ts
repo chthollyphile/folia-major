@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { EM_UNITS, type FontStrokesGlyph } from '@/services/fontStrokes/fontStrokesOutline';
+import type { StrokeFit } from '@/services/fontStrokes/fontStrokesFit';
 import { drawStrokeWriteGlyph, strokeUnitsToWorld, strokeWriteWeights } from '@/components/visualizer/fontStrokes/strokeWriteCanvas';
 
 // test/unit/visualizer/strokeWriteCanvas.test.ts
 // canvas 写字：笔画坐标到世界坐标的换算（和 renderCanon 的字号 0.78 em、中心 0.5 em、基线 0.8 em 对上）、分时权重，
-// 以及用假画布看一帧的绘制步骤（写完的笔填轮廓 + 描缝、正在写的笔裁到轮廓里按进度画笔刷、字 source-in、贴回目标）。
+// 以及用假画布看一帧的绘制步骤（正在写的笔先画区域再 source-in 按进度画笔刷、写完的笔填区域 + 描缝、字 source-in、贴回目标；
+// 有显示字重的落法时区域按 dilate 往外描、并上剩下的墨，外框跟着变大）。
 // 真字体下轮廓和 fillText 的墨对不对得上，在笔顺开发壳里用真推理量（见提交说明）。
 
 type Call = [string, ...unknown[]];
@@ -86,19 +88,25 @@ describe('drawStrokeWriteGlyph', () => {
         expect(target.calls.some(c => c[0] === 'drawImage')).toBe(false);
     });
 
-    it('masks mid-write: written strokes fill their outline and stroke a seam, the current one is a clipped dashed brush, the glyph goes in source-in', () => {
+    it('masks mid-write: the current stroke draws its region then a source-in dashed brush, written strokes fill their region and stroke a seam, the glyph goes in source-in', () => {
         const target = targetAt({ e: 3.25, f: -1.5 });
         scratch.calls.length = 0;
         const drawn: unknown[] = [];
         // 两笔一样长：0.75 = 第一笔写完、第二笔写到一半
         expect(drawStrokeWriteGlyph(target.ctx, glyph, 0.75, place, ctx => { drawn.push(ctx); })).toBe(true);
         const names = scratch.calls.map(c => c[0]);
-        expect(names.filter(n => n === 'fill')).toHaveLength(1);
-        expect(names.indexOf('clip')).toBeGreaterThan(names.indexOf('fill'));
+        expect(names).not.toContain('clip');
+        // 先是正在写的第二笔的区域（fill + stroke），再 source-in 的笔刷
+        const fills = scratch.calls.map((c, i) => (c[0] === 'fill' ? i : -1)).filter(i => i >= 0);
+        expect(fills).toHaveLength(2);
+        const brushIn = scratch.calls.findIndex(c => c[0] === 'set:globalCompositeOperation' && c[1] === 'source-in');
+        expect(brushIn).toBeGreaterThan(fills[0]);
+        expect(brushIn).toBeLessThan(fills[1]);
         const dash = scratch.calls.filter(c => c[0] === 'setLineDash').map(c => (c[1] as number[]).slice());
         expect(dash.some(d => Math.abs(d[0] - 600) < 1e-6)).toBe(true);
-        const sourceIn = scratch.calls.findIndex(c => c[0] === 'set:globalCompositeOperation' && c[1] === 'source-in');
-        expect(sourceIn).toBeGreaterThan(names.lastIndexOf('stroke'));
+        // 字 source-in 在最后一次 stroke 之后
+        const glyphIn = scratch.calls.map((c, i) => (c[0] === 'set:globalCompositeOperation' && c[1] === 'source-in' ? i : -1)).filter(i => i >= 0).pop() ?? -1;
+        expect(glyphIn).toBeGreaterThan(names.lastIndexOf('stroke'));
         expect(drawn).toHaveLength(1);
         expect(drawn[0]).toBe(scratch.ctx);
 
@@ -115,6 +123,28 @@ describe('drawStrokeWriteGlyph', () => {
         expect(dy).toBeLessThanOrEqual(ty + 300 * k);
         expect(dx + dw).toBeGreaterThanOrEqual(tx + 1700 * k);
         expect(dy + dh).toBeGreaterThanOrEqual(ty + 1700 * k);
+    });
+
+    it('with a display-weight fit: regions stroke 2 × (dilate + seam), add the leftover ink, use the fitted brush, and the scratch box grows', () => {
+        const target = targetAt({});
+        scratch.calls.length = 0;
+        const fit: StrokeFit = {
+            dilate: 40,
+            leftover: [[], [square(1050, 1750, 1150, 1900)]],
+            brush: new Float32Array([500, 700]),
+            reachPx: 5,
+        };
+        expect(drawStrokeWriteGlyph(target.ctx, glyph, 0.75, place, () => undefined, { fit })).toBe(true);
+        const { k } = strokeUnitsToWorld(place);
+        const seam = 1 / (2 * k);
+        const widths = scratch.calls.filter(c => c[0] === 'set:lineWidth').map(c => c[1] as number);
+        expect(widths.some(w => Math.abs(w - 2 * (40 + seam)) < 1e-6)).toBe(true);
+        expect(widths).toContain(700);
+        // 第二笔（正在写）有剩下的墨：区域里多一次 fill
+        expect(scratch.calls.filter(c => c[0] === 'fill')).toHaveLength(3);
+        const blit = target.calls.find(c => c[0] === 'drawImage') as [string, unknown, number, number, number, number, number, number, number, number];
+        const { ty } = strokeUnitsToWorld(place);
+        expect(blit[7] + blit[9]).toBeGreaterThanOrEqual(ty + 1900 * k);
     });
 
     it('can force the mask at full progress (placement checks)', () => {

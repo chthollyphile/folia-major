@@ -9,10 +9,11 @@ import { resolvePrintedGraphemeCount, resolveVisualProgressWithCutoff } from './
 import { getActiveColor } from './fumeTextStyle';
 import { isModelChar } from '../../../services/fontStrokes/fontStrokesRaster';
 import type { FontStrokesGlyph } from '../../../services/fontStrokes/fontStrokesOutline';
+import type { StrokeFit } from '../../../services/fontStrokes/fontStrokesFit';
 import { drawStrokeWriteGlyph, placeLeftMiddleGlyph } from '../fontStrokes/strokeWriteCanvas';
 import { resolveWriteGlyphState, type WriteGlyphState } from '../fontStrokes/strokeWriteTiming';
 import { resolveGlyphTimes, type FumeHandwritingFrame } from './fumeHandwriting';
-import { buildFontSpec, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
+import { buildFontSpec, resolveFumeFontWeight, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeCanvasText.ts
 // Canvas 2D text drawing for fume: fonts, clipped text runs and the static block snapshots.
@@ -93,6 +94,7 @@ const drawHandwritingGrapheme = (
     context: CanvasRenderingContext2D,
     grapheme: string,
     strokes: FontStrokesGlyph,
+    fit: StrokeFit | null,
     progress: number,
     { x, baselineY, fontPx, fillStyle }: { x: number; baselineY: number; fontPx: number; fillStyle: string },
 ) => {
@@ -104,7 +106,7 @@ const drawHandwritingGrapheme = (
         ctx.fillStyle = fillStyle;
         ctx.fillText(grapheme, x, baselineY);
     };
-    const placed = drawStrokeWriteGlyph(context, strokes, progress, placeLeftMiddleGlyph(context, grapheme, x, baselineY, fontPx), drawPlain);
+    const placed = drawStrokeWriteGlyph(context, strokes, progress, placeLeftMiddleGlyph(context, grapheme, x, baselineY, fontPx), drawPlain, { fit });
     if (!placed) drawPlain(context);
 };
 
@@ -193,6 +195,7 @@ export const drawFumeLiveBlock = (
 
     // 手写笔画：每个字此刻的状态（一帧里两遍绘制共用，决定只做一次）；关着时是 null，下面的画法和原来完全一样
     const hwStates = handwriting ? new Map<number, WriteGlyphState>() : null;
+    const hwWeight = resolveFumeFontWeight(block.variant, theme);
     const hwStateOf = (globalOffset: number, grapheme: string): WriteGlyphState => {
         if (!handwriting || !hwStates || !isModelChar(grapheme)) return null;
         const cached = hwStates.get(globalOffset);
@@ -210,10 +213,16 @@ export const drawFumeLiveBlock = (
                 () => handwriting.getStrokes(grapheme) !== null,
             );
         }
+        // 还没开写：先把这个字在当前字重下的落法算好（一帧最多一个），开写那一帧不用现算
+        if (state === 'hidden') {
+            const strokes = handwriting.getStrokes(grapheme);
+            if (strokes) handwriting.warmFit(grapheme, strokes, hwWeight);
+        }
         hwStates.set(globalOffset, state);
         return state;
     };
     const handwritingStrokes = (grapheme: string) => handwriting?.getStrokes(grapheme) ?? null;
+    const handwritingFit = (grapheme: string, strokes: FontStrokesGlyph) => handwriting?.getFit(grapheme, strokes, hwWeight) ?? null;
 
     const isLineActive = time >= block.line.startTime && time <= linePassCutoffTime;
     if (isLineActive) {
@@ -285,7 +294,7 @@ export const drawFumeLiveBlock = (
                         context.save();
                         const localOffset = offset - renderLine.start;
                         if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, glowBaseX, glowBaseY)) {
-                            drawHandwritingGrapheme(context, grapheme, strokes, state, {
+                            drawHandwritingGrapheme(context, grapheme, strokes, handwritingFit(grapheme, strokes), state, {
                                 x: glowBaseX + segment.x + resolveSegmentGlyphOffset(segment, offset),
                                 baselineY: glowBaseY,
                                 fontPx: block.fontPx,
@@ -517,7 +526,7 @@ export const drawFumeLiveBlock = (
                         context.save();
                         const localOffset = globalOffset - renderLine.start;
                         if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, baseX, baseY)) {
-                            drawHandwritingGrapheme(context, grapheme, strokes, hwState, {
+                            drawHandwritingGrapheme(context, grapheme, strokes, handwritingFit(grapheme, strokes), hwState, {
                                 x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
                                 baselineY: baseY,
                                 fontPx: block.fontPx,

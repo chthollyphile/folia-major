@@ -2,47 +2,11 @@ import { CANON, chamferDistance } from '../../../services/fontStrokes/fontStroke
 import { clamp } from './nebbiaConstants';
 
 // src/components/visualizer/nebbia/nebbiaFontField.ts
-// 字体墨的纯计算（不碰画布、GL）：倒角距离、书写位置往墨外延伸（浮名的手写笔画 strokeReveal.ts 用）、
-// 笔迹数组按弧长插值，以及雾笺字体笔画的笔宽剖面（墨按书写位置分格量笔宽）。
+// 字体墨的纯计算（不碰画布、GL）：倒角距离、笔迹数组按弧长插值，以及雾笺字体笔画的笔宽剖面（墨按书写位置分格量笔宽）。
 
 export { CANON };
-/** 书写位置往墨外延伸多少个模型网格像素（原来是雾笺字块墨边最多外扩的 12 个再多留 2 个，浮名的手写笔画沿用这个值）。 */
-export const SPREAD_R = 14;
-
 // CANON 和倒角距离已挪到 services/fontStrokes/fontStrokesRaster.ts（笔画服务不依赖样式目录），这里转出。
 export { chamferDistance };
-
-/**
- * 把 v（负数 = 没有值）按最近的有值像素往外延伸，最多 maxR 个像素（两遍倒角，一遍代替原来的多轮平均）。
- * inside 为 1 的像素不受 maxR 限制（墨里没有值的像素也要补上）；超出的仍是 -1。
- */
-export const propagateNearest = (v: Float32Array, side: number, maxR: number, inside?: Uint8Array) => {
-    const A = 0.955, B = 1.3693, INF = 1e9;
-    const d = new Float32Array(v.length);
-    for (let i = 0; i < d.length; i += 1) d[i] = v[i] >= 0 ? 0 : INF;
-    const relax = (i: number, j: number, cost: number) => {
-        if (d[j] + cost < d[i]) { d[i] = d[j] + cost; v[i] = v[j]; }
-    };
-    for (let y = 0; y < side; y += 1) for (let x = 0; x < side; x += 1) {
-        const i = y * side + x;
-        if (x > 0) relax(i, i - 1, A);
-        if (y > 0) {
-            relax(i, i - side, A);
-            if (x > 0) relax(i, i - side - 1, B);
-            if (x < side - 1) relax(i, i - side + 1, B);
-        }
-    }
-    for (let y = side - 1; y >= 0; y -= 1) for (let x = side - 1; x >= 0; x -= 1) {
-        const i = y * side + x;
-        if (x < side - 1) relax(i, i + 1, A);
-        if (y < side - 1) {
-            relax(i, i + side, A);
-            if (x < side - 1) relax(i, i + side + 1, B);
-            if (x > 0) relax(i, i + side - 1, B);
-        }
-    }
-    for (let i = 0; i < v.length; i += 1) if (d[i] > maxR && !inside?.[i]) v[i] = -1;
-};
 
 export const median = (values: number[]): number => {
     if (!values.length) return 0;

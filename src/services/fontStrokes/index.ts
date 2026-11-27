@@ -1,5 +1,6 @@
 import { runStrokesGpu, strokesGpuUnavailable } from '../analysis/beatThisGpu';
 import { createPlaybackDemandSource } from './fontStrokesDemand';
+import { getStrokeFit, warmStrokeFit, type StrokeFit } from './fontStrokesFit';
 import { fontLabelOfKey, fontStackOfKey } from './fontStrokesKey';
 import { FontStrokesMemory } from './fontStrokesMemory';
 import { buildFontStrokesGlyph, type FontStrokesGlyph } from './fontStrokesOutline';
@@ -17,6 +18,7 @@ export { fontStrokesKeyOf, fontStackOfKey, fontLabelOfKey } from './fontStrokesK
 export { isModelChar } from './fontStrokesRaster';
 export { EM_UNITS, type FontStrokesGlyph } from './fontStrokesOutline';
 export type { FontStrokesUsage } from './fontStrokesStore';
+export type { StrokeFit } from './fontStrokesFit';
 
 /** 等字体加载最久多少毫秒。 */
 const FONT_WAIT_MS = 4000;
@@ -68,6 +70,32 @@ export const registerFontStrokesConsumer = ({ fontKey, chars }: { fontKey: strin
 
 /** 同步取一个字的笔画；没算好、画不出来（没有墨）时 null。 */
 export const getFontStrokes = (fontKey: string, ch: string): FontStrokesGlyph | null => memory.get(fontKey, ch);
+
+const stackCache = new Map<string, string | null>();
+const stackOf = (fontKey: string) => {
+    let stack = stackCache.get(fontKey);
+    if (stack === undefined) {
+        stack = fontStackOfKey(fontKey);
+        if (stackCache.size > 32) stackCache.clear();
+        stackCache.set(fontKey, stack);
+    }
+    return stack;
+};
+
+/**
+ * 一个字的笔画落到显示字重 weight 上的样子（每条笔身膨胀多少、剩下的墨归哪笔，fontStrokesFit.ts）。同步；第一次算要几毫秒，之后查缓存。
+ * glyph 是 getFontStrokes(fontKey, ch) 拿到的记录。
+ */
+export const getFontStrokeFit = (fontKey: string, glyph: FontStrokesGlyph, ch: string, weight: number): StrokeFit | null => {
+    const stack = stackOf(fontKey);
+    return stack ? getStrokeFit(glyph, ch, stack, weight) : null;
+};
+
+/** 预热 getFontStrokeFit（字还没开写时调，一帧最多算一个）。 */
+export const warmFontStrokeFit = (fontKey: string, glyph: FontStrokesGlyph, ch: string, weight: number) => {
+    const stack = stackOf(fontKey);
+    if (stack) warmStrokeFit(glyph, ch, stack, weight);
+};
 
 /** 订阅新结果（参数是哪个字体键来了新字）。返回取消。 */
 export const subscribeFontStrokes = (listener: (fontKey: string) => void): (() => void) => memory.subscribe(listener);

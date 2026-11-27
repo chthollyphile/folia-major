@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { absorbSpecks, buildFontStrokesGlyph, EM_UNITS, extendOwners, OUTLINE_SIDE, simplifyRing, traceMaskRings } from '../../../../src/services/fontStrokes/fontStrokesOutline';
 
 // test/unit/services/fontStrokes/fontStrokesOutline.test.ts
-// 轮廓：用合成的归属图（交叉的两横竖、相碰的两条、一笔两块）验证延伸、描边、简化、笔刷。
+// 轮廓：用合成的归属图（交叉的两横竖、相碰的两条、一笔两块）验证描边、简化、笔刷，以及（探针用的）延伸。
 
 const S = OUTLINE_SIDE;
 /** 在归属图里涂一个矩形。 */
@@ -142,6 +142,19 @@ describe('buildFontStrokesGlyph', () => {
         const g = buildFontStrokesGlyph(owner, [pen(40, 65, 200, 65), pen(40, 155, 200, 155)], GRID, { extendEm: 2 / 256 });
         expect(g.outlines[0]).toHaveLength(2);
         expect(g.outlines[1]).toHaveLength(1);
+    });
+
+    it('默认不往墨外延伸：轮廓就是 400 的笔身', () => {
+        const owner = blank();
+        rect(owner, 0, 40, 100, 100, 110);
+        rect(owner, 1, 100, 100, 160, 110);
+        const g = buildFontStrokesGlyph(owner, [pen(40, 105, 100, 105), pen(100, 105, 160, 105)], GRID);
+        expect(inside(g.outlines[0], 70, 101)).toBe(true);
+        expect(inside(g.outlines[0], 70, 98)).toBe(false);
+        expect(inside(g.outlines[1], 130, 111)).toBe(false);
+        // 笔刷：半宽约 5 个像素 × 2 × 1.2（笔端处到中线更远）
+        expect(g.brush[0]).toBeGreaterThanOrEqual(Math.floor(2 * 1.2 * 5));
+        expect(g.brush[0]).toBeLessThan(2 * 1.2 * 11);
     });
 
     it('没有墨的笔：轮廓为空，笔刷 0', () => {

@@ -1,21 +1,14 @@
 // src/services/fontStrokes/fontStrokesOutline.ts
-// 笔画轮廓（纯函数，不碰画布）：own2 的归属图（每个墨像素属于哪一笔）→ 先并掉碎斑 → 每笔往墨外延伸一圈
-// （相邻笔按最近的墨在中间接上）→ 按笔描边（marching squares，一笔可有多个环，洞的方向相反）→ 简化（容差约半个网格像素）
-// → em 坐标的 Int16 多边形。再按每笔中线量笔刷宽度（轮廓到中线的最大距离 × 2 × 1.2）。
+// 笔画轮廓（纯函数，不碰画布）：own2 的归属图（每个墨像素属于哪一笔）→ 先并掉碎斑 → 按笔描边（marching squares，
+// 一笔可有多个环，洞的方向相反）→ 简化（容差约半个网格像素）→ em 坐标的 Int16 多边形。再按每笔中线量笔刷宽度（轮廓到中线的最大距离 × 2 × 1.2）。
+// 存的是字重 400 的「笔身」：不往墨外延伸。显示字重更粗时，每条笔身各自膨胀、裁到显示字重的墨、剩下的墨按最近的笔身补
+// （fontStrokesFit.ts，用时按字重算）。
 // 坐标：em = (网格像素 − b) / a（同 fontStrokesRaster.renderCanon）；存盘一律 em × EM_UNITS 取整。
 
 /** 模型网格边长。 */
 export const OUTLINE_SIDE = 256;
 /** 存盘的 em 单位数：1 em = 2048 个单位（约 1/15 个网格像素的精度，Int16 能表示到 ±16 em）。 */
 export const EM_UNITS = 2048;
-/**
- * 往墨外延伸多少（em）：盖住字重 200..800 和合成粗体多出来的墨。阶段 0 实测（4 款系统字体、38 个字、按 400 算）：
- * 0.03 时 800 字重未盖住的墨 PingFang 0.02%、Hiragino Sans 3.2%、Songti 14.6%；0.06 时分别 0.014%、0.03%、1.4%（Songti 的 Black 档），合成粗体 < 0.06%。
- * 再大收益很小，只会让笔刷更宽（笔刷按轮廓量，写字时笔头更靠前）。
- */
-export const EXTEND_EM = 0.06;
-/** 延伸最多多少个网格像素（字很小时 a 很大，em 换成像素会很远）。 */
-const EXTEND_MAX_PX = 40;
 /** 碎斑：同一笔的连通块小于这么多像素、又贴着别的笔时并给邻居。 */
 const SPECK_PIXELS = 6;
 /** 描边简化的容差（网格像素）。 */
@@ -77,6 +70,7 @@ export const absorbSpecks = (owner: Int8Array, side = OUTLINE_SIDE, minPixels = 
 /**
  * 每笔往墨外延伸 maxR 个像素：非墨像素取最近的墨像素的归属（8SSEDT 偏移向量两遍扫描，欧氏距离的近似），
  * 相邻两笔的区域在各自最近的中间接上。返回新的归属图；maxR ≤ 0 时原样复制。
+ * 存盘不再用它延伸；显示字重的「剩下的墨归最近的笔身」（fontStrokesFit.ts、雾笺的 nebbiaFontAlong.ts）用它（maxR 取很大）当最近笔身的标号。
  */
 export const extendOwners = (owner: Int8Array, maxR: number, side = OUTLINE_SIDE): Int8Array => {
     const out = Int8Array.from(owner);
@@ -245,28 +239,35 @@ const distToPolyline = (x: number, y: number, pen: Float32Array): number => {
     return Math.sqrt(best);
 };
 
-const quantize = (v: number) => Math.max(-32768, Math.min(32767, Math.round(v * EM_UNITS)));
+export const quantizeEm = (v: number) => Math.max(-32768, Math.min(32767, Math.round(v * EM_UNITS)));
+const quantize = quantizeEm;
+/** 延伸最多多少个网格像素（字很小时 a 很大，em 换成像素会很远）。 */
+const EXTEND_MAX_PX = 40;
 
 export interface BuildOptions {
-    /** 往墨外延伸多少 em，默认 EXTEND_EM。 */
+    /**
+     * 往墨外延伸多少 em（相邻笔在中间接上），默认 0（存盘一律不延伸）。只给开发探针比对旧规则用：
+     * 格式 1 存的是延伸 0.06 em 的轮廓，粗字重下写到一半时相邻笔交界处会缺一块（见 fontStrokesFit.ts）。
+     */
     extendEm?: number;
 }
 
 /**
  * 归属图 + 笔迹 → 一个字存盘的结果。owner：256² 每像素的笔下标（-1 = 不是墨）；pens：模型的画布坐标笔迹；grid：这个字的网格变换。
+ * 轮廓就是 400 墨上 own2 分给这一笔的区域（并掉碎斑后），不往墨外延伸。
  * 不改 owner。笔数 > 127 的字（Int8 装不下）多出的笔没有归属，轮廓为空。
  */
 export const buildFontStrokesGlyph = (owner: Int8Array, pens: Float32Array[], grid: OutlineGrid, options: BuildOptions = {}): FontStrokesGlyph => {
     const side = OUTLINE_SIDE;
     const merged = Int8Array.from(owner);
     absorbSpecks(merged, side);
-    const radius = Math.min(EXTEND_MAX_PX, (options.extendEm ?? EXTEND_EM) * grid.a);
-    const extended = extendOwners(merged, radius, side);
+    const extendPx = Math.min(EXTEND_MAX_PX, (options.extendEm ?? 0) * grid.a);
+    const bodies = extendPx > 0 ? extendOwners(merged, extendPx, side) : merged;
     const penCount = pens.length;
     // 每笔的像素范围，描边只扫自己的包围盒
     const boxes: number[][] = Array.from({ length: penCount }, () => [side, side, -1, -1]);
-    for (let i = 0; i < extended.length; i += 1) {
-        const k = extended[i];
+    for (let i = 0; i < bodies.length; i += 1) {
+        const k = bodies[i];
         if (k < 0 || k >= penCount) continue;
         const x = i % side, y = (i - x) / side, b = boxes[k];
         if (x < b[0]) b[0] = x;
@@ -284,7 +285,7 @@ export const buildFontStrokesGlyph = (owner: Int8Array, pens: Float32Array[], gr
         if (x1 >= 0) {
             const w = x1 - x0 + 1, h = y1 - y0 + 1;
             const mask = new Uint8Array(w * h);
-            for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) mask[y * w + x] = extended[(y0 + y) * side + x0 + x] === k ? 1 : 0;
+            for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) mask[y * w + x] = bodies[(y0 + y) * side + x0 + x] === k ? 1 : 0;
             for (const raw of traceMaskRings(mask, w, h)) {
                 const ring = simplifyRing(raw);
                 if (ring.length < 6 || Math.abs(ringArea(ring)) < MIN_RING_AREA) continue;
