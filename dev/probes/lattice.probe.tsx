@@ -131,7 +131,7 @@ function LatticeProbe({ covers = 'off', queueLength = 12, withLyrics = false, wi
             <button onClick={() => setSongs(source)}>Restore queue</button>
             <button onClick={() => setPlayerState(value => value === PlayerState.PLAYING ? PlayerState.PAUSED : PlayerState.PLAYING)}>Toggle player state</button>
             <button onClick={() => setPlaybackDuration(value => value + 1)}>Bump duration</button>
-            {/* In the app this setting is switched by a command of the palette (settings-toggle-lattice-auto-focus). */}
+            {/* In the app this setting is switched by the wall's tools panel and by a command of the palette (settings-toggle-lattice-auto-focus). */}
             <button onClick={() => {
                 const settings = useLatticeSettingsStore.getState();
                 settings.handleToggleAutoFocusOnSongChange(!settings.autoFocusOnSongChange);

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { GalleryHorizontal, House } from 'lucide-react';
+import { Focus, GalleryHorizontal, House } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { usePlayingSongLocatorStore } from '../../../stores/usePlayingSongLocatorStore';
@@ -20,8 +20,9 @@ import { locatePlayingSongOnWall, useWallPageKey } from './wallLocate';
 // 洗牌、主题、队列、播放器四格与音量也由 wall 从 App 的墙面工具宿主组装（与 bravais 同一套结构）。
 // 这里只给 Lattice 自己的：destination（主页：总是回首页）与帮助内容，以及按钮上方的定位按钮（`above`）：
 // 一个集合页的定位按钮（GridLocateButton），意思和在那里一样——正在播放的歌在这面墙上有封面时亮起，按下是向墙要
-// 那张封面（wallLocate.ts）。「聚焦当前歌曲」与「切歌时自动聚焦」两项不在面板里：定位由上方的按钮做，自动聚焦的
-// 开关在命令面板（「Lattice 自动聚焦」）。
+// 那张封面（wallLocate.ts）。「聚焦当前歌曲」不在面板里，定位由上方的按钮做。
+// 「切歌时自动聚焦」是面板里的一个开关（命令面板的「Lattice 自动聚焦」是同一个设置），只在海报墙上给：
+// 跟随切歌只有 PosterWall（useLatticePlaybackFocus）读这个设置，电台墙不读，那里不画这一行。
 // 电台墙（isRadio）：定位按钮同样在这里，按下回到正在播放那张（浏览到别处时用；RadioWall 答这一问）；帮助换成电台墙的操作。
 // 播放队列的墙（showsWallForm）面板里有一格「墙面形态」：海报墙 / 电台墙来回切；私人 FM 下固定是电台墙，这一格置灰。
 export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false, showsWallForm = false, onGoHome }: {
@@ -44,17 +45,29 @@ export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false,
     const wallForm = useLatticeSettingsStore(state => state.latticeWallForm);
     const setWallForm = useLatticeSettingsStore(state => state.handleSetLatticeWallForm);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
-    const entries = useMemo((): WallToolsEntry[] => (showsWallForm ? [{
-        kind: 'action',
-        id: 'lattice-wall-form',
-        icon: GalleryHorizontal,
-        label: t('options.latticeWallForm'),
-        value: t(isFmMode ? 'options.latticeWallForm_radio' : `options.latticeWallForm_${wallForm}`),
-        disabled: isFmMode,
-        hint: isFmMode ? t('wallTools.wallFormFixedInFm') : undefined,
-        keepOpen: true,
-        onSelect: () => setWallForm(wallForm === 'radio' ? 'poster' : 'radio'),
-    }] : []), [isFmMode, setWallForm, showsWallForm, t, wallForm]);
+    const autoFocusOnSongChange = useLatticeSettingsStore(state => state.autoFocusOnSongChange);
+    const handleToggleAutoFocusOnSongChange = useLatticeSettingsStore(state => state.handleToggleAutoFocusOnSongChange);
+    const entries = useMemo((): WallToolsEntry[] => [
+        ...(showsWallForm ? [{
+            kind: 'action',
+            id: 'lattice-wall-form',
+            icon: GalleryHorizontal,
+            label: t('options.latticeWallForm'),
+            value: t(isFmMode ? 'options.latticeWallForm_radio' : `options.latticeWallForm_${wallForm}`),
+            disabled: isFmMode,
+            hint: isFmMode ? t('wallTools.wallFormFixedInFm') : undefined,
+            keepOpen: true,
+            onSelect: () => setWallForm(wallForm === 'radio' ? 'poster' : 'radio'),
+        } satisfies WallToolsEntry] : []),
+        ...(isRadio ? [] : [{
+            kind: 'toggle',
+            id: 'lattice-auto-focus',
+            icon: Focus,
+            label: t('options.latticeAutoFocusOnSongChange'),
+            checked: autoFocusOnSongChange,
+            onToggle: handleToggleAutoFocusOnSongChange,
+        } satisfies WallToolsEntry]),
+    ], [autoFocusOnSongChange, handleToggleAutoFocusOnSongChange, isFmMode, isRadio, setWallForm, showsWallForm, t, wallForm]);
 
     const destination: WallToolsQuickAction | undefined = onGoHome ? {
         id: 'go-home',

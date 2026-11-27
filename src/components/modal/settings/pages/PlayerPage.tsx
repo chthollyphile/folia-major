@@ -38,6 +38,7 @@ const O = {
     entryView: option(VIEW, 'playbackEntryViewChoice', 'options.playbackEntryView'),
     wallForm: option(VIEW, 'latticeWallForm', 'options.latticeWallForm'),
     radioHideUpcoming: option(VIEW, 'latticeRadioHideUpcoming', 'options.latticeRadioHideUpcoming'),
+    autoFocusOnSongChange: option(VIEW, 'latticeAutoFocusOnSongChange', 'options.latticeAutoFocusOnSongChange'),
     vignette: option(VIEW, 'latticeSettings', 'options.latticeVignette'),
     tint: option(VIEW, 'latticePosterTint', 'options.latticePosterTint'),
     tintCustomColor: option(VIEW, 'latticePosterTintCustomColor', 'options.latticePosterTintCustomColor'),
@@ -91,6 +92,7 @@ const PlayerPage: React.FC = () => {
         tintColor: state.latticePosterTintColor,
         tintIntensity: state.latticePosterTintIntensity,
         badgeCurrentOnly: state.latticeBadgeCurrentOnly,
+        autoFocusOnSongChange: state.autoFocusOnSongChange,
         setWallForm: state.handleSetLatticeWallForm,
         setRadioHideUpcoming: state.handleToggleLatticeRadioHideUpcoming,
         setVignette: state.handleToggleLatticeVignette,
@@ -99,6 +101,7 @@ const PlayerPage: React.FC = () => {
         setTintColor: state.handleSetLatticePosterTintColor,
         setTintIntensity: state.handleSetLatticePosterTintIntensity,
         setBadgeCurrentOnly: state.handleToggleLatticeBadgeCurrentOnly,
+        setAutoFocusOnSongChange: state.handleToggleAutoFocusOnSongChange,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         autoHide: state.autoHidePlayerChrome,
@@ -223,6 +226,11 @@ const PlayerPage: React.FC = () => {
                         <Toggle checked={lattice.radioHideUpcoming} onChange={lattice.setRadioHideUpcoming} />
                     </Row>
                 </Reveal>
+                {/* 只有海报墙跟随切歌（PosterWall 的 useLatticePlaybackFocus），但探索页的墙不论墙面形态都是海报墙，所以这一行一直显示。
+                    墙上工具面板与命令面板也能切换同一个设置。 */}
+                <Row option={O.autoFocusOnSongChange} note={t('options.latticeAutoFocusOnSongChangeDesc')}>
+                    <Toggle checked={lattice.autoFocusOnSongChange} onChange={lattice.setAutoFocusOnSongChange} />
+                </Row>
                 <Row option={O.vignette} note={t('options.latticeVignetteDesc')}>
                     <Toggle checked={lattice.vignette} onChange={lattice.setVignette} />
                 </Row>

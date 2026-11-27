@@ -389,11 +389,10 @@ test('the locate button of the wall goes to the playing song', async ({ mount, p
     await expectExpandedCentered(wall);
     await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
     await expect(locate).toHaveAttribute('data-grid-locate-seeking', 'no');
-    // The tools button under it keeps its menu, without the two entries the locate button replaced.
+    // The tools button under it keeps its menu, without the focus entry the locate button replaced.
     await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
     await expect(wall.getByRole('menu', { name: 'Lattice tools', exact: true })).toBeVisible();
     await expect(wall.getByRole('menuitem', { name: 'Focus current song', exact: true })).toHaveCount(0);
-    await expect(wall.getByRole('menuitemcheckbox', { name: 'Auto-focus on track change', exact: true })).toHaveCount(0);
     // While no song plays there is nothing to locate, and no button.
     await wall.getByRole('button', { name: 'Clear queue', exact: true }).click();
     await expect(locate).toHaveCount(0);
@@ -406,7 +405,7 @@ test('the wall tool panel shares the six-cell layout and its home cell always go
     await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
     const menu = wall.getByRole('menu', { name: 'Lattice tools', exact: true });
     // 探针没有墙面工具宿主：洗牌、主题、播放器三格跳过，队列格在但禁用；去处是「主页」。定位不是一格：它是按钮上方的定位按钮
-    // （集合页的那一个），「切歌时自动聚焦」也不在面板里（开关在命令面板），所以没有「墙面」那一组。
+    // （集合页的那一个）。「切歌时自动聚焦」是条目里的一个开关，不是快捷格；面板没有「墙面」那一组小标题。
     expect(await menu.locator('[data-wall-tools-quick]').evaluateAll(nodes => nodes.map(node => (node as HTMLElement).dataset.wallToolsQuick)))
         .toEqual(['queue', 'go-home']);
     await expect(menu.locator('[data-wall-tools-quick="queue"]')).toBeDisabled();
@@ -441,6 +440,29 @@ test('auto-focus toggle leaves browsing position alone until the next enabled tr
     await wall.getByRole('button', { name: 'Next track', exact: true }).click();
     await expect(wall.locator('.lattice-poster.is-expanded')).toHaveAttribute('aria-label', 'Poster 2 · Artist');
     await expectExpandedCentered(wall);
+});
+
+test('the tools panel switches auto-focus on the poster wall and leaves it out on the radio wall', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
+    const menu = wall.getByRole('menu', { name: 'Lattice tools', exact: true });
+    const autoFocus = menu.getByRole('menuitemcheckbox', { name: 'Auto-focus on track change', exact: true });
+    // The same setting as the palette's command: on at first, and the panel stays open after a switch.
+    await expect(autoFocus).toHaveAttribute('aria-checked', 'true');
+    await autoFocus.click();
+    await expect(autoFocus).toHaveAttribute('aria-checked', 'false');
+    await expect(menu).toBeVisible();
+    await autoFocus.click();
+    await expect(autoFocus).toHaveAttribute('aria-checked', 'true');
+    // Only the poster wall follows track changes, so the radio wall has no such row.
+    const wallForm = menu.getByRole('menuitem', { name: /^Wall form/ });
+    await wallForm.click();
+    await expect(wall.locator('.lattice-root')).toHaveClass(/is-radio/);
+    await expect(autoFocus).toHaveCount(0);
+    await wallForm.click();
+    await expect(wall.locator('.lattice-root')).not.toHaveClass(/is-radio/);
+    await expect(autoFocus).toHaveAttribute('aria-checked', 'true');
 });
 
 test('publishes when the current playing card leaves and re-enters the viewport', async ({ mount, page }) => {
