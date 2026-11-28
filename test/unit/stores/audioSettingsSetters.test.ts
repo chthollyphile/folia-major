@@ -61,6 +61,30 @@ describe('handleSetMuted', () => {
     });
 });
 
+describe('handleSetVolume', () => {
+    it('releases mute when raised above zero, persisting both', () => {
+        useAudioSettingsStore.setState({ volume: 1, isMuted: true });
+        useAudioSettingsStore.getState().handleSetVolume(0.6);
+        expect(useAudioSettingsStore.getState()).toMatchObject({ isMuted: false, volume: 0.6 });
+        expect(storage.get('player_volume')).toBe('0.6');
+        expect(storage.get('player_is_muted')).toBe('false');
+    });
+
+    it('keeps the mute switch when set to zero', () => {
+        useAudioSettingsStore.setState({ isMuted: true });
+        useAudioSettingsStore.getState().handleSetVolume(0);
+        expect(useAudioSettingsStore.getState()).toMatchObject({ isMuted: true, volume: 0 });
+        expect(storage.has('player_is_muted')).toBe(false);
+    });
+
+    it('leaves the unmuted state alone', () => {
+        useAudioSettingsStore.setState({ isMuted: false });
+        useAudioSettingsStore.getState().handleSetVolume(0.8);
+        expect(useAudioSettingsStore.getState()).toMatchObject({ isMuted: false, volume: 0.8 });
+        expect(storage.has('player_is_muted')).toBe(false);
+    });
+});
+
 describe('handleSetLoopMode', () => {
     it('sets, persists and toasts the new mode', () => {
         useAudioSettingsStore.setState({ loopMode: 'off' });

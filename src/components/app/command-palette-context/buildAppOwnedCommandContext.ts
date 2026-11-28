@@ -75,13 +75,10 @@ export const buildPlaybackCommandContext = (
         isMuted: audio.isMuted,
         setVolume: audio.handleSetVolume,
         // Read from the store at the press, not from this snapshot: a held key repeats faster
-        // than the context is rebuilt, and each step has to start where the last one ended. Turning
-        // it up also unmutes, like a keyboard's volume key: otherwise the number rises in silence.
+        // than the context is rebuilt, and each step has to start where the last one ended.
+        // （调高解除静音在 handleSetVolume 里，这里不用单独做。）
         stepVolume: (delta) => {
             const live = useAudioSettingsStore.getState();
-            if (delta > 0 && live.isMuted) {
-                live.handleSetMuted(false);
-            }
             const next = Math.round(Math.min(1, Math.max(0, live.volume + delta)) * 100) / 100;
             live.handleSetVolume(next);
         },

@@ -208,6 +208,16 @@ describe('Folium 1.5 playback notifications', () => {
         ]);
     });
 
+    it('reports the volume-up unmute as one event, not a transient intermediate state', () => {
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.volumeChanged', handler);
+        useAudioSettingsStore.setState({ volume: 0.4, isMuted: true });
+        handler.mockClear();
+
+        useAudioSettingsStore.getState().handleSetVolume(0.7);
+        expect(handler.mock.calls).toEqual([[{ volume: 0.7, muted: false }]]);
+    });
+
     it('reports repeat mode changes', () => {
         const handler = vi.fn();
         addFoliumEventHandler('mod-a', 'playback.loopModeChanged', handler);
