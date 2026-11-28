@@ -196,8 +196,9 @@ const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, 
         const displayWords = buildDisplayWordsFromLayoutUnits(chunkUnits);
         if (chunkWords.length === 0) return;
 
-        const mergedTextForConfig = chunkWords.map(w => w.text.trim()).join('');
-        const graphemeCount = splitGraphemes(mergedTextForConfig.replace(/\s+/g, '')).length;
+        const graphemeCount = isChaotic
+            ? splitGraphemes(chunkWords.map(w => w.text.trim()).join('').replace(/\s+/g, '')).length
+            : 0;
         const rowBias = rowIndex - (actualRowCount - 1) / 2;
 
         const isStaggeredLeft = rowIndex % 2 === 0;
@@ -274,20 +275,33 @@ export const buildPartitaLayoutCacheKey = (
     ].join('|');
 };
 
-export const getOrBuildPartitaLayout = (
-    cache: Map<string, PartitaSequentialLayout>,
-    line: Line,
-    theme: Theme,
-    windowHeight: number,
-    tuning: PartitaTuning
-): PartitaSequentialLayout => {
-    const cacheKey = buildPartitaLayoutCacheKey(line, theme, windowHeight, tuning);
-    const cached = cache.get(cacheKey);
-    if (cached) {
-        // Layout cache matters here because rebuilding columns on every frame would be pointless and expensive.
-        return cached;
-    }
+export class PartitaLayoutCache {
+    private readonly layouts = new Map<string, PartitaSequentialLayout>();
+    private lastRequest?: {
+        line: Line;
+        theme: Theme;
+        windowHeight: number;
+        tuning: PartitaTuning;
+        layout: PartitaSequentialLayout;
+    };
 
-    const layout = buildSequentialColumns(line, theme, windowHeight, tuning);
-    return rememberBounded(cache, cacheKey, layout, PARTITA_LAYOUT_CACHE_LIMIT);
-};
+    getOrBuild(line: Line, theme: Theme, windowHeight: number, tuning: PartitaTuning): PartitaSequentialLayout {
+        const last = this.lastRequest;
+        // The renderer's inputs are replaced when they change. During the preheat window,
+        // time updates keep asking for the same layout, so even rebuilding its key is redundant.
+        if (last?.line === line && last.theme === theme && last.windowHeight === windowHeight && last.tuning === tuning) {
+            return last.layout;
+        }
+
+        const cacheKey = buildPartitaLayoutCacheKey(line, theme, windowHeight, tuning);
+        // Layout cache matters here because rebuilding columns on every frame would be pointless and expensive.
+        const layout = this.layouts.get(cacheKey) ?? rememberBounded(
+            this.layouts,
+            cacheKey,
+            buildSequentialColumns(line, theme, windowHeight, tuning),
+            PARTITA_LAYOUT_CACHE_LIMIT,
+        );
+        this.lastRequest = { line, theme, windowHeight, tuning, layout };
+        return layout;
+    }
+}
