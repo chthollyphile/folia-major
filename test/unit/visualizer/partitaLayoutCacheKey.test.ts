@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PARTITA_TUNING, type Line, type Theme } from '@/types';
-import { buildPartitaLayoutCacheKey } from '@/components/visualizer/partita/partitaLayout';
+import { buildPartitaLayoutCacheKey, PartitaLayoutCache } from '@/components/visualizer/partita/partitaLayout';
 
 // test/unit/visualizer/partitaLayoutCacheKey.test.ts
 // Partita keeps built columns in a Map bounded only by an LRU, so anything that changes the
@@ -37,5 +37,44 @@ describe('buildPartitaLayoutCacheKey', () => {
 
     it('stays stable for the same line and segmentation', () => {
         expect(key(line('把回忆', ['把', '回忆']))).toBe(key(line('把回忆', ['把', '回忆'])));
+    });
+});
+
+describe('PartitaLayoutCache', () => {
+    it('reuses the last request without reading the text on each playback tick', () => {
+        const source = line('把回忆拼好给你', ['把回忆', '拼好', '给你']);
+        let reads = 0;
+        const upcoming = {
+            ...source,
+            get fullText() {
+                reads += 1;
+                return source.fullText;
+            },
+        };
+        const cache = new PartitaLayoutCache();
+        const layout = cache.getOrBuild(upcoming, theme, 900, DEFAULT_PARTITA_TUNING);
+        const initialReads = reads;
+
+        for (let tick = 0; tick < 60; tick += 1) {
+            expect(cache.getOrBuild(upcoming, theme, 900, DEFAULT_PARTITA_TUNING)).toBe(layout);
+        }
+        expect(initialReads).toBeGreaterThan(0);
+        expect(reads).toBe(initialReads);
+        expect(cache.getOrBuild(source, theme, 900, DEFAULT_PARTITA_TUNING)).toBe(layout);
+    });
+
+    it('keeps the keyed cache behavior across line, viewport, theme and tuning changes', () => {
+        const cache = new PartitaLayoutCache();
+        const source = line('把回忆拼好给你', ['把回忆', '拼好', '给你']);
+        const resegmented = line(source.fullText, ['把', '回忆', '拼好', '给', '你']);
+        const chaotic = { ...theme, animationIntensity: 'chaotic' } satisfies Theme;
+        const tuning = { ...DEFAULT_PARTITA_TUNING, staggerMin: 90, staggerMax: 90 };
+        const original = cache.getOrBuild(source, theme, 900, DEFAULT_PARTITA_TUNING);
+
+        expect(cache.getOrBuild(resegmented, theme, 900, DEFAULT_PARTITA_TUNING)).not.toBe(original);
+        expect(cache.getOrBuild(source, theme, 600, DEFAULT_PARTITA_TUNING)).not.toBe(original);
+        expect(cache.getOrBuild(source, chaotic, 900, DEFAULT_PARTITA_TUNING)).not.toBe(original);
+        expect(cache.getOrBuild(source, theme, 900, tuning)).not.toBe(original);
+        expect(cache.getOrBuild(source, theme, 900, DEFAULT_PARTITA_TUNING)).toBe(original);
     });
 });

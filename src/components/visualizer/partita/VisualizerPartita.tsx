@@ -12,8 +12,7 @@ import { getGlowWordLineContainerMotion, resolveGlowWordRenderProfile } from '..
 import {
     EMPTY_PARTITA_LAYOUT,
     PARTITA_PREHEAT_WINDOW,
-    type PartitaSequentialLayout,
-    getOrBuildPartitaLayout,
+    PartitaLayoutCache,
     resolvePartitaTuning,
 } from './partitaLayout';
 import { PartitaChunk } from './PartitaChunk';
@@ -65,7 +64,11 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
     const { t } = useTranslation();
     const [windowHeight, setWindowHeight] = useState(800);
     const resolvedPartitaTuning = useMemo(() => resolvePartitaTuning(partitaTuning), [partitaTuning]);
-    const layoutCacheRef = useRef<Map<string, PartitaSequentialLayout>>(new Map());
+    const layoutCacheRef = useRef<PartitaLayoutCache | null>(null);
+    if (layoutCacheRef.current === null) {
+        layoutCacheRef.current = new PartitaLayoutCache();
+    }
+    const layoutCache = layoutCacheRef.current;
 
     useEffect(() => {
         setWindowHeight(window.innerHeight);
@@ -93,8 +96,8 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
             return EMPTY_PARTITA_LAYOUT;
         }
 
-        return getOrBuildPartitaLayout(layoutCacheRef.current, activeLine, theme, windowHeight, resolvedPartitaTuning);
-    }, [activeLine, theme, windowHeight, resolvedPartitaTuning]);
+        return layoutCache.getOrBuild(activeLine, theme, windowHeight, resolvedPartitaTuning);
+    }, [activeLine, layoutCache, theme, windowHeight, resolvedPartitaTuning]);
 
     const nextLineRef = useRef<Line | null>(upcomingLine);
     useEffect(() => {
@@ -111,7 +114,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
             return;
         }
 
-        getOrBuildPartitaLayout(layoutCacheRef.current, nextLine, theme, windowHeight, resolvedPartitaTuning);
+        layoutCache.getOrBuild(nextLine, theme, windowHeight, resolvedPartitaTuning);
     });
 
     // avoidOverlap: every chunk's gaps, worked out once per line from its words measured in em.
