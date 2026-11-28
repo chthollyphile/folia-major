@@ -141,7 +141,16 @@ const hasInlineContraction = (unit: LyricLayoutUnit) => (
 const stripWhitespace = (text: string) => text.replace(/\s+/g, '');
 
 // Maps Intl.Segmenter output back onto parser words.
-// If any segment cannot be aligned exactly, callers fall back to one-word units instead of guessing.
+// If the segments and the words do not spell the same text, callers fall back to one-word units instead of guessing.
+//
+// A unit holds whole parser words, so a segment boundary that falls inside a timed word cannot be
+// honoured. The scan walks both boundary lists by offset and, where they cross, merges every segment
+// and word up to the next boundary the two share into one unit. Only that span loses its split; the
+// rest of the line still groups by segment (#1367). Example:
+//
+//   words:    海风吹 | 过 | 远 | 方
+//   segments: 海风 | 吹过 | 远方
+//   units:    海风吹过(words=[海风吹, 过]) | 远方(words=[远, 方])
 //
 // Alignment compares text with whitespace removed. Word-by-word sources keep a line's spaces inside
 // their timed words (YRC/QRC glue them onto the syllable before: 更 | 迭␣␣ | 都) or time them as
@@ -149,8 +158,18 @@ const stripWhitespace = (text: string) => text.replace(/\s+/g, '');
 // matching made one such space throw the whole line back to one-word units, which scattered every
 // CJK word across rows (#990). A whitespace-only word stays with the unit before it.
 const mapSegmentsToWords = (segments: WordSegment[], words: Word[]): LyricLayoutUnit[] | null => {
+    // Whitespace-only segments carry no text to align; whitespace words are absorbed below.
+    const keyedSegments = segments
+        .map(segment => ({ isWordLike: segment.isWordLike, key: stripWhitespace(segment.segment) }))
+        .filter(segment => segment.key);
+    const wordKeys = words.map(word => stripWhitespace(word.text));
+    if (keyedSegments.map(segment => segment.key).join('') !== wordKeys.join('')) {
+        return null;
+    }
+
     const units: LyricLayoutUnit[] = [];
     let wordIndex = 0;
+    let segmentIndex = 0;
 
     const absorbWhitespaceWords = () => {
         const previous = units[units.length - 1];
@@ -161,28 +180,27 @@ const mapSegmentsToWords = (segments: WordSegment[], words: Word[]): LyricLayout
         }
     };
 
-    for (const segment of segments) {
-        const segmentKey = stripWhitespace(segment.segment);
-        if (!segmentKey) {
-            continue;
-        }
-
+    while (segmentIndex < keyedSegments.length) {
         absorbWhitespaceWords();
         const startWordIndex = wordIndex;
-        let collectedKey = '';
+        // Lengths covered so far by this span's segments and words. The texts already match as a
+        // whole, so equal lengths mean both sides end at the same offset: a boundary they share.
+        // Each round takes one more segment, then words until they reach its end; a word that runs
+        // past it pulls in the next segment.
+        let segmentLength = 0;
+        let wordLength = 0;
+        let isWordLike = false;
 
-        while (wordIndex < words.length && collectedKey.length < segmentKey.length) {
-            collectedKey += stripWhitespace(words[wordIndex].text);
-            wordIndex += 1;
-
-            if (!segmentKey.startsWith(collectedKey)) {
-                return null;
+        do {
+            const segment = keyedSegments[segmentIndex];
+            segmentLength += segment.key.length;
+            isWordLike ||= Boolean(segment.isWordLike);
+            segmentIndex += 1;
+            while (wordIndex < words.length && wordLength < segmentLength) {
+                wordLength += wordKeys[wordIndex].length;
+                wordIndex += 1;
             }
-        }
-
-        if (collectedKey !== segmentKey) {
-            return null;
-        }
+        } while (segmentLength !== wordLength && segmentIndex < keyedSegments.length);
 
         const segmentWords = words.slice(startWordIndex, wordIndex);
         const firstWord = segmentWords[0];
@@ -193,7 +211,8 @@ const mapSegmentsToWords = (segments: WordSegment[], words: Word[]): LyricLayout
 
         // The unit's text is its words' text, spaces included, so it always joins back to them.
         const segmentText = segmentWords.map(word => word.text).join('');
-        if (!segment.isWordLike && units.length > 0) {
+        // A span is punctuation only when none of its segments is word-like.
+        if (!isWordLike && units.length > 0) {
             appendWordsToUnit(units[units.length - 1], segmentText, segmentWords);
             continue;
         }
@@ -204,7 +223,7 @@ const mapSegmentsToWords = (segments: WordSegment[], words: Word[]): LyricLayout
             words: segmentWords,
             startTime: firstWord.startTime,
             endTime: lastWord.endTime,
-            isSemantic: Boolean(segment.isWordLike && hasCjkText(segmentText) && glyphWordCount > 1),
+            isSemantic: isWordLike && hasCjkText(segmentText) && glyphWordCount > 1,
         });
     }
 

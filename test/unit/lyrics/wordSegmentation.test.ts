@@ -191,16 +191,18 @@ describe('cjkSemanticLayout with a saved segmentation', () => {
         expect(units.map(unit => unit.text)).toEqual(['把', '回忆', '拼好']);
     });
 
-    it('falls back to one unit per parser word when a boundary splits a parser word', () => {
-        // 「想要」 is a single timed parser word, so a split inside it cannot be aligned. The
-        // existing guard returns one unit per word rather than guessing at the timing.
+    it('merges the span when a boundary splits a parser word', () => {
+        // 「想要」 is a single timed parser word, so a split inside it cannot be aligned. The span
+        // up to the next shared boundary becomes one unit of whole parser words rather than
+        // guessing at the timing inside 「想要」 (#1367).
         const words = [word('我', 0, 1), word('想要', 1, 3)];
         const units = buildPostLyricLayoutUnits(
             { fullText: '我想要', words, wordSegments: ['我想', '要'] },
             { semantic: true, sticky: true },
         );
 
-        expect(units.map(unit => unit.text)).toEqual(['我', '想要']);
+        expect(units.map(unit => unit.text)).toEqual(['我想要']);
+        expect(units[0].words).toEqual(words);
     });
 });
 
