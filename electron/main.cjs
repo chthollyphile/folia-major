@@ -118,6 +118,7 @@ const { registerHifiIpc } = require('./hifi/hifiIpc.cjs');
 const { createPipewireProbe, collectOwnPids } = require('./hifi/pipewireProbe.cjs');
 const { createApprovedMpvPathStore, isReservedHifiSettingKey } = require('./hifi/approvedMpvPath.cjs');
 const { registerMprisIpc } = require('./hifi/mpris/mprisIpc.cjs');
+const { registerMprisSourceIpc } = require('./mpris/mprisSourceIpc.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const {
   aiProviderLabel,
@@ -369,6 +370,14 @@ const hifiMpris = process.platform === 'linux'
     isTrustedSender: event => isTrustedMainWindowContents(event.sender),
     getMainWindow: () => mainWindow,
     getArtworkDirectory: () => path.join(app.getPath('userData'), 'mpris-artwork'),
+  })
+  : null;
+// Stage 的 MPRIS 源：读会话总线上别的播放器（KDE 媒体面板显示的那些）。只在 Linux 有 MPRIS。
+const mpris = process.platform === 'linux'
+  ? registerMprisSourceIpc({
+    ipcMain,
+    isTrustedSender: event => isTrustedMainWindowContents(event.sender),
+    getMainWindow: () => mainWindow,
   })
   : null;
 // Last resort for every way out, app.exit() included: an mpv left behind would keep playing.
@@ -7764,6 +7773,7 @@ app.on('will-quit', () => {
   globalShortcutController?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();
+  mpris?.dispose();
   hifiInstaller.cancel();
 });
 

@@ -182,7 +182,7 @@ export type HomeViewTab = 'folia' | 'playlist' | 'local' | 'albums' | 'navidrome
 export type HomeOnlineViewTab = 'playlist' | 'radio' | 'albums' | 'explore';
 
 export type PlaybackContext = 'main' | 'stage';
-export type StageSource = 'stage-api' | 'now-playing' | 'playercap';
+export type StageSource = 'stage-api' | 'now-playing' | 'playercap' | 'mpris';
 export type StageLoopMode = 'off' | 'all' | 'one';
 export type QueueAddBehavior = 'append' | 'next';
 export type StageActiveEntryKind = 'lyrics' | 'media';

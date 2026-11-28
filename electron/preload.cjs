@@ -474,6 +474,21 @@ contextBridge.exposeInMainWorld('electron', {
             return () => ipcRenderer.removeListener('folia-mods:sources-stopping', listener);
         },
     },
+    // Linux：MPRIS 会话（MPRIS）的只读订阅，给 Stage 的 MPRIS 源用（electron/mpris/）。
+    mpris: {
+        start: () => ipcRenderer.invoke('mpris:start'),
+        stop: () => ipcRenderer.invoke('mpris:stop'),
+        onState: (callback) => {
+            const listener = (_event, snapshot) => callback(snapshot);
+            ipcRenderer.on('mpris:state', listener);
+            return () => ipcRenderer.removeListener('mpris:state', listener);
+        },
+        onStatus: (callback) => {
+            const listener = (_event, status) => callback(status);
+            ipcRenderer.on('mpris:status', listener);
+            return () => ipcRenderer.removeListener('mpris:status', listener);
+        },
+    },
     hifi: {
         getRuntimeStatus: () => ipcRenderer.invoke('hifi:get-runtime-status'),
         detectRuntime: () => ipcRenderer.invoke('hifi:detect-runtime'),

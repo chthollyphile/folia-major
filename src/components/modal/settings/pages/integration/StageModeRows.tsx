@@ -124,7 +124,7 @@ const NowPlayingRow: React.FC = () => {
     );
 };
 
-/** The desktop app's stage mode: the app serves or follows one of three sources. */
+/** The desktop app's stage mode: the app serves or follows one of four sources. */
 export const DesktopStageRows: React.FC = () => {
     const { t } = useTranslation();
     const { stageStatus, stageSource, onToggleStageMode, onStageSourceChange, onRegenerateStageToken } = useSettingsPage().viewProps.integration.stage;
@@ -134,6 +134,8 @@ export const DesktopStageRows: React.FC = () => {
     }
     const on = Boolean(stageStatus.modeEnabled);
     const source = stageSource ?? 'stage-api';
+    // MPRIS 只在 Linux D-Bus 桌面环境有。
+    const canUseMpris = typeof window !== 'undefined' && window.electron?.platform === 'linux';
     const token = stageStatus.token;
     const regenerateToken = async () => {
         setRegenerating(true);
@@ -150,13 +152,14 @@ export const DesktopStageRows: React.FC = () => {
                 <Toggle checked={on} onChange={enabled => void onToggleStageMode?.(enabled)} />
             </Row>
             <Reveal when={on}>
-                <Row sub option={O.stageSource}>
+                <Row sub option={O.stageSource} hint={source === 'mpris' ? t('options.mprisHint') : undefined}>
                     <Segmented<StageSource>
                         value={source}
                         options={[
                             { value: 'stage-api', label: 'Stage API' },
                             { value: 'now-playing', label: 'Now Playing' },
                             { value: 'playercap', label: 'PlayerCap' },
+                            ...(canUseMpris ? [{ value: 'mpris' as const, label: t('options.stageSourceMpris') }] : []),
                         ]}
                         onChange={next => void onStageSourceChange?.(next)}
                     />

@@ -826,6 +826,9 @@ export default function App() {
         getPlayerCapDisplayTime,
         playerCapConnectionStatus,
         playerCapPlayers,
+        isMprisStageActive,
+        getMprisDisplayTime,
+        mprisConnectionStatus,
         mainPlaybackSnapshotRef,
         stageLyricsClockRef,
         syncStageLyricsClock,
@@ -1506,6 +1509,7 @@ export default function App() {
         effectiveLoopMode,
         isNowPlayingStageActive,
         isPlayerCapStageActive,
+        isMprisStageActive,
         stageActiveEntryKind,
         stageLyricsSession,
         stageLyricsClockRef,
@@ -1513,6 +1517,7 @@ export default function App() {
         syncStageLyricsClock,
         getNowPlayingDisplayTime,
         getPlayerCapDisplayTime,
+        getMprisDisplayTime,
         syncNowPlayingClock,
         lyricTimelineOffsetMs: effectiveLyricTimelineOffsetMs,
         incomingLyricTimelineOffsetMs,
@@ -1599,7 +1604,8 @@ export default function App() {
         theme,
         visualizerMode,
     ]);
-    const isNowPlayingControlDisabled = isNowPlayingStageActive;
+    // 被动源没有可控制的播放器：跟随 MPRIS 时也把 Folia 自己的传输控制关掉。
+    const isNowPlayingControlDisabled = isNowPlayingStageActive || isMprisStageActive;
     const playbackRoute = usePlaybackStore(state => state.playbackRoute);
     const hasHifiTrack = useHifiTrackStore(state => state.current !== null);
 
@@ -2883,6 +2889,7 @@ export default function App() {
                 stageActiveEntryKind={stageActiveEntryKind}
                 nowPlayingConnectionStatus={nowPlayingConnectionStatus}
                 playerCapConnectionStatus={playerCapConnectionStatus}
+                mprisConnectionStatus={mprisConnectionStatus}
             />
 
             <AppOverlays model={appOverlaysModel} />

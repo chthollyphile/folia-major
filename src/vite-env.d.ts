@@ -3,6 +3,7 @@
 import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModMarketCatalogResult, ModMarketProgress, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModSourceUsageResult, ModStorageUsageResult } from './mods/types';
 import type { AlphaVideoExportProgress, AlphaVideoFormatId, AlphaVideoExportRequest, AlphaVideoExportResult, VideoExportFfmpegChooseResult, VideoExportFfmpegStatus } from './types/videoExport';
 import type { PerfCheckProcessMemory, PerfCheckSettings } from './components/perfCheck/perfCheckTypes';
+import type { MprisSnapshot, MprisStatus } from './types/mpris';
 
 declare global {
   const __COMMIT_HASH__: string;
@@ -367,7 +368,7 @@ declare global {
   }
 
   type StageActiveEntryKind = 'lyrics' | 'media';
-  type StageSource = 'stage-api' | 'now-playing';
+  type StageSource = 'stage-api' | 'now-playing' | 'playercap' | 'mpris';
 
   interface StageEmbeddedUsltTag {
     language?: string;
@@ -1079,6 +1080,13 @@ declare global {
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;
         onModRpcMessage: (callback: (message: ModRpcMessage) => void) => () => void;
         onModSecretChanged: (callback: (change: ModSecretChange) => void) => () => void;
+      };
+      /** Linux 的 MPRIS 会话（MPRIS）：Stage 的 MPRIS 源用；别的平台没有处理方。 */
+      mpris?: {
+        start: () => Promise<boolean>;
+        stop: () => Promise<boolean>;
+        onState: (callback: (snapshot: MprisSnapshot) => void) => () => void;
+        onStatus: (callback: (status: MprisStatus) => void) => () => void;
       };
       /** HiFi 原生直通后端（mpv 子进程）。只在桌面版存在。 */
       hifi?: {

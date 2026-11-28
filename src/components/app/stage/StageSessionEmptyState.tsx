@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NowPlayingConnectionStatus, StageSource } from '../../../types';
 import type { PlayerCapConnectionStatus } from '../../../types/playerCap';
+import type { MprisConnectionStatus } from '../../../types/mpris';
 import { useAppViewStore } from '../../../stores/useAppViewStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
@@ -16,6 +17,7 @@ type StageSessionEmptyStateProps = {
     stageActiveEntryKind: string | null;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
     playerCapConnectionStatus?: PlayerCapConnectionStatus;
+    mprisConnectionStatus?: MprisConnectionStatus;
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -28,6 +30,7 @@ const StageSessionEmptyState: React.FC<StageSessionEmptyStateProps> = ({
     stageActiveEntryKind,
     nowPlayingConnectionStatus,
     playerCapConnectionStatus,
+    mprisConnectionStatus,
 }) => {
     const { t } = useTranslation();
     const currentView = useAppViewStore(state => state.view);
@@ -50,17 +53,25 @@ const StageSessionEmptyState: React.FC<StageSessionEmptyStateProps> = ({
         ? (playerCapConnectionStatus === 'connected'
             ? t('options.playerCapWaitingLyrics')
             : t('options.playerCapConnecting'))
-        : stageSource === 'now-playing'
-            ? (nowPlayingConnectionStatus === 'error'
-                ? t('options.stageConnectionError')
-                : t('options.stageNotRunning'))
-            : t('options.enableStageModeDesc');
+        : stageSource === 'mpris'
+            ? (mprisConnectionStatus === 'error'
+                ? t('options.mprisError')
+                : mprisConnectionStatus === 'listening'
+                    ? t('options.mprisWaiting')
+                    : t('options.mprisConnecting'))
+            : stageSource === 'now-playing'
+                ? (nowPlayingConnectionStatus === 'error'
+                    ? t('options.stageConnectionError')
+                    : t('options.stageNotRunning'))
+                : t('options.enableStageModeDesc');
 
     return (
         <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center px-6">
             <div className={`max-w-lg rounded-3xl border px-6 py-5 text-center backdrop-blur-md ${isDaylight ? 'border-black/10 bg-white/50 text-zinc-800' : 'border-white/10 bg-black/30 text-white'}`}>
                 <div className="text-xs uppercase tracking-[0.22em] opacity-50">
-                    {(stageSource && SOURCE_LABELS[stageSource]) ?? 'Stage · Stage API'}
+                    {stageSource === 'mpris'
+                        ? t('options.mprisStageLabel')
+                        : (stageSource && SOURCE_LABELS[stageSource]) ?? 'Stage · Stage API'}
                 </div>
                 {/* One key for every source. The original branched on now-playing and then used the
                     same key in both arms - preserved as-is rather than inventing a second string. */}

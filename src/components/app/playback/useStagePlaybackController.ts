@@ -5,6 +5,7 @@ import { LyricParserFactory } from '../../../utils/lyrics/LyricParserFactory';
 import { getFromCache, removeFromCache, saveToCache } from '../../../services/db';
 import { NowPlayingProvider } from '../../../services/nowPlayingProvider';
 import { usePlayerCapSource } from '../../../hooks/usePlayerCapSource';
+import { useMprisSession } from '../../../hooks/useMprisSession';
 import { findLatestActiveLineIndex, hasRenderableLyrics } from '../../../utils/appPlaybackHelpers';
 import { buildStageEntryKey, getStageLyricsSessionTimeline, getStageLyricsTimelineBounds, latestStageLyricsClock, stageLyricsClockTimeSec, withLatestStageLyricsClock } from '../../../utils/appStageHelpers';
 import { getPlaybackSongKey, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
@@ -97,6 +98,11 @@ type NowPlayingDebugInfo = {
 };
 
 const EMPTY_STAGE_ENTRY_KEY = '__empty-stage-entry__';
+
+/** 被动源：外部播放器驱动，Folia 不放音频；进出 Stage 只切上下文。 */
+const isPassiveStageSource = (source: StageSource | null): boolean => (
+    source === 'now-playing' || source === 'playercap' || source === 'mpris'
+);
 
 // Keeps Stage / Now Playing state isolated from the main player snapshot.
 export function useStagePlaybackController({
@@ -219,6 +225,18 @@ export function useStagePlaybackController({
     const playerCapConnectionStatus = playerCapState.connectionStatus;
     const playerCapSongIdRef = useRef(-1);
     const playerCapSongKeyRef = useRef('');
+
+    // MPRIS 源：和 PlayerCap 一样是被动镜像，主进程读总线，这里把曲目、歌词和时钟接进播放面板。
+    const isMprisStageActive = activePlaybackContext === 'stage' && stageSource === 'mpris';
+    const mpris = useMprisSession({ enabled: stageSource === 'mpris' });
+    const { getCurrentTimeSec: getMprisTimeSec } = mpris;
+    const getMprisDisplayTime = useCallback(
+        (nowMs = Date.now()) => getMprisTimeSec(nowMs),
+        [getMprisTimeSec],
+    );
+    const mprisSongIdRef = useRef(-1);
+    const mprisSongKeyRef = useRef('');
+    const mprisClearedRef = useRef(false);
 
     const buildPlaybackSnapshot = useCallback((): RoutedPlaybackSnapshot => {
         // On the HiFi route mpv sounds the song and the deck sits idle: the position is mpv's.
@@ -970,7 +988,7 @@ export function useStagePlaybackController({
     }, []);
 
     const openStagePlayer = useCallback(async () => {
-        if ((stageSource === 'now-playing' || stageSource === 'playercap') && activePlaybackContext === 'stage') {
+        if (isPassiveStageSource(stageSource) && activePlaybackContext === 'stage') {
             navigateToPlayer();
             return;
         }
@@ -983,12 +1001,15 @@ export function useStagePlaybackController({
             stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
         }
 
-        if (stageSource === 'playercap') {
+        if (stageSource === 'playercap' || stageSource === 'mpris') {
             // Passive source: switch to the stage context and navigate; the main playback pane is filled by the reactive mirror effect.
             clearMainPlaybackContext();
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('stage');
             navigateToPlayer();
+            if (stageSource === 'mpris' && !mpris.track) {
+                setStatusMsg({ type: 'info', text: t('status.mprisWaiting') });
+            }
             return;
         }
 
@@ -1059,6 +1080,7 @@ export function useStagePlaybackController({
         stageSource,
         shouldPublishNowPlayingState,
         syncStageLyricsClock,
+        mpris.track,
         t,
     ]);
 
@@ -1069,7 +1091,7 @@ export function useStagePlaybackController({
         // A lyrics push still being parsed is not applied once the Stage is left.
         stageLyricsLoadIdRef.current += 1;
 
-        if (stageSource === 'now-playing' || stageSource === 'playercap') {
+        if (isPassiveStageSource(stageSource)) {
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('main');
             clearMainPlaybackContext();
@@ -1086,7 +1108,7 @@ export function useStagePlaybackController({
             return null;
         }
 
-        if (stageSource === 'now-playing' || stageSource === 'playercap') {
+        if (isPassiveStageSource(stageSource)) {
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('main');
             clearMainPlaybackContext();
@@ -1503,6 +1525,105 @@ export function useStagePlaybackController({
         setPlayerState(current => current === nextPlayerState ? current : nextPlayerState);
     }, [isPlayerCapStageActive, playerCapState.playerState, setPlayerState]);
 
+    // MPRIS → 播放面板（被动镜像）。不挂音频，时间靠 getMprisDisplayTime 外推。
+    useEffect(() => {
+        if (stageSource !== 'mpris' || activePlaybackContext !== 'stage') {
+            // 离开时复位；下次进来可能还要清掉别的源留下的歌。
+            mprisClearedRef.current = false;
+            return;
+        }
+        const track = mpris.track;
+        if (!track) {
+            // 第一份快照还没到：窗口重建时 handoff 刚把歌放回来，别清。
+            if (!mpris.hasSnapshot) {
+                return;
+            }
+            // 没有正在放/暂停的播放器：撤掉面板上的歌。
+            if (mprisClearedRef.current) {
+                return;
+            }
+            mprisClearedRef.current = true;
+            mprisSongKeyRef.current = '';
+            makeSongCurrent(null);
+            setLyrics(null);
+            setCachedCoverUrl(null);
+            setAudioSrc(null);
+            setPlayQueue([]);
+            setDuration(0);
+            setPlayerState(PlayerState.PAUSED);
+            setCurrentLineIndex(-1);
+            return;
+        }
+
+        mprisClearedRef.current = false;
+        let restoredSameSong = false;
+        if (track.key !== mprisSongKeyRef.current) {
+            // handoff 已把同一首 stage 歌放回来，沿用它的 id，别再触发一次换歌。
+            const existingSong = usePlaybackStore.getState().currentSong;
+            const restoredId = existingSong
+                && typeof existingSong.id === 'number'
+                && existingSong.sourceRef?.kind === 'stage'
+                && existingSong.sourceRef.mediaId === track.key
+                ? existingSong.id
+                : null;
+            restoredSameSong = restoredId !== null;
+            mprisSongKeyRef.current = track.key;
+            // 每首歌一个负数 id，换歌的连带效果靠它触发。
+            mprisSongIdRef.current = restoredId ?? mprisSongIdRef.current - 1;
+        }
+        const song: SongResult = {
+            id: mprisSongIdRef.current,
+            name: track.title || track.identity,
+            artists: track.artists.length > 0
+                ? track.artists.map((name, index) => ({ id: index, name }))
+                : [{ id: 0, name: track.identity }],
+            album: { id: 0, name: track.album, coverUrl: track.artUrl ?? undefined },
+            durationMs: Math.max(0, Math.floor(track.durationSec * 1000)),
+            sourceType: 'cloud',
+            isStage: true,
+            sourceRef: { kind: 'stage', mediaId: track.key },
+        } as SongResult;
+
+        shouldAutoPlayRef.current = false;
+        pendingResumeTimeRef.current = null;
+        if (!restoredSameSong) {
+            makeSongCurrent(song);
+        }
+        setCachedCoverUrl(track.artUrl);
+        setAudioSrc(null);
+        setPlayQueue([]);
+        setIsFmMode(false);
+        setIsLyricsLoading(false);
+        setDuration(track.durationSec);
+    }, [
+        stageSource,
+        activePlaybackContext,
+        mpris.track,
+        mpris.hasSnapshot,
+        pendingResumeTimeRef,
+        setIsLyricsLoading,
+        setLyrics,
+        shouldAutoPlayRef,
+    ]);
+
+    // 歌词晚到：只换歌词。
+    useEffect(() => {
+        if (stageSource !== 'mpris' || activePlaybackContext !== 'stage' || !mpris.track) {
+            return;
+        }
+        setLyrics(mpris.lyrics);
+        // 没有歌词时让模组再补一次，和 PlayerCap 一样。
+        if (!mpris.lyrics) supplyLyricsAfterEmptyLoad();
+    }, [stageSource, activePlaybackContext, mpris.track, mpris.lyrics, setLyrics]);
+
+    useEffect(() => {
+        if (!isMprisStageActive) {
+            return;
+        }
+        const nextPlayerState = mpris.playerState === 'playing' ? PlayerState.PLAYING : PlayerState.PAUSED;
+        setPlayerState(current => current === nextPlayerState ? current : nextPlayerState);
+    }, [isMprisStageActive, mpris.playerState]);
+
     useEffect(() => {
         if (activePlaybackContext !== 'stage' || stageSource) {
             return;
@@ -1535,6 +1656,9 @@ export function useStagePlaybackController({
         getPlayerCapDisplayTime,
         playerCapConnectionStatus,
         playerCapPlayers,
+        isMprisStageActive,
+        getMprisDisplayTime,
+        mprisConnectionStatus: mpris.connectionStatus,
         mainPlaybackSnapshotRef,
         stageLyricsClockRef,
         resetNowPlayingClock,

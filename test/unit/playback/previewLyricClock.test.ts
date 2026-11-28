@@ -54,11 +54,11 @@ type BridgeParams = Parameters<typeof usePlaybackVisualizerBridge>[0];
 const mount = (incoming: HTMLAudioElement, displayed: HTMLAudioElement | null = null, overrides: Partial<BridgeParams> = {}) => {
     usePlaybackVisualizerBridge({
         audioRef: { current: incoming }, analyserRef: { current: null }, animationFrameRef: { current: 0 },
-        effectiveLoopMode: 'off', isNowPlayingStageActive: false, isPlayerCapStageActive: false,
+        effectiveLoopMode: 'off', isNowPlayingStageActive: false, isPlayerCapStageActive: false, isMprisStageActive: false,
         stageActiveEntryKind: null, stageLyricsSession: null,
         stageLyricsClockRef: { current: { startTimeSec: 0, endTimeSec: 0, baseTimeSec: 0, startedAtMs: null } },
         getSyntheticStageLyricsTime: () => 0, syncStageLyricsClock: vi.fn(),
-        getNowPlayingDisplayTime: () => 0, getPlayerCapDisplayTime: () => 0, syncNowPlayingClock: vi.fn(),
+        getNowPlayingDisplayTime: () => 0, getPlayerCapDisplayTime: () => 0, getMprisDisplayTime: () => 0, syncNowPlayingClock: vi.fn(),
         lyricTimelineOffsetMs: 500, incomingLyricTimelineOffsetMs: 1000,
         isTransitionAudible: () => displayed !== null, getDisplayElement: () => displayed,
         ...overrides,
