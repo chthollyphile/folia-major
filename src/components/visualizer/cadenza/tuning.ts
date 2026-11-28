@@ -22,11 +22,19 @@ export default defineVisualizerTuning<CadenzaTuning>({
         olderKeys: ['cadenze_tuning'],
         // The beam is gone from the style: whatever was stored or is asked for, it stays 0.
         // 分辨率覆盖（#929）：旧存档没有 render 就是全跟随全局，不认识的值回退。
-        read: (stored: Partial<CadenzaTuning>) => ({ ...DEFAULT_CADENZA_TUNING, ...stored, beamIntensity: 0, render: normalizeLyricRenderOverride(stored.render) }),
-        merge: (held, patch) => ({ ...held, ...patch, beamIntensity: 0, render: normalizeLyricRenderOverride(patch.render ?? held.render) }),
+        // 手写笔画：旧存档没有这一项就是关；只认布尔
+        read: (stored: Partial<CadenzaTuning>) => ({ ...DEFAULT_CADENZA_TUNING, ...stored, beamIntensity: 0, render: normalizeLyricRenderOverride(stored.render), handwriting: stored.handwriting === true }),
+        merge: (held, patch) => ({
+            ...held,
+            ...patch,
+            beamIntensity: 0,
+            render: normalizeLyricRenderOverride(patch.render ?? held.render),
+            handwriting: typeof patch.handwriting === 'boolean' ? patch.handwriting : held.handwriting === true,
+        }),
         resetNotice: 'notifications.cadenzaReset',
         // 面板上只有「渲染」一组：「默认」只把它还原，fontScale 这些面板上没有的（只能靠导入得到）留着。
-        reset: (held, defaults) => ({ ...held, render: defaults.render }),
+        // 面板上后来多了手写笔画开关，「默认」也把它还原。
+        reset: (held, defaults) => ({ ...held, render: defaults.render, handwriting: defaults.handwriting }),
     },
     apply: (props, tuning) => ({ ...props, cadenzaTuning: tuning }),
 });

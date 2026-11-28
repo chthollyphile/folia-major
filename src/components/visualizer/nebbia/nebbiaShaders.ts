@@ -128,12 +128,14 @@ void main() {
   // 只让那儿的白气薄一点，糊糊的留个浅浅的印子。在周围四下取样糊开；新写的字在遮罩上是满的，取到的有一下超过 0.15
   // 就是挨着新字，不薄（不然新字外面也薄一圈）
   if (breath > 0.001) {
+    // 旧字被白气糊开的这一阵（melt，B 通道）门槛放宽到字自己消失的阈值，印子和字接得上；糊开完了（新字这时才写上来）门槛收回去，新字外面不薄一圈
+    float mg = smoothstep(0.0, 0.3, melt);
     float gr = 0.006 * uRes.y, ga = hash(px + 17.0) * 6.2832, gm = 0.0, gx = m;
     for (int i = 0; i < 4; i++) {
       float a = ga + float(i) * 1.5708, g = texture(uMask, gv + vec2(cos(a), sin(a)) * gr / uRes).r;
       gm += g; gx = max(gx, g);
     }
-    breath *= 1.0 - 0.55 * smoothstep(0.0, 0.07, gm * 0.25) * (1.0 - smoothstep(0.1, 0.15, gx));
+    breath *= 1.0 - 0.55 * smoothstep(0.0, 0.07, gm * 0.25) * (1.0 - smoothstep(0.1 + 0.1 * mg, 0.15 + 0.35 * mg, gx));
   }
   // 雾：模糊的窗外提亮发灰，光晕散得更开，加浓淡起伏和细颗粒，下半部分略浓
   float dens = uMist * (0.82 + 0.3 * vnoise(px / 380.0 + uTime * 0.015)) * (0.9 + 0.2 * vUv.y) + breath * 0.9;

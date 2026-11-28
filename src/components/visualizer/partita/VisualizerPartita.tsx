@@ -23,6 +23,7 @@ import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fo
 import { resolveLyricTextDirection } from '../../../utils/lyrics/textDirection';
 import { buildPartitaWordConfigs } from './partitaLayout';
 import { getPartitaOverlapSpacing, type PartitaRowSpacing } from './partitaOverlap';
+import { useStrokeWriteSource } from '../fontStrokes/useStrokeWriteSource';
 
 /** Words are measured at this size and divided back down to em. */
 const OVERLAP_MEASURE_PX = 100;
@@ -61,10 +62,18 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
         subtitleOverlayLayout,
+        staticMode = false,
     } = props;
     const { t } = useTranslation();
     const [windowHeight, setWindowHeight] = useState(800);
     const resolvedPartitaTuning = useMemo(() => resolvePartitaTuning(partitaTuning), [partitaTuning]);
+    // 手写笔画：开关开着时才登记笔画服务；关着是 null，GlowWord 照原样渲染
+    const handwriting = useStrokeWriteSource(
+        resolvedPartitaTuning.handwriting === true && showText && !staticMode,
+        theme,
+        resolveThemeFontWeight(theme, 700),
+        lines,
+    );
     const layoutCacheRef = useRef<Map<string, PartitaSequentialLayout>>(new Map());
 
     useEffect(() => {
@@ -230,6 +239,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
                                                     showGuideLines={resolvedPartitaTuning.showGuideLines}
                                                     overlapSpacing={overlapSpacing?.get(config.id)}
                                                     fontSize={mainFontSize}
+                                                    handwriting={handwriting}
                                                 />
                                             ))}
                                         </div>

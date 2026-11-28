@@ -1,6 +1,7 @@
 import type { LocalLibrarySnapshot, LocalSong } from '../types';
 import type { MigrationResult } from '../utils/lyrics/renderHints';
 import { appDatabase } from './appDatabase';
+import { getFontStrokesStore } from './fontStrokes/fontStrokesStore';
 import type { CacheData, SessionData } from './dbTypes';
 import {
   assignImportedSongs,
@@ -171,6 +172,8 @@ export const getCacheUsageByCategory = async (): Promise<{
       usage.media += await window.electron!.getAudioCacheUsage();
     }
     usage.cover += await getCoverAssetUsage();
+    // 手写笔画的结果在自己的库里，一并算进「分析」
+    usage.analysis += (await getFontStrokesStore().usage()).bytes;
     return usage;
   } catch {
     return { playlist: 0, lyrics: 0, cover: 0, media: 0, analysis: 0, volumeBalance: 0, mediaCount: 0 };
@@ -184,6 +187,7 @@ export const clearCacheByCategory = async (category: CacheCategory): Promise<voi
       await window.electron!.clearAudioCache();
     }
     if (category === 'cover') await clearCoverAssets();
+    if (category === 'analysis') await getFontStrokesStore().clearAll();
   } catch (error) {
     console.error('Failed to clear cache by category', error);
   }

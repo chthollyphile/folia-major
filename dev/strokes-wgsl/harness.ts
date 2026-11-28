@@ -1,0 +1,227 @@
+/// <reference types="@webgpu/types" />
+import { Full6Wgsl } from '../../src/services/analysis/strokesWgsl/full6';
+import { halfToFloat } from '../../src/services/analysis/strokesWgsl/packed';
+import { REC } from '../../src/services/analysis/strokesWgsl/kernelsSeq';
+import { fs, ipcRenderer, path } from './node';
+import { runOutlineProbe } from './outlineProbe';
+import { runOwn2Align, runOwnBench } from './own2Checks';
+import { runPenWidthProbe } from './penWidthProbe';
+import { RefData, glyphsOf, maxAbsDiff, percentile } from './refData';
+
+// dev/strokes-wgsl/harness.ts
+// Renderer side of the test shell (see main.cjs): opens a WebGPU device (shader-f16 / timestamp-query when
+// the adapter has them, the adapter's buffer limits), loads full6 / own2 by path and runs SW_TASK against
+// the torch reference data, printing the figures HANDOFF_FOLIA.md §4 and ~/bihua tools/mnn main.cpp report.
+
+const log = (line: string) => ipcRenderer.send('sw-log', line);
+const fmt = (v: number) => v.toExponential(3);
+
+export interface Config {
+    out: string; task: string; f16: boolean; full6: string; own2: string; own2ref: string; ref: string;
+    batches: number[]; chars: number; paced: boolean; readEvery: number; modes: string[]; alignB: number; chunk: number;
+    own2Chunk: number; rounds: number;
+}
+
+/** Ragged gen_{tag}_segs / _cont split per character. */
+const generated = (ref: RefData, tag: string) => {
+    const len = ref.i32(`gen_${tag}_len`);
+    const segs = ref.f32(`gen_${tag}_segs`);
+    const cont = ref.u8(`gen_${tag}_cont`);
+    let at = 0;
+    return Array.from(len, (n) => {
+        const out = { segs: segs.subarray(at * 32, (at + n) * 32), cont: cont.subarray(at, at + n) };
+        at += n;
+        return out;
+    });
+};
+
+async function stages(device: GPUDevice, config: Config, ref: RefData) {
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: 8, chunk: 8 });
+    const glyphs = glyphsOf(ref, 1);
+    const gen = generated(ref, 'ref');
+    const half = config.f16;
+    // Encoder + memory only (no steps), then one teacher-forced step at a time to read the intermediates.
+    for (const steps of [1, 2, 3]) {
+        const recs = await full6.teacherForce(glyphs, [gen[0]], [steps]);
+        if (steps === 1) {
+            const fmapBytes = 4096 * 128 * (half ? 2 : 4);
+            const raw = await full6.read('fmap', fmapBytes);
+            const fm = half ? Float32Array.from(new Uint16Array(raw), halfToFloat) : new Float32Array(raw);
+            const refFm = ref.f32('fmap_sub').subarray(0, 128 * 4096);
+            const chw = new Float32Array(128 * 4096);
+            for (let p = 0; p < 4096; p += 1) for (let c = 0; c < 128; c += 1) chw[c * 4096 + p] = fm[p * 128 + c];
+            log(`fmap: max diff ${fmt(maxAbsDiff(chw, refFm))} (ref max ${fmt(maxAbsDiff(refFm, new Float32Array(refFm.length)))})`);
+            const mem = new Float32Array(await full6.read('mem', 296 * 192 * 4));
+            const refMem = ref.f32('mem').subarray(0, 272 * 192);
+            log(`mem: image tokens ${fmt(maxAbsDiff(mem.subarray(0, 256 * 192), refMem.subarray(0, 256 * 192)))}, reference tokens ${fmt(maxAbsDiff(mem.subarray(256 * 192, 272 * 192), refMem.subarray(256 * 192)))}`);
+        }
+        const t = steps - 1;
+        const x = new Float32Array(await full6.read('X', 192 * 4));
+        const qt = new Float32Array(await full6.read('QT', 16 * 192 * 4));
+        const rec = recs[0].rec.subarray(t * REC, (t + 1) * REC);
+        log(`t${t}: dec5 ${fmt(maxAbsDiff(x, ref.f32(`dbg_t${t}_dec5`)))}, coarse ${fmt(maxAbsDiff(rec.subarray(32, 64), ref.f32(`dbg_t${t}_coarse`)))}, `
+            + `ref2 q ${fmt(maxAbsDiff(qt, ref.f32(`dbg_t${t}_ref2_q`)))}, pos ${fmt(maxAbsDiff(rec.subarray(0, 32), ref.f32(`dbg_t${t}_ref2_pos`)))}, `
+            + `lc ${rec[64].toFixed(4)} (${ref.f32(`dbg_t${t}_lc`)[0].toFixed(4)}), le ${rec[65].toFixed(4)} (${ref.f32(`dbg_t${t}_le`)[0].toFixed(4)})`);
+    }
+    full6.destroy();
+}
+
+/** Teacher-forced and free generation against the reference, as tools/mnn main.cpp checkFull6. */
+async function alignFull6(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
+    const n = Math.min(config.chars, 126);
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: config.alignB || n, chunk: 8 });
+    const glyphs = glyphsOf(ref, n);
+    for (const tag of config.modes) {
+        const useReference = tag === 'ref';
+        const gen = generated(ref, tag);
+        const steps = Array.from(ref.i32(`tf_${tag}_steps`).subarray(0, n));
+        const tpos = ref.f32(`tf_${tag}_pos`);
+        const tco = ref.f32(`tf_${tag}_coarse`);
+        const tlc = ref.f32(`tf_${tag}_lc`);
+        const tle = ref.f32(`tf_${tag}_le`);
+        const recs = await full6.teacherForce(glyphs, gen.slice(0, n), steps, { useReference, readEvery: config.readEvery });
+        let k = 0;
+        let dp = 0;
+        let dc = 0;
+        let dl = 0;
+        let flipC = 0;
+        let flipE = 0;
+        let nC = 0;
+        let nE = 0;
+        let nonFinite = 0;
+        const stepDp: number[] = [];
+        recs.forEach((r) => {
+            for (let t = 0; t < r.steps; t += 1, k += 1) {
+                const rec = r.rec.subarray(t * REC, (t + 1) * REC);
+                for (const v of rec) if (!Number.isFinite(v)) nonFinite += 1;
+                const d = maxAbsDiff(rec.subarray(0, 32), tpos.subarray(k * 32, k * 32 + 32));
+                dp = Math.max(dp, d);
+                stepDp.push(d);
+                dc = Math.max(dc, maxAbsDiff(rec.subarray(32, 64), tco.subarray(k * 32, k * 32 + 32)));
+                dl = Math.max(dl, Math.abs(rec[64] - tlc[k]), Math.abs(rec[65] - tle[k]));
+                if (t > 0) { nC += 1; if ((rec[64] > 0) !== (tlc[k] > 0)) flipC += 1; }
+                nE += 1;
+                if ((rec[65] > 0) !== (tle[k] > 0)) flipE += 1;
+            }
+        });
+        const tf = {
+            steps: k, posMax: dp, posMedian: percentile(stepDp, 0.5), posP99: percentile(stepDp, 0.99), coarseMax: dc, logitMax: dl,
+            contFlips: `${flipC}/${nC}`, endFlips: `${flipE}/${nE}`, nonFinite, ms: full6.lastStats,
+        };
+        log(`[teacher-forced ${tag}] ${k} steps: pos max ${fmt(dp)} (per-step median ${fmt(tf.posMedian)}, p99 ${fmt(tf.posP99)}), coarse ${fmt(dc)}, logits ${fmt(dl)}; flips cont ${tf.contFlips} end ${tf.endFlips}; non-finite ${nonFinite}`);
+        const out = await full6.generate(glyphs, { useReference, readEvery: config.readEvery });
+        let sameN = 0;
+        let sameC = 0;
+        let dmax = 0;
+        let segSum = 0;
+        let genNonFinite = 0;
+        out.forEach((g, i) => {
+            for (const v of g.segs) if (!Number.isFinite(v)) genNonFinite += 1;
+            const L = gen[i].cont.length;
+            segSum += g.cont.length;
+            if (g.cont.length !== L) return;
+            sameN += 1;
+            if (g.cont.every((c, t) => c === gen[i].cont[t])) sameC += 1;
+            if (L) dmax = Math.max(dmax, maxAbsDiff(g.segs, gen[i].segs));
+        });
+        const free = { sameCount: `${sameN}/${n}`, sameCountAndCont: `${sameC}/${n}`, segMaxWhenSame: dmax, meanSegs: segSum / n, nonFinite: genNonFinite, ms: full6.lastStats };
+        log(`[generate ${tag}] same count ${free.sameCount}, same count + cont ${free.sameCountAndCont}, seg max diff ${fmt(dmax)}, mean segs ${(segSum / n).toFixed(2)}; non-finite ${genNonFinite}; encode ${full6.lastStats?.encodeMs.toFixed(1)} ms decode ${full6.lastStats?.decodeMs.toFixed(1)} ms`);
+        report[`full6_${tag}`] = { teacherForced: tf, generate: free };
+    }
+    full6.destroy();
+}
+
+/**
+ * full6 generate timings over batch sizes: the 126 glyphs (256 for B = 256, wrapped) run B at a time without
+ * the reference, after one warm-up batch; ms in all and per glyph, with the encode / decode split summed.
+ */
+async function bench(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
+    const all = glyphsOf(ref, 126);
+    const rows: unknown[] = [];
+    for (const B of config.batches) {
+        const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(config.chunk, B) });
+        const count = Math.max(126, B);
+        const glyphs = Array.from({ length: count }, (_, i) => all[i % all.length]);
+        const pacing = config.paced ? { sliceMs: 2, inFlight: 1 } : undefined;
+        const options = { useReference: false, pacing, readEvery: config.readEvery };
+        // Warm serially first: a pipeline's first Metal dispatch is slow and would land in the paced cost table.
+        await full6.generate(glyphs.slice(0, B), { ...options, pacing: undefined });
+        await full6.generate(glyphs.slice(0, B), options);
+        let encodeMs = 0;
+        let decodeMs = 0;
+        let steps = 0;
+        let submits = 0;
+        const started = performance.now();
+        for (let at = 0; at < count; at += B) {
+            await full6.generate(glyphs.slice(at, at + B), options);
+            const stats = full6.lastStats;
+            if (!stats) throw new Error('generate left no stats');
+            encodeMs += stats.encodeMs;
+            decodeMs += stats.decodeMs;
+            steps += stats.steps;
+            submits += stats.submits;
+        }
+        const total = performance.now() - started;
+        const row = { B, glyphs: count, totalMs: total, perGlyphMs: total / count, encodeMs, decodeMs, steps, perStepMs: decodeMs / steps, submits, longestMs: full6.lastStats?.longestMs ?? null, gpuMB: full6.bytes / 2 ** 20 };
+        rows.push(row);
+        log(`[bench B=${B}] ${count} glyphs ${total.toFixed(0)} ms = ${(total / count).toFixed(2)} ms/glyph; encode ${encodeMs.toFixed(0)} ms (${(encodeMs / count).toFixed(2)}/glyph), decode ${decodeMs.toFixed(0)} ms over ${steps} steps (${row.perStepMs.toFixed(2)} ms/step); submits ${submits}; longest dispatch ${row.longestMs?.toFixed(3) ?? '-'} ms; GPU ${row.gpuMB.toFixed(0)} MB`);
+        full6.destroy();
+    }
+    report.bench = rows;
+}
+
+/** Per-dispatch GPU costs (timestamps) of full6's encoder chunk and one decode step at SW_B[0]. */
+async function profile(device: GPUDevice, config: Config, ref: RefData, report: Record<string, unknown>) {
+    const B = config.batches[0];
+    const full6 = await Full6Wgsl.create(device, new Uint8Array(fs.readFileSync(config.full6)), { f16: config.f16, capacity: B, chunk: Math.min(config.chunk, B) });
+    const all = glyphsOf(ref, 126);
+    const batch = Array.from({ length: B }, (_, i) => all[i % 126]);
+    await full6.generate(batch, { useReference: false });
+    await full6.generate(batch, { useReference: false, pacing: { sliceMs: 2, inFlight: 1 } });
+    const table = [...full6.costTable.entries()];
+    const groups = new Map<string, number>();
+    for (const [label, ms] of table) {
+        const key = label.replace(/^layers\.\d+\./, 'layers.*.').replace(/^refs\.\d+\./, 'refs.*.').replace(/^enc\.s(\d)\.\d\.([ab]|n\d\.gn\d)$/, 'enc.s$1.res.$2');
+        groups.set(key, (groups.get(key) ?? 0) + ms);
+    }
+    const top = [...groups.entries()].sort((a, b) => b[1] - a[1]);
+    log(`[profile full6 B=${B}] total ${table.reduce((s, [, ms]) => s + ms, 0).toFixed(2)} ms over ${table.length} ops`);
+    for (const [label, ms] of top.slice(0, 40)) log(`  ${label.padEnd(28)} ${ms.toFixed(3)}`);
+    report.profile = Object.fromEntries(table);
+    full6.destroy();
+}
+
+async function main() {
+    const config = await ipcRenderer.invoke('sw-config') as Config;
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) throw new Error('no WebGPU adapter');
+    if (config.f16 && !adapter.features.has('shader-f16')) throw new Error('SW_F16 asked for, but this adapter has no shader-f16');
+    const features: GPUFeatureName[] = [];
+    if (config.f16) features.push('shader-f16');
+    if (adapter.features.has('timestamp-query')) features.push('timestamp-query');
+    const device = await adapter.requestDevice({
+        requiredFeatures: features,
+        requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize },
+    });
+    device.addEventListener('uncapturederror', (event) => log(`GPU error: ${event.error.message}`));
+    log(`adapter ${adapter.info.vendor} ${adapter.info.architecture}; ${config.f16 ? 'f16' : 'f32'}; features ${features.join(',')}`);
+    const ref = new RefData(config.ref, fs, path);
+    const mode = config.f16 ? 'f16' : 'f32';
+    const report: Record<string, unknown> = { mode, task: config.task };
+    if (config.task === 'stages') await stages(device, config, ref);
+    if (config.task === 'align' || config.task === 'full6') await alignFull6(device, config, ref, report);
+    if (config.task === 'bench') await bench(device, config, ref, report);
+    if (config.task === 'profile') await profile(device, config, ref, report);
+    if (config.task === 'own2') await runOwn2Align(device, config, ref, new RefData(config.own2ref, fs, path), report, log);
+    if (config.task === 'outline') await runOutlineProbe(device, config, log, report);
+    if (config.task === 'penwidth') await runPenWidthProbe(device, config, log, report);
+    if (config.task === 'ownbench') await runOwnBench(device, config, ref, report, log);
+    fs.writeFileSync(path.join(config.out, `report-${config.task}-${mode}.json`), JSON.stringify(report, null, 1));
+    ipcRenderer.send('sw-done', 0);
+}
+
+main().catch((error: unknown) => {
+    log(`FAILED: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+    ipcRenderer.send('sw-done', 1);
+});
+

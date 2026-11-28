@@ -63,6 +63,15 @@ const glowRadii = (wordRevealMode?: string | null): [number, number] => (
 );
 
 /**
+ * The halo of a glyph being hand-written (glowWordHandwriting.tsx): the glyph sits under a stroke mask, which
+ * would cut a text-shadow off hard, so a wrapper carries the halo as drop-shadow over the masked, coloured glyph.
+ * null while the switch below is on - the glow span's own filter already is a drop-shadow and follows the ink.
+ */
+export const wordGlowWritingFilter = (activeColor: string, wordRevealMode?: string | null): string | null => (
+    isGlowBlurQuantized() ? null : dropShadowAt(activeColor, ...glowRadii(wordRevealMode))
+);
+
+/**
  * One glow ramp as framer keyframes: from nothing to the halo (or back), with `peaks[i]` in 0..1.
  * text-shadow: the halo stays at its peak radii and opacity carries the ramp. text-shadow is a paint
  * property, so the old `none` <-> halo sweep re-rastered every glowing glyph on every frame (classic,

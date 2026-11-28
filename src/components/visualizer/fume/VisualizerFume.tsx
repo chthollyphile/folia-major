@@ -23,6 +23,7 @@ import { buildArticleLayout, buildLayoutCacheKey, runLayoutInSlices } from './fu
 import { resolveArticleOverviewCamera } from './fumeCamera';
 import type { FumeStageDriver, FumeStageScene } from './fumeStage';
 import { useFumeCanvasStage } from './useFumeCanvasStage';
+import { useFumeHandwriting } from './useFumeHandwriting';
 import { useFirstFrameDrawn } from '../styleTransition/firstFrame';
 import { ARRIVING_MARK } from '../preview/frozenPicture';
 
@@ -150,6 +151,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         cameraSpeed: clamp(fumeTuning?.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, 0.55, 1.85),
         glowIntensity: clamp(fumeTuning?.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, 0, 1.8),
         heroScale: clamp(fumeTuning?.heroScale ?? DEFAULT_FUME_TUNING.heroScale, 0.82, 1.32),
+        handwriting: fumeTuning?.handwriting === true,
     }), [fumeTuning]);
     const layoutTheme = useMemo(
         () => ({
@@ -272,6 +274,9 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         setHasPrintedContent(false);
     }, [article]);
 
+    // 手写笔画：关着时是 null，不 attach 队列
+    const handwriting = useFumeHandwriting(resolvedFumeTuning.handwriting && showText && !staticMode, article, theme);
+
     const stageScene = useMemo<FumeStageScene>(() => ({
         article,
         lines,
@@ -286,6 +291,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         glowIntensity,
         backgroundObjectOpacity,
         showPrintStamp,
+        handwriting,
         textHoldRatio,
         showText,
         staticMode,
@@ -300,6 +306,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         overviewStartTime,
         passedFadeDuration,
         resolvedFumeTuning.cameraTrackingMode,
+        handwriting,
         showPrintStamp,
         showText,
         staticMode,

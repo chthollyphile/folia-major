@@ -170,13 +170,18 @@ export const buildRenderSegments = (
     return segments;
 };
 
+/** 浮名一句字的字重：主题设了就用主题的，否则大字 780、正文 640。 */
+export const resolveFumeFontWeight = (variant: 'body' | 'hero', theme: Pick<Theme, 'fontWeight'>) => (
+    resolveThemeFontWeight(theme, variant === 'hero' ? 780 : 640)
+);
+
 export const buildFontSpec = (
     fontPx: number,
     variant: 'body' | 'hero',
     fontFamily: string,
     theme: Pick<Theme, 'fontWeight'>,
 ) => {
-    const fontWeight = resolveThemeFontWeight(theme, variant === 'hero' ? 780 : 640);
+    const fontWeight = resolveFumeFontWeight(variant, theme);
     return `${fontWeight} ${fontPx}px ${fontFamily}`;
 };
 

@@ -20,6 +20,8 @@ export interface LaidChar extends NebbiaChar {
     x: number; y: number; s: number; rot: number;
     /** 手写变形后的字形；空格、画不出来的字没有。 */
     glyph: Glyph | null;
+    /** 变形前的字形：重排时已经开写的句子沿用它（字体笔画晚到时不让屏上的字变样）。 */
+    base: Glyph | null;
     beads: Bead[][];
     drips: (Drip | null)[];
     ends: { h: number; j: number }[];
@@ -101,6 +103,7 @@ const applyAppear = (line: LaidLine, tuning: NebbiaTuning, idx: number, seed: nu
     const kinds = tuning.appear.filter(a => a !== 'fade');
     const canFade = tuning.appear.includes('fade');
     const kind = kinds.length ? kinds[Math.floor(createVisualizerRng((seed + idx * 613 + 11) >>> 0)() * kinds.length)] : null;
+    line.appearBreathAt = Infinity; line.appearBreathUntil = Infinity;
     const cs = line.chars.filter(c => c.glyph);
     const nat = cs.map(c => naturalWriteTime(c.glyph!, tuning.writeSpeed));
     const until = Math.max(line.next, line.end);
@@ -122,9 +125,9 @@ const applyAppear = (line: LaidLine, tuning: NebbiaTuning, idx: number, seed: nu
 };
 
 /** 片尾的歌手等曲名写完再写：整句的书写时刻往后挪到曲名最后一个字写完后 0.4 秒。 */
-const alignCredits = (laid: LaidLine[], source: NebbiaSourceLine[]) => {
+const alignCredits = (laid: LaidLine[], source: NebbiaSourceLine[], frozen: (li: number) => boolean = () => false) => {
     const ti = source.findIndex(l => l.credits === 'title'), ai = source.findIndex(l => l.credits === 'artist');
-    if (ti < 0 || ai < 0) return;
+    if (ti < 0 || ai < 0 || frozen(ai)) return;
     const written = laid[ti].chars.filter(c => c.glyph);
     const last = written[written.length - 1];
     if (!last) return;
@@ -142,15 +145,8 @@ export const lineRect = (line: LaidLine) => {
     return { x0, x1, y0, y1, S };
 };
 
-/** 排一首歌：source 来自 buildNebbiaLines，glyphs 是按主题字体的字形缓存。 */
-export const buildNebbiaScene = (
-    source: NebbiaSourceLine[],
-    glyphs: NebbiaGlyphCache,
-    tuning: NebbiaTuning,
-    size: { W: number; H: number; fontScale: number },
-    seed: string | number,
-): LaidLine[] => {
-    const seedHash = hashVisualizerSeed(String(seed));
+/** 每句的消失方式和起雾、留着、消失的时刻：只由歌词和 tuning 决定（排版和结尾的让位都用它）。 */
+const timingOf = (source: NebbiaSourceLine[], tuning: NebbiaTuning, seedHash: number) => {
     const modes = source.map((l, i) => (l.credits ? 'fog' : lineModeOf(tuning.fade, i, seedHash)));
     const fadeOf = (i: number) => tuning.refog + (modes[i] === 'fog' ? 0 : 2.5);
     // 片尾（nebbiaCredits.ts）：曲名开写时前面的句子已经散得差不多（起雾不晚于开写前 0.6 个起雾用时），片尾两句不起雾
@@ -160,6 +156,26 @@ export const buildNebbiaScene = (
         : Math.min(fogStartOf(source[i].end, source[i].next, tuning.hold), beforeCredits(i)));
     const lingerAt = (i: number) => Math.max(fogAt(i), Math.min(fogAt(i) + LINGER_MAX, (source[i + LINGER_LINES]?.t ?? Infinity) + tuning.hold, beforeCredits(i)));
     const goneAt = (i: number) => fogAt(i) + fadeOf(i);
+    return { modes, fadeOf, fogAt, lingerAt, goneAt };
+};
+
+/** 给一个字配上字形：随机量只由句号、字号和 warp 决定（整首排版和单句换字形走同一条路，结果一样）。 */
+export const dressChar = (c: LaidChar, base: Glyph | null, li: number, i: number, warp: number) => {
+    c.glyph = null; c.beads = []; c.drips = []; c.ends = [];
+    c.base = base;
+    if (base) decorate(c, base, createVisualizerRng((li * 131 + i * 17 + 5) >>> 0), warp);
+};
+
+/** 排一首歌：source 来自 buildNebbiaLines，glyphs 是按主题字体的字形缓存。 */
+export const buildNebbiaScene = (
+    source: NebbiaSourceLine[],
+    glyphs: Pick<NebbiaGlyphCache, 'get'>,
+    tuning: NebbiaTuning,
+    size: { W: number; H: number; fontScale: number },
+    seed: string | number,
+): LaidLine[] => {
+    const seedHash = hashVisualizerSeed(String(seed));
+    const { modes, fadeOf, fogAt, lingerAt, goneAt } = timingOf(source, tuning, seedHash);
     const pos = layoutNebbiaSong(source, {
         W: size.W, H: size.H, jitter: tuning.jitter, layouts: tuning.layouts, fontScale: size.fontScale, visibleUntil: goneAt, fogAt,
         lingerUntil: i => lingerAt(i) + fadeOf(i),
@@ -169,14 +185,32 @@ export const buildNebbiaScene = (
         appearBreathAt: Infinity, appearBreathUntil: Infinity,
         chars: line.chars.map((c, i) => {
             const p = pos[li][i], wide = isWideChar(c.ch) || isIconChar(c.ch);
-            const out: LaidChar = { ...c, x: p.x, y: p.y, s: p.s * (wide ? 1 : 1.15), rot: p.rot, glyph: null, beads: [], drips: [], ends: [], appearDur: 0, wt: c.t, wd: 0 };
-            const base = glyphs.get(c.ch);
-            if (base) decorate(out, base, createVisualizerRng((li * 131 + i * 17 + 5) >>> 0), tuning.warp);
+            const out: LaidChar = { ...c, x: p.x, y: p.y, s: p.s * (wide ? 1 : 1.15), rot: p.rot, glyph: null, base: null, beads: [], drips: [], ends: [], appearDur: 0, wt: c.t, wd: 0 };
+            dressChar(out, glyphs.get(c.ch), li, i, tuning.warp);
             return out;
         }),
     }));
-    laid.forEach((line, li) => applyAppear(line, tuning, li, seedHash));
-    alignCredits(laid, source);
+    finishNebbiaScene(laid, source, tuning, seed);
+    return laid;
+};
+
+/**
+ * 字形都配好之后的整首收尾：每句的出现节奏、片尾对齐、让位和哈气。只读字的位置、字形和歌词时间，可以重复跑
+ * （先把要写的字段清回初值），所以某几句换了字形（nebbiaSceneUpdate.ts）后重跑一遍，结果和整首重排一样。
+ */
+export const finishNebbiaScene = (
+    laid: LaidLine[], source: NebbiaSourceLine[], tuning: NebbiaTuning, seed: string | number,
+    /** 已经开写的句子：时刻全部冻结不重算（重算会让正在淡出的句子跳回去），只把它对后面那句的影响照旧带上。 */
+    frozen: (li: number) => boolean = () => false,
+) => {
+    const seedHash = hashVisualizerSeed(String(seed));
+    const { fadeOf, fogAt, lingerAt } = timingOf(source, tuning, seedHash);
+    laid.forEach((line, li) => {
+        if (frozen(li)) return;
+        line.fogAt = fogAt(li); line.yieldAt = Infinity; line.breathAt = Infinity; line.breathUntil = Infinity; line.breathDur = NEBBIA_FIXED.breathSpread;
+        applyAppear(line, tuning, li, seedHash);
+    });
+    alignCredits(laid, source, frozen);
     // 让位：后面第一句和这句重叠、且在这句（多留之后）消失前开始的，记下它开始的时刻。
     // 多留：屏上还空着就晚点起雾，留到让位前 refog 秒（来得及慢慢起雾），不早于原来的时刻。
     // 到让位时还消失不了的（屏上满了），在那句开写前哈一口气把这句盖掉，那句写在白气上
@@ -188,11 +222,14 @@ export const buildNebbiaScene = (
         let by = -1;
         for (let j = i + 1; j < laid.length && laid[j].t < gone; j += 1) {
             const a = rects[i], b = rects[j];
-            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { line.yieldAt = yieldMoment(laid[j].t, line); by = j; break; }
+            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { if (!frozen(i)) line.yieldAt = yieldMoment(laid[j].t, line); by = j; break; }
         }
-        line.fogAt = Math.max(fogAt(i), Math.min(lingerAt(i), line.yieldAt - fadeOf(i)));
+        const fixed = frozen(i);
+        const fog = fixed ? line.fogAt : Math.max(fogAt(i), Math.min(lingerAt(i), line.yieldAt - fadeOf(i)));
+        if (!fixed) line.fogAt = fog;
         // 给片尾让位的不哈气：前面已经在散了，按让位快速起雾就好
-        if (by >= 0 && !source[by].credits && line.yieldAt < line.fogAt + fadeOf(i)) {
+        if (by >= 0 && !source[by].credits && line.yieldAt < fog + fadeOf(i)) {
+            if (fixed) return;
             // 挤的时候（让位紧跟着写完）不提前那么多：从写完 YIELD_READ 秒后才哈，鼓开收短到让位前 0.3 秒鼓完，最短 0.3 秒
             const from = Math.max(line.yieldAt - breathSpread - 0.3, writtenAt(line) + YIELD_READ);
             line.breathAt = from;
@@ -203,7 +240,6 @@ export const buildNebbiaScene = (
             laid[by].appearBreathAt = Infinity;
         }
     });
-    return laid;
 };
 
 /** 让位前多少秒开始收（快速起雾从让位前 0.6 秒起，哈气从 breathSpread + 0.3 秒起），和写完后至少留着看清的秒数。 */

@@ -83,6 +83,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "playback-toggle-pure-music",
   "settings-help",
   "ponder-current-page",
+  "clear-handwriting-stroke-cache",
   "sleep-timer",
   "settings-now-playing-card-position",
   "provider-playback-setup",

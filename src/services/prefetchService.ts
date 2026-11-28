@@ -161,6 +161,13 @@ usePlaybackStore.subscribe((state, previous) => {
     analysisScopeSongs.forEach(song => analyseForAutomix(song, prefetchCache.get(getPrefetchSongKey(song))?.audioUrl ?? libraryAudioUrl(song)));
 });
 
+// 预取到歌词时通知（字体笔画的预备服务据此给后两首歌补算字）：预取是异步的，没有这一步就得靠轮询队列碰运气。
+const prefetchedLyricsListeners = new Set<() => void>();
+export const subscribePrefetchedLyrics = (listener: () => void): (() => void) => {
+    prefetchedLyricsListeners.add(listener);
+    return () => { prefetchedLyricsListeners.delete(listener); };
+};
+
 const touchPrefetchCacheEntry = (songKey: string, data: PrefetchedSongData): PrefetchedSongData => {
     prefetchCache.delete(songKey);
     prefetchCache.set(songKey, data);
@@ -515,6 +522,7 @@ const prefetchSong = async (
     }
 
     prefetchCache.set(songKey, data);
+    if (data.lyrics) prefetchedLyricsListeners.forEach(listener => listener());
 
     // Measured here because this is where the bytes are cheapest: the track is about to be cached
     // anyway, so with song caching on it is one download feeding both the cache and the analysis,

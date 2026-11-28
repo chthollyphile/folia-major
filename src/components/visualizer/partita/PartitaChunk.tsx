@@ -7,6 +7,7 @@ import { resolveLyricTextDirection } from '../../../utils/lyrics/textDirection';
 import { PARTITA_WORD_LAYOUT_STYLE, type WordLayoutConfig, buildPartitaWordConfigs, getActiveColor } from './partitaLayout';
 import { type PartitaRowSpacing } from './partitaOverlap';
 import { OVERLAP_FIT_ROW_ATTRIBUTE } from '../useOverlapFit';
+import type { StrokeWriteSource } from '../fontStrokes/strokeWriteSource';
 
 // src/components/visualizer/partita/PartitaChunk.tsx
 // 一列中的一个 chunk：组合 GlowWord 与引导线，chunk 自身只订阅粗粒度状态。
@@ -31,7 +32,9 @@ export const PartitaChunk: React.FC<{
     /** With avoidOverlap: the gaps this row's words and the row itself keep (partitaOverlap.ts). */
     overlapSpacing?: PartitaRowSpacing;
     fontSize: string;
-}> = ({ chunkWords, displayWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, baseColor, renderProfile, isChorus, showGuideLines, overlapSpacing, fontSize }) => {
+    /** 手写笔画（开关开着时才有），原样交给 GlowWord。 */
+    handwriting?: StrokeWriteSource | null;
+}> = ({ chunkWords, displayWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, baseColor, renderProfile, isChorus, showGuideLines, overlapSpacing, fontSize, handwriting }) => {
     const [chunkStatus, setChunkStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
 
     const chunkStartTime = chunkWords[0].startTime;
@@ -199,6 +202,7 @@ export const PartitaChunk: React.FC<{
                         isChorus={isChorus}
                         fontSize={fontSize}
                         layoutStyle={overlapSpacing?.words[idx] ?? PARTITA_WORD_LAYOUT_STYLE}
+                        handwriting={handwriting}
                     />
                 );
             })}

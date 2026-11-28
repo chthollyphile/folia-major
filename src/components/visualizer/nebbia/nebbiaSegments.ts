@@ -54,6 +54,20 @@ export class NebbiaSegments {
         p.length = 0;
     }
 
+    /**
+     * 描当前路径，每一段的宽 = base × 两端倍数 rel 的平均（rel 按路径点的序号取，超出的用最后一个），不小于 minWidth（宽度在当前变换下）。
+     * 相邻段宽度不同时圆头线段互相盖住，接缝处不会有缺口。
+     */
+    strokeProfile(rel: readonly number[], base: number, minWidth: number, v: number) {
+        const p = this.path, last = rel.length - 1;
+        for (let i = 2, j = 1; i < p.length; i += 2, j += 1) {
+            if (Number.isNaN(p[i]) || Number.isNaN(p[i - 2])) continue;
+            const w = Math.max(minWidth, base * (rel[Math.min(j - 1, last)] + rel[Math.min(j, last)]) * 0.5);
+            this.push(p[i - 2], p[i - 1], p[i], p[i + 1], w * this.k, v);
+        }
+        p.length = 0;
+    }
+
     private push(x0: number, y0: number, x1: number, y1: number, w: number, v: number) {
         if ((this.count + 1) * SEGMENT_FLOATS > this.data.length) {
             const grown = new Float32Array(this.data.length * 2);

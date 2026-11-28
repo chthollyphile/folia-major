@@ -39,6 +39,8 @@ export default defineVisualizerTuning<ClassicTuning>({
             useLegacyLayout: stored.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
             wordSpacing: zeroToTwo(stored.wordSpacing ?? DEFAULT_WORD_SPACING, DEFAULT_WORD_SPACING),
             avoidOverlap: stored.avoidOverlap ?? DEFAULT_CLASSIC_TUNING.avoidOverlap,
+            // 手写笔画：旧存档没有这一项就是关；只认布尔
+            handwriting: stored.handwriting === true,
         }),
         merge: (held, patch) => ({
             enableWordRotation: patch.enableWordRotation ?? held.enableWordRotation,
@@ -52,6 +54,7 @@ export default defineVisualizerTuning<ClassicTuning>({
                 held.wordSpacing ?? DEFAULT_WORD_SPACING,
             ),
             avoidOverlap: patch.avoidOverlap ?? held.avoidOverlap,
+            handwriting: typeof patch.handwriting === 'boolean' ? patch.handwriting : held.handwriting === true,
         }),
         resetNotice: 'notifications.classicReset',
     },

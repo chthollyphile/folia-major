@@ -65,6 +65,8 @@ export default defineVisualizerTuning<FumeTuning>({
                 heroScale: heroScale(stored.heroScale ?? DEFAULT_FUME_TUNING.heroScale, DEFAULT_FUME_TUNING.heroScale),
                 // 分辨率覆盖（#929）：旧存档没有这一项就是全跟随全局。
                 render: normalizeLyricRenderOverride(stored.render),
+                // 手写笔画：旧存档没有这一项就是关；只认布尔
+                handwriting: stored.handwriting === true,
             };
         },
         merge: (held, patch) => ({
@@ -80,6 +82,7 @@ export default defineVisualizerTuning<FumeTuning>({
             glowIntensity: glowIntensity(patch.glowIntensity ?? held.glowIntensity, held.glowIntensity),
             heroScale: heroScale(patch.heroScale ?? held.heroScale, held.heroScale),
             render: normalizeLyricRenderOverride(patch.render ?? held.render),
+            handwriting: typeof patch.handwriting === 'boolean' ? patch.handwriting : held.handwriting,
         }),
         resetNotice: 'notifications.fumeReset',
     },

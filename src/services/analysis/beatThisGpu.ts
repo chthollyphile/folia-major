@@ -82,8 +82,8 @@ const CHUNK_FRAMES = 1500;
  */
 export type BeatThisModel = 'beat_this';
 
-/** Every model the GPU worker builds: Beat This! and htdemucs. */
-type GpuModel = BeatThisModel | 'htdemucs';
+/** Every model the GPU worker builds: Beat This!, htdemucs and 雾笺's font strokes (full6 + own2). */
+type GpuModel = BeatThisModel | 'htdemucs' | 'strokes';
 
 /**
  * The samples per channel of one htdemucs segment (HTDEMUCS_SEGMENT in htdemucsWgsl/runtime.ts),
@@ -135,9 +135,9 @@ let nextId = 0;
 /** What the GPU models may hold together (phase 4); both fit, with room for a short chunk's graph. */
 const GPU_BUDGET_BYTES = 512 * 1024 * 1024;
 /** A model's GPU memory before it has been measured here (M4, f32 htdemucs with four sources). */
-const FIRST_GUESS_BYTES: Record<GpuModel, number> = { beat_this: 106 * 1024 * 1024, htdemucs: 350 * 1024 * 1024 };
+const FIRST_GUESS_BYTES: Record<GpuModel, number> = { beat_this: 106 * 1024 * 1024, htdemucs: 350 * 1024 * 1024, strokes: 120 * 1024 * 1024 };
 /** How long a model stays loaded after its last run. */
-const MODEL_IDLE_MS: Record<GpuModel, number> = { beat_this: 60_000, htdemucs: 30_000 };
+const MODEL_IDLE_MS: Record<GpuModel, number> = { beat_this: 60_000, htdemucs: 30_000, strokes: 60_000 };
 /** The models loaded: their measured bytes, last use and release timer. */
 const resident = new Map<GpuModel, { bytes: number; usedAt: number; timer: ReturnType<typeof setTimeout> | null }>();
 /** Each model's bytes as last measured, for the budget before a load. */
@@ -360,7 +360,37 @@ const spawn = (): Worker | null => {
     return worker;
 };
 
+/** The strokes' load: two whole packed files rather than one export's tensors and manifest. */
+const startStrokes = async (): Promise<boolean> => {
+    const fetchWeights = window.electron?.getStrokesGpuWeights;
+    if (typeof fetchWeights !== 'function') return false;
+    makeRoom('strokes');
+    const started = performance.now();
+    const found = await fetchWeights();
+    if (!found || !spawn()) return false;
+    const reply = await ask({ kind: 'load', model: 'strokes', full6: found.full6, own2: found.own2 }, [found.full6.buffer, found.own2.buffer]);
+    if (reply.error) {
+        console.warn(`[beat-this-gpu] strokes unavailable: ${reply.error}`);
+        if (reply.scope === 'model') {
+            failedModels.add('strokes');
+            ready.delete('strokes');
+        } else {
+            unsupported = true;
+            drop();
+        }
+        return false;
+    }
+    scheduler.noteLoad('strokes', performance.now() - started);
+    const bytes = typeof reply.bytes === 'number' ? reply.bytes : FIRST_GUESS_BYTES.strokes;
+    measuredBytes.set('strokes', bytes);
+    resident.set('strokes', { bytes, usedAt: performance.now(), timer: null });
+    used('strokes');
+    console.log(`[beat-this-gpu] strokes loaded on ${String(reply.result)}, ${megabytes(bytes)} on the GPU`);
+    return true;
+};
+
 const start = async (model: GpuModel): Promise<boolean> => {
+    if (model === 'strokes') return startStrokes();
     const fetchWeights = model === 'htdemucs'
         ? window.electron?.getHtdemucsGpuWeights
         : window.electron?.getBeatThisGpuWeights && (() => window.electron!.getBeatThisGpuWeights!(model));
@@ -518,6 +548,54 @@ export const runHtdemucsGpu = (
         notePacing('htdemucs', paced);
         if (options.urgency === 'onScreen') noteOnScreenSegment(took);
         return { left: stems[0].left, right: stems[0].right, stems };
+    } });
+};
+
+/** One glyph's font strokes (strokesWgsl/strokesJob.ts StrokesGlyphResult; declared here for the same reason as CHUNK_FRAMES). */
+export interface StrokesGpuGlyph {
+    /** Pens in writing order, flat [n, 2] each, canvas coordinates (-1..1, y down). */
+    pens: Float32Array[];
+    /** Per pixel of the 256 x 256 grid: arc length reached / the glyph's, 0..65534; 65535 off the ink. */
+    along: Uint16Array;
+    /** Per pixel of the 256 x 256 grid: the index of the pen owning this ink pixel (own2's ownership), -1 off the ink. */
+    owner: Int8Array;
+}
+/**
+ * Whether the font-strokes models can never run in this session: no worker, no usable WebGPU, the models
+ * would not build on this device, or no renderer bridge to fetch their weights. A null from runStrokesGpu
+ * with this false is transient (weights not downloaded yet, a run that failed, the scheduler dropped it) and
+ * worth trying again later; with it true, stop asking. The font-strokes planner (services/fontStrokes) reads it.
+ */
+export const strokesGpuUnavailable = (): boolean => (
+    unsupported || failedModels.has('strokes') || typeof window === 'undefined' || typeof Worker === 'undefined'
+    || typeof window.electron?.getStrokesGpuWeights !== 'function'
+);
+/** Glyphs one strokes request takes (STROKES_BATCH). */
+export const STROKES_GPU_BATCH = 8;
+
+/**
+ * 雾笺's font strokes for up to STROKES_GPU_BATCH glyphs: each glyph's full6 features [3, 256, 256]
+ * (transferred) in, pens and the arc-length map out. One scheduler unit a request. Null when the
+ * stroke models are not on disk, this machine has no usable WebGPU, or the run failed.
+ */
+export const runStrokesGpu = (
+    imgs: Float32Array<ArrayBuffer>[],
+    options: GpuRunOptions = { urgency: 'onScreen' },
+): Promise<StrokesGpuGlyph[] | null> => {
+    if (unsupported || failedModels.has('strokes') || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
+    if (!imgs.length || imgs.length > STROKES_GPU_BATCH) return Promise.resolve(null);
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: 'strokes', run: async () => {
+        if (unsupported || failedModels.has('strokes') || !(await ensureLoaded('strokes'))) return null;
+        inUse = 'strokes';
+        const reply = await ask({ kind: 'strokes', imgs }, imgs.map(img => img.buffer)).finally(() => { inUse = null; });
+        used('strokes');
+        if (reply.error) {
+            console.warn(`[beat-this-gpu] strokes run failed: ${reply.error}`);
+            drop();
+            return null;
+        }
+        if (worker) idleTimer = setTimeout(drop, IDLE_MS);
+        return reply.result as StrokesGpuGlyph[];
     } });
 };
 

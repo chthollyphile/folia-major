@@ -59,6 +59,12 @@ export const checkLinked = (gl: WebGL2RenderingContext, p: WebGLProgram) => {
 };
 
 /** 一张线性过滤、边缘夹紧的纹理，挂在采样单元 `unit` 上（程序编好后再把采样器指过来）。 */
+/** createTexture/createBuffer/createVertexArray 的结果：只有上下文丢了才会是 null，那时直接报错。 */
+export const glObject = <T>(v: T | null, what: string): T => {
+    if (v === null) throw new Error(`雾笺: WebGL ${what} 建不出来（上下文丢了？）`);
+    return v;
+};
+
 export const makeTex = (gl: WebGL2RenderingContext, unit: number): Tex => {
     const t = gl.createTexture()!;
     gl.activeTexture(gl.TEXTURE0 + unit);

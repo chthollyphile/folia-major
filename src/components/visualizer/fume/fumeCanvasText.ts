@@ -7,7 +7,12 @@ import type { FumeBlockTiming } from './fumeBlockFrame';
 import { clamp, easeInOutCubic, easeOutCubic, isCJK, mix, resolveDelayedGlowEnvelope } from './fumeMath';
 import { resolvePrintedGraphemeCount, resolveVisualProgressWithCutoff } from './fumeReveal';
 import { getActiveColor } from './fumeTextStyle';
-import { buildFontSpec, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
+import { isModelChar } from '../../../services/fontStrokes/fontStrokesRaster';
+import type { FontStrokesGlyph } from '../../../services/fontStrokes/fontStrokesOutline';
+import { drawStrokeWriteGlyph, placeLeftMiddleGlyph } from '../fontStrokes/strokeWriteCanvas';
+import { resolveWriteGlyphState, type WriteGlyphState } from '../fontStrokes/strokeWriteTiming';
+import { resolveGlyphTimes, type FumeHandwritingFrame } from './fumeHandwriting';
+import { buildFontSpec, resolveFumeFontWeight, resolveRenderLineOffset, resolveSegmentGlyphAdvance, resolveSegmentGlyphOffset } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeCanvasText.ts
 // Canvas 2D text drawing for fume: fonts, clipped text runs and the static block snapshots.
@@ -41,16 +46,34 @@ export const drawRenderTextRun = (
         return;
     }
 
+    context.save();
+    if (!clipToRun(context, renderLine, segment, runStart, runEnd, baseX, baseY)) {
+        context.restore();
+        return;
+    }
+    context.fillText(segment.text, baseX + segment.x, baseY);
+    context.restore();
+};
+
+/** 把当前路径裁到这一段字（runStart..runEnd）占的那一列；没有宽度时返回 false。正在写的字也用同一个裁剪，辉光不会溢到邻字上。 */
+const clipToRun = (
+    context: CanvasRenderingContext2D,
+    renderLine: RenderLineSlice,
+    segment: RenderSegmentSlice,
+    runStart: number,
+    runEnd: number,
+    baseX: number,
+    baseY: number,
+) => {
     const segmentRunStart = Math.max(runStart - segment.localStart, 0);
     const segmentRunEnd = Math.min(runEnd - segment.localStart, segment.measuredGlyphOffsets.length - 1);
     const clipLeft = segment.measuredGlyphOffsets[segmentRunStart] ?? (resolveRenderLineOffset(renderLine, runStart) - segment.x);
     const clipRight = segment.measuredGlyphOffsets[segmentRunEnd] ?? (resolveRenderLineOffset(renderLine, runEnd) - segment.x);
     const clipWidth = Math.max(clipRight - clipLeft, 0);
     if (clipWidth <= 0) {
-        return;
+        return false;
     }
 
-    context.save();
     context.beginPath();
     context.rect(
         baseX + segment.x + clipLeft,
@@ -59,8 +82,30 @@ export const drawRenderTextRun = (
         Math.max(128 + clipWidth * 2, 256),
     );
     context.clip();
-    context.fillText(segment.text, baseX + segment.x, baseY);
-    context.restore();
+    return true;
+};
+
+/**
+ * 画一个正在写的字：字心 = 它在整段文字里的起笔位置 + 单字宽的一半，字母基线 = fume 的 'middle' 基线再往下一个字体盒上升量之差
+ * （placeLeftMiddleGlyph），笔画按进度写出来（strokeWriteCanvas.ts）。画不了时按普通画法画整个字。
+ */
+const drawHandwritingGrapheme = (
+    context: CanvasRenderingContext2D,
+    grapheme: string,
+    strokes: FontStrokesGlyph,
+    progress: number,
+    { x, baselineY, fontPx, fillStyle }: { x: number; baselineY: number; fontPx: number; fillStyle: string },
+) => {
+    const font = context.font;
+    const drawPlain = (ctx: CanvasRenderingContext2D) => {
+        ctx.font = font;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = fillStyle;
+        ctx.fillText(grapheme, x, baselineY);
+    };
+    const placed = drawStrokeWriteGlyph(context, strokes, progress, placeLeftMiddleGlyph(context, grapheme, x, baselineY, fontPx), drawPlain);
+    if (!placed) drawPlain(context);
 };
 
 export const createStaticBlockSnapshot = (
@@ -115,6 +160,8 @@ export interface FumeLiveBlockParams {
     activeGlowBoost: number;
     passedGlowBase: number;
     showPrintStamp: boolean;
+    /** 手写笔画开着时才有：正在写的汉字 / 假名按笔顺写出来（fumeHandwriting.ts）。 */
+    handwriting?: FumeHandwritingFrame | null;
 }
 
 /**
@@ -125,7 +172,7 @@ export const drawFumeLiveBlock = (
     context: CanvasRenderingContext2D,
     block: FumeBlock,
     timing: FumeBlockTiming,
-    { time, theme, glowIntensity, activeGlowBoost, passedGlowBase, showPrintStamp }: FumeLiveBlockParams,
+    { time, theme, glowIntensity, activeGlowBoost, passedGlowBase, showPrintStamp, handwriting }: FumeLiveBlockParams,
 ) => {
     const {
         waitingOpacity, activeOpacity, transitionPassedStyle, baselineOffset, linePassCutoffTime,
@@ -143,6 +190,31 @@ export const drawFumeLiveBlock = (
     context.font = buildCanvasFont(block, theme);
     context.textAlign = 'left';
     context.textBaseline = 'middle';
+
+    // 手写笔画：每个字此刻的状态（一帧里两遍绘制共用，决定只做一次）；关着时是 null，下面的画法和原来完全一样
+    const hwStates = handwriting ? new Map<number, WriteGlyphState>() : null;
+    const hwWeight = resolveFumeFontWeight(block.variant, theme);
+    const hwStateOf = (globalOffset: number, grapheme: string): WriteGlyphState => {
+        if (!handwriting || !hwStates || !isModelChar(grapheme)) return null;
+        const cached = hwStates.get(globalOffset);
+        if (cached !== undefined) return cached;
+        const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
+        let state: WriteGlyphState = null;
+        if (rangeIndex >= 0) {
+            const { start, end } = resolveGlyphTimes(block.wordRanges[rangeIndex], globalOffset);
+            state = resolveWriteGlyphState(
+                handwriting.decisions,
+                `${block.id}:${globalOffset}`,
+                time,
+                start,
+                end,
+                () => handwriting.getStrokes(grapheme, hwWeight) !== null,
+            );
+        }
+        hwStates.set(globalOffset, state);
+        return state;
+    };
+    const handwritingStrokes = (grapheme: string) => handwriting?.getStrokes(grapheme, hwWeight) ?? null;
 
     const isLineActive = time >= block.line.startTime && time <= linePassCutoffTime;
     if (isLineActive) {
@@ -180,7 +252,51 @@ export const drawFumeLiveBlock = (
                     continue;
                 }
 
-                fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                if (!hwStates) {
+                    fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                    continue;
+                }
+                // 手写笔画：开写前的字不进辉光，正在写的字按同一张遮罩和进度写出辉光，其余的字照旧成段画（按这些字断开成几段）
+                let glowRunStart = -1;
+                let glowExcluded = false;
+                const flushGlowRun = (end: number) => {
+                    if (glowRunStart < 0) return;
+                    if (!glowExcluded && glowRunStart === segment.start && end === segment.end) {
+                        fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                    } else {
+                        context.save();
+                        if (clipToRun(context, renderLine, segment, glowRunStart - renderLine.start, end - renderLine.start, glowBaseX, glowBaseY)) {
+                            fillGlowText(context, segment.text, glowBaseX + segment.x, glowBaseY);
+                        }
+                        context.restore();
+                    }
+                    glowRunStart = -1;
+                };
+                for (let offset = segment.start; offset < segment.end; offset += 1) {
+                    const grapheme = renderLine.graphemes[offset - renderLine.start];
+                    const state = hwStateOf(offset, grapheme);
+                    if (state === null) {
+                        if (glowRunStart < 0) glowRunStart = offset;
+                        continue;
+                    }
+                    flushGlowRun(offset);
+                    glowExcluded = true;
+                    const strokes = typeof state === 'number' ? handwritingStrokes(grapheme) : null;
+                    if (strokes && typeof state === 'number') {
+                        context.save();
+                        const localOffset = offset - renderLine.start;
+                        if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, glowBaseX, glowBaseY)) {
+                            drawHandwritingGrapheme(context, grapheme, strokes, state, {
+                                x: glowBaseX + segment.x + resolveSegmentGlyphOffset(segment, offset),
+                                baselineY: glowBaseY,
+                                fontPx: block.fontPx,
+                                fillStyle: lineGlowColor,
+                            });
+                        }
+                        context.restore();
+                    }
+                }
+                flushGlowRun(segment.end);
             }
         }
 
@@ -376,6 +492,13 @@ export const drawFumeLiveBlock = (
                     }
                 }
 
+                // 手写笔画：还没开写的字什么都不画（连暗色衬字也没有），字只靠被写出来出现
+                const hwState = hwStateOf(globalOffset, grapheme);
+                if (hwState === 'hidden') {
+                    flushRun(globalOffset);
+                    continue;
+                }
+
                 if (alpha <= 0.002) {
                     flushRun(globalOffset);
                     continue;
@@ -385,6 +508,28 @@ export const drawFumeLiveBlock = (
                 // Chromium's glyph cache (Lab > Fix lyric animation freeze on Linux) and redraws
                 // the shadowed glyphs every frame. See utils/glowBlurQuantize.ts.
                 shadowBlur = roundShadowBlur(shadowBlur);
+                if (typeof hwState === 'number') {
+                    const strokes = handwritingStrokes(grapheme);
+                    if (strokes) {
+                        // 正在写的字不进下面的整段文字，单独画
+                        flushRun(globalOffset);
+                        context.fillStyle = fillStyle;
+                        setCanvasTextGlow(context, shadowBlur, shadowColor);
+                        context.save();
+                        const localOffset = globalOffset - renderLine.start;
+                        if (clipToRun(context, renderLine, segment, localOffset, localOffset + 1, baseX, baseY)) {
+                            drawHandwritingGrapheme(context, grapheme, strokes, hwState, {
+                                x: baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset),
+                                baselineY: baseY,
+                                fontPx: block.fontPx,
+                                fillStyle,
+                            });
+                        }
+                        context.restore();
+                        clearCanvasTextGlow(context);
+                        continue;
+                    }
+                }
                 const styleKey = buildTextStyleKey(fillStyle, shadowBlur, shadowColor);
                 if (runStart < 0) {
                     runStart = globalOffset;

@@ -3,13 +3,14 @@ import { BeatThisWgsl, type BeatThisWgslManifest } from '../services/analysis/be
 import { runPercussiveEnergy } from '../services/analysis/beatThisWgsl/percussive';
 import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/htdemucsWgsl/runtime';
 import { createFrameClock, sliceMsForFrame, type PacedRunStats, type SlicePacing } from '../services/analysis/gpuSlices';
+import { StrokesJob } from '../services/analysis/strokesWgsl/strokesJob';
 
 // src/workers/beatThisGpu.worker.ts
 // Beat This! on the renderer's own GPU, beside the visualizer, from a thread that does not paint.
 //
 // The worker owns its WebGPU device and the models built on it - Beat This! final0 for automix and the
 // beat FX, htdemucs for the beat FX's drum stem, each built the first time it is loaded - and answers
-// these messages: 'separate' (one htdemucs segment, stereo in, the drum stem out), 'load' (a model's
+// these messages: 'strokes' (雾笺's font strokes for up to STROKES_BATCH glyphs: pens and arc-length maps back), 'separate' (one htdemucs segment, stereo in, the drum stem out), 'load' (a model's
 // weights and manifest, transferred in once), 'run' (a model's mel chunks of up to 1500 frames, logits back;
 // with `percussive`, the whole spectrogram as well, whose per-frame percussive energy - HPSS,
 // beatThisWgsl/percussive.ts, for the beat accents - comes back with them), 'percussive' (that alone, for
@@ -31,14 +32,18 @@ type ModelName = 'beat_this';
 type Request =
     | { id: number; kind: 'load'; model: ModelName; weights: Uint8Array<ArrayBuffer>; manifest: BeatThisWgslManifest }
     | { id: number; kind: 'load'; model: 'htdemucs'; weights: Uint8Array<ArrayBuffer>; manifest: HtdemucsWgslManifest }
+    | { id: number; kind: 'load'; model: 'strokes'; full6: Uint8Array<ArrayBuffer>; own2: Uint8Array<ArrayBuffer> }
+    | { id: number; kind: 'strokes'; imgs: Float32Array<ArrayBuffer>[] }
     | { id: number; kind: 'separate'; left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
     | { id: number; kind: 'run'; model: ModelName; chunks: Float32Array<ArrayBuffer>[]; percussive?: { mel: Float32Array<ArrayBuffer>; frames: number } }
     | { id: number; kind: 'percussive'; mel: Float32Array<ArrayBuffer>; frames: number }
-    | { id: number; kind: 'unload'; model: ModelName | 'htdemucs' }
+    | { id: number; kind: 'unload'; model: ModelName | 'htdemucs' | 'strokes' }
     | { id: number; kind: 'dispose' };
 
 const models = new Map<ModelName, BeatThisWgsl>();
 let htdemucs: HtdemucsWgsl | null = null;
+/** 雾笺's font strokes (full6 + own2, strokesWgsl/strokesJob.ts), f16 where the device has it. */
+let strokes: StrokesJob | null = null;
 let device: GPUDevice | null = null;
 let deviceLabel = '';
 /** The adapter's vendor and architecture alone, without deviceLabel's precision suffix. */
@@ -80,6 +85,7 @@ const openDevice = async (): Promise<GPUDevice> => {
         lost = `device lost (${info.reason}): ${info.message}`;
         models.clear();
         htdemucs = null;
+        strokes = null;
     });
     deviceName = `${adapter.info.vendor} ${adapter.info.architecture}`;
     deviceLabel = `${deviceName}${f16 ? ' f16' : ''}`;
@@ -96,6 +102,18 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                 opened = await openDevice();
             } catch (error) {
                 self.postMessage({ id: request.id, error: String((error as Error)?.message ?? error), scope: 'device' });
+                return;
+            }
+            if (request.model === 'strokes') {
+                if (!strokes) {
+                    try {
+                        strokes = await StrokesJob.create(opened, request.full6, request.own2, f16);
+                    } catch (error) {
+                        self.postMessage({ id: request.id, error: error instanceof Error ? error.message : String(error), scope: 'model' });
+                        return;
+                    }
+                }
+                self.postMessage({ id: request.id, result: deviceLabel, bytes: strokes.bytes });
                 return;
             }
             if (request.model === 'htdemucs') {
@@ -142,6 +160,14 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             self.postMessage({ id: request.id, result: energy }, { transfer: [energy.percussive.buffer, energy.total.buffer] });
             return;
         }
+        if (request.kind === 'strokes') {
+            if (lost) throw new Error(lost);
+            if (!strokes) throw new Error('strokes not loaded');
+            // One batch a request, paced like a chunk: a scheduler unit of up to STROKES_BATCH glyphs.
+            const glyphs = await strokes.run(request.imgs, pacing());
+            self.postMessage({ id: request.id, result: glyphs }, { transfer: glyphs.flatMap(g => [g.along.buffer, g.owner.buffer, ...g.pens.map(p => p.buffer)]) });
+            return;
+        }
         if (request.kind === 'separate') {
             if (lost) throw new Error(lost);
             if (!htdemucs) throw new Error('htdemucs not loaded');
@@ -158,6 +184,9 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             if (request.model === 'htdemucs') {
                 htdemucs?.destroy();
                 htdemucs = null;
+            } else if (request.model === 'strokes') {
+                strokes?.destroy();
+                strokes = null;
             } else {
                 models.get(request.model)?.destroy();
                 models.delete(request.model);
@@ -170,6 +199,8 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             models.clear();
             htdemucs?.destroy();
             htdemucs = null;
+            strokes?.destroy();
+            strokes = null;
             device?.destroy();
             self.postMessage({ id: request.id, result: true });
             return;

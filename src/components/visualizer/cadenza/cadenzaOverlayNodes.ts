@@ -1,4 +1,5 @@
 import type { OverlayWordFrame, OverlayWordNodes } from './cadenzaTypes';
+import { disposeCadenzaHandwriting } from './cadenzaHandwriting';
 
 // src/components/visualizer/cadenza/cadenzaOverlayNodes.ts
 // 每个词落点对应的 DOM 叠层节点（外框 / 内框 / 正文 / 逐字 glow），由 RAF 循环直接写样式。
@@ -46,6 +47,7 @@ export const createOverlayWordNodes = (): OverlayWordNodes => {
         written: null,
         glyphShadows: [],
         frame: -1,
+        hw: null,
     };
 };
 
@@ -60,7 +62,8 @@ export const writeOverlayWord = (nodes: OverlayWordNodes, next: OverlayWordFrame
     if (written?.willChange !== next.willChange) nodes.outer.style.willChange = next.willChange;
     if (written?.font !== next.font) nodes.inner.style.font = next.font;
     if (written?.innerTransform !== next.innerTransform) nodes.inner.style.transform = next.innerTransform;
-    if (written?.text !== next.text) nodes.body.textContent = next.text;
+    // 手写笔画接上时正文是逐字的 span（cadenzaHandwriting.ts），文字由它管
+    if (written?.text !== next.text && !nodes.hw) nodes.body.textContent = next.text;
     if (written?.color !== next.color) nodes.body.style.color = next.color;
     if (written?.opacity !== next.opacity) nodes.body.style.opacity = next.opacity;
     if (written?.filter !== next.filter) nodes.body.style.filter = next.filter;
@@ -93,9 +96,15 @@ export const syncOverlayGlyphSpans = (nodes: OverlayWordNodes, texts: string[]) 
     nodes.glyphSignature = glyphSignature;
 };
 
+/** 移除一个落点的节点（连同手写笔画的遮罩）。 */
+export const removeOverlayWordNodes = (nodes: OverlayWordNodes) => {
+    disposeCadenzaHandwriting(nodes);
+    nodes.outer.remove();
+};
+
 export const clearOverlayWordNodes = (overlayNodes: Map<string, OverlayWordNodes>) => {
     overlayNodes.forEach(nodes => {
-        nodes.outer.remove();
+        removeOverlayWordNodes(nodes);
     });
     overlayNodes.clear();
 };

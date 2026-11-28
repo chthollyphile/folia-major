@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electron', {
     // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
     getBeatThisGpuWeights: (model) => ipcRenderer.invoke('automix-beat-this-gpu-weights', model),
     getHtdemucsGpuWeights: () => ipcRenderer.invoke('automix-beat-this-gpu-weights', 'htdemucs'),
+    getStrokesGpuWeights: () => ipcRenderer.invoke('nebbia-strokes-gpu-weights'),
     // The performance check (electron/perfCheck.cjs): open its window, read every process's memory, hand
     // the chosen settings to the main window, and, in the main window, receive them.
     openPerfCheck: () => ipcRenderer.invoke('perf-check-open'),

@@ -1,5 +1,6 @@
 const { modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
 const { unpackWeights } = require('./packedWeights.cjs');
+const { ensureStrokesModel } = require('./strokesModelFetch.cjs');
 const { poolFits, requestThreads } = require('./threads.cjs');
 const { runtimeLine } = require('../debug/debugHost.cjs');
 const { createSenderGuardedHandler } = require('../ipcAccessGuard.cjs');
@@ -287,6 +288,35 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, isTrustedSender, idleM
             return { weights: new Uint8Array(weights.buffer, weights.byteOffset, weights.byteLength), manifest };
         } catch (error) {
             console.warn(`[beat-this-gpu] could not read ${file}: ${error?.message || error}`);
+            return null;
+        }
+    });
+
+    /**
+     * 雾笺's stroke models for the renderer's GPU (beatThisGpu.ts runStrokesGpu): full6 and own2, each as
+     * its whole packed file (the renderer's strokesWgsl/packed.ts reads the trailer itself), or null when
+     * either is missing and cannot be downloaded. Read once per renderer-side load, ~24 MB together.
+     */
+    ipcMain.handle('nebbia-strokes-gpu-weights', async () => {
+        const dirs = modelsDirs();
+        // userData/models is where a download lands, and is looked at after the installer's/dev models/.
+        const downloadDir = path.join(app.getPath('userData'), 'models');
+        const lookupDirs = [...dirs, downloadDir];
+        // Local file first, else a pinned download (strokesModelFetch.cjs; licence decision pending there).
+        // Electron's net.fetch, not Node's fetch: it follows the system proxy, which Node's does not.
+        const fetchViaElectron = (url, init) => require('electron').net.fetch(url, init);
+        const find = async (name) => resolveModelFile(lookupDirs, name)
+            ?? await ensureStrokesModel(name, downloadDir, { fetchImpl: fetchViaElectron }).catch((error) => {
+                console.warn(`[strokes-gpu] ${error?.message || error}`);
+                return null;
+            });
+        const [full6, own2] = await Promise.all([find('strokes_full6'), find('strokes_own2')]);
+        if (!full6 || !own2) return null;
+        try {
+            const [a, b] = await Promise.all([fs.promises.readFile(full6), fs.promises.readFile(own2)]);
+            return { full6: new Uint8Array(a.buffer, a.byteOffset, a.byteLength), own2: new Uint8Array(b.buffer, b.byteOffset, b.byteLength) };
+        } catch (error) {
+            console.warn(`[strokes-gpu] could not read the stroke models: ${error?.message || error}`);
             return null;
         }
     });
