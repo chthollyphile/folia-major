@@ -33,6 +33,7 @@ export const buildVisualizerCommandContext = (
         setVisualizerBackgroundMode: visualizer.handleSetVisualizerBackgroundMode,
         setMonetBackgroundTuning: visualizer.handleSetMonetBackgroundTuning,
         setLatentBackgroundTuning: visualizer.handleSetLatentBackgroundTuning,
+        setNomandBackgroundTuning: visualizer.handleSetNomandBackgroundTuning,
         // 和雾笺设置面板一样：换窗外不动玻璃，换玻璃不动窗外
         cycleNebbiaBehind: () => {
             const latest = useVisualizerSettingsStore.getState();

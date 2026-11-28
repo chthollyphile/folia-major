@@ -6,6 +6,7 @@ import { StudioColumnBody } from '../../shared/StudioWindow';
 import { percent, SliderRow, ToggleRow } from '../panelRows';
 import { type VisualizerRegistryEntry } from '../registry';
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
+import { VIS_PLAYGROUND_SECTION_LABEL_KEYS, VIS_PLAYGROUND_SECTIONS } from './visPlaygroundSections';
 import { FontTiles, type FontChoice } from './FontTiles';
 import SubtitleOverlayRowsSetting from './SubtitleOverlayRowsSetting';
 import type { StyleDraft } from './useTuningDrafts';
@@ -114,15 +115,6 @@ interface VisPlaygroundSettingsPanelProps {
     onSliderCommit?: () => void;
 }
 
-const SECTION_OPTIONS: VisPlaygroundEditSection[] = ['visualizer', 'background', 'common', 'subtitle', 'global'];
-
-const SECTION_LABEL_KEYS: Record<VisPlaygroundEditSection, string> = {
-    visualizer: 'options.previewVisualizerSettings',
-    background: 'options.previewBackgroundSettings',
-    common: 'options.previewCommonSettings',
-    subtitle: 'options.previewSubtitleSettings',
-    global: 'options.previewGlobalSettings',
-};
 
 // The window's own groups. A group without a heading still needs a name for assistive tech.
 const STYLE_NOTICE_GROUP: SettingsGroupDef = { id: 'vis-style-notice', titleKey: 'options.previewVisualizerGroup' };
@@ -276,7 +268,7 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
     return (
         <>
             <Tabs
-                tabs={SECTION_OPTIONS.map(section => ({ id: section, label: t(SECTION_LABEL_KEYS[section]) }))}
+                tabs={VIS_PLAYGROUND_SECTIONS.map(section => ({ id: section, label: t(VIS_PLAYGROUND_SECTION_LABEL_KEYS[section]) }))}
                 activeId={activeSection}
                 onSelect={id => onSectionChange(id as VisPlaygroundEditSection)}
                 label={t('options.lyricsStyleSettings')}

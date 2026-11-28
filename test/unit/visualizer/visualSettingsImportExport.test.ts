@@ -359,6 +359,20 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.nomandBackgroundTuning).toEqual(nomandBackgroundTuning);
     });
 
+    it('round-trips the Nomand ASCII effect through the shortcode', () => {
+        const nomandBackgroundTuning = {
+            ...DEFAULT_NOMAND_BACKGROUND_TUNING,
+            effect: 'ascii' as const,
+            asciiScale: 2.5,
+            asciiMotion: 0.4,
+            asciiOriginalColors: true,
+            asciiInverted: true,
+        };
+        const decoded = decompressConfig(compressConfig({ nomandBackgroundTuning }));
+
+        expect(decoded.nomandBackgroundTuning).toEqual(nomandBackgroundTuning);
+    });
+
     it('round-trips a Diorama-only short code including geometry child switches', () => {
         const code = compressConfig({ dioramaTuning: sampleConfig.dioramaTuning });
         const decoded = decompressConfig(code);

@@ -45,13 +45,15 @@ export default defineVisualizerBackground({
     song: ({ config, coverUrl }) => [
         resolveNomandSourceUrl(fullCover(coverUrl), config?.customImage, { ...DEFAULT_NOMAND_BACKGROUND_TUNING, ...config?.nomand?.tuning }) ?? null,
     ],
-    render: ({ config, coverUrl, theme, isDaylight }) => (
+    render: ({ config, coverUrl, theme, isDaylight, paused, staticMode }) => (
         <NomandBackgroundLayer
             coverUrl={fullCover(coverUrl)}
             monetBackgroundImage={config?.customImage}
             tuning={config?.nomand?.tuning}
             theme={theme}
             isDaylight={isDaylight}
+            paused={paused}
+            staticMode={staticMode}
         />
     ),
     renderSettingsPanel: ({ config, actions, ...props }) => (

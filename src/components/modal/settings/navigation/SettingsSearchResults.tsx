@@ -15,7 +15,7 @@ export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({ hi
     hits.length === 0 ? null : (
         <div className={`st-page-in ${GROUP_SPACING_CLASS} ${GROUP_CARD_CLASS}`}>
             {hits.map(hit => (
-                <Row key={`${hit.sectionId}/${hit.targetId ?? ''}`} label={hit.label} onClick={() => onSelect(hit)}>
+                <Row key={`${hit.sectionId}/${hit.targetId ?? ''}/${hit.workWindowSection ?? ''}/${hit.workWindowSection ? hit.path + hit.label : ''}`} label={hit.label} onClick={() => onSelect(hit)}>
                     {hit.path && <Value>{hit.path}</Value>}
                 </Row>
             ))}

@@ -36,6 +36,7 @@ const resolveNomandBackgroundEffect = (value: unknown): NomandBackgroundEffect =
         || value === 'halftone-dots'
         || value === 'lens-distortion'
         || value === 'dithering'
+        || value === 'ascii'
         ? value
         : DEFAULT_NOMAND_BACKGROUND_TUNING.effect
 );
@@ -115,6 +116,24 @@ export const resolveStoredNomandBackgroundTuning = (
         parsed.lensDistortionDispersion,
         DEFAULT_NOMAND_BACKGROUND_TUNING.lensDistortionDispersion,
     ),
+    asciiScale: Math.round(2 * clampNomandEffectValue(
+        parsed.asciiScale,
+        DEFAULT_NOMAND_BACKGROUND_TUNING.asciiScale,
+        1,
+        4,
+    )) / 2,
+    asciiMotion: clampNomandEffectValue(
+        parsed.asciiMotion,
+        DEFAULT_NOMAND_BACKGROUND_TUNING.asciiMotion,
+        0,
+        1.5,
+    ),
+    asciiOriginalColors: typeof parsed.asciiOriginalColors === 'boolean'
+        ? parsed.asciiOriginalColors
+        : DEFAULT_NOMAND_BACKGROUND_TUNING.asciiOriginalColors,
+    asciiInverted: typeof parsed.asciiInverted === 'boolean'
+        ? parsed.asciiInverted
+        : DEFAULT_NOMAND_BACKGROUND_TUNING.asciiInverted,
     overlayEnabled: typeof parsed.overlayEnabled === 'boolean'
         ? parsed.overlayEnabled
         : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayEnabled,
