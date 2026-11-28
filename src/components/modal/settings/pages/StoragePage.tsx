@@ -8,18 +8,20 @@ import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore'
 import { closeSettings } from '../../../../stores/useSettingsModalStore';
 import { Button, CopyValue, FoldedGroup, Group, Row, Select, Toggle, Value, useSettingsKitTheme, type SettingsOptionDef } from '../kit';
 import { useSettingsPage } from './settingsPageContext';
+import AllSettingsTransferRows from './storage/AllSettingsTransferRows';
 import ConfigTransferRows from './storage/ConfigTransferRows';
 import FolderWatchGroup from './storage/FolderWatchGroup';
 import SongNotesTransferRows from './storage/SongNotesTransferRows';
-import { BACKUP, CACHE_ROWS, CACHES, MEDIA, O } from './storage/options';
+import { ALL_SETTINGS, BACKUP, CACHE_ROWS, CACHES, MEDIA, O } from './storage/options';
 
 // src/components/modal/settings/pages/StoragePage.tsx
 // The 存储与备份 page: what Folia keeps on disk and how to carry its look to another Folia. The
 // song cache first (on or off, and in the desktop app where it is and how large it may grow), then
-// what each kind of cache takes with a button to clear it, the watch on imported folders, and a
-// folded group for copying and pasting the visual settings as a config code, and for exporting and
-// importing the scratchpad's moments (song comments and tags). The cache sizes and
-// the cache folder are the settings dialog's own state.
+// what each kind of cache takes with a button to clear it, the watch on imported folders, and two
+// folded groups: one for copying and pasting the visual settings as a config code and for exporting
+// and importing the scratchpad's moments (song comments and tags), and one for every portable
+// setting as a single JSON file. The cache sizes and the cache folder are the settings dialog's own
+// state.
 
 export const OPTIONS: SettingsOptionDef[] = [...Object.values(O), ...CACHE_ROWS.map(row => row.option)];
 
@@ -115,6 +117,10 @@ const StoragePage: React.FC = () => {
             <FoldedGroup def={BACKUP}>
                 <ConfigTransferRows />
                 <SongNotesTransferRows />
+            </FoldedGroup>
+
+            <FoldedGroup def={ALL_SETTINGS}>
+                <AllSettingsTransferRows />
             </FoldedGroup>
 
             <ConfirmDialog

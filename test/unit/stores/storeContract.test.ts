@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { libraryLayerOf } from '../../../dev/mcp/ts-code-map/libraryLayers.mjs';
 import { getStoredVisualizerTunings } from '../../../src/components/visualizer/tuningRegistry';
+import { storedKeysOf } from './storedKeys';
 
 // test/unit/stores/storeContract.test.ts
 // Guards the invariants the settings-store split can silently break.
@@ -53,7 +54,14 @@ const VISUALIZER_DIR = path.resolve(__dirname, '../../../src/components/visualiz
 const tuningFiles = readdirSync(VISUALIZER_DIR, { recursive: true, encoding: 'utf8' })
     .filter(name => /(^|[\\/])(tuning|settings)\.ts$/.test(name))
     .map(name => path.join(VISUALIZER_DIR, name));
-const STORAGE_CALL = /localStorage\.(?:get|set|remove)Item\(\s*'([^']+)'/g;
+// The keys come from the shared scan (storedKeys.ts), which settingsCatalogCoverage.test.ts reads
+// with too. Reading both from one place is the point: when the scan went blind to a key, the key was
+// in neither the snapshot nor the catalog and nothing was red. storedKeys.test.ts now asks the scan
+// directly. Every store file and every tuning file is scanned; the visualizer tunings add their own
+// keys below, from the registry rather than from the source text.
+const SHARED_DIR = path.resolve(__dirname, '../../../src/utils');
+const storeAndTuningKeys = () => storedKeysOf([...storeFiles, ...tuningFiles]
+    .map(file => ({ file: path.resolve(REPO_ROOT, storeDirOf.get(file) ?? '', file), sharedDir: SHARED_DIR })));
 
 /**
  * The stores the settings store reaches through the styles' and the backgrounds' folders. It
@@ -85,23 +93,7 @@ const SETTINGS_STORE = 'useVisualizerSettingsStore';
 
 describe('store contract', () => {
     it('keeps every localStorage key the stores read or write', () => {
-        const keys = new Set<string>();
-        for (const name of storeFiles) {
-            const source = readStore(name);
-            for (const match of source.matchAll(STORAGE_CALL)) {
-                keys.add(match[1]);
-            }
-            // Keys held in a constant, which is how most of them are written.
-            for (const match of source.matchAll(/^(?:export )?const \w*(?:KEY|Key) = '([^']+)';$/gm)) {
-                keys.add(match[1]);
-            }
-        }
-        for (const file of tuningFiles) {
-            const source = readFileSync(file, 'utf8');
-            for (const match of source.matchAll(STORAGE_CALL)) {
-                keys.add(match[1]);
-            }
-        }
+        const keys = storeAndTuningKeys();
         for (const { storage } of getStoredVisualizerTunings()) {
             keys.add(storage.key);
             storage.olderKeys?.forEach(key => keys.add(key));

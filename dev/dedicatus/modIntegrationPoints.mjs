@@ -39,4 +39,5 @@ export const MOD_INTEGRATION_POINTS = [
     'src/hooks/useRemoteControlActions.ts', // README 没写（待补）
     'src/services/onlineMusic/web/foliumWebSource.ts',
     'src/services/remoteControlActions.ts',
+    'src/services/settingsTransfer/settingsBundle.ts',
 ];

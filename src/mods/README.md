@@ -113,7 +113,7 @@ Folium 模组系统在窗口里的一半。主进程那一半在 `electron/modSy
 
 ### 内置功能用到的地方
 
-这七处是应用自己的功能要读模组登记或留下的东西，不是给模组留的位置。
+这八处是应用自己的功能要读模组登记或留下的东西，不是给模组留的位置。
 
 | 在哪 | 用的是什么 | 为什么 |
 | --- | --- | --- |
@@ -124,3 +124,4 @@ Folium 模组系统在窗口里的一半。主进程那一半在 `electron/modSy
 | `src/components/modal/settings/pages/storage/visualConfigTransfer.ts` | `snapshotFoliumParams`、`importFoliumParams`（`params/paramStore.ts`） | 视觉配置的导入导出带上模组设置的值 |
 | `src/components/scenes/settings/SceneRow.tsx`、`SceneSettingsPanel.tsx`、`SceneWindow.tsx` | `FoliumParamFields`（`params/FoliumParamFields.tsx`）、`resolveFoliumLabel`、`mergeFoliumParamValues`（`params/params.ts`） | 场景清单的 `settings` 用 Folium 的设置表格式，场景设置借模组设置的表单来画、读值和取多语言名字。去掉模组系统时这三处要换成自己的表单 |
 | `src/stores/useAudioSettingsStore.ts` 的 `audioEqualizerModCurve`、`audioEqualizerModCurveSuspended`、`audioEqualizerChangeOrigin` 与相关动作，面板的 `src/components/panelTab/equalizer/ModCurveNotice.tsx`，命令 `playback-sound-mod-curve-release` | 都不引用 `src/mods`，只读 store | 只给 `folium.equalizer`（Folium 1.7）用：模组施加的均衡器曲线是用户音效之上独立的一层，面板写明来源并能换回或存进自定义栏位。去掉模组系统时曲线永远是 null，提示与命令永远不出现，可以留着，也可以连同这三个字段和 `handleApplyAudioSoundPreset` 的 `keepEnabled` 一起删掉 |
+| `src/services/settingsTransfer/settingsBundle.ts` | `listMods`、`isModsBridgeAvailable`（`ipc.ts`） | 整份设置的导出把已装的模组列进文件，只是清单：对方看到这份配置原本装了哪些模组，装不装由他自己决定；Web 版没有模组系统，这一段不写 |
