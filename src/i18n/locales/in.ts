@@ -757,7 +757,8 @@ export default {
     "backgroundThrottlingOff": "Pembatasan latar belakang nonaktif",
     "uiZoomChanged": "Zoom antarmuka: {{percent}}%",
     "uiZoomOff": "Zoom antarmuka nonaktif (100%)",
-    "visualizerSwitched": "Beralih ke visualizer {{mode}}",
+    "visualizerSwitchedTitle": "Lirik",
+    "visualizerSwitched": "Beralih ke {{mode}}",
     "classicReset": "Pengaturan Luminous direset",
     "cadenzaReset": "Pengaturan Mindscape direset",
     "partitaReset": "Pengaturan Partita direset",
@@ -822,6 +823,7 @@ export default {
     "cardStyleCard": "Gaya kartu diganti ke kartu Polaroid",
     "selectImageFile": "Pilih file gambar",
     "unsupportedImageFormat": "Hanya mendukung format gambar png, jpg, jpeg, gif, webp, svg",
+    "themeTitle": "Tema",
     "appliedDefaultTheme": "Tema bawaan diterapkan: {{themeName}}",
     "savedCustomTheme": "Tema kustom disimpan dan diterapkan: {{themeName}}",
     "appliedCustomTheme": "Tema kustom diterapkan: {{themeName}}",
@@ -863,6 +865,7 @@ export default {
     "dataSynced": "Data berhasil disinkronkan",
     "syncFailed": "Sinkronisasi gagal",
     "loginExpired": "Login kedaluwarsa. Silakan login lagi",
+    "accountLimited": "Akun dibatasi",
     "songPreviewOnly": "Akun ini hanya dapat memutar pratinjau",
     "songSubscriptionRequired": "Perlu akun {{provider}} berbayar",
     "songRegionRestricted": "Hanya dapat diputar dari jaringan Tiongkok daratan",
@@ -2723,10 +2726,11 @@ export default {
     "verdictSummaryAbsorbed": "{{lines}} baris kredit + {{absorbed}} baris terserap, intro {{window}} dtk, butuh {{required}} dtk untuk menampilkan semuanya"
   },
   "replayGain": {
-    "off": "ReplayGain Mati",
-    "track": "ReplayGain: Mode Trek",
-    "album": "ReplayGain: Mode Album",
-    "auto": "ReplayGain: Penyeimbang Pintar"
+    "off": "Mati",
+    "track": "Mode Trek",
+    "album": "Mode Album",
+    "auto": "Penyeimbang Pintar",
+    "subtitle": "ReplayGain",
   },
   "settings": {
     "lyricMatchPriority": "Prioritas pencocokan lirik",

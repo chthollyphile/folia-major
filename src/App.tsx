@@ -160,7 +160,7 @@ import { applyLocalLibraryEntityDisplay } from './services/playbackAdapters';
 import { transitionCapabilities } from './services/automix/stems';
 import { buildLocalLibraryIndex } from './utils/localLibraryIndex';
 import type { PlayerChromeVisibilityMode } from './types/remoteControl';
-import { setStatusMessage as setStatusMsg, useStatusMessage } from './stores/useStatusMessageStore';
+import { setStatusMessage as setStatusMsg } from './stores/useStatusMessageStore';
 import { selectVisualizerSettingsSnapshot, useVisualizerSettingsStore } from './stores/useVisualizerSettingsStore';
 import { selectLyricSettingsSnapshot, useLyricSettingsStore } from './stores/useLyricSettingsStore';
 import { selectTypographySettingsSnapshot, useTypographySettingsStore } from './stores/useTypographySettingsStore';
@@ -288,7 +288,6 @@ export default function App() {
     // Queue
 
     // UI State
-    const statusMsg = useStatusMessage();
     useProviderNotices(t);
     // Watches the imported local folders and rescans them when their contents change.
     useLocalLibraryAutoScan();
@@ -1092,7 +1091,6 @@ export default function App() {
     }, [navigateToCollection]);
 
     usePlaybackUiEffects({
-        statusMsg,
         loadLocalSongs,
         loadFoliaPlaylists,
         localMusicUpdatedEvent: LOCAL_MUSIC_UPDATED_EVENT,

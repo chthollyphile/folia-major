@@ -15,9 +15,13 @@ export const onlineFailureToast = (
     t: (key: string, values?: Record<string, string | number>) => string,
 ): StatusMessage => {
     const { title, note, quote } = onlineFailureMessage(shown, t);
+    // A preview-only refusal says what happened in the subtitle, with a short title in front of it.
+    // The message itself is left alone: the collection empty page uses the same title.
+    const previewOnly = shown.case === 'preview-only';
     return {
         type: 'error',
-        text: title,
+        text: previewOnly ? t('status.accountLimited') : title,
+        ...(previewOnly ? { subtitle: title } : {}),
         ...(note ? { note } : {}),
         ...(quote ? { quote } : {}),
         ...(shown.providerId ? { providerId: shown.providerId } : {}),

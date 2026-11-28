@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStatusMessage } from '../../../stores/useStatusMessageStore';
+import { useStatusToasts } from '../../../stores/useStatusMessageStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { useDesktopSettingsStore } from '../../../stores/useDesktopSettingsStore';
@@ -11,25 +11,25 @@ import { buildAppDialogsModel, type AppDialogsDeps } from './buildAppDialogsMode
 /**
  * The dialog model with the three ambient values already filled in.
  *
- * `statusMsg`, `isDaylight` and `currentSong` all live in stores; App.tsx used to read them only so
- * it could hand them straight back here.
+ * `statusToasts`, `isDaylight` and `currentSong` all live in stores; App.tsx used to read them only
+ * so it could hand them straight back here.
  */
 export const useAppDialogsModel = (deps: AppDialogsDeps) => {
-    const statusMsg = useStatusMessage();
+    const statusToasts = useStatusToasts();
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
     const currentSong = usePlaybackStore(state => state.currentSong);
     const wallpaperEntryConfirmDialog = useWallpaperEntryConfirmDialog(isDaylight);
 
     return useMemo(() => buildAppDialogsModel({
         ...deps,
-        statusMsg,
+        statusToasts,
         isDaylight,
         currentSong,
         wallpaperEntryConfirmDialog,
         // Spread rather than `deps`: the caller passes an object literal, so depending on the object
         // would rebuild this every render. The key set is fixed by the call site.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [...Object.values(deps), statusMsg, isDaylight, currentSong, wallpaperEntryConfirmDialog]);
+    }), [...Object.values(deps), statusToasts, isDaylight, currentSong, wallpaperEntryConfirmDialog]);
 };
 
 /**

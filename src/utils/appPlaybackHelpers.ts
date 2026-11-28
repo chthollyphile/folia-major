@@ -39,6 +39,7 @@ export const formatTime = (time: number) => {
 };
 
 export const getReplayGainModeLabel = (mode: ReplayGainMode): string => i18n.t(`replayGain.${mode}`);
+export const getReplayGainModeSubtitle = (): string => i18n.t('replayGain.subtitle');
 
 export const getAudioSrcKind = (audioSrc: string | null): 'empty' | 'blob' | 'http' | 'other' => {
     if (!audioSrc) {

@@ -5,7 +5,7 @@ import { omni } from '../../../../services/onlineMusic/omni';
 import { playbackFade } from '../../../../services/playbackFade';
 import { PlayerState } from '../../../../types';
 import type { ReplayGainMode, SongResult, StageLoopMode, StatusMessage } from '../../../../types';
-import { getReplayGainModeLabel } from '../../../../utils/appPlaybackHelpers';
+import { getReplayGainModeLabel, getReplayGainModeSubtitle } from '../../../../utils/appPlaybackHelpers';
 import { isMacPlatform as isMac } from '../../../../utils/platform';
 import { effectiveKeyCode, hasBlockingWindow, hasOpenSheet, isSliderKey, isTextEntryTarget } from '../../../../utils/keyboardTargets';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
@@ -203,7 +203,7 @@ export function usePlaybackInteractionBridge({
 
     const handleChangeReplayGainMode = useCallback((mode: ReplayGainMode) => {
         setReplayGainMode(mode);
-        setStatusMsg({ type: 'info', text: getReplayGainModeLabel(mode) });
+        setStatusMsg({ type: 'info', text: getReplayGainModeLabel(mode), subtitle: getReplayGainModeSubtitle() });
     }, [setReplayGainMode, setStatusMsg]);
 
     const handleContainerClick = useCallback(() => {

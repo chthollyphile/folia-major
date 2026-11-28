@@ -50,7 +50,8 @@ export const notePreviewPlaying = (src: string, t: (key: string) => string): voi
     const providerId = getOnlineProviderIdForSong(currentSong);
     setStatusMessage({
         type: 'info',
-        text: t(providerId ? omni.previewNoticeKey(providerId) : 'status.songPreviewOnly'),
+        text: t('status.accountLimited'),
+        subtitle: t(providerId ? omni.previewNoticeKey(providerId) : 'status.songPreviewOnly'),
         ...(providerId ? { providerId } : {}),
     });
 };
