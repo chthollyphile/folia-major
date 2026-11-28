@@ -2645,6 +2645,7 @@ export default {
     "shapeWhole": "Đúng bằng",
     "shapeEnds": "Kết thúc bằng",
     "colonChip": "Theo sau là dấu hai chấm",
+    "ignoreCaseChip": "Không phân biệt hoa thường",
     "wordsPlaceholder": "Từ cần tìm",
     "wordsAddPlaceholder": "Thêm từ khác, nhấn Enter",
     "wordsJoin": "” hoặc “",

@@ -2645,6 +2645,7 @@ export default {
     "shapeWhole": "Is exactly",
     "shapeEnds": "Ends with",
     "colonChip": "Followed by a colon",
+    "ignoreCaseChip": "Ignore case",
     "wordsPlaceholder": "Words to find",
     "wordsAddPlaceholder": "Add another, press Enter",
     "wordsJoin": "” or “",

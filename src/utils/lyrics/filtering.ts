@@ -26,14 +26,19 @@ export const getLyricFilterError = (pattern?: string | null): string | null => {
 
 export const hasLyricFilterPattern = (pattern?: string | null): boolean => normalizeFilterPattern(pattern).length > 0;
 
-export const compileLyricFilterPattern = (pattern?: string | null): RegExp | null => {
+/**
+ * The expression as a RegExp, or null when it is empty or does not compile. `ignoreCase` matches the
+ * way the other rule shapes always have; the old single expression and the preview leave it off, so
+ * their behaviour does not change.
+ */
+export const compileLyricFilterPattern = (pattern?: string | null, ignoreCase = false): RegExp | null => {
     const normalized = normalizeFilterPattern(pattern);
     if (!normalized) {
         return null;
     }
 
     try {
-        return new RegExp(normalized);
+        return new RegExp(normalized, ignoreCase ? 'i' : '');
     } catch {
         return null;
     }
